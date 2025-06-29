@@ -11,7 +11,8 @@
     <h2>MixerBee Playlist Builder</h2>
 
     <div id="global-controls">
-        <label class="control-item" for="user-select">
+        <!-- The user selection dropdown is now hidden -->
+        <label class="control-item" for="user-select" style="display: none;">
             <span>User</span>
             <select id="user-select"></select>
         </label>
@@ -40,8 +41,8 @@
                     </select>
                 </label>
                 <div class="preset-buttons button-group">
-                    <button id="tv-save-preset-btn" type="button" class="secondary">Save</button>
-                    <button id="tv-delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="tv-save-preset-btn" type="button" class="secondary">Save as Preset</button>
+                    <button id="tv-delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                     <button id="tv-import-preset-btn" type="button" class="secondary">Import</button>
                     <button id="tv-export-preset-btn" type="button" class="secondary" disabled>Export</button>
                 </div>
@@ -77,8 +78,8 @@
                     </select>
                 </label>
                 <div class="preset-buttons button-group">
-                    <button id="movie-save-preset-btn" type="button" class="secondary">Save</button>
-                    <button id="movie-delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="movie-save-preset-btn" type="button" class="secondary">Save as Preset</button>
+                    <button id="movie-delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                     <button id="movie-import-preset-btn" type="button" class="secondary">Import</button>
                     <button id="movie-export-preset-btn" type="button" class="secondary" disabled>Export</button>
                 </div>
@@ -145,8 +146,8 @@
                     </select>
                 </label>
                 <div class="preset-buttons button-group">
-                    <button id="save-preset-btn" type="button" class="secondary">Save</button>
-                    <button id="delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="save-preset-btn" type="button" class="secondary">Save as Preset</button>
+                    <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                     <button id="import-preset-btn" type="button" class="secondary">Import</button>
                     <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
                 </div>
