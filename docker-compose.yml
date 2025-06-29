@@ -1,0 +1,12 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  mixerbee:
+    build: .
+    container_name: mixerbee
+    ports:
+      - "9000:9000"
+    env_file:
+      - .mixerbee.env
+    restart: unless-stopped

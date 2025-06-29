@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>MixerBee</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+    <h2>MixerBee Playlist Builder</h2>
+
+    <div id="global-controls">
+        <label class="control-item" for="user-select">
+            <span>User</span>
+            <select id="user-select"></select>
+        </label>
+        <label class="control-item" for="global-playlist-name">
+            <span>Playlist Name</span>
+            <input id="global-playlist-name" type="text" value="MixerBee Playlist">
+        </label>
+        <button id="manage-playlists-btn" type="button" class="secondary control-item">Manage Playlists</button>
+        <button id="theme-toggle-btn" type="button" class="secondary control-item" title="Toggle Theme">Light Mode</button>
+    </div>
+
+    <div class="tab-switcher">
+        <button id="mixed-tab-btn" class="tab-btn active">Mixed Playlist</button>
+        <button id="tv-tab-btn" class="tab-btn">TV Shows</button>
+        <button id="movies-tab-btn" class="tab-btn">Movies</button>
+        <button id="scheduler-tab-btn" class="tab-btn">Scheduler</button>
+    </div>
+
+    <div id="tv-pane" class="tab-pane" style="display: none;">
+        <div class="container">
+            <div class="preset-controls">
+                <label class="control-item" for="tv-load-preset-select">
+                    <span>Load Preset</span>
+                    <select id="tv-load-preset-select">
+                        <option value="">-- Select a preset --</option>
+                    </select>
+                </label>
+                <div class="preset-buttons button-group">
+                    <button id="tv-save-preset-btn" type="button" class="secondary">Save</button>
+                    <button id="tv-delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="tv-import-preset-btn" type="button" class="secondary">Import</button>
+                    <button id="tv-export-preset-btn" type="button" class="secondary" disabled>Export</button>
+                </div>
+            </div>
+            <div class="show-list-wrapper">
+                <div class="show-header">
+                    <div class="header-label">Show</div>
+                    <div class="header-label">S</div>
+                    <div class="header-label">E</div>
+                    <div class="header-label" style="text-align: right;">Actions</div>
+                </div>
+                <div id="show-box"></div>
+            </div>
+            <div class="button-group">
+                <button type="button" class="secondary" id="pilot-sampler-btn" title="Creates a Random Playlist of Pilot Episodes">🎲 Pilot Sampler</button>
+                <button type="button" class="secondary" id="continue-watching-btn" title="Creates a playlist from your most recent in-progress shows">▶️ Continue Watching</button>
+                <button type="button" class="secondary" id="add-btn">➕ Add Show</button>
+                <button type="button" class="secondary" id="clear-btn">❌ Clear Rows</button>
+            </div>
+            <label for="count">Number of Episodes
+                <input id="count" type="number" min="1" value="5">
+            </label>
+        </div>
+    </div>
+
+    <div id="movies-pane" class="tab-pane" style="display: none;">
+        <div class="container">
+            <div class="preset-controls">
+                <label class="control-item" for="movie-load-preset-select">
+                    <span>Load Preset</span>
+                    <select id="movie-load-preset-select">
+                        <option value="">-- Select a preset --</option>
+                    </select>
+                </label>
+                <div class="preset-buttons button-group">
+                    <button id="movie-save-preset-btn" type="button" class="secondary">Save</button>
+                    <button id="movie-delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="movie-import-preset-btn" type="button" class="secondary">Import</button>
+                    <button id="movie-export-preset-btn" type="button" class="secondary" disabled>Export</button>
+                </div>
+            </div>
+            <fieldset class="filter-group">
+                <legend>Filter by Genre</legend>
+                <details>
+                    <summary>Expand/Collapse Genre List</summary>
+                    <div id="movie-genre-list" class="checkbox-grid"></div>
+                    <div class="genre-match-toggle">
+                        <label><input type="radio" name="genre-match" value="any" checked> Match Any (OR)</label>
+                        <label><input type="radio" name="genre-match" value="all"> Match All (AND)</label>
+                    </div>
+                </details>
+            </fieldset>
+            <fieldset class="filter-group">
+                <legend>Other Filters</legend>
+                <div class="filter-grid">
+                    <label for="movie-watched-status">Watched Status <select id="movie-watched-status"><option value="all">All Movies</option><option value="unplayed">Unwatched Only</option><option value="played">Watched Only</option></select></label>
+                    <label for="movie-year-from">Released From <input id="movie-year-from" type="number" placeholder="e.g., 1980"></label>
+                    <label for="movie-year-to">Released To <input id="movie-year-to" type="number" placeholder="e.g., 1989"></label>
+                </div>
+            </fieldset>
+            <fieldset class="filter-group">
+                <legend>Playlist Options</legend>
+                <div class="filter-grid">
+                    <label for="movie-duration-target">Target Duration
+                        <select id="movie-duration-target">
+                            <option value="90">~1.5 Hours</option>
+                            <option value="120">~2 Hours</option>
+                            <option value="180">~3 Hours</option>
+                            <option value="240">~4 Hours</option>
+                            <option value="360" selected>~6 Hours</option>
+                            <option value="">All Matching Movies</option>
+                        </select>
+                    </label>
+                    <label for="movie-sort-by">Sort By <select id="movie-sort-by"><option value="Random">Random</option><option value="PremiereDate">Release Date (Newest First)</option><option value="DateCreated">Date Added (Newest First)</option><option value="SortName">Name (A-Z)</option></select></label>
+                </div>
+            </fieldset>
+            <div class="button-group" style="justify-content: flex-end; align-items: center;">
+                <span id="movie-preview-count" class="preview-count-text"></span>
+                <button id="forgotten-favorites-btn" type="button" class="secondary" title="Creates a playlist of favorited movies you haven't watched in a while">❤️ Forgotten Favorites</button>
+                <button id="reset-movie-filters-btn" type="button" class="secondary">Reset Filters</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="mixed-pane" class="tab-pane active" style="display: block;">
+        <div class="container">
+             <fieldset id="ai-generator-container" class="filter-group" style="display: none;">
+                <legend style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span>AI Block Builder</span>
+                </legend>
+                <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem;"></textarea>
+                <div class="button-group" style="justify-content: flex-end;">
+                    <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
+                </div>
+            </fieldset>
+            <div class="preset-controls">
+                <label class="control-item" for="load-preset-select">
+                    <span>Load Preset</span>
+                    <select id="load-preset-select">
+                        <option value="">-- Select a preset --</option>
+                    </select>
+                </label>
+                <div class="preset-buttons button-group">
+                    <button id="save-preset-btn" type="button" class="secondary">Save</button>
+                    <button id="delete-preset-btn" type="button" class="secondary">Delete</button>
+                    <button id="import-preset-btn" type="button" class="secondary">Import</button>
+                    <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
+                </div>
+            </div>
+            <div id="mixed-playlist-blocks">
+                <p class="placeholder-text">Click below to add your first block...</p>
+            </div>
+            <div id="add-block-controls" class="button-group">
+                <button id="add-tv-block-btn" class="secondary">➕ Add TV Block</button>
+                <button id="add-movie-block-btn" class="secondary">➕ Add Movie Block</button>
+                <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="scheduler-pane" class="tab-pane" style="display: none;">
+        <div class="container">
+            <h3>Create a New Schedule</h3>
+            <p style="font-size: 0.9em; color: var(--text-subtle); margin-top: -1rem; margin-bottom: 1.5rem;">
+                Schedules will automatically rebuild a playlist from one of your saved presets.
+            </p>
+            <fieldset class="filter-group">
+                <legend>Schedule your playlist</legend>
+                <div class="filter-grid" style="grid-template-columns: 2fr 1fr 1fr; gap: 1rem;">
+                    <label>Preset to Schedule
+                        <select id="schedule-preset-select">
+                            <option value="">-- Select a saved preset --</option>
+                        </select>
+                    </label>
+                    <label>Frequency
+                        <select id="schedule-frequency">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                        </select>
+                    </label>
+                    <label>Run At
+                        <select id="schedule-time-select">
+                            <optgroup label="Morning">
+                                <option value="05:00">5:00 AM</option>
+                                <option value="05:30">5:30 AM</option>
+                                <option value="06:00">6:00 AM</option>
+                                <option value="06:30">6:30 AM</option>
+                                <option value="07:00">7:00 AM</option>
+                                <option value="07:30">7:30 AM</option>
+                                <option value="08:00">8:00 AM</option>
+                                <option value="08:30">8:30 AM</option>
+                                <option value="09:00">9:00 AM</option>
+                                <option value="09:30">9:30 AM</option>
+                                <option value="10:00">10:00 AM</option>
+                                <option value="10:30">10:30 AM</option>
+                                <option value="11:00">11:00 AM</option>
+                                <option value="11:30">11:30 AM</option>
+                            </optgroup>
+                            <optgroup label="Afternoon">
+                                <option value="12:00">12:00 PM</option>
+                                <option value="12:30">12:30 PM</option>
+                                <option value="13:00">1:00 PM</option>
+                                <option value="13:30">1:30 PM</option>
+                                <option value="14:00">2:00 PM</option>
+                                <option value="14:30">2:30 PM</option>
+                                <option value="15:00">3:00 PM</option>
+                                <option value="15:30">3:30 PM</option>
+                                <option value="16:00">4:00 PM</option>
+                                <option value="16:30">4:30 PM</option>
+                            </optgroup>
+                            <optgroup label="Evening">
+                                <option value="17:00">5:00 PM</option>
+                                <option value="17:30">5:30 PM</option>
+                                <option value="18:00">6:00 PM</option>
+                                <option value="18:30">6:30 PM</option>
+                                <option value="19:00" selected>7:00 PM</option>
+                                <option value="19:30">7:30 PM</option>
+                                <option value="20:00">8:00 PM</option>
+                                <option value="20:30">8:30 PM</option>
+                                <option value="21:00">9:00 PM</option>
+                                <option value="21:30">9:30 PM</option>
+                                <option value="22:00">10:00 PM</option>
+                                <option value="22:30">10:30 PM</option>
+                                <option value="23:00">11:00 PM</option>
+                            </optgroup>
+                             <optgroup label="Late Night">
+                                <option value="23:30">11:30 PM</option>
+                                <option value="00:00">12:00 AM (Midnight)</option>
+                                <option value="00:30">12:30 AM</option>
+                                <option value="01:00">1:00 AM</option>
+                                <option value="01:30">1:30 AM</option>
+                                <option value="02:00">2:00 AM</option>
+                            </optgroup>
+                        </select>
+                    </label>
+                </div>
+            </fieldset>
+
+            <fieldset id="schedule-days-container" class="filter-group" style="display: none;">
+                <legend>Days of the Week</legend>
+                <div id="schedule-days-checkboxes" class="checkbox-grid">
+                    <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
+                    <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
+                    <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
+                    <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
+                    <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
+                    <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
+                    <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
+                </div>
+            </fieldset>
+            
+            <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
+                <button id="create-schedule-btn">Create Schedule</button>
+            </div>
+
+            <ul id="schedules-list">
+            </ul>
+        </div>
+    </div>
+
+
+    <div id="action-bar">
+        <button id="create-tv-mix-btn" class="hidden">Build Playlist</button>
+        <button id="create-movie-playlist-btn" class="hidden">Build Playlist</button>
+        <button id="generate-mixed-playlist-btn">Build Playlist</button>
+    </div>
+
+    <div id="playlist-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Manage Playlists</h2>
+                <button id="modal-close-btn" class="icon-btn" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <ul id="modal-playlist-list"></ul>
+            </div>
+        </div>
+    </div>
+    
+    <div id="save-preset-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Save Preset</h2>
+                <button id="save-preset-close-btn" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="preset-name-input" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Preset Name</label>
+                <input type="text" id="preset-name-input" placeholder="e.g., Sci-Fi Favorites" style="width: 100%; box-sizing: border-box;">
+                <div id="preset-overwrite-warning" style="color: var(--danger); font-size: 0.9em; margin-top: 0.5rem; display: none;">
+                    Warning: A preset with this name already exists. Saving will overwrite it.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="save-preset-cancel-btn" type="button" class="secondary">Cancel</button>
+                <button id="save-preset-confirm-btn" type="button">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="smart-playlist-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2 id="smart-playlist-title">Create Playlist</h2>
+                <button id="smart-playlist-close-btn" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="smart-playlist-description"></p>
+                <div class="modal-form-layout">
+                    <label class="control-item">
+                        <span>Playlist Name</span>
+                        <input type="text" id="smart-playlist-name-input">
+                    </label>
+                    <label class="control-item">
+                        <span id="smart-playlist-count-label">Number of Items</span>
+                        <input type="number" id="smart-playlist-count-input" min="1" value="10">
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="smart-playlist-cancel-btn" type="button" class="secondary">Cancel</button>
+                <button id="smart-playlist-confirm-btn" type="button">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="import-preset-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Import Preset</h2>
+                <button id="import-preset-close-btn" class="icon-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                 <div class="modal-form-layout">
+                    <label class="control-item">
+                        <span>Share Code</span>
+                        <textarea id="import-code-input" rows="4" placeholder="Paste share code here..."></textarea>
+                    </label>
+                    <label class="control-item">
+                        <span>New Preset Name</span>
+                        <input type="text" id="import-name-input" placeholder="e.g., Friend's Movie Mix">
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="import-preset-cancel-btn" type="button" class="secondary">Cancel</button>
+                <button id="import-preset-confirm-btn" type="button">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <script src="/static/vendor/Sortable.min.js"></script>
+    <script src="/static/app.js" type="module" defer></script>
+</body>
+</html>
+

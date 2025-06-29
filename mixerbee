@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# mixerbee – thin wrapper that always runs mixerbee.py with the venv-local Python
+# Drop this file in the same directory as mixerbee.py and make it executable:
+#   chmod +x mixerbee
+
+set -euo pipefail
+
+# absolute path to the directory this wrapper lives in
+DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Point to the newly named Python script
+PY_SCRIPT="$DIR/mixerbee.py"
+VENV_PY="$DIR/venv/bin/python"
+
+if [[ -x "$VENV_PY" ]]; then
+    # hand off to the script, pass all args
+    exec "$VENV_PY" "$PY_SCRIPT" "$@"
+else
+    echo "❌  $VENV_PY not found or not executable." >&2
+    echo "   Create the venv with:" >&2
+    echo "       python3 -m venv \"$DIR/venv\" &&" >&2
+    echo "       \"$DIR/venv/bin/pip\" install -r \"$DIR/requirements.txt\"" >&2
+    exit 1
+fi
+

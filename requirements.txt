@@ -1,0 +1,9 @@
+# core
+python-dotenv
+requests>=2.32,<3
+
+# web service (FastAPI + ASGI)
+fastapi>=0.111,<1
+uvicorn[standard]>=0.29,<1
+
+google-generativeai
