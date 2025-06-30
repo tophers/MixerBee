@@ -16,8 +16,12 @@ logging.getLogger('apscheduler').setLevel(logging.INFO)
 
 SCHEDULES_FILE = Path(__file__).parent / "schedules.json"
 
-def run_playlist_job(user_id: str, playlist_name: str, blocks: List[Dict]):
+def run_playlist_job(**schedule_data):
     """The function that is called by the scheduler to build a playlist."""
+    user_id = schedule_data.get("user_id")
+    playlist_name = schedule_data.get("playlist_name")
+    blocks = schedule_data.get("blocks")
+    
     print(f"SCHEDULER: Running job for playlist '{playlist_name}' for user {user_id}")
     result = {}
     try:
@@ -32,12 +36,12 @@ def run_playlist_job(user_id: str, playlist_name: str, blocks: List[Dict]):
             blocks=blocks,
             hdr=hdr
         )
-        
+
         if result.get("status") == "ok":
             print(f"SCHEDULER: Job for '{playlist_name}' completed with status: OK.")
         else:
             print(f"SCHEDULER: Job for '{playlist_name}' completed with status: {result.get('status', 'unknown_error')}.")
-        
+
         print("--- Job Details ---")
         for line in result.get("log", ["No log messages returned."]):
             print(f"  > {line}")
@@ -56,8 +60,13 @@ class Scheduler:
         """Loads schedule definitions from the JSON file."""
         if not SCHEDULES_FILE.exists():
             return {}
-        with open(SCHEDULES_FILE, 'r') as f:
-            return json.load(f)
+        try:
+            with open(SCHEDULES_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"SCHEDULER: Error loading schedules file: {e}. Starting fresh.")
+            return {}
+
 
     def _save_schedules(self):
         """Saves the current schedule definitions to the JSON file."""
@@ -71,9 +80,9 @@ class Scheduler:
                 self.scheduler.add_job(
                     func=run_playlist_job,
                     trigger=CronTrigger.from_crontab(schedule_data['crontab']),
-                    args=[schedule_data['user_id'], schedule_data['playlist_name'], schedule_data['blocks']],
+                    kwargs=schedule_data,
                     id=schedule_id,
-                    name=schedule_data['playlist_name'],
+                    name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
                     replace_existing=True
                 )
         self.scheduler.start()
@@ -81,13 +90,19 @@ class Scheduler:
     def add_schedule(self, schedule_data: Dict) -> str:
         """Adds a new schedule to the scheduler and saves it."""
         schedule_id = str(uuid.uuid4())
+        
+        # Ensure the data for the job is a copy, and includes its own ID
+        job_kwargs = schedule_data.copy()
+        job_kwargs['id'] = schedule_id
+        
         self.schedules[schedule_id] = schedule_data
+
         self.scheduler.add_job(
             func=run_playlist_job,
-            trigger=CronTrigger.from_crontab(schedule_data['crontab']),
-            args=[schedule_data['user_id'], schedule_data['playlist_name'], schedule_data['blocks']],
+            trigger=CronTrigger.from_crontab(job_kwargs['crontab']),
+            kwargs=job_kwargs,
             id=schedule_id,
-            name=schedule_data['playlist_name']
+            name=job_kwargs.get('playlist_name', 'Unnamed Schedule')
         )
         self._save_schedules()
         return schedule_id
@@ -100,13 +115,19 @@ class Scheduler:
             except JobLookupError:
                 print(f"SCHEDULER: Job {schedule_id} not found in running scheduler, removing from storage.")
                 pass
-            
+
             del self.schedules[schedule_id]
             self._save_schedules()
 
     def get_all_schedules(self) -> List[Dict]:
-        """Returns a list of all saved schedules with their IDs."""
-        return [{"id": sid, **sdata} for sid, sdata in self.schedules.items()]
+        """Returns a list of all saved schedules with their IDs from the running jobs."""
+        schedules_list = []
+        for job in self.scheduler.get_jobs():
+            # The full schedule data is now stored in kwargs
+            schedule_data = job.kwargs.copy()
+            schedule_data['id'] = job.id
+            schedules_list.append(schedule_data)
+        return schedules_list
 
 
 scheduler_manager = Scheduler()

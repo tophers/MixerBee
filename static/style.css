@@ -22,7 +22,6 @@
     --shadow: 0 2px 6px rgba(0,0,0,.4);
     font-family: system-ui, sans-serif;
 }
-
 body[data-theme='light'] {
     --bg: #f4f4f8;
     --panel: #ffffff;
@@ -37,7 +36,6 @@ body[data-theme='light'] {
     --divider-color: #f1f3f5;
     --shadow: 0 2px 6px rgba(0,0,0,.1);
 }
-
 html, body {
     height: 100%;
     margin: 0;
@@ -45,19 +43,17 @@ html, body {
     color: var(--text);
     transition: background-color 0.2s, color 0.2s;
 }
-
 h2 {
+    font-family: 'Poppins', sans-serif;
     font-weight: 600;
     text-align: center;
     margin: 1.3rem 0;
 }
-
 body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
-
 .container {
     max-width: 680px;
     margin: auto;
@@ -66,7 +62,6 @@ body {
     flex-direction: column;
     gap: 1rem;
 }
-
 /* =================================== */
 /* Form Elements & Buttons             */
 /* =================================== */
@@ -81,20 +76,17 @@ select, input[type="number"], input[type="text"], input[type="search"], textarea
     box-sizing: border-box;
     font-family: inherit;
 }
-
 select {
     width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 input[type="number"] {
     width: 100%;
     font-weight: 600;
     text-align: center;
 }
-
 .icon-btn {
     background: none;
     border: none;
@@ -106,17 +98,14 @@ input[type="number"] {
     opacity: .7;
     transition: .2s;
 }
-
 .icon-btn:hover {
     opacity: 1;
     color: var(--accent);
 }
-
 .drag-handle {
     cursor: grab;
     touch-action: none;
 }
-
 button {
     background: var(--accent);
     color: #fff;
@@ -128,23 +117,19 @@ button {
     box-shadow: var(--shadow);
     transition: .2s;
 }
-
 button:hover {
     background: var(--accent-dark);
 }
-
 button.secondary {
     background: transparent;
     border: 1px dashed var(--accent);
     color: var(--accent);
 }
-
 .button-group {
     display: flex;
     gap: var(--gap);
     align-items: center;
 }
-
 /* =================================== */
 /* Global Controls & Action Bar        */
 /* =================================== */
@@ -159,25 +144,21 @@ button.secondary {
     background: var(--panel);
     border-radius: var(--radius);
 }
-
 .control-item {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
     flex: 1 1 180px;
 }
-
 .control-item span {
     font-size: 0.9rem;
     font-weight: 600;
     opacity: 0.8;
     padding-left: 0.2rem;
 }
-
 #manage-playlists-btn.control-item, #theme-toggle-btn.control-item {
     flex-grow: 0;
 }
-
 #action-bar {
     position: sticky;
     bottom: 0;
@@ -191,11 +172,9 @@ button.secondary {
     z-index: 10;
     margin-top: auto;
 }
-
 #action-bar button {
     flex-grow: 0;
 }
-
 /* =================================== */
 /* Drag-and-Drop Styles                */
 /* =================================== */
@@ -203,31 +182,24 @@ button.secondary {
     background: var(--accent);
     opacity: 0.2;
 }
-
 .sortable-chosen .drag-handle {
     cursor: grabbing;
 }
-
-
 /* =================================== */
 /* TV Show & Mixed Block Layouts       */
 /* =================================== */
-
 .show-list-wrapper {
     display: block;
     margin-bottom: 1rem;
 }
-
 .show-search-input {
     width: 100%;
     margin-bottom: 0.4rem;
 }
-
 .show-header, .tv-block-subheader {
     display: none;
 }
-
-#show-box .show-row, .tv-block-show-row {
+.tv-block-show-row {
     display: grid;
     align-items: center;
     background: var(--panel);
@@ -244,15 +216,11 @@ button.secondary {
         ".      controls controls"
         ".      preview preview";
 }
-
-#show-box .show-row > .drag-handle,
 .tv-block-show-row > .drag-handle {
     grid-area: handle;
     align-self: center;
     font-size: 1.4rem;
 }
-
-.show-row > .show-select-wrapper,
 .tv-block-show-row > .show-select-wrapper {
     grid-area: select;
     display: flex;
@@ -267,14 +235,8 @@ button.secondary {
 .show-select-wrapper select {
     width: 100%;
 }
-
-#show-box .show-row > .tv-block-season,
 .tv-block-show-row > .tv-block-season { grid-area: season; }
-
-#show-box .show-row > .tv-block-episode,
 .tv-block-show-row > .tv-block-episode { grid-area: episode; }
-
-.show-row > .show-row-controls,
 .tv-block-show-row > .show-row-controls {
     grid-area: controls;
     display: flex;
@@ -283,8 +245,6 @@ button.secondary {
     justify-content: flex-start;
     gap: 0.4rem;
 }
-
-.show-row > .tv-block-show-options,
 .tv-block-show-row > .tv-block-show-options {
     grid-area: options;
     margin-top: 0;
@@ -295,8 +255,6 @@ button.secondary {
     font-size: .9rem;
     cursor: pointer;
 }
-
-.show-row > .tv-block-preview,
 .tv-block-show-row > .tv-block-preview {
     grid-area: preview;
     margin-top: 0;
@@ -306,7 +264,6 @@ button.secondary {
     font-size: .9rem;
     grid-column: 2 / -1;
 }
-
 .header-label {
     font-size: 0.8rem;
     font-weight: 600;
@@ -316,22 +273,18 @@ button.secondary {
 }
 .header-label:first-child { text-align: left; }
 .header-label:last-child { text-align: right; }
-
 .show-row-controls .icon-btn {
     padding: 0.2rem;
     font-size: 1rem;
 }
-
 .random-ep-btn {
     font-size: 1.1rem !important;
 }
-
 @media (min-width: 680px) {
     .show-header, .tv-block-subheader {
         display: none;
     }
-
-    #show-box .show-row, .tv-block-show-row {
+    .tv-block-show-row {
         display: flex;
         flex-flow: row wrap;
         align-items: center;
@@ -340,47 +293,32 @@ button.secondary {
         grid-template-columns: none;
         grid-template-rows: none;
     }
-
-    #show-box .show-row > .drag-handle,
     .tv-block-show-row > .drag-handle {
         order: 1;
     }
-
-    .show-row > .show-select-wrapper,
     .tv-block-show-row > .show-select-wrapper {
         order: 2;
         flex: 1 1 300px;
     }
-
-    #show-box .show-row > .tv-block-season,
     .tv-block-show-row > .tv-block-season {
         order: 3;
         flex: 0 1 60px;
     }
-
-    #show-box .show-row > .tv-block-episode,
     .tv-block-show-row > .tv-block-episode {
         order: 4;
         flex: 0 1 60px;
     }
-
-    .show-row > .show-row-controls,
     .tv-block-show-row > .show-row-controls {
         order: 5;
         flex: 1 1 auto;
         justify-content: flex-end;
     }
-
-    .show-row > .tv-block-show-options,
     .tv-block-show-row > .tv-block-show-options {
         order: 6;
         flex: 1 1 50%;
         margin: 0;
         padding-left: 32px;
-
     }
-
-    .show-row > .tv-block-preview,
     .tv-block-show-row > .tv-block-preview {
         order: 7;
         flex: 1 1 45%;
@@ -398,7 +336,6 @@ button.secondary {
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--border-color);
 }
-
 .tab-btn {
     background: none;
     border: none;
@@ -412,29 +349,23 @@ button.secondary {
     border-bottom: 3px solid transparent;
     transform: translateY(1px);
 }
-
 .tab-btn:hover {
     opacity: 1;
     background: rgba(255,255,255,0.05);
 }
-
 body[data-theme='light'] .tab-btn:hover {
     background: rgba(0,0,0,0.05);
 }
-
 .tab-btn.active {
     opacity: 1;
     color: var(--accent);
     border-bottom-color: var(--accent);
 }
-
 .tab-pane {
     padding-bottom: 2rem;
 }
-
-
 /* =================================== */
-/* Movie Playlist Tab                  */
+/* Movie/Mixed Pane Specifics          */
 /* =================================== */
 .filter-group {
     border: 1px solid var(--border-color);
@@ -442,7 +373,6 @@ body[data-theme='light'] .tab-btn:hover {
     border-radius: var(--radius);
     margin-bottom: 1rem;
 }
-
 .filter-group legend {
     font-weight: 600;
     font-size: 1.1rem;
@@ -450,52 +380,37 @@ body[data-theme='light'] .tab-btn:hover {
     margin-left: 0.5rem;
     color: var(--accent);
 }
-
 .filter-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
 }
-
 .filter-grid input, .filter-grid select {
     width: 100%;
     box-sizing: border-box;
 }
-
 .checkbox-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 0.8rem;
     margin-bottom: 1rem;
 }
-
 .checkbox-grid label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
-
 .genre-match-toggle {
     display: flex;
     gap: 1.5rem;
     margin-top: 1.2rem;
     font-size: 0.9rem;
 }
-
 .genre-match-toggle label {
     display: flex;
     align-items: center;
     gap: 0.4rem;
 }
-
-.preview-count-text {
-    font-size: 0.9rem;
-    color: var(--text-subtle);
-    margin-right: 1rem;
-    font-style: italic;
-    transition: color 0.3s;
-}
-
 /* =================================== */
 /* Mixed Playlist Builder              */
 /* =================================== */
@@ -507,11 +422,9 @@ body[data-theme='light'] .tab-btn:hover {
     border-radius: var(--radius);
     margin-bottom: 1rem;
 }
-
 #add-block-controls {
     justify-content: center;
 }
-
 .mixed-block {
     background: var(--panel-alt);
     border: 1px solid var(--border-color-subtle);
@@ -520,7 +433,6 @@ body[data-theme='light'] .tab-btn:hover {
     box-shadow: var(--shadow);
     position: relative;
 }
-
 .mixed-block-header {
     display: flex;
     justify-content: space-between;
@@ -530,43 +442,46 @@ body[data-theme='light'] .tab-btn:hover {
     border-bottom: 1px solid var(--border-color-subtle);
     border-radius: var(--radius) var(--radius) 0 0;
 }
-
 .mixed-block-header h3 {
     margin: 0;
     font-size: 1.1rem;
     padding-left: 1.5rem;
 }
-
 .mixed-block-header .drag-handle {
     position: absolute;
     top: 0.4rem;
     left: 0.5rem;
     font-size: 1.4rem;
 }
-
 .mixed-block-controls .icon-btn {
     font-size: 1.1rem;
     padding: 0.4rem;
 }
-
 .mixed-block-body {
     padding: 1rem 1.2rem;
     display: flex;
     flex-direction: column;
     gap: 1rem;
 }
-
 .tv-block-shows {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
 }
-
 .tv-block-show-row input[type="number"] {
     padding-left: 0.2rem;
     padding-right: 0.2rem;
 }
-
+.movie-block-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.movie-block-filter-grid > label {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
 .block-options-footer {
     display: flex;
     justify-content: space-between;
@@ -580,11 +495,9 @@ body[data-theme='light'] .tab-btn:hover {
     align-items: center;
     gap: 0.5rem;
 }
-
 .filter-group > details {
     padding: 0.2rem 0;
 }
-
 .filter-group > details > summary {
     font-weight: 600;
     color: var(--text-subtle);
@@ -595,31 +508,25 @@ body[data-theme='light'] .tab-btn:hover {
     transition: color 0.2s;
     user-select: none;
 }
-
 .filter-group > details > summary:hover {
     color: var(--text);
 }
-
 .filter-group > details > summary::-webkit-details-marker {
     display: none;
 }
-
 .filter-group > details > summary::before {
     content: '►';
     margin-right: 0.6rem;
     font-size: 0.8em;
     transition: transform 0.2s ease-in-out;
 }
-
 .filter-group > details[open] > summary::before {
     transform: rotate(90deg);
 }
-
 .filter-group > details > .checkbox-grid {
     padding-top: 1.2rem;
     margin-bottom: 0;
 }
-
 /* =================================== */
 /* Preset Controls (All Tabs)          */
 /* =================================== */
@@ -635,17 +542,14 @@ body[data-theme='light'] .tab-btn:hover {
     border: 1px solid var(--border-color-subtle);
     border-radius: var(--radius);
 }
-
 .preset-controls .control-item {
     flex: 1 1 200px;
 }
-
 .preset-controls .preset-buttons {
     flex: 1 1 auto;
     flex-wrap: wrap;
     justify-content: flex-start; /* Corrected from flex-end */
 }
-
 /* =================================== */
 /* Modals                              */
 /* =================================== */
@@ -662,11 +566,9 @@ body[data-theme='light'] .tab-btn:hover {
     justify-content: center;
     align-items: center;
 }
-
 body[data-theme='light'] .modal-overlay {
     background-color: rgba(255, 255, 255, 0.7);
 }
-
 .modal-window {
     background: var(--panel);
     padding: 1rem 1.2rem;
@@ -676,7 +578,6 @@ body[data-theme='light'] .modal-overlay {
     max-width: 500px;
     animation: fadeIn 0.3s ease-out;
 }
-
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -685,38 +586,31 @@ body[data-theme='light'] .modal-overlay {
     padding-bottom: 0.8rem;
     margin-bottom: 1rem;
 }
-
 .modal-header h2 {
     margin: 0;
     font-size: 1.4rem;
 }
-
 #modal-close-btn, #save-preset-close-btn, #smart-playlist-close-btn {
     font-size: 1.8rem;
     font-weight: 600;
 }
-
 .modal-body {
     max-height: 60vh;
     overflow-y: auto;
 }
-
 .modal-body .modal-form-layout {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
 }
-
 .modal-body .control-item {
     flex: 0 1 auto;
 }
-
 .modal-body p {
     font-size: 0.9em;
     color: var(--text-subtle);
     margin: 0 0 0.5rem 0;
 }
-
 .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -725,13 +619,11 @@ body[data-theme='light'] .modal-overlay {
     padding-top: 1rem;
     border-top: 1px solid var(--divider-color);
 }
-
 #modal-playlist-list, #schedules-list {
     list-style: none;
     padding: 0;
     margin: 0;
 }
-
 #modal-playlist-list li {
     display: flex;
     justify-content: space-between;
@@ -739,11 +631,9 @@ body[data-theme='light'] .modal-overlay {
     padding: 0.8rem 0.5rem;
     border-bottom: 1px solid var(--divider-color);
 }
-
 #modal-playlist-list li:last-child {
     border-bottom: none;
 }
-
 /* =================================== */
 /* Loading Spinner Overlay             */
 /* =================================== */
@@ -760,11 +650,9 @@ body[data-theme='light'] .modal-overlay {
     justify-content: center;
     align-items: center;
 }
-
 body[data-theme='light'] #loading-overlay {
     background-color: rgba(244, 244, 248, 0.8);
 }
-
 .spinner {
     width: 60px;
     height: 60px;
@@ -773,20 +661,17 @@ body[data-theme='light'] #loading-overlay {
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
     to {
         transform: rotate(360deg);
     }
 }
-
 /* =================================== */
 /* Utilities & Toast Notification      */
 /* =================================== */
 .hidden {
     display: none !important;
 }
-
 .toast {
     position: fixed;
     left: 50%;
@@ -800,15 +685,12 @@ body[data-theme='light'] #loading-overlay {
     z-index: 9999;
     animation: fadeOut 2.5s forwards;
 }
-
 .toast.ok {
     background: var(--success);
 }
-
 .toast.fail {
     background: var(--danger);
 }
-
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -819,7 +701,6 @@ body[data-theme='light'] #loading-overlay {
         transform: scale(1);
     }
 }
-
 @keyframes fadeOut {
     0% {
         opacity: 0;
@@ -834,7 +715,6 @@ body[data-theme='light'] #loading-overlay {
         transform: translate(-50%,-50%) scale(.9);
     }
 }
-
 #ai-prompt-input {
     background: var(--input-bg);
     color: var(--text);
@@ -845,25 +725,29 @@ body[data-theme='light'] #loading-overlay {
     font-family: inherit;
     transition: all 0.2s ease-in-out;
 }
-
 #ai-prompt-input::placeholder {
     color: var(--text-placeholder);
     opacity: 0.8;
 }
-
 #ai-prompt-input:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
 }
-
 body[data-theme='light'] #ai-prompt-input:focus {
      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
-
 #schedules-list {
     margin-top: 2rem;
     padding-top: 1.5rem;
     border-top: 1px solid var(--divider-color);
 }
-
+.preset-buttons.button-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.preset-buttons.button-group button {
+    flex: 1 1 auto;
+    padding: 0.5em 1.25em;
+}

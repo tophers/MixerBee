@@ -9,19 +9,17 @@ const frequencySelect = document.getElementById('schedule-frequency');
 const daysContainer = document.getElementById('schedule-days-container');
 const daysCheckboxes = document.querySelectorAll('input[name="schedule-day"]');
 
-// --- Main Initialization ---
 export function initSchedulerPane() {
     populatePresetDropdown();
     loadAndRenderSchedules();
     createBtn.addEventListener('click', handleCreateSchedule);
     frequencySelect.addEventListener('change', toggleDaysOfWeek);
 
-    // Listen for changes to presets on the other tab
     document.getElementById('save-preset-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
     document.getElementById('delete-preset-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
 }
 
-// --- UI Logic ---
+// UI Logic
 
 function toggleDaysOfWeek() {
     const isWeekly = frequencySelect.value === 'weekly';
@@ -45,7 +43,7 @@ function populatePresetDropdown() {
     }
 }
 
-// --- Data & API Logic ---
+// Data
 
 async function loadAndRenderSchedules() {
     try {
@@ -80,7 +78,6 @@ function renderSchedule(schedule) {
         } else {
             friendlyText += 'daily';
         }
-        // Format time to 12-hour AM/PM
         const [hour, minute] = scheduleDetails.time.split(':');
         const hourNum = parseInt(hour, 10);
         const ampm = hourNum >= 12 ? 'PM' : 'AM';
@@ -97,12 +94,10 @@ function renderSchedule(schedule) {
 
     const listItem = document.createElement('li');
     
-    // Use a fieldset for the main container to match the form styling
     const fieldset = document.createElement('fieldset');
     fieldset.className = 'filter-group';
     fieldset.style.marginBottom = '1rem';
 
-    // Use the legend for the playlist name
     const legend = document.createElement('legend');
     legend.textContent = schedule.playlist_name;
     

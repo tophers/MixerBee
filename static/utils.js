@@ -1,5 +1,4 @@
 // static/utils.js
-
 export function toast(m, ok) {
   const t = Object.assign(document.createElement('div'), { className: 'toast ' + (ok ? 'ok' : 'fail'), textContent: m });
   document.body.appendChild(t);
@@ -18,13 +17,21 @@ export function debounce(func, wait) {
     };
 };
 
-export function post(endpoint, body, event = null, method = 'POST') {
+export function post(endpoint, body, eventOrElement = null, method = 'POST') {
   const loadingOverlay = document.getElementById('loading-overlay');
   let clickedButton = null;
 
-  if (event) {
-    clickedButton = event.currentTarget;
-    clickedButton.disabled = true;
+  if (eventOrElement) {
+    // Check if we were passed an event or an element directly
+    if (eventOrElement.currentTarget) {
+        clickedButton = eventOrElement.currentTarget; // It's an event
+    } else if (eventOrElement.tagName) {
+        clickedButton = eventOrElement; // It's an element
+    }
+    
+    if (clickedButton) {
+        clickedButton.disabled = true;
+    }
   }
 
   if (loadingOverlay) loadingOverlay.style.display = 'flex';
@@ -53,27 +60,10 @@ export function post(endpoint, body, event = null, method = 'POST') {
     });
 }
 
-// --- Save Preset Modal ---
+export let presetModal, smartPlaylistModal, importPresetModal;
+
 class SavePresetModal {
     constructor() {
-        this.overlay = document.getElementById('save-preset-modal-overlay');
-        this.closeBtn = document.getElementById('save-preset-close-btn');
-        this.cancelBtn = document.getElementById('save-preset-cancel-btn');
-        this.confirmBtn = document.getElementById('save-preset-confirm-btn');
-        this.nameInput = document.getElementById('preset-name-input');
-        this.warning = document.getElementById('preset-overwrite-warning');
-        
-        this.onSaveCallback = null;
-        this.existingPresets = [];
-        
-        this.closeBtn.addEventListener('click', () => this.hide());
-        this.cancelBtn.addEventListener('click', () => this.hide());
-        this.confirmBtn.addEventListener('click', () => this._handleSave());
-        this.nameInput.addEventListener('input', () => this._checkOverwrite());
-        this.overlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this._handleSave();
-            if (e.key === 'Escape') this.hide();
-        });
     }
     _handleSave() {
         const presetName = this.nameInput.value.trim();
@@ -84,6 +74,10 @@ class SavePresetModal {
             alert('Please enter a name for the preset.');
         }
     }
+    _handleKeydown(e) {
+        if (e.key === 'Enter') this._handleSave();
+        if (e.key === 'Escape') this.hide();
+    }
     _checkOverwrite() {
         this.warning.style.display = this.existingPresets.includes(this.nameInput.value.trim()) ? 'block' : 'none';
     }
@@ -92,36 +86,38 @@ class SavePresetModal {
         this.existingPresets = existingPresets;
         this.nameInput.value = '';
         this.warning.style.display = 'none';
+
+        this.confirmBtn.addEventListener('click', this._saveHandler);
+        this.closeBtn.addEventListener('click', this._hideHandler);
+        this.cancelBtn.addEventListener('click', this._hideHandler);
+        this.nameInput.addEventListener('input', this._checkOverwrite.bind(this));
+        this.overlay.addEventListener('keydown', this._keydownHandler);
+
         this.overlay.style.display = 'flex';
         this.nameInput.focus();
     }
     hide() {
         this.overlay.style.display = 'none';
+        this.confirmBtn.removeEventListener('click', this._saveHandler);
+        this.closeBtn.removeEventListener('click', this._hideHandler);
+        this.cancelBtn.removeEventListener('click', this._hideHandler);
+        this.overlay.removeEventListener('keydown', this._keydownHandler);
+    }
+    init() {
+        this.overlay = document.getElementById('save-preset-modal-overlay');
+        this.closeBtn = document.getElementById('save-preset-close-btn');
+        this.cancelBtn = document.getElementById('save-preset-cancel-btn');
+        this.confirmBtn = document.getElementById('save-preset-confirm-btn');
+        this.nameInput = document.getElementById('preset-name-input');
+        this.warning = document.getElementById('preset-overwrite-warning');
+        this._saveHandler = this._handleSave.bind(this);
+        this._hideHandler = this.hide.bind(this);
+        this._keydownHandler = this._handleKeydown.bind(this);
     }
 }
-const presetModal = new SavePresetModal();
 
-// --- Smart Playlist Modal ---
 class SmartPlaylistModal {
-    constructor() {
-        this.overlay = document.getElementById('smart-playlist-modal-overlay');
-        this.closeBtn = document.getElementById('smart-playlist-close-btn');
-        this.cancelBtn = document.getElementById('smart-playlist-cancel-btn');
-        this.confirmBtn = document.getElementById('smart-playlist-confirm-btn');
-        this.titleEl = document.getElementById('smart-playlist-title');
-        this.descriptionEl = document.getElementById('smart-playlist-description');
-        this.nameInput = document.getElementById('smart-playlist-name-input');
-        this.countInput = document.getElementById('smart-playlist-count-input');
-        this.countLabel = document.getElementById('smart-playlist-count-label');
-        this.onCreateCallback = null;
-        this.closeBtn.addEventListener('click', () => this.hide());
-        this.cancelBtn.addEventListener('click', () => this.hide());
-        this.confirmBtn.addEventListener('click', () => this._handleCreate());
-        this.overlay.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') this._handleCreate();
-            if (e.key === 'Escape') this.hide();
-        });
-    }
+    constructor() {}
     _handleCreate() {
         const playlistName = this.nameInput.value.trim();
         const count = parseInt(this.countInput.value, 10);
@@ -132,6 +128,10 @@ class SmartPlaylistModal {
             alert('Please provide a valid playlist name and number of items.');
         }
     }
+    _handleKeydown(e) {
+        if (e.key === 'Enter') this._handleCreate();
+        if (e.key === 'Escape') this.hide();
+    }
     show({ title, description, countLabel, defaultCount, defaultName, onCreate }) {
         this.onCreateCallback = onCreate;
         this.titleEl.textContent = title;
@@ -139,31 +139,41 @@ class SmartPlaylistModal {
         this.countLabel.textContent = countLabel;
         this.countInput.value = defaultCount;
         this.nameInput.value = defaultName;
+
+        this.confirmBtn.addEventListener('click', this._createHandler);
+        this.closeBtn.addEventListener('click', this._hideHandler);
+        this.cancelBtn.addEventListener('click', this._hideHandler);
+        this.overlay.addEventListener('keydown', this._keydownHandler);
+
         this.overlay.style.display = 'flex';
         this.nameInput.focus();
         this.nameInput.select();
     }
     hide() {
         this.overlay.style.display = 'none';
+        this.confirmBtn.removeEventListener('click', this._createHandler);
+        this.closeBtn.removeEventListener('click', this._hideHandler);
+        this.cancelBtn.removeEventListener('click', this._hideHandler);
+        this.overlay.removeEventListener('keydown', this._keydownHandler);
+    }
+    init() {
+        this.overlay = document.getElementById('smart-playlist-modal-overlay');
+        this.closeBtn = document.getElementById('smart-playlist-close-btn');
+        this.cancelBtn = document.getElementById('smart-playlist-cancel-btn');
+        this.confirmBtn = document.getElementById('smart-playlist-confirm-btn');
+        this.titleEl = document.getElementById('smart-playlist-title');
+        this.descriptionEl = document.getElementById('smart-playlist-description');
+        this.nameInput = document.getElementById('smart-playlist-name-input');
+        this.countInput = document.getElementById('smart-playlist-count-input');
+        this.countLabel = document.getElementById('smart-playlist-count-label');
+        this._createHandler = this._handleCreate.bind(this);
+        this._hideHandler = this.hide.bind(this);
+        this._keydownHandler = this._handleKeydown.bind(this);
     }
 }
-export const smartPlaylistModal = new SmartPlaylistModal();
 
-// --- Import Preset Modal ---
 class ImportPresetModal {
-    constructor() {
-        this.overlay = document.getElementById('import-preset-modal-overlay');
-        this.closeBtn = document.getElementById('import-preset-close-btn');
-        this.cancelBtn = document.getElementById('import-preset-cancel-btn');
-        this.confirmBtn = document.getElementById('import-preset-confirm-btn');
-        this.codeInput = document.getElementById('import-code-input');
-        this.nameInput = document.getElementById('import-name-input');
-        this.onImportCallback = null;
-        
-        this.closeBtn.addEventListener('click', () => this.hide());
-        this.cancelBtn.addEventListener('click', () => this.hide());
-        this.confirmBtn.addEventListener('click', () => this._handleImport());
-    }
+    constructor() {}
     _handleImport() {
         const code = this.codeInput.value.trim();
         const name = this.nameInput.value.trim();
@@ -187,33 +197,54 @@ class ImportPresetModal {
         this.onImportCallback = onImport;
         this.codeInput.value = '';
         this.nameInput.value = '';
+
+        this.confirmBtn.addEventListener('click', this._importHandler);
+        this.closeBtn.addEventListener('click', this._hideHandler);
+        this.cancelBtn.addEventListener('click', this._hideHandler);
+
         this.overlay.style.display = 'flex';
         this.codeInput.focus();
     }
     hide() {
         this.overlay.style.display = 'none';
+        this.confirmBtn.removeEventListener('click', this._importHandler);
+        this.closeBtn.removeEventListener('click', this._hideHandler);
+        this.cancelBtn.removeEventListener('click', this._hideHandler);
+    }
+    init() {
+        this.overlay = document.getElementById('import-preset-modal-overlay');
+        this.closeBtn = document.getElementById('import-preset-close-btn');
+        this.cancelBtn = document.getElementById('import-preset-cancel-btn');
+        this.confirmBtn = document.getElementById('import-preset-confirm-btn');
+        this.codeInput = document.getElementById('import-code-input');
+        this.nameInput = document.getElementById('import-name-input');
+        this._importHandler = this._handleImport.bind(this);
+        this._hideHandler = this.hide.bind(this);
     }
 }
-const importPresetModal = new ImportPresetModal();
 
+export function initModals() {
+    presetModal = new SavePresetModal();
+    smartPlaylistModal = new SmartPlaylistModal();
+    importPresetModal = new ImportPresetModal();
+    presetModal.init();
+    smartPlaylistModal.init();
+    importPresetModal.init();
+}
 
-// --- PresetManager Class ---
 export class PresetManager {
     constructor(storageKey, { loadSelect, saveBtn, deleteBtn, importBtn, exportBtn }) {
         this.storageKey = storageKey;
         this.ui = { loadSelect, saveBtn, deleteBtn, importBtn, exportBtn };
         this.presets = this.getPresets();
     }
-
     getPresets() {
         const presetsJSON = localStorage.getItem(this.storageKey);
         return presetsJSON ? JSON.parse(presetsJSON) : {};
     }
-
     savePresets() {
         localStorage.setItem(this.storageKey, JSON.stringify(this.presets));
     }
-
     populateDropdown() {
         const currentVal = this.ui.loadSelect.value;
         this.ui.loadSelect.innerHTML = '<option value="">-- Select a preset --</option>';
@@ -226,7 +257,6 @@ export class PresetManager {
         }
         this.ui.loadSelect.value = currentVal;
     }
-
     init(getUIDataFn, applyPresetFn) {
         this.ui.saveBtn.addEventListener('click', () => {
             presetModal.show(
@@ -268,7 +298,7 @@ export class PresetManager {
             const presetData = this.presets[presetName];
             const jsonString = JSON.stringify(presetData);
             const base64String = btoa(jsonString);
-            
+
             navigator.clipboard.writeText(base64String).then(() => {
                 toast('Share code copied to clipboard!', true);
             }).catch(err => {
@@ -298,7 +328,7 @@ export class PresetManager {
         this.populateDropdown();
     }
 }
-// Creates an interactive row for selecting a TV show.
+
 export function createTvShowRow({ rowData, seriesData, userSelectElement, changeCallback }) {
     const icon = (txt, cls, title) => Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn ' + cls, textContent: txt, title: title });
 
@@ -461,4 +491,3 @@ export function createTvShowRow({ rowData, seriesData, userSelectElement, change
 
     return r;
 }
-

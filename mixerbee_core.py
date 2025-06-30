@@ -20,6 +20,8 @@ from urllib3.util.retry import Retry
 import logging
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+from pydantic import BaseModel, Field
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -57,6 +59,14 @@ except KeyError as m:
 
 CLIENT_NAME = os.getenv("CLIENT_NAME", "MixerBee")
 DEVICE_ID = os.getenv("DEVICE_ID", "MixerBee_CLI")
+
+class MixArgs(BaseModel):
+    shows: List[str] = []
+    count: int = 5
+    playlist: str = "MixerBee Playlist"
+    delete: bool = False
+    verbose: bool = False
+    target_uid: Optional[str] = None
 
 # ---------------------------------------------------------------------------
 # requests session with retries

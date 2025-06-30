@@ -163,11 +163,39 @@ function renderMovieBlock(data = null) {
     sortSelect.value = filters.sort_by || 'Random';
     sortLabel.append('Sort By: ', sortSelect);
 
-    const countLabel = document.createElement('label');
-    const countInput = Object.assign(document.createElement('input'), { type: 'number', className: 'movie-block-count', value: filters.limit || 1, min: 1 });
-    countLabel.append('# of Movies: ', countInput);
+    const limitLabel = document.createElement('label');
+    const limitSelect = Object.assign(document.createElement('select'), { className: 'movie-block-limit-select' });
+    limitSelect.innerHTML = `
+        <optgroup label="By Count">
+            <option value="limit:1">1 Movie</option>
+            <option value="limit:2">2 Movies</option>
+            <option value="limit:3">3 Movies</option>
+            <option value="limit:5">5 Movies</option>
+            <option value="limit:10">10 Movies</option>
+        </optgroup>
+        <optgroup label="By Duration">
+            <option value="duration:180">~3 Hours</option>
+            <option value="duration:240">~4 Hours</option>
+            <option value="duration:360">~6 Hours</option>
+            <option value="duration:480">~8 Hours</option>
+            <option value="duration:600">~10 Hours</option>
+        </optgroup>
+        <option value="">All Matching Movies</option>
+    `;
+    
+    // Set default value based on provided data
+    if (filters.duration_minutes) {
+        limitSelect.value = `duration:${filters.duration_minutes}`;
+    } else if (filters.limit) {
+        limitSelect.value = `limit:${filters.limit}`;
+    } else {
+        limitSelect.value = 'limit:1'; // Default
+    }
 
-    otherFiltersGrid.append(watchedLabel, yearFromLabel, yearToLabel, sortLabel, countLabel);
+
+    limitLabel.append('Limit: ', limitSelect);
+
+    otherFiltersGrid.append(watchedLabel, yearFromLabel, yearToLabel, sortLabel, limitLabel);
 
     filterDetails.append(filterSummary, otherFiltersGrid);
     otherFiltersFieldset.append(otherFiltersLegend, filterDetails);
@@ -200,18 +228,27 @@ function getBlocksDataFromUI() {
         } else if (blockType === 'movie') {
             const yearFrom = blockEl.querySelector('.movie-block-year-from').value;
             const yearTo = blockEl.querySelector('.movie-block-year-to').value;
-            blocksData.push({
-                type: 'movie',
-                filters: {
-                    genres: [...blockEl.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value),
-                    genre_match: blockEl.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
-                    watched_status: blockEl.querySelector('.movie-block-watched').value,
-                    year_from: yearFrom || null,
-                    year_to: yearTo || null,
-                    sort_by: blockEl.querySelector('.movie-block-sort-by').value,
-                    limit: parseInt(blockEl.querySelector('.movie-block-count').value)
+
+            const filters = {
+                genres: [...blockEl.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value),
+                genre_match: blockEl.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
+                watched_status: blockEl.querySelector('.movie-block-watched').value,
+                year_from: yearFrom || null,
+                year_to: yearTo || null,
+                sort_by: blockEl.querySelector('.movie-block-sort-by').value,
+            };
+
+            const limitValue = blockEl.querySelector('.movie-block-limit-select').value;
+            if (limitValue) {
+                const [type, value] = limitValue.split(':');
+                if (type === 'limit') {
+                    filters.limit = parseInt(value, 10);
+                } else if (type === 'duration') {
+                    filters.duration_minutes = parseInt(value, 10);
                 }
-            });
+            }
+            
+            blocksData.push({ type: 'movie', filters: filters });
         }
     });
     return blocksData;
@@ -298,7 +335,7 @@ export function initMixedPane(userSel, shows, genres) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: prompt })
             });
-            
+
             const result = await response.json();
 
             if (response.ok && result.status === 'ok') {
@@ -359,50 +396,83 @@ export function initMixedPane(userSel, shows, genres) {
     });
 
     document.getElementById('generate-mixed-playlist-btn').addEventListener('click', (event) => {
-        const blocks = [];
-        document.querySelectorAll('.mixed-block').forEach(blockEl => {
-            const blockType = blockEl.dataset.type;
-            if (blockType === 'tv') {
-                const shows = [];
-                blockEl.querySelectorAll('.show-row').forEach(row => {
-                    const showName = row.querySelector('.tv-block-show-select').value;
-                    const season = row.querySelector('.tv-block-season').value;
-                    const episode = row.querySelector('.tv-block-episode').value;
-                    if (showName) shows.push(`${showName}::S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}`);
-                });
-                blocks.push({
-                    type: 'tv', shows,
-                    count: blockEl.querySelector('.tv-block-count').value,
-                    interleave: blockEl.querySelector('.tv-block-interleave').checked
-                });
-            } else if (blockType === 'movie') {
-                const yearFrom = blockEl.querySelector('.movie-block-year-from').value;
-                const yearTo = blockEl.querySelector('.movie-block-year-to').value;
-                const movieLimit = blockEl.querySelector('.movie-block-count').value;
-                blocks.push({
-                    type: 'movie',
-                    filters: {
-                        genres: [...blockEl.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value) || undefined,
-                        genre_match: blockEl.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
-                        watched_status: blockEl.querySelector('.movie-block-watched').value,
-                        year_from: yearFrom ? parseInt(yearFrom) : undefined,
-                        year_to: yearTo ? parseInt(yearTo) : undefined,
-                        sort_by: blockEl.querySelector('.movie-block-sort-by').value,
-                        limit: movieLimit ? parseInt(movieLimit) : undefined,
-                    }
-                });
-            }
-        });
+        const blocks = getBlocksDataFromUI(); // Now uses the helper function
         if (blocks.length === 0) { alert('Please add at least one block.'); return; }
+        
+        const legacyBlocks = blocks.map(block => {
+            if (block.type === 'tv') {
+                 const shows = block.shows.map(s => {
+                    if (s.name) return `${s.name}::S${String(s.season).padStart(2,'0')}E${String(s.episode).padStart(2,'0')}`;
+                    return null;
+                }).filter(Boolean);
+                return {...block, shows};
+            }
+            return block;
+        });
+
         const requestBody = {
             user_id: userSelectElement.value,
             playlist_name: document.getElementById('global-playlist-name').value,
-            blocks: blocks
+            blocks: legacyBlocks // Use the transformed blocks for the API
         };
         post('api/create_mixed_playlist', requestBody, event);
+    });
+
+    // --- Smart Playlist Button Logic ---
+    document.getElementById('pilot-sampler-btn').addEventListener('click', (event) => {
+        const clickedButton = event.currentTarget;
+        smartPlaylistModal.show({
+            title: 'Pilot Sampler',
+            description: 'This will create a playlist with random, unwatched pilot episodes from your library.',
+            countLabel: 'Number of Pilots',
+            defaultCount: 10,
+            defaultName: 'Pilot Sampler',
+            onCreate: ({ playlistName, count }) => {
+                post('api/create_pilot_sampler', {
+                    user_id: userSelectElement.value,
+                    playlist_name: playlistName,
+                    count: count
+                }, clickedButton);
+            }
+        });
+    });
+
+    document.getElementById('continue-watching-btn').addEventListener('click', (event) => {
+        const clickedButton = event.currentTarget;
+        smartPlaylistModal.show({
+            title: 'Continue Watching',
+            description: 'This will create a playlist with the next unwatched episode from your most recent in-progress shows.',
+            countLabel: 'Number of Shows',
+            defaultCount: 10,
+            defaultName: 'Continue Watching',
+            onCreate: ({ playlistName, count }) => {
+                post('api/create_continue_watching_playlist', {
+                    user_id: userSelectElement.value,
+                    playlist_name: playlistName,
+                    count: count
+                }, clickedButton);
+            }
+        });
+    });
+
+    document.getElementById('forgotten-favorites-btn').addEventListener('click', (event) => {
+        const clickedButton = event.currentTarget;
+        smartPlaylistModal.show({
+            title: 'Forgotten Favorites',
+            description: 'This will create a playlist of favorited movies you haven\'t seen in a while.',
+            countLabel: 'Number of Movies',
+            defaultCount: 20,
+            defaultName: 'Forgotten Favorites',
+            onCreate: ({ playlistName, count }) => {
+                post('api/create_forgotten_favorites', {
+                    user_id: userSelectElement.value,
+                    playlist_name: playlistName,
+                    count: count
+                }, clickedButton);
+            }
+        });
     });
 
     checkPlaceholderVisibility();
     checkAiConfig();
 }
-

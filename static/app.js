@@ -1,30 +1,24 @@
 // static/app.js
-import { toast, post } from './utils.js';
-import { initTvPane } from './tv.js';
-import { initMoviesPane } from './movies.js';
+import { toast, post, initModals } from './utils.js'; // Import initModals
 import { initModal } from './modal.js';
 import { initMixedPane } from './mixed.js';
 import { initSchedulerPane } from './scheduler.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    /* ── handles to GLOBAL elements ── */
+    initModals();
+
     const userSel = document.getElementById('user-select');
     const globalPlaylistName = document.getElementById('global-playlist-name');
-    const mainActionBar = document.getElementById('action-bar');
     const themeToggleBtn = document.getElementById('theme-toggle-btn');
     const body = document.body;
 
-    const tvTabBtn = document.getElementById('tv-tab-btn');
-    const moviesTabBtn = document.getElementById('movies-tab-btn');
     const mixedTabBtn = document.getElementById('mixed-tab-btn');
     const schedulerTabBtn = document.getElementById('scheduler-tab-btn');
-    const tvPane = document.getElementById('tv-pane');
-    const moviesPane = document.getElementById('movies-pane');
     const mixedPane = document.getElementById('mixed-pane');
     const schedulerPane = document.getElementById('scheduler-pane');
+    const mainActionBar = document.getElementById('action-bar');
 
-    /* ── Theme Management ── */
     const applyTheme = (theme) => {
         body.dataset.theme = theme;
         localStorage.setItem('mixerbeeTheme', theme);
@@ -45,7 +39,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     themeToggleBtn.addEventListener('click', toggleTheme);
 
-    /* ── GLOBAL State Persistence ── */
     function saveGlobalState() {
         localStorage.setItem('mixerbeeGlobalState', JSON.stringify({
             userId: userSel.value,
@@ -65,39 +58,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function switchTab(activeTab) {
-        const createTvBtn = document.getElementById('create-tv-mix-btn');
-        const createMovieBtn = document.getElementById('create-movie-playlist-btn');
-        const generateMixedBtn = document.getElementById('generate-mixed-playlist-btn');
+        [mixedTabBtn, schedulerTabBtn].forEach(b => b.classList.remove('active'));
+        [mixedPane, schedulerPane].forEach(p => p.classList.remove('active'));
 
-        [tvTabBtn, moviesTabBtn, mixedTabBtn, schedulerTabBtn].forEach(b => b.classList.remove('active'));
-        [tvPane, moviesPane, mixedPane, schedulerPane].forEach(p => p.classList.remove('active'));
-        [createTvBtn, createMovieBtn, generateMixedBtn].forEach(b => b.classList.add('hidden'));
+        mainActionBar.style.display = 'none';
 
-        if (activeTab === 'tv') {
-            tvTabBtn.classList.add('active');
-            tvPane.classList.add('active');
-            createTvBtn.classList.remove('hidden');
-        } else if (activeTab === 'movies') {
-            moviesTabBtn.classList.add('active');
-            moviesPane.classList.add('active');
-            createMovieBtn.classList.remove('hidden');
-        } else if (activeTab === 'mixed') {
+        if (activeTab === 'mixed') {
             mixedTabBtn.classList.add('active');
             mixedPane.classList.add('active');
-            generateMixedBtn.classList.remove('hidden');
+            mainActionBar.style.display = 'flex';
         } else if (activeTab === 'scheduler') {
             schedulerTabBtn.classList.add('active');
             schedulerPane.classList.add('active');
         }
 
-        tvPane.style.display = (activeTab === 'tv') ? 'block' : 'none';
-        moviesPane.style.display = (activeTab === 'movies') ? 'block' : 'none';
         mixedPane.style.display = (activeTab === 'mixed') ? 'block' : 'none';
         schedulerPane.style.display = (activeTab === 'scheduler') ? 'block' : 'none';
     }
 
-    tvTabBtn.addEventListener('click', () => switchTab('tv'));
-    moviesTabBtn.addEventListener('click', () => switchTab('movies'));
     mixedTabBtn.addEventListener('click', () => switchTab('mixed'));
     schedulerTabBtn.addEventListener('click', () => switchTab('scheduler'));
 
@@ -107,7 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial Load sequence
     const savedUserId = loadGlobalState();
     const savedTheme = localStorage.getItem('mixerbeeTheme');
-    applyTheme(savedTheme || 'dark'); // Apply theme
+    applyTheme(savedTheme || 'dark');
 
     Promise.all([
       fetch('api/users').then(r => r.json()),
@@ -124,11 +102,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         saveGlobalState();
 
-        initTvPane(document.getElementById('show-box'), shows, userSel);
-        initMoviesPane(userSel, genres);
         initModal(userSel);
         initMixedPane(userSel, shows, genres);
         initSchedulerPane();
+
+        // Start on the main builder tab
+        switchTab('mixed');
       })
       .catch((err) => {
         console.error("Initialization Error:", err);

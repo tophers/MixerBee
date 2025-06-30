@@ -30,18 +30,6 @@ DEFAULT_USER_NAME = os.getenv("FRONTEND_DEFAULT_USER", core.EMBY_USER)
 DEFAULT_UID = core.user_id_by_name(DEFAULT_USER_NAME, HDR) or login_uid
 
 # --- Define Models ---
-class MixRequest(BaseModel):
-    shows: List[str] = []
-    count: int = 5
-    playlist: str = "MixerBee Playlist"
-    delete: bool = False
-    verbose: bool = False
-    target_uid: Optional[str] = None
-
-class MovieFinderRequest(BaseModel):
-    user_id: str
-    filters: dict = {}
-
 class MixedPlaylistRequest(BaseModel):
     user_id: str
     playlist_name: str
@@ -56,6 +44,14 @@ class ContinueWatchingRequest(BaseModel):
     user_id: str
     playlist_name: str = "Continue Watching"
     count: int = 10
+
+class MixRequest(BaseModel):
+    shows: List[str] = []
+    count: int = 5
+    playlist: str = "MixerBee Playlist"
+    delete: bool = False
+    verbose: bool = False
+    target_uid: Optional[str] = None
 
 class ScheduleDetails(BaseModel):
     frequency: str
@@ -100,7 +96,7 @@ def api_config_status():
 def api_create_from_text(req: AiPromptRequest):
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
-    
+
     try:
         available_shows = [s['Name'] for s in core.search_series("", HDR)]
         available_genres = [g['Name'] for g in core.get_movie_genres(HDR)]
@@ -177,41 +173,26 @@ def api_movie_genres():
     return core.get_movie_genres(HDR)
 
 @app.post("/api/mix")
-def api_mix(req: MixRequest):
+def api_mix(req: core.MixArgs):
+    """
+    Legacy endpoint for deleting playlists from the 'Manage Playlists' modal.
+    The creation part of this is no longer used by the UI.
+    """
     try:
-        return core.mix(
-            shows=req.shows,
-            count=req.count,
-            playlist=req.playlist,
-            delete=req.delete,
-            verbose=req.verbose,
-            target_uid=req.target_uid,
-        )
+        # We only expect this to be used for deletion from the modal now.
+        if req.delete:
+            return core.mix(
+                shows=[],
+                count=0,
+                playlist=req.playlist,
+                delete=True,
+                verbose=False,
+                target_uid=req.target_uid,
+            )
+        # Should not be reached from the current UI
+        raise HTTPException(400, "This endpoint is for deletion only.")
     except Exception as e:
         raise HTTPException(400, str(e))
-
-@app.post("/api/movies/preview_count")
-def api_movies_preview_count(req: MovieFinderRequest):
-    try:
-        filters = req.filters.copy()
-        filters['duration_minutes'] = None
-        filters['limit'] = None
-        found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=HDR)
-        return {"count": len(found_movies)}
-    except Exception as e:
-        raise HTTPException(400, str(e))
-
-@app.post("/api/create_movie_playlist")
-def api_create_movie_playlist(req: MovieFinderRequest):
-    found_movies = core.find_movies(user_id=req.user_id, filters=req.filters, hdr=HDR)
-    if not found_movies:
-        return {"status": "error", "log": ["No movies found matching your criteria."]}
-    movie_ids = [m["Id"] for m in found_movies]
-    playlist_name = req.filters.get("movie_playlist_name", "Movie Night")
-    log_messages = []
-    core.create_playlist(name=playlist_name, user_id=req.user_id, ids=movie_ids, hdr=HDR, log=log_messages)
-    log_messages.append(f"Successfully created playlist '{playlist_name}' with {len(found_movies)} movies.")
-    return {"status": "ok", "log": log_messages}
 
 @app.post("/api/create_mixed_playlist")
 def api_create_mixed_playlist(req: MixedPlaylistRequest):
@@ -254,7 +235,7 @@ def api_get_schedules():
 def api_create_schedule(req: ScheduleRequest):
     try:
         hour, minute = req.schedule_details.time.split(':')
-        
+
         if req.schedule_details.frequency == "weekly":
             if not req.schedule_details.days_of_week:
                 raise ValueError("days_of_week must be provided for weekly frequency.")
@@ -267,7 +248,7 @@ def api_create_schedule(req: ScheduleRequest):
 
         schedule_data_to_save = req.dict()
         schedule_data_to_save['crontab'] = crontab
-        
+
         schedule_id = scheduler.scheduler_manager.add_schedule(schedule_data_to_save)
         return {"status": "ok", "log": ["Schedule created successfully."], "id": schedule_id}
 
@@ -279,3 +260,24 @@ def api_delete_schedule(schedule_id: str):
     scheduler.scheduler_manager.remove_schedule(schedule_id)
     return {"status": "ok", "log": ["Schedule deleted."]}
 
+@app.post("/api/mix")
+def api_mix(req: MixRequest):
+    """
+    Legacy endpoint for deleting playlists from the 'Manage Playlists' modal.
+    The creation part of this is no longer used by the UI.
+    """
+    try:
+        # We only expect this to be used for deletion from the modal now.
+        if req.delete:
+            return core.mix(
+                shows=[],
+                count=0,
+                playlist=req.playlist,
+                delete=True,
+                verbose=False,
+                target_uid=req.target_uid,
+            )
+        # Should not be reached from the current UI
+        raise HTTPException(400, "This endpoint is for deletion only.")
+    except Exception as e:
+        raise HTTPException(400, str(e))

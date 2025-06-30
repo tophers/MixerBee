@@ -4,6 +4,8 @@ ai
 gen
 tools/
 schedules.json
+#I have my reasons
+tests/*
 
 # Python
 __pycache__/
