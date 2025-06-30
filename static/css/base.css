@@ -1,0 +1,156 @@
+/* static/css/base.css */
+/* Contains theme variables (:root), body styles, basic typography, and global utilities. */
+
+/* =================================== */
+/* Base Styles & Theme                 */
+/* =================================== */
+:root {
+    --bg: #121212;
+    --panel: #1e1e1e;
+    --panel-alt: #2a2a2a;
+    --header-bg: #333;
+    --text: #e0e0e0;
+    --text-subtle: #9e9e9e;
+    --text-placeholder: #888;
+    --input-bg: #1b1b1b;
+    --border-color: #333;
+    --border-color-subtle: #444;
+    --divider-color: #2c2c2c;
+    --accent: #2196f3;
+    --accent-dark: #1976d2;
+    --success: #4caf50;
+    --danger: #992020;
+    --gap: .6rem;
+    --radius: 8px;
+    --shadow: 0 2px 6px rgba(0,0,0,.4);
+    font-family: system-ui, sans-serif;
+}
+
+body[data-theme='light'] {
+    --bg: #f4f4f8;
+    --panel: #ffffff;
+    --panel-alt: #f8f9fa;
+    --header-bg: #e9ecef;
+    --text: #1a1a1a;
+    --text-subtle: #6c757d;
+    --text-placeholder: #6c757d;
+    --input-bg: #ffffff;
+    --border-color: #dee2e6;
+    --border-color-subtle: #e9ecef;
+    --divider-color: #f1f3f5;
+    --shadow: 0 2px 6px rgba(0,0,0,.1);
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    transition: background-color 0.2s, color 0.2s;
+}
+
+h2 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    text-align: center;
+    margin: 1.3rem 0;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+
+/* =================================== */
+/* Loading Spinner Overlay             */
+/* =================================== */
+#loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(18, 18, 18, 0.8);
+    backdrop-filter: blur(2px);
+    z-index: 2000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+body[data-theme='light'] #loading-overlay {
+    background-color: rgba(244, 244, 248, 0.8);
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid var(--border-color-subtle);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+
+/* =================================== */
+/* Utilities & Toast Notification      */
+/* =================================== */
+.hidden {
+    display: none !important;
+}
+
+.toast {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+    padding: 1rem 1.4rem;
+    border-radius: var(--radius);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: var(--shadow);
+    z-index: 9999;
+    animation: fadeOut 2.5s forwards;
+}
+
+.toast.ok {
+    background: var(--success);
+}
+
+.toast.fail {
+    background: var(--danger);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes fadeOut {
+    0% {
+        opacity: 0;
+        transform: translate(-50%,-50%) scale(.9);
+    }
+    10%, 80% {
+        opacity: 1;
+        transform: translate(-50%,-50%) scale(1);
+    }
+    100% {
+        opacity: 0;
+        transform: translate(-50%,-50%) scale(.9);
+    }
+}

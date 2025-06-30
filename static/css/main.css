@@ -1,0 +1,8 @@
+/* static/css/main.css */
+/* This file imports all other CSS files in the correct order. */
+
+@import url('base.css');
+@import url('layout.css');
+@import url('forms.css');
+@import url('components.css');
+@import url('modal.css');

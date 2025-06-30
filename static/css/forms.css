@@ -1,0 +1,129 @@
+/* static/css/forms.css */
+/* Default styles for all form elements: inputs, selects, buttons, etc. */
+
+select, input[type="number"], input[type="text"], input[type="search"], textarea {
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: .45rem .55rem;
+    font-size: 1.05rem;
+    min-width: 0;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+select {
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+input[type="number"] {
+    width: 100%;
+    font-weight: 600;
+    text-align: center;
+}
+
+.icon-btn {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: .2rem;
+    line-height: 1;
+    opacity: .7;
+    transition: .2s;
+}
+
+.icon-btn:hover {
+    opacity: 1;
+    color: var(--accent);
+}
+
+.drag-handle {
+    cursor: grab;
+    touch-action: none;
+}
+
+button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    padding: .55rem 1rem;
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: .2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+button:hover {
+    background: var(--accent-dark);
+}
+
+button.secondary {
+    background: transparent;
+    border: 1px dashed var(--accent);
+    color: var(--accent);
+}
+
+.button-group {
+    display: flex;
+    gap: var(--gap);
+    align-items: center;
+}
+
+/* Styling for Feather Icons */
+button .feather {
+    stroke: var(--text-subtle);
+    width: 1.1em;
+    height: 1.1em;
+    stroke-width: 2.5;
+}
+
+.control-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.control-item span {
+    font-family: 'Poppins', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.8;
+    padding-left: 0.2rem;
+}
+
+#ai-prompt-input {
+    background: var(--input-bg);
+    color: var(--text);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: .55rem .75rem;
+    font-size: 1.05rem;
+    font-family: inherit;
+    transition: all 0.2s ease-in-out;
+}
+
+#ai-prompt-input::placeholder {
+    color: var(--text-placeholder);
+    opacity: 0.8;
+}
+
+#ai-prompt-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+}
+
+body[data-theme='light'] #ai-prompt-input:focus {
+     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
+}
