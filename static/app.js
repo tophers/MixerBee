@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initModals();
 
     const userSel = document.getElementById('user-select');
-    const globalPlaylistName = document.getElementById('global-playlist-name');
     const themeToggleBtn = document.getElementById('theme-toggle-btn');
     const body = document.body;
 
@@ -42,18 +41,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function saveGlobalState() {
         localStorage.setItem('mixerbeeGlobalState', JSON.stringify({
             userId: userSel.value,
-            playlistName: globalPlaylistName.value,
         }));
     }
 
     function loadGlobalState() {
         const stateJSON = localStorage.getItem('mixerbeeGlobalState');
-        if (!stateJSON) return;
+        if (!stateJSON) return null;
         try {
             const state = JSON.parse(stateJSON);
-            if (!state) return;
-            globalPlaylistName.value = state.playlistName || 'MixerBee Playlist';
-            return state.userId;
+            return state?.userId || null;
         } catch (e) { console.error("Failed to load global state:", e); return null; }
     }
 
@@ -74,13 +70,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         mixedPane.style.display = (activeTab === 'mixed') ? 'block' : 'none';
         schedulerPane.style.display = (activeTab === 'scheduler') ? 'block' : 'none';
+        
+        // Re-run Feather to render any new icons on the active tab
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
     }
 
     mixedTabBtn.addEventListener('click', () => switchTab('mixed'));
     schedulerTabBtn.addEventListener('click', () => switchTab('scheduler'));
 
     userSel.addEventListener('input', saveGlobalState);
-    globalPlaylistName.addEventListener('input', saveGlobalState);
 
     // Initial Load sequence
     const savedUserId = loadGlobalState();
@@ -91,9 +91,10 @@ document.addEventListener('DOMContentLoaded', () => {
       fetch('api/users').then(r => r.json()),
       fetch('api/default_user').then(r => r.json()),
       fetch('api/shows').then(r => r.json()),
-      fetch('api/movie_genres').then(r => r.json())
+      fetch('api/movie_genres').then(r => r.json()),
+      fetch('api/movie_libraries').then(r => r.json()) // Fetch movie libraries
     ])
-      .then(([users, defUser, shows, genres]) => {
+      .then(([users, defUser, shows, genres, movieLibraries]) => {
         users.forEach(u => userSel.appendChild(Object.assign(document.createElement('option'), { value: u.id, textContent: u.name })));
         if (savedUserId && users.some(u => u.id === savedUserId)) {
             userSel.value = savedUserId;
@@ -103,11 +104,16 @@ document.addEventListener('DOMContentLoaded', () => {
         saveGlobalState();
 
         initModal(userSel);
-        initMixedPane(userSel, shows, genres);
+        initMixedPane(userSel, shows, genres, movieLibraries); // Pass libraries to the mixed pane
         initSchedulerPane();
 
         // Start on the main builder tab
         switchTab('mixed');
+        
+        // Final icon replacement call after everything is initialized
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
       })
       .catch((err) => {
         console.error("Initialization Error:", err);

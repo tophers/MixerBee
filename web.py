@@ -19,6 +19,7 @@ from apscheduler.triggers.cron import CronTrigger
 app = FastAPI(title="MixerBee API", root_path="/mixerbee")
 HERE = Path(__file__).parent
 
+# Correctly mount the entire static directory
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 # --- Load Environment ---
@@ -30,10 +31,15 @@ DEFAULT_USER_NAME = os.getenv("FRONTEND_DEFAULT_USER", core.EMBY_USER)
 DEFAULT_UID = core.user_id_by_name(DEFAULT_USER_NAME, HDR) or login_uid
 
 # --- Define Models ---
+class MovieFinderRequest(BaseModel):
+    user_id: str
+    filters: dict = {}
+
 class MixedPlaylistRequest(BaseModel):
     user_id: str
     playlist_name: str
-    blocks: List[dict]
+    blocks: Optional[List[dict]] = None # Made optional to support collection creation
+    create_as_collection: bool = False
 
 class PilotSamplerRequest(BaseModel):
     user_id: str
@@ -44,14 +50,6 @@ class ContinueWatchingRequest(BaseModel):
     user_id: str
     playlist_name: str = "Continue Watching"
     count: int = 10
-
-class MixRequest(BaseModel):
-    shows: List[str] = []
-    count: int = 5
-    playlist: str = "MixerBee Playlist"
-    delete: bool = False
-    verbose: bool = False
-    target_uid: Optional[str] = None
 
 class ScheduleDetails(BaseModel):
     frequency: str
@@ -72,6 +70,20 @@ class ForgottenFavoritesRequest(BaseModel):
     user_id: str
     playlist_name: str
     count: int = 20
+
+class MovieMarathonRequest(BaseModel):
+    user_id: str
+    playlist_name: str
+    genre: str
+    count: int
+
+class MixRequest(BaseModel):
+    shows: List[str] = []
+    count: int = 5
+    playlist: str = "MixerBee Playlist"
+    delete: bool = False
+    verbose: bool = False
+    target_uid: Optional[str] = None
 
 # --- Startup and Shutdown ---
 @app.on_event("startup")
@@ -117,6 +129,19 @@ def api_create_forgotten_favorites(req: ForgottenFavoritesRequest):
     result = core.create_forgotten_favorites_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
+        count=req.count,
+        hdr=HDR,
+        log=log_messages
+    )
+    return result
+
+@app.post("/api/create_movie_marathon")
+def api_create_movie_marathon(req: MovieMarathonRequest):
+    log_messages = []
+    result = core.create_movie_marathon_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        genre=req.genre,
         count=req.count,
         hdr=HDR,
         log=log_messages
@@ -172,8 +197,12 @@ def api_get_playlists(user_id: str):
 def api_movie_genres():
     return core.get_movie_genres(HDR)
 
+@app.get("/api/movie_libraries")
+def api_movie_libraries():
+    return core.get_movie_libraries(HDR)
+
 @app.post("/api/mix")
-def api_mix(req: core.MixArgs):
+def api_mix(req: MixRequest):
     """
     Legacy endpoint for deleting playlists from the 'Manage Playlists' modal.
     The creation part of this is no longer used by the UI.
@@ -194,14 +223,41 @@ def api_mix(req: core.MixArgs):
     except Exception as e:
         raise HTTPException(400, str(e))
 
+@app.post("/api/movies/preview_count")
+def api_movies_preview_count(req: MovieFinderRequest):
+    try:
+        filters = req.filters.copy()
+        # Ensure we check all movies, regardless of duration or limit, for the count
+        filters['duration_minutes'] = None
+        filters['limit'] = None
+        found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=HDR)
+        return {"count": len(found_movies)}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
 @app.post("/api/create_mixed_playlist")
 def api_create_mixed_playlist(req: MixedPlaylistRequest):
-    return core.create_mixed_playlist(
-        user_id=req.user_id,
-        playlist_name=req.playlist_name,
-        blocks=req.blocks,
-        hdr=HDR
-    )
+    if req.create_as_collection:
+        if not req.blocks or len(req.blocks) != 1 or req.blocks[0].get("type") != "movie":
+            raise HTTPException(400, "Collections can only be created from a single movie block.")
+        
+        movie_filters = req.blocks[0].get("filters", {})
+        return core.create_movie_collection(
+            user_id=req.user_id,
+            collection_name=req.playlist_name,
+            filters=movie_filters,
+            hdr=HDR
+        )
+    else:
+        # Fallback to existing static playlist/mixed content logic
+        if not req.blocks:
+             raise HTTPException(400, "No blocks provided for playlist creation.")
+        return core.create_mixed_playlist(
+            user_id=req.user_id,
+            playlist_name=req.playlist_name,
+            blocks=req.blocks,
+            hdr=HDR
+        )
 
 @app.post("/api/create_pilot_sampler")
 def api_create_pilot_sampler(req: PilotSamplerRequest):
@@ -259,25 +315,3 @@ def api_create_schedule(req: ScheduleRequest):
 def api_delete_schedule(schedule_id: str):
     scheduler.scheduler_manager.remove_schedule(schedule_id)
     return {"status": "ok", "log": ["Schedule deleted."]}
-
-@app.post("/api/mix")
-def api_mix(req: MixRequest):
-    """
-    Legacy endpoint for deleting playlists from the 'Manage Playlists' modal.
-    The creation part of this is no longer used by the UI.
-    """
-    try:
-        # We only expect this to be used for deletion from the modal now.
-        if req.delete:
-            return core.mix(
-                shows=[],
-                count=0,
-                playlist=req.playlist,
-                delete=True,
-                verbose=False,
-                target_uid=req.target_uid,
-            )
-        # Should not be reached from the current UI
-        raise HTTPException(400, "This endpoint is for deletion only.")
-    except Exception as e:
-        raise HTTPException(400, str(e))

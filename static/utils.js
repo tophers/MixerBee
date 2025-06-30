@@ -28,7 +28,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     } else if (eventOrElement.tagName) {
         clickedButton = eventOrElement; // It's an element
     }
-    
+
     if (clickedButton) {
         clickedButton.disabled = true;
     }
@@ -175,22 +175,37 @@ class SmartPlaylistModal {
 class ImportPresetModal {
     constructor() {}
     _handleImport() {
-        const code = this.codeInput.value.trim();
+        const rawCode = this.codeInput.value.trim();
         const name = this.nameInput.value.trim();
-        if (!code || !name) {
+        if (!rawCode || !name) {
             alert('Please provide both a share code and a new name for the preset.');
             return;
         }
         try {
-            const decodedString = atob(code);
-            const presetData = JSON.parse(decodedString);
+            // Find the base64 part, assuming it's the last non-empty line
+            const lines = rawCode.split('\n').filter(line => line.trim() !== '');
+            const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
+            if (!base64String) {
+                throw new Error("Could not find a valid code in the pasted text.");
+            }
+
+            const decodedString = atob(base64String);
+            const sharePayload = JSON.parse(decodedString);
+
+            // The actual preset data is now nested inside a 'data' property
+            const presetData = sharePayload.data;
+            if (!presetData || !Array.isArray(presetData)) {
+                throw new Error("The share code has an invalid format.");
+            }
+
             if (this.onImportCallback) {
+                // We pass the user-provided name and the extracted preset data
                 this.onImportCallback(name, presetData);
             }
             this.hide();
         } catch (e) {
             console.error("Failed to decode or parse preset:", e);
-            alert('Invalid share code. Please check the code and try again.');
+            alert(`Invalid share code. Please check the code and try again.\nError: ${e.message}`);
         }
     }
     show(onImport) {
@@ -295,11 +310,20 @@ export class PresetManager {
         this.ui.exportBtn.addEventListener('click', () => {
             const presetName = this.ui.loadSelect.value;
             if (!presetName) return;
+
             const presetData = this.presets[presetName];
-            const jsonString = JSON.stringify(presetData);
+            // Create a wrapper object for better, self-describing exports
+            const sharePayload = {
+                name: presetName,
+                data: presetData
+            };
+            const jsonString = JSON.stringify(sharePayload);
             const base64String = btoa(jsonString);
 
-            navigator.clipboard.writeText(base64String).then(() => {
+            // Prepend a human-readable header
+            const shareText = `MixerBee Preset: "${presetName}"\n--------------------------------------\n${base64String}`;
+
+            navigator.clipboard.writeText(shareText).then(() => {
                 toast('Share code copied to clipboard!', true);
             }).catch(err => {
                 console.error('Failed to copy text: ', err);

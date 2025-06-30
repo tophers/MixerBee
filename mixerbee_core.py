@@ -222,7 +222,7 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
     return None
 
 # ---------------------------------------------------------------------------
-# playlists
+# playlists & collections
 # ---------------------------------------------------------------------------
 
 def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
@@ -242,16 +242,14 @@ def delete_playlist(name: str, user_id: str, hdr: Dict[str, str],
     targets = [pl for pl in get_playlists(user_id, hdr)
                if pl["Name"].strip().lower() == name.strip().lower()]
     if not targets:
-        log.append(f"No playlist named '{name}' found.")
         return
     for pl in targets:
         resp = SESSION.delete(f"{EMBY_URL}/Items/{pl['Id']}",
                               headers=hdr, timeout=10)
         if resp.status_code in (200, 204):
-            log.append(f"Deleted playlist '{name}'.")
+            log.append(f"Deleted existing playlist '{name}'.")
         else:
-            log.append(f"Failed deleting '{name}': HTTP {resp.status_code}")
-            log.append(resp.text)
+            log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
 
 
 def create_playlist(name: str, user_id: str, ids: List[str],
@@ -417,6 +415,96 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
         log.append(f"An unexpected error occurred: {e}")
         return {"status": "error", "log": log}
 
+def create_movie_marathon_playlist(user_id: str, playlist_name: str, genre: str, count: int, hdr: Dict[str, str], log: List[str]):
+    """Creates a playlist of random, unwatched movies from a specific genre."""
+    try:
+        filters = {
+            "genres": [genre] if genre else [],
+            "watched_status": "unplayed",
+            "sort_by": "Random",
+            "limit": count
+        }
+
+        found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
+
+        if not found_movies:
+            log.append(f"No unwatched movies found for genre '{genre}'.")
+            return {"status": "ok", "log": log}
+
+        movie_ids = [m["Id"] for m in found_movies]
+        log.append(f"Found {len(found_movies)} movies for your '{genre}' marathon.")
+        create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
+        return {"status": "ok", "log": log}
+
+    except requests.RequestException as e:
+        log.append(f"An API error occurred: {e}")
+        return {"status": "error", "log": log}
+    except Exception as e:
+        log.append(f"An unexpected error occurred: {e}")
+        return {"status": "error", "log": log}
+
+
+def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
+    params = {
+        "IncludeItemTypes": "BoxSet",
+        "Recursive": "true",
+        "Fields": "Id,Name"
+    }
+    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items",
+                    params=params, headers=hdr, timeout=10)
+    r.raise_for_status()
+    return r.json().get("Items", [])
+
+
+def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
+    targets = [c for c in get_collections(user_id, hdr)
+               if c["Name"].strip().lower() == name.strip().lower()]
+    if not targets:
+        return
+    for c in targets:
+        resp = SESSION.delete(f"{EMBY_URL}/Items/{c['Id']}", headers=hdr, timeout=10)
+        if resp.status_code in (200, 204):
+            log.append(f"Deleted existing collection '{name}'.")
+        else:
+            log.append(f"Failed deleting collection '{name}': HTTP {resp.status_code}")
+
+def create_movie_collection(user_id: str, collection_name: str, filters: Dict, hdr: Dict[str, str]) -> Dict:
+    log = []
+    try:
+        delete_collection(collection_name, user_id, hdr, log)
+        
+        found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
+        if not found_movies:
+            log.append("No movies found matching the specified filters. Collection not created.")
+            return {"status": "ok", "log": log}
+        
+        item_ids = [movie["Id"] for movie in found_movies]
+        log.append(f"Found {len(item_ids)} movies matching filters.")
+
+        params = {
+            "Name": collection_name,
+            "Ids": ",".join(item_ids),
+            "UserId": user_id,
+        }
+        
+        request_headers = hdr.copy()
+        request_headers["Content-Type"] = "application/json"
+        
+        r = SESSION.post(f"{EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
+        r.raise_for_status()
+
+        log.append(f"Successfully created collection '{collection_name}' with {len(item_ids)} items.")
+        return {"status": "ok", "log": log}
+
+    except Exception as e:
+        error_message = f"Failed to create collection: {e}"
+        log.append(error_message)
+        logging.error(error_message)
+        if hasattr(e, 'response') and e.response is not None:
+            logging.error(f"Response Body: {e.response.text}")
+        return {"status": "error", "log": log}
+
+
 # ---------------------------------------------------------------------------
 # users
 # ---------------------------------------------------------------------------
@@ -448,6 +536,20 @@ def search_series(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
 # movies
 # ---------------------------------------------------------------------------
 
+def get_movie_libraries(hdr: Dict[str, str]) -> List[Dict[str, str]]:
+    """Fetches all movie libraries (folders) from Emby."""
+    r = SESSION.get(f"{EMBY_URL}/Library/MediaFolders", headers=hdr, timeout=10)
+    r.raise_for_status()
+    all_folders = r.json().get("Items", [])
+    # Filter for folders that are specifically of the 'movies' collection type
+    movie_folders = [
+        {"Id": f["Id"], "Name": f["Name"]} 
+        for f in all_folders 
+        if f.get("CollectionType") == "movies"
+    ]
+    return movie_folders
+
+
 def get_movie_genres(hdr: Dict[str, str]) -> List[Dict[str, str]]:
     params = {"IncludeItemTypes": "Movie"}
     r = SESSION.get(f"{EMBY_URL}/Genres",
@@ -463,49 +565,42 @@ def find_movies(user_id: str, filters: Dict,
         "Recursive": "true",
         "Fields": "Genres,PremiereDate,UserData,RunTimeTicks"
     }
-    base_params["UserId"] = user_id
-
-    if filters.get("watched_status") == "played":
-        base_params["IsPlayed"] = "true"
-    elif filters.get("watched_status") == "unplayed":
-        base_params["IsPlayed"] = "false"
-
+    
+    # NEW: Filter by parent library if specified
+    if filters.get("parent_ids"):
+        base_params["ParentId"] = ",".join(filters["parent_ids"])
+    
     if filters.get("year_from"):
         base_params["MinPremiereDate"] = f"{filters['year_from']}-01-01"
     if filters.get("year_to"):
         base_params["MaxPremiereDate"] = f"{filters['year_to']}-12-31"
 
+    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
+    r.raise_for_status()
+    all_movies = r.json().get("Items", [])
+
+    watched_status = filters.get("watched_status")
+    if watched_status and watched_status != "all":
+        is_played_target = (watched_status == "played")
+        all_movies = [m for m in all_movies if m.get("UserData", {}).get("Played", False) == is_played_target]
+
     genres_to_search = filters.get("genres")
-    genre_match_type = filters.get("genre_match", "any")
-
-    potential_movies = []
-
-    if genres_to_search and genre_match_type == "any":
-        all_movies_dict = {}
-        for genre in genres_to_search:
-            search_params = base_params.copy()
-            search_params["Genres"] = genre
-            r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=search_params, headers=hdr, timeout=15)
-            r.raise_for_status()
-            for movie in r.json().get("Items", []):
-                all_movies_dict[movie["Id"]] = movie
-        potential_movies = list(all_movies_dict.values())
-    else:
-        search_params = base_params.copy()
-        r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=search_params, headers=hdr, timeout=15)
-        r.raise_for_status()
-        potential_movies = r.json().get("Items", [])
-
-    if genres_to_search and genre_match_type == "all":
+    if genres_to_search:
+        genre_match_type = filters.get("genre_match", "any")
         required_genres = set(g.lower() for g in genres_to_search)
-        final_list = []
-        for movie in potential_movies:
-            movie_genres = set(g.lower() for g in movie.get("Genres", []))
-            if required_genres.issubset(movie_genres):
-                final_list.append(movie)
-    else:
-        final_list = potential_movies
-
+        
+        if genre_match_type == "any":
+            all_movies = [
+                m for m in all_movies 
+                if required_genres.intersection(set(g.lower() for g in m.get("Genres", [])))
+            ]
+        else: # 'all'
+            all_movies = [
+                m for m in all_movies 
+                if required_genres.issubset(set(g.lower() for g in m.get("Genres", [])))
+            ]
+    
+    final_list = all_movies
 
     sort_by = filters.get("sort_by", "Random")
     if sort_by == "Random":
@@ -566,14 +661,15 @@ def create_mixed_playlist(user_id: str, playlist_name: str,
                         else:
                             s = int(raw_show.get("season", 1))
                             e = int(raw_show.get("episode", 1))
-                    
+
                     elif isinstance(raw_show, str):
+                        # This path is for the legacy CLI mode, not the modern UI
                         show_name, s, e = parse_show(raw_show)
 
                     if not all([show_name, s is not None, e is not None]):
                         log_messages.append(f"Block {i}: Could not process show entry: {raw_show}")
                         continue
-                    
+
                     sid = series_id(show_name, hdr)
                     if not sid:
                         log_messages.append(f"Block {i}: Show not found - {show_name}")
@@ -619,8 +715,7 @@ def create_mixed_playlist(user_id: str, playlist_name: str,
         log_messages.append("No items were found to add. Playlist not created.")
         return {"status": "error", "log": log_messages}
 
-    create_playlist(name=playlist_name, user_id=user_id,
-                    ids=master_item_ids, hdr=hdr, log=log_messages)
+    create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
     return {"status": "ok", "log": log_messages}
 
 # ---------------------------------------------------------------------------
@@ -650,6 +745,9 @@ def mix(*,
             log.append(f"Acting on behalf of user id {tgt}")
 
     if delete:
+        # This legacy endpoint can delete playlists OR collections.
+        # We try deleting a collection first, then a playlist.
+        delete_collection(playlist, tgt, hdr, log)
         delete_playlist(playlist, tgt, hdr, log)
         return {"status": "ok", "log": log,
                 "details": {"deleted": playlist, "user_id": tgt}}
@@ -695,4 +793,3 @@ def mix(*,
 
 import atexit
 atexit.register(SESSION.close)
-

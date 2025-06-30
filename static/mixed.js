@@ -1,25 +1,66 @@
 // static/mixed.js
-import { post, smartPlaylistModal } from './utils.js';
+import { post, smartPlaylistModal, debounce } from './utils.js';
 import { PresetManager, createTvShowRow } from './utils.js';
 
 let seriesData = [];
 let genreData = [];
+let libraryData = [];
 let userSelectElement;
 
 const icon = (txt, cls, title) => Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn ' + cls, textContent: txt, title: title });
 
-function addBlockEventListeners(blockElement) {
+function addBlockEventListeners(blockElement, changeCallback) {
     if (blockElement.dataset.type === 'tv') {
         const showsContainer = blockElement.querySelector('.tv-block-shows');
         new Sortable(showsContainer, {
             animation: 150,
             handle: '.drag-handle',
-            ghostClass: 'sortable-ghost'
+            ghostClass: 'sortable-ghost',
+            onEnd: changeCallback // Trigger save on reorder
         });
     }
 }
 
-function renderTvBlock(data = null) {
+function getFiltersFromMovieBlock(blockElement) {
+    const yearFrom = blockElement.querySelector('.movie-block-year-from').value;
+    const yearTo = blockElement.querySelector('.movie-block-year-to').value;
+    const filters = {
+        genres: [...blockElement.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value),
+        genre_match: blockElement.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
+        watched_status: blockElement.querySelector('.movie-block-watched').value,
+        year_from: yearFrom ? parseInt(yearFrom) : undefined,
+        year_to: yearTo ? parseInt(yearTo) : undefined,
+        sort_by: blockElement.querySelector('.movie-block-sort-by').value,
+        parent_ids: [...blockElement.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value)
+    };
+    // For preview, we don't care about limits or duration
+    return filters;
+}
+
+async function updateMovieBlockPreviewCount(blockElement) {
+    const countSpan = blockElement.querySelector('.movie-block-preview-count');
+    if (!countSpan) return;
+    countSpan.textContent = '...';
+
+    const previewFilters = getFiltersFromMovieBlock(blockElement);
+    const requestBody = { user_id: userSelectElement.value, filters: previewFilters };
+
+    try {
+        const response = await fetch('api/movies/preview_count', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const data = await response.json();
+        countSpan.textContent = `${data.count} movies match`;
+    } catch (error) {
+        console.error("Error fetching movie preview count:", error);
+        countSpan.textContent = 'Error!';
+    }
+}
+
+function renderTvBlock(data = null, changeCallback) {
     const initialRows = data?.shows || [{}];
     const isInterleaved = (data?.interleave !== false);
 
@@ -48,7 +89,7 @@ function renderTvBlock(data = null) {
             rowData: rowData,
             seriesData: seriesData,
             userSelectElement: userSelectElement,
-            changeCallback: null // No autosave on this tab
+            changeCallback: changeCallback
         });
         showsContainer.appendChild(newRow);
     });
@@ -97,6 +138,24 @@ function renderMovieBlock(data = null) {
 
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
+    
+    // --- Library Filter ---
+    const libraryFieldset = document.createElement('fieldset');
+    libraryFieldset.className = 'filter-group';
+    const libraryLegend = document.createElement('legend');
+    libraryLegend.textContent = 'Libraries';
+    const libraryGrid = document.createElement('div');
+    libraryGrid.className = 'checkbox-grid';
+    libraryData.forEach(lib => {
+        const label = document.createElement('label');
+        // If no libraries are saved in the preset, default to checking all of them.
+        const isChecked = filters.parent_ids ? filters.parent_ids.includes(lib.Id) : true;
+        const cb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'movie-block-library-cb', value: lib.Id, checked: isChecked });
+        label.append(cb, ` ${lib.Name}`);
+        libraryGrid.appendChild(label);
+    });
+    libraryFieldset.append(libraryLegend, libraryGrid);
+
 
     const genreFieldset = document.createElement('fieldset');
     genreFieldset.className = 'filter-group';
@@ -182,25 +241,27 @@ function renderMovieBlock(data = null) {
         </optgroup>
         <option value="">All Matching Movies</option>
     `;
-    
-    // Set default value based on provided data
+
     if (filters.duration_minutes) {
         limitSelect.value = `duration:${filters.duration_minutes}`;
     } else if (filters.limit) {
         limitSelect.value = `limit:${filters.limit}`;
     } else {
-        limitSelect.value = 'limit:1'; // Default
+        limitSelect.value = 'limit:1';
     }
-
-
     limitLabel.append('Limit: ', limitSelect);
-
     otherFiltersGrid.append(watchedLabel, yearFromLabel, yearToLabel, sortLabel, limitLabel);
 
-    filterDetails.append(filterSummary, otherFiltersGrid);
+    const movieBlockFooter = document.createElement('div');
+    movieBlockFooter.className = 'movie-block-footer';
+    const previewCountSpan = document.createElement('span');
+    previewCountSpan.className = 'movie-block-preview-count';
+    movieBlockFooter.appendChild(previewCountSpan);
+
+    filterDetails.append(filterSummary, otherFiltersGrid, movieBlockFooter);
     otherFiltersFieldset.append(otherFiltersLegend, filterDetails);
 
-    body.append(genreFieldset, otherFiltersFieldset);
+    body.append(libraryFieldset, genreFieldset, otherFiltersFieldset);
     blockElement.append(header, body);
 
     return blockElement;
@@ -236,6 +297,7 @@ function getBlocksDataFromUI() {
                 year_from: yearFrom || null,
                 year_to: yearTo || null,
                 sort_by: blockEl.querySelector('.movie-block-sort-by').value,
+                parent_ids: [...blockEl.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value)
             };
 
             const limitValue = blockEl.querySelector('.movie-block-limit-select').value;
@@ -247,36 +309,61 @@ function getBlocksDataFromUI() {
                     filters.duration_minutes = parseInt(value, 10);
                 }
             }
-            
+
             blocksData.push({ type: 'movie', filters: filters });
         }
     });
     return blocksData;
 }
 
-function applyPresetToUI(blocksData, blocksContainer) {
+function applyPresetToUI(blocksData, blocksContainer, changeCallback) {
     if (!blocksData) return;
-    blocksContainer.innerHTML = '';
+    // Instead of destroying the container, just remove the block elements
+    blocksContainer.querySelectorAll('.mixed-block').forEach(el => el.remove());
     blocksData.forEach(blockData => {
         let blockElement;
-        if (blockData.type === 'tv') { blockElement = renderTvBlock(blockData); }
+        if (blockData.type === 'tv') { blockElement = renderTvBlock(blockData, changeCallback); }
         else if (blockData.type === 'movie') { blockElement = renderMovieBlock(blockData); }
         if (blockElement) {
             blocksContainer.appendChild(blockElement);
-            addBlockEventListeners(blockElement);
+            addBlockEventListeners(blockElement, changeCallback);
+            if (blockData.type === 'movie') {
+                updateMovieBlockPreviewCount(blockElement);
+            }
         }
     });
 }
 
-export function initMixedPane(userSel, shows, genres) {
+export function initMixedPane(userSel, shows, genres, movieLibraries) {
     userSelectElement = userSel;
     seriesData = shows;
     genreData = genres;
+    libraryData = movieLibraries;
     const blocksContainer = document.getElementById('mixed-playlist-blocks');
     const placeholder = blocksContainer.querySelector('.placeholder-text');
     const aiGeneratorContainer = document.getElementById('ai-generator-container');
     const aiPromptInput = document.getElementById('ai-prompt-input');
     const generateWithAiBtn = document.getElementById('generate-with-ai-btn');
+    const moviePreviewDebouncer = debounce(updateMovieBlockPreviewCount, 500);
+    const generateBtn = document.getElementById('generate-mixed-playlist-btn');
+    const collectionCb = document.getElementById('create-as-collection-cb');
+
+    const mixedPresetManager = new PresetManager('mixerbeeMixedPresets', {
+        loadSelect: document.getElementById('load-preset-select'),
+        saveBtn: document.getElementById('save-preset-btn'),
+        deleteBtn: document.getElementById('delete-preset-btn'),
+        importBtn: document.getElementById('import-preset-btn'),
+        exportBtn: document.getElementById('export-preset-btn')
+    });
+
+    // --- AUTOSAVE LOGIC ---
+    const autosave = () => {
+        const blocksData = getBlocksDataFromUI();
+        mixedPresetManager.presets['__autosave__'] = blocksData;
+        mixedPresetManager.savePresets();
+        // console.log("Autosaved state.");
+    };
+    const debouncedAutosave = debounce(autosave, 2000);
 
     async function checkAiConfig() {
         try {
@@ -299,22 +386,20 @@ export function initMixedPane(userSel, shows, genres) {
             placeholder.style.display = blockCount === 0 ? 'block' : 'none';
         }
     }
+    
+    collectionCb.addEventListener('change', () => {
+        generateBtn.textContent = collectionCb.checked ? 'Build Collection' : 'Build Playlist';
+    });
 
     new Sortable(blocksContainer, {
         animation: 150,
         handle: '.drag-handle',
         ghostClass: 'sortable-ghost',
+        onEnd: debouncedAutosave, // Trigger save on reorder
     });
 
-    const mixedPresetManager = new PresetManager('mixerbeeMixedPresets', {
-        loadSelect: document.getElementById('load-preset-select'),
-        saveBtn: document.getElementById('save-preset-btn'),
-        deleteBtn: document.getElementById('delete-preset-btn'),
-        importBtn: document.getElementById('import-preset-btn'),
-        exportBtn: document.getElementById('export-preset-btn')
-    });
     mixedPresetManager.init(getBlocksDataFromUI, (presetData) => {
-        applyPresetToUI(presetData, blocksContainer);
+        applyPresetToUI(presetData, blocksContainer, debouncedAutosave);
         checkPlaceholderVisibility();
     });
 
@@ -339,8 +424,9 @@ export function initMixedPane(userSel, shows, genres) {
             const result = await response.json();
 
             if (response.ok && result.status === 'ok') {
-                applyPresetToUI(result.blocks, blocksContainer);
+                applyPresetToUI(result.blocks, blocksContainer, debouncedAutosave);
                 checkPlaceholderVisibility();
+                debouncedAutosave();
             } else {
                 alert('Error from AI: ' + (result.detail || 'Could not generate playlist.'));
             }
@@ -355,22 +441,33 @@ export function initMixedPane(userSel, shows, genres) {
     });
 
     document.getElementById('add-tv-block-btn').addEventListener('click', () => {
-        const blockElement = renderTvBlock();
+        const blockElement = renderTvBlock(null, debouncedAutosave);
         blocksContainer.appendChild(blockElement);
-        addBlockEventListeners(blockElement);
+        addBlockEventListeners(blockElement, debouncedAutosave);
         checkPlaceholderVisibility();
+        debouncedAutosave();
     });
     document.getElementById('add-movie-block-btn').addEventListener('click', () => {
         const blockElement = renderMovieBlock();
         blocksContainer.appendChild(blockElement);
-        addBlockEventListeners(blockElement);
+        addBlockEventListeners(blockElement, debouncedAutosave);
         checkPlaceholderVisibility();
+        updateMovieBlockPreviewCount(blockElement);
+        debouncedAutosave();
     });
     document.getElementById('clear-all-blocks-btn').addEventListener('click', () => {
         if (confirm('Are you sure you want to clear all blocks? This cannot be undone.')) {
-            blocksContainer.innerHTML = '';
-            blocksContainer.appendChild(placeholder);
+            blocksContainer.querySelectorAll('.mixed-block').forEach(el => el.remove());
             checkPlaceholderVisibility();
+            autosave(); // Save the cleared state immediately
+        }
+    });
+
+    blocksContainer.addEventListener('input', (event) => {
+        debouncedAutosave();
+        const movieBlock = event.target.closest('.mixed-block[data-type="movie"]');
+        if (movieBlock) {
+            moviePreviewDebouncer(movieBlock);
         }
     });
 
@@ -379,11 +476,17 @@ export function initMixedPane(userSel, shows, genres) {
         if (target.classList.contains('delete-block-btn')) {
             target.closest('.mixed-block')?.remove();
             checkPlaceholderVisibility();
+            debouncedAutosave();
         }
         if (target.classList.contains('add-show-row-btn')) {
             const showsContainer = target.closest('.mixed-block-body').querySelector('.tv-block-shows');
-            const newRow = createTvShowRow({ seriesData: seriesData, userSelectElement: userSelectElement });
+            const newRow = createTvShowRow({
+                seriesData: seriesData,
+                userSelectElement: userSelectElement,
+                changeCallback: debouncedAutosave
+            });
             showsContainer.appendChild(newRow);
+            debouncedAutosave();
         }
     });
 
@@ -392,28 +495,31 @@ export function initMixedPane(userSel, shows, genres) {
         const block = row.closest('.mixed-block');
         if (block.querySelectorAll('.show-row').length > 1) {
             row.remove();
+            debouncedAutosave();
         }
     });
 
-    document.getElementById('generate-mixed-playlist-btn').addEventListener('click', (event) => {
-        const blocks = getBlocksDataFromUI(); // Now uses the helper function
-        if (blocks.length === 0) { alert('Please add at least one block.'); return; }
-        
-        const legacyBlocks = blocks.map(block => {
-            if (block.type === 'tv') {
-                 const shows = block.shows.map(s => {
-                    if (s.name) return `${s.name}::S${String(s.season).padStart(2,'0')}E${String(s.episode).padStart(2,'0')}`;
-                    return null;
-                }).filter(Boolean);
-                return {...block, shows};
-            }
-            return block;
-        });
+    generateBtn.addEventListener('click', (event) => {
+        const blocks = getBlocksDataFromUI();
+        const createAsCollection = collectionCb.checked;
 
+        if (createAsCollection) {
+            if (blocks.length !== 1 || blocks[0].type !== 'movie') {
+                alert('Collections can only be created from a single Movie Block.');
+                return;
+            }
+        } else {
+            if (blocks.length === 0) {
+                alert('Please add at least one block to build a playlist.');
+                return;
+            }
+        }
+        
         const requestBody = {
             user_id: userSelectElement.value,
-            playlist_name: document.getElementById('global-playlist-name').value,
-            blocks: legacyBlocks // Use the transformed blocks for the API
+            playlist_name: document.getElementById('action-bar-playlist-name').value,
+            blocks: blocks,
+            create_as_collection: createAsCollection
         };
         post('api/create_mixed_playlist', requestBody, event);
     });
@@ -458,11 +564,11 @@ export function initMixedPane(userSel, shows, genres) {
     document.getElementById('forgotten-favorites-btn').addEventListener('click', (event) => {
         const clickedButton = event.currentTarget;
         smartPlaylistModal.show({
-            title: 'Forgotten Favorites',
+            title: 'From the Vault',
             description: 'This will create a playlist of favorited movies you haven\'t seen in a while.',
             countLabel: 'Number of Movies',
             defaultCount: 20,
-            defaultName: 'Forgotten Favorites',
+            defaultName: 'From the Vault',
             onCreate: ({ playlistName, count }) => {
                 post('api/create_forgotten_favorites', {
                     user_id: userSelectElement.value,
@@ -472,6 +578,40 @@ export function initMixedPane(userSel, shows, genres) {
             }
         });
     });
+
+    document.getElementById('random-genre-marathon-btn').addEventListener('click', (event) => {
+        const clickedButton = event.currentTarget;
+        if (!genreData || genreData.length === 0) {
+            alert("Movie genres haven't been loaded yet. Please try again in a moment.");
+            return;
+        }
+
+        const randomGenre = genreData[Math.floor(Math.random() * genreData.length)];
+        const genreName = randomGenre.Name;
+
+        smartPlaylistModal.show({
+            title: `${genreName} Marathon`,
+            description: `This will create a playlist of random, unwatched ${genreName} movies from your library.`,
+            countLabel: 'Number of Movies',
+            defaultCount: 5,
+            defaultName: `${genreName} Marathon`,
+            onCreate: ({ playlistName, count }) => {
+                post('api/create_movie_marathon', {
+                    user_id: userSelectElement.value,
+                    playlist_name: playlistName,
+                    genre: genreName,
+                    count: count,
+                }, clickedButton);
+            }
+        });
+    });
+
+    // --- INITIAL LOAD ---
+    const autosavedState = mixedPresetManager.presets['__autosave__'];
+    if (autosavedState && autosavedState.length > 0) {
+        console.log("Found autosaved state, restoring...");
+        applyPresetToUI(autosavedState, blocksContainer, debouncedAutosave);
+    }
 
     checkPlaceholderVisibility();
     checkAiConfig();
