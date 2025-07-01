@@ -127,3 +127,59 @@ button .feather {
 body[data-theme='light'] #ai-prompt-input:focus {
      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
+
+/* Theme Toggle Switch */
+.theme-toggle-label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.theme-toggle-label .feather {
+    color: var(--text-subtle);
+    width: 20px;
+    height: 20px;
+    transition: color 0.3s ease;
+}
+.theme-toggle-label .slider {
+    position: relative;
+    width: 50px;
+    height: 28px;
+    background-color: var(--panel-alt);
+    border: 1px solid var(--border-color);
+    transition: .4s;
+    border-radius: 28px;
+}
+.theme-toggle-label .slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-subtle);
+    transition: .4s;
+    border-radius: 50%;
+}
+#theme-toggle-cb {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+#theme-toggle-cb:checked + .slider {
+    background-color: var(--accent);
+}
+#theme-toggle-cb:checked + .slider:before {
+    transform: translateX(22px);
+    background-color: #fff;
+}
+
+/* Icon color behavior */
+#theme-toggle-cb:checked ~ .feather-sun {
+    color: var(--accent);
+}
+#theme-toggle-cb:not(:checked) ~ .feather-moon {
+    color: var(--accent);
+}

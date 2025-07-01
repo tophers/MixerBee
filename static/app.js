@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initModals();
 
     const userSel = document.getElementById('user-select');
-    const themeToggleBtn = document.getElementById('theme-toggle-btn');
+    const themeToggle = document.getElementById('theme-toggle-cb');
     const body = document.body;
 
     const mixedTabBtn = document.getElementById('mixed-tab-btn');
@@ -25,22 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const applyTheme = (theme) => {
         body.dataset.theme = theme;
         localStorage.setItem('mixerbeeTheme', theme);
-        if (theme === 'light') {
-            themeToggleBtn.textContent = 'Dark Mode';
-            themeToggleBtn.title = 'Switch to Dark Theme';
-        } else {
-            themeToggleBtn.textContent = 'Light Mode';
-            themeToggleBtn.title = 'Switch to Light Theme';
+        themeToggle.checked = (theme === 'light');
+        // We need to re-run feather to apply color changes to icons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
         }
     };
 
     const toggleTheme = () => {
-        const currentTheme = body.dataset.theme || 'dark';
-        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        const newTheme = themeToggle.checked ? 'light' : 'dark';
         applyTheme(newTheme);
     };
 
-    themeToggleBtn.addEventListener('click', toggleTheme);
+    themeToggle.addEventListener('change', toggleTheme);
 
     function saveGlobalState() {
         localStorage.setItem('mixerbeeGlobalState', JSON.stringify({

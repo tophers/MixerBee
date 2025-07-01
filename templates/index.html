@@ -36,7 +36,6 @@
                     <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                     <button id="import-preset-btn" type="button" class="secondary">Import</button>
                     <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
-                    <button id="theme-toggle-btn" type="button" class="secondary" title="Toggle Theme">Light Mode</button>
                 </div>
             </div>
              <fieldset id="ai-generator-container" class="filter-group" style="display: none;">
@@ -198,12 +197,22 @@
 
 
     <div id="action-bar">
-        <input id="action-bar-playlist-name" type="text" placeholder="Enter a name for your Playlist or Collection...">
-        <button id="generate-mixed-playlist-btn">Build</button>
-        <label class="action-bar-checkbox-label">
-            <input type="checkbox" id="create-as-collection-cb">
-            <span>Create as Collection</span>
-        </label>
+        <div class="action-bar-content">
+            <input id="action-bar-playlist-name" type="text" placeholder="Enter a name for your Playlist or Collection...">
+            <button id="generate-mixed-playlist-btn">Build</button>
+            <label class="action-bar-checkbox-label">
+                <input type="checkbox" id="create-as-collection-cb">
+                <span>Create as Collection</span>
+            </label>
+            <div class="theme-switcher">
+                <label for="theme-toggle-cb" class="theme-toggle-label">
+                    <i data-feather="moon"></i>
+                    <input type="checkbox" id="theme-toggle-cb">
+                    <span class="slider"></span>
+                    <i data-feather="sun"></i>
+                </label>
+            </div>
+        </div>
     </div>
 
     <div id="save-preset-modal-overlay" class="modal-overlay" style="display: none;">

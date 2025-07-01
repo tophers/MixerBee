@@ -17,22 +17,34 @@
     background: var(--panel);
     box-shadow: 0 -2px 6px rgba(0,0,0,.5);
     display: flex;
-    justify-content: center;
-    align-items: center; 
-    gap: 1rem;
-    padding: .8rem 1rem;
+    justify-content: center; /* Center the inner container */
+    padding: .8rem 0; /* Vertical padding only on the bar itself */
     z-index: 10;
     margin-top: auto;
 }
 
-#action-bar > input {
-    flex: 1 1 300px;
-    max-width: 400px;
+.action-bar-content {
+    width: 100%;
+    max-width: 680px; /* Match the main container width */
+    display: flex;
+    align-items: center; 
+    gap: 1rem;
+    padding: 0 1rem; /* Horizontal padding is now here */
 }
 
-#action-bar button {
-    flex-grow: 0;
-    white-space: nowrap;
+.action-bar-content > input {
+    flex: 1 1 auto; /* Let the input field grow */
+    min-width: 200px;
+}
+
+.action-bar-content button, 
+.action-bar-content .action-bar-checkbox-label,
+.action-bar-content .theme-switcher {
+    flex-shrink: 0; /* Prevent these items from shrinking */
+}
+
+.theme-switcher {
+    margin-left: auto;
 }
 
 .action-bar-checkbox-label {
@@ -86,7 +98,7 @@ body[data-theme='light'] .tab-btn:hover {
     padding-bottom: 2rem;
 }
 
-#scheduler-pane h3 {
+#scheduler-pane h3, #manager-pane h3 {
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
     text-align: center;
