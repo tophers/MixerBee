@@ -38,7 +38,7 @@ class MovieFinderRequest(BaseModel):
 class MixedPlaylistRequest(BaseModel):
     user_id: str
     playlist_name: str
-    blocks: Optional[List[dict]] = None # Made optional to support collection creation
+    blocks: Optional[List[dict]] = None
     create_as_collection: bool = False
 
 class PilotSamplerRequest(BaseModel):
@@ -200,6 +200,28 @@ def api_movie_genres():
 @app.get("/api/movie_libraries")
 def api_movie_libraries():
     return core.get_movie_libraries(HDR)
+
+def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
+    """Fetches and combines playlists and collections for the Manager tab."""
+    params = {
+        "Recursive": "true",
+        "IncludeItemTypes": "Playlist,BoxSet",
+        "Fields": "ChildCount,DateCreated",
+    }
+    r = core.SESSION.get(f"{core.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
+    r.raise_for_status()
+    
+    items = r.json().get("Items", [])
+    
+    for item in items:
+        item["ItemCount"] = item.get("ChildCount", 0)
+        item["DisplayType"] = "Collection" if item.get("Type") == "BoxSet" else "Playlist"
+
+    return items
+
+@app.get("/api/manageable_items")
+def api_manageable_items(user_id: str):
+    return get_manageable_items(user_id, HDR)
 
 @app.post("/api/mix")
 def api_mix(req: MixRequest):

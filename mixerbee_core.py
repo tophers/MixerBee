@@ -566,7 +566,6 @@ def find_movies(user_id: str, filters: Dict,
         "Fields": "Genres,PremiereDate,UserData,RunTimeTicks"
     }
     
-    # NEW: Filter by parent library if specified
     if filters.get("parent_ids"):
         base_params["ParentId"] = ",".join(filters["parent_ids"])
     

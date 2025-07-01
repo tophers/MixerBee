@@ -23,8 +23,8 @@ export function initModal(userSelectElement) {
                 playlists.forEach(p => {
                     const li = document.createElement('li');
                     li.textContent = p.Name;
-                    const delBtn = Object.assign(document.createElement('button'), { 
-                        className: 'icon-btn danger', 
+                    const delBtn = Object.assign(document.createElement('button'), {
+                        className: 'icon-btn danger',
                         textContent: '🗑️',
                         title: 'Delete Playlist'
                     });

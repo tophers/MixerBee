@@ -14,11 +14,12 @@
     <!-- Hidden select for user ID. Required by JS, but multi-user feature is disabled due to Emby API issues. -->
     <select id="user-select" style="display: none;"></select>
 
-    <h2 style="margin-top: 2.5rem;">MixerBee Playlist Builder</h2>
+    <h2 style="margin-top: 2.5rem;">MixerBee</h2>
 
     <div class="tab-switcher">
-        <button id="mixed-tab-btn" class="tab-btn active">Playlist Builder</button>
+        <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
         <button id="scheduler-tab-btn" class="tab-btn">Scheduler</button>
+        <button id="manager-tab-btn" class="tab-btn">Manager</button>
     </div>
 
     <div id="mixed-pane" class="tab-pane active" style="display: block;">
@@ -35,7 +36,6 @@
                     <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                     <button id="import-preset-btn" type="button" class="secondary">Import</button>
                     <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
-                    <button id="manage-playlists-btn" type="button" class="secondary" title="View and delete existing playlists on your Emby server">Playlist Cleanup</button>
                     <button id="theme-toggle-btn" type="button" class="secondary" title="Toggle Theme">Light Mode</button>
                 </div>
             </div>
@@ -172,6 +172,30 @@
             </ul>
         </div>
     </div>
+    
+    <div id="manager-pane" class="tab-pane" style="display: none;">
+        <div class="container">
+             <h3>Manage Playlists & Collections</h3>
+             <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
+             <div class="table-container">
+                 <table>
+                     <thead>
+                         <tr>
+                             <th class="sortable sort-asc" data-sort="Name">Name</th>
+                             <th class="sortable" data-sort="DisplayType">Type</th>
+                             <th class="sortable" data-sort="ItemCount">Items</th>
+                             <th class="sortable" data-sort="DateCreated">Created</th>
+                             <th>Actions</th>
+                         </tr>
+                     </thead>
+                     <tbody>
+                         <!-- Rows will be inserted by JS -->
+                     </tbody>
+                 </table>
+             </div>
+        </div>
+    </div>
+
 
     <div id="action-bar">
         <input id="action-bar-playlist-name" type="text" placeholder="Enter a name for your Playlist or Collection...">
@@ -180,18 +204,6 @@
             <input type="checkbox" id="create-as-collection-cb">
             <span>Create as Collection</span>
         </label>
-    </div>
-
-    <div id="playlist-modal-overlay" class="modal-overlay" style="display: none;">
-        <div class="modal-window">
-            <div class="modal-header">
-                <h2>Manage Playlists</h2>
-                <button id="modal-close-btn" class="icon-btn" aria-label="Close">×</button>
-            </div>
-            <div class="modal-body">
-                <ul id="modal-playlist-list"></ul>
-            </div>
-        </div>
     </div>
 
     <div id="save-preset-modal-overlay" class="modal-overlay" style="display: none;">

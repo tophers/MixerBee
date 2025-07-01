@@ -426,3 +426,64 @@
 .status-danger .feather {
     stroke: var(--danger);
 }
+
+
+/* Manager Pane */
+.table-container {
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--divider-color);
+}
+thead {
+    background-color: var(--panel-alt);
+}
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+th.sortable:hover {
+    color: var(--accent);
+}
+th.sortable::after {
+    content: ' ';
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-left: 0.4rem;
+    opacity: 0.4;
+}
+th.sort-asc::after {
+    content: '▲';
+    opacity: 1;
+}
+th.sort-desc::after {
+    content: '▼';
+    opacity: 1;
+}
+td:last-child {
+    text-align: right;
+}
+.badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.badge.playlist {
+    background-color: var(--accent);
+    color: #fff;
+}
+.badge.collection {
+    background-color: var(--success);
+    color: #fff;
+}

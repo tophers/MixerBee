@@ -1,8 +1,8 @@
 // static/app.js
-import { toast, post, initModals } from './utils.js'; // Import initModals
-import { initModal } from './modal.js';
+import { toast, post, initModals } from './utils.js';
 import { initMixedPane } from './mixed.js';
 import { initSchedulerPane } from './scheduler.js';
+import { initManager } from './manager.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -14,8 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mixedTabBtn = document.getElementById('mixed-tab-btn');
     const schedulerTabBtn = document.getElementById('scheduler-tab-btn');
+    const managerTabBtn = document.getElementById('manager-tab-btn');
+
     const mixedPane = document.getElementById('mixed-pane');
     const schedulerPane = document.getElementById('scheduler-pane');
+    const managerPane = document.getElementById('manager-pane');
+    
     const mainActionBar = document.getElementById('action-bar');
 
     const applyTheme = (theme) => {
@@ -54,8 +58,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function switchTab(activeTab) {
-        [mixedTabBtn, schedulerTabBtn].forEach(b => b.classList.remove('active'));
-        [mixedPane, schedulerPane].forEach(p => p.classList.remove('active'));
+        [mixedTabBtn, schedulerTabBtn, managerTabBtn].forEach(b => b.classList.remove('active'));
+        [mixedPane, schedulerPane, managerPane].forEach(p => p.classList.remove('active'));
 
         mainActionBar.style.display = 'none';
 
@@ -66,12 +70,16 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (activeTab === 'scheduler') {
             schedulerTabBtn.classList.add('active');
             schedulerPane.classList.add('active');
+        } else if (activeTab === 'manager') {
+            managerTabBtn.classList.add('active');
+            managerPane.classList.add('active');
+            initManager(); // Refresh data every time the tab is opened
         }
 
         mixedPane.style.display = (activeTab === 'mixed') ? 'block' : 'none';
         schedulerPane.style.display = (activeTab === 'scheduler') ? 'block' : 'none';
+        managerPane.style.display = (activeTab === 'manager') ? 'block' : 'none';
         
-        // Re-run Feather to render any new icons on the active tab
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
@@ -79,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     mixedTabBtn.addEventListener('click', () => switchTab('mixed'));
     schedulerTabBtn.addEventListener('click', () => switchTab('scheduler'));
+    managerTabBtn.addEventListener('click', () => switchTab('manager'));
 
     userSel.addEventListener('input', saveGlobalState);
 
@@ -92,7 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
       fetch('api/default_user').then(r => r.json()),
       fetch('api/shows').then(r => r.json()),
       fetch('api/movie_genres').then(r => r.json()),
-      fetch('api/movie_libraries').then(r => r.json()) // Fetch movie libraries
+      fetch('api/movie_libraries').then(r => r.json())
     ])
       .then(([users, defUser, shows, genres, movieLibraries]) => {
         users.forEach(u => userSel.appendChild(Object.assign(document.createElement('option'), { value: u.id, textContent: u.name })));
@@ -103,14 +112,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         saveGlobalState();
 
-        initModal(userSel);
-        initMixedPane(userSel, shows, genres, movieLibraries); // Pass libraries to the mixed pane
+        initMixedPane(userSel, shows, genres, movieLibraries);
         initSchedulerPane();
-
-        // Start on the main builder tab
+        // Manager is initialized when tab is clicked
+        
         switchTab('mixed');
         
-        // Final icon replacement call after everything is initialized
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
