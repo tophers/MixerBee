@@ -175,11 +175,20 @@ body[data-theme='light'] #ai-prompt-input:focus {
     transform: translateX(22px);
     background-color: #fff;
 }
-
-/* Icon color behavior */
 #theme-toggle-cb:checked ~ .feather-sun {
     color: var(--accent);
 }
 #theme-toggle-cb:not(:checked) ~ .feather-moon {
+.theme-switcher .feather-moon {
+    color: var(--accent);
+}
+.theme-switcher .feather-sun {
+    color: var(--text-subtle);
+}
+
+body[data-theme="light"] .theme-switcher .feather-moon {
+    color: var(--text-subtle);
+}
+body[data-theme="light"] .theme-switcher .feather-sun {
     color: var(--accent);
 }

@@ -18,7 +18,11 @@
     box-shadow: 0 -2px 6px rgba(0,0,0,.5);
     display: flex;
     justify-content: center; /* Center the inner container */
+<<<<<<< HEAD
     padding: .8rem 0; /* Vertical padding only on the bar itself */
+=======
+    padding: .8rem 1rem;
+>>>>>>> testing
     z-index: 10;
     margin-top: auto;
 }
@@ -29,11 +33,18 @@
     display: flex;
     align-items: center; 
     gap: 1rem;
+<<<<<<< HEAD
     padding: 0 1rem; /* Horizontal padding is now here */
 }
 
 .action-bar-content > input {
     flex: 1 1 auto; /* Let the input field grow */
+=======
+}
+
+.action-bar-content > input {
+    flex: 1 1 0; /* Let the input field grow and shrink */
+>>>>>>> testing
     min-width: 200px;
 }
 
