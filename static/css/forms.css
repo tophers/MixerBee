@@ -175,10 +175,6 @@ body[data-theme='light'] #ai-prompt-input:focus {
     transform: translateX(22px);
     background-color: #fff;
 }
-#theme-toggle-cb:checked ~ .feather-sun {
-    color: var(--accent);
-}
-#theme-toggle-cb:not(:checked) ~ .feather-moon {
 .theme-switcher .feather-moon {
     color: var(--accent);
 }
