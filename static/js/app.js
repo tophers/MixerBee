@@ -1,8 +1,9 @@
-// static/app.js
-import { toast, post, initModals } from './utils.js';
-import { initMixedPane } from './mixed.js';
+// static/js/app.js
+import { toast, initModals } from './utils.js';
+import { initBuilderPane } from './builder.js';
 import { initSchedulerPane } from './scheduler.js';
 import { initManager } from './manager.js';
+import { initQuickPlaylists } from './quick_playlists.js';
 
 document.addEventListener('DOMContentLoaded', () => {
 
@@ -19,14 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const mixedPane = document.getElementById('mixed-pane');
     const schedulerPane = document.getElementById('scheduler-pane');
     const managerPane = document.getElementById('manager-pane');
-    
+
     const mainActionBar = document.getElementById('action-bar');
 
     const applyTheme = (theme) => {
         body.dataset.theme = theme;
         localStorage.setItem('mixerbeeTheme', theme);
         themeToggle.checked = (theme === 'light');
-        // We need to re-run feather to apply color changes to icons
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
@@ -49,8 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const stateJSON = localStorage.getItem('mixerbeeGlobalState');
         if (!stateJSON) return null;
         try {
-            const state = JSON.parse(stateJSON);
-            return state?.userId || null;
+            return JSON.parse(stateJSON)?.userId || null;
         } catch (e) { console.error("Failed to load global state:", e); return null; }
     }
 
@@ -76,7 +75,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mixedPane.style.display = (activeTab === 'mixed') ? 'block' : 'none';
         schedulerPane.style.display = (activeTab === 'scheduler') ? 'block' : 'none';
         managerPane.style.display = (activeTab === 'manager') ? 'block' : 'none';
-        
+
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
@@ -98,23 +97,23 @@ document.addEventListener('DOMContentLoaded', () => {
       fetch('api/default_user').then(r => r.json()),
       fetch('api/shows').then(r => r.json()),
       fetch('api/movie_genres').then(r => r.json()),
-      fetch('api/movie_libraries').then(r => r.json())
+      fetch('api/movie_libraries').then(r => r.json()),
+      fetch('api/music/artists').then(r => r.json()),
+      fetch('api/music/genres').then(r => r.json()),
     ])
-      .then(([users, defUser, shows, genres, movieLibraries]) => {
+      .then(([users, defUser, seriesData, movieGenreData, libraryData, artistData, musicGenreData]) => {
         users.forEach(u => userSel.appendChild(Object.assign(document.createElement('option'), { value: u.id, textContent: u.name })));
-        if (savedUserId && users.some(u => u.id === savedUserId)) {
-            userSel.value = savedUserId;
-        } else {
-            userSel.value = defUser.id;
-        }
+        userSel.value = (savedUserId && users.some(u => u.id === savedUserId)) ? savedUserId : defUser.id;
         saveGlobalState();
+        
+        const allData = { seriesData, movieGenreData, libraryData, artistData, musicGenreData };
 
-        initMixedPane(userSel, shows, genres, movieLibraries);
+        initBuilderPane(userSel, allData);
+        initQuickPlaylists(userSel, movieGenreData, musicGenreData);
         initSchedulerPane();
-        // Manager is initialized when tab is clicked
-        
+
         switchTab('mixed');
-        
+
         if (typeof feather !== 'undefined') {
             feather.replace();
         }

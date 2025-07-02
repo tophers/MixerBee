@@ -88,6 +88,12 @@ button .feather {
     stroke-width: 2.5;
 }
 
+button .feather.chevron {
+    width: 1em;
+    height: 1em;
+    stroke-width: 3;
+}
+
 .control-item {
     display: flex;
     flex-direction: column;

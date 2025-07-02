@@ -55,11 +55,47 @@
     gap: 0.4rem;
 }
 
-.filter-group > details {
+/* Make top-level fieldset details look consistent */
+fieldset > details {
+    padding-top: 0.2rem;
+}
+fieldset > details > summary {
+    font-weight: 600;
+    color: var(--text-subtle);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+    user-select: none;
+    padding: 0.2rem;
+}
+fieldset > details > summary:hover {
+    color: var(--text);
+}
+fieldset > details > summary::-webkit-details-marker {
+    display: none;
+}
+fieldset > details > summary::before {
+    content: '►';
+    margin-right: 0.6rem;
+    font-size: 0.8em;
+    transition: transform 0.2s ease-in-out;
+}
+fieldset > details[open] > summary::before {
+    transform: rotate(90deg);
+}
+fieldset > details > div { /* The content inside */
+    padding-top: 1rem;
+}
+
+
+/* Specific styling for nested details */
+.filter-group > .filter-group-nested details {
     padding: 0.2rem 0;
 }
 
-.filter-group > details > summary {
+.filter-group > .filter-group-nested details > summary {
     font-weight: 600;
     color: var(--text-subtle);
     cursor: pointer;
@@ -70,26 +106,26 @@
     user-select: none;
 }
 
-.filter-group > details > summary:hover {
+.filter-group > .filter-group-nested details > summary:hover {
     color: var(--text);
 }
 
-.filter-group > details > summary::-webkit-details-marker {
+.filter-group > .filter-group-nested details > summary::-webkit-details-marker {
     display: none;
 }
 
-.filter-group > details > summary::before {
+.filter-group > .filter-group-nested details > summary::before {
     content: '►';
     margin-right: 0.6rem;
     font-size: 0.8em;
     transition: transform 0.2s ease-in-out;
 }
 
-.filter-group > details[open] > summary::before {
+.filter-group > .filter-group-nested details[open] > summary::before {
     transform: rotate(90deg);
 }
 
-.filter-group > details > .checkbox-grid {
+.filter-group > .filter-group-nested details > .checkbox-grid {
     padding-top: 1.2rem;
     margin-bottom: 0;
 }
@@ -130,12 +166,36 @@
 
 
 /* Mixed Playlist Builder */
+.quick-playlist-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+.quick-playlist-group {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.8rem;
+}
+.quick-playlist-label {
+    font-weight: 600;
+    color: var(--text-subtle);
+    font-size: 0.9rem;
+    padding-top: 0.45rem;
+    flex-shrink: 0;
+}
 .quick-playlist-buttons {
     flex-wrap: wrap;
+    flex-grow: 1;
 }
 
 .quick-playlist-buttons button {
     font-size: .9rem;
+    padding: .4rem .8rem;
+}
+
+.placeholder-text-small {
+    font-size: 0.9em;
+    color: var(--text-placeholder);
     padding: .4rem .8rem;
 }
 
@@ -149,7 +209,52 @@
 }
 
 #add-block-controls {
-    justify-content: center;
+    justify-content: space-between;
+}
+
+/* Dropdown Styles */
+.dropdown-container {
+    position: relative;
+    display: inline-block;
+}
+.dropdown-menu {
+    position: absolute;
+    bottom: 100%; /* Position above the button */
+    left: 0;
+    background-color: var(--panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 100;
+    min-width: 180px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.dropdown-menu.hidden {
+    display: none;
+}
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 1rem;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.dropdown-item:hover {
+    background-color: var(--accent);
+    color: #fff;
+}
+.dropdown-item .feather {
+    width: 1.1em;
+    height: 1.1em;
+}
+.dropdown-item:hover .feather {
+    stroke: #fff;
 }
 
 .mixed-block {
@@ -208,13 +313,13 @@
     padding-right: 0.2rem;
 }
 
-.movie-block-filter-grid {
+.movie-block-filter-grid, .music-block-filter-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 1rem;
 }
 
-.movie-block-filter-grid > label {
+.movie-block-filter-grid > label, .music-block-filter-grid > label {
     display: flex;
     flex-direction: column;
     gap: .3rem;
@@ -251,7 +356,7 @@
 
 
 /* TV Block Specific Layouts */
-.show-search-input {
+.show-search-input, .artist-search-input {
     width: 100%;
     margin-bottom: 0.4rem;
 }

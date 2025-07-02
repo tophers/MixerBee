@@ -22,11 +22,10 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
   let clickedButton = null;
 
   if (eventOrElement) {
-    // Check if we were passed an event or an element directly
     if (eventOrElement.currentTarget) {
-        clickedButton = eventOrElement.currentTarget; // It's an event
+        clickedButton = eventOrElement.currentTarget;
     } else if (eventOrElement.tagName) {
-        clickedButton = eventOrElement; // It's an element
+        clickedButton = eventOrElement;
     }
 
     if (clickedButton) {
@@ -46,10 +45,11 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
         if (res.status === 'ok') {
             toast(res.log?.join(' • ') || 'Success!', true);
         } else {
-            toast('Error: ' + (res.log?.join(' • ') || 'unknown'), false);
+            toast('Error: ' + (res.log?.join(' • ') || res.detail || 'unknown'), false);
         }
-        return res.status;
+        return res; // Return the full response
     })
+    .then(res => res.status) // Keep this for backward compatibility
     .catch(e => {
         toast('Error: ' + e, false);
         return 'error';
@@ -120,7 +120,9 @@ class SmartPlaylistModal {
     constructor() {}
     _handleCreate() {
         const playlistName = this.nameInput.value.trim();
-        const count = parseInt(this.countInput.value, 10);
+        // Use a dummy count of 1 if the input is hidden, otherwise get the value
+        const count = this.countWrapper.style.display === 'none' ? 1 : parseInt(this.countInput.value, 10);
+        
         if (playlistName && count > 0) {
             if (this.onCreateCallback) this.onCreateCallback({ playlistName, count });
             this.hide();
@@ -128,21 +130,38 @@ class SmartPlaylistModal {
             alert('Please provide a valid playlist name and number of items.');
         }
     }
+    _handleCancel() {
+        if (this.onCancelCallback) this.onCancelCallback();
+        this.hide();
+    }
     _handleKeydown(e) {
         if (e.key === 'Enter') this._handleCreate();
-        if (e.key === 'Escape') this.hide();
+        if (e.key === 'Escape') this._handleCancel();
     }
-    show({ title, description, countLabel, defaultCount, defaultName, onCreate }) {
+    show({ title, description, countLabel, countInput = true, defaultCount, defaultName, onCreate, onCancel }) {
         this.onCreateCallback = onCreate;
+        this.onCancelCallback = onCancel;
         this.titleEl.textContent = title;
         this.descriptionEl.textContent = description;
-        this.countLabel.textContent = countLabel;
-        this.countInput.value = defaultCount;
+
+        // Show/hide the count input based on the 'countInput' flag
+        if (countInput) {
+            this.countWrapper.style.display = '';
+            this.countLabel.textContent = countLabel;
+            this.countInput.value = defaultCount;
+        } else {
+            this.countWrapper.style.display = 'none';
+        }
+
         this.nameInput.value = defaultName;
 
+        this._cancelHandler = this._handleCancel.bind(this);
+        this._createHandler = this._handleCreate.bind(this);
+        this._keydownHandler = this._handleKeydown.bind(this);
+
         this.confirmBtn.addEventListener('click', this._createHandler);
-        this.closeBtn.addEventListener('click', this._hideHandler);
-        this.cancelBtn.addEventListener('click', this._hideHandler);
+        this.closeBtn.addEventListener('click', this._cancelHandler);
+        this.cancelBtn.addEventListener('click', this._cancelHandler);
         this.overlay.addEventListener('keydown', this._keydownHandler);
 
         this.overlay.style.display = 'flex';
@@ -152,8 +171,8 @@ class SmartPlaylistModal {
     hide() {
         this.overlay.style.display = 'none';
         this.confirmBtn.removeEventListener('click', this._createHandler);
-        this.closeBtn.removeEventListener('click', this._hideHandler);
-        this.cancelBtn.removeEventListener('click', this._hideHandler);
+        this.closeBtn.removeEventListener('click', this._cancelHandler);
+        this.cancelBtn.removeEventListener('click', this._cancelHandler);
         this.overlay.removeEventListener('keydown', this._keydownHandler);
     }
     init() {
@@ -166,9 +185,7 @@ class SmartPlaylistModal {
         this.nameInput = document.getElementById('smart-playlist-name-input');
         this.countInput = document.getElementById('smart-playlist-count-input');
         this.countLabel = document.getElementById('smart-playlist-count-label');
-        this._createHandler = this._handleCreate.bind(this);
-        this._hideHandler = this.hide.bind(this);
-        this._keydownHandler = this._handleKeydown.bind(this);
+        this.countWrapper = document.getElementById('smart-playlist-count-wrapper');
     }
 }
 
@@ -182,7 +199,6 @@ class ImportPresetModal {
             return;
         }
         try {
-            // Find the base64 part, assuming it's the last non-empty line
             const lines = rawCode.split('\n').filter(line => line.trim() !== '');
             const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
             if (!base64String) {
@@ -192,14 +208,12 @@ class ImportPresetModal {
             const decodedString = atob(base64String);
             const sharePayload = JSON.parse(decodedString);
 
-            // The actual preset data is now nested inside a 'data' property
             const presetData = sharePayload.data;
             if (!presetData || !Array.isArray(presetData)) {
                 throw new Error("The share code has an invalid format.");
             }
 
             if (this.onImportCallback) {
-                // We pass the user-provided name and the extracted preset data
                 this.onImportCallback(name, presetData);
             }
             this.hide();
@@ -212,6 +226,9 @@ class ImportPresetModal {
         this.onImportCallback = onImport;
         this.codeInput.value = '';
         this.nameInput.value = '';
+
+        this._importHandler = this._handleImport.bind(this);
+        this._hideHandler = this.hide.bind(this);
 
         this.confirmBtn.addEventListener('click', this._importHandler);
         this.closeBtn.addEventListener('click', this._hideHandler);
@@ -233,8 +250,6 @@ class ImportPresetModal {
         this.confirmBtn = document.getElementById('import-preset-confirm-btn');
         this.codeInput = document.getElementById('import-code-input');
         this.nameInput = document.getElementById('import-name-input');
-        this._importHandler = this._handleImport.bind(this);
-        this._hideHandler = this.hide.bind(this);
     }
 }
 
@@ -312,7 +327,6 @@ export class PresetManager {
             if (!presetName) return;
 
             const presetData = this.presets[presetName];
-            // Create a wrapper object for better, self-describing exports
             const sharePayload = {
                 name: presetName,
                 data: presetData
@@ -320,7 +334,6 @@ export class PresetManager {
             const jsonString = JSON.stringify(sharePayload);
             const base64String = btoa(jsonString);
 
-            // Prepend a human-readable header
             const shareText = `MixerBee Preset: "${presetName}"\n--------------------------------------\n${base64String}`;
 
             navigator.clipboard.writeText(shareText).then(() => {

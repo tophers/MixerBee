@@ -3,6 +3,7 @@
 web.py – FastAPI wrapper for MixerBee.
 """
 import os
+import logging
 from pathlib import Path
 from typing import List, Optional, Dict
 
@@ -11,7 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-import mixerbee_core as core
+import app as core
 import scheduler
 import gemini_client
 from apscheduler.triggers.cron import CronTrigger
@@ -20,7 +21,11 @@ app = FastAPI(title="MixerBee API", root_path="/mixerbee")
 HERE = Path(__file__).parent
 
 # Correctly mount the entire static directory
-app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+app.mount("/static", StaticFiles(directory=HERE / "static/js"), name="js")
+app.mount("/static/css", StaticFiles(directory=HERE / "static/css"), name="css")
+app.mount("/static/vendor", StaticFiles(directory=HERE / "static/vendor"), name="vendor")
+app.mount("/static", StaticFiles(directory=HERE / "static"), name="static_root")
+
 
 # --- Load Environment ---
 login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS)
@@ -32,6 +37,10 @@ DEFAULT_UID = core.user_id_by_name(DEFAULT_USER_NAME, HDR) or login_uid
 
 # --- Define Models ---
 class MovieFinderRequest(BaseModel):
+    user_id: str
+    filters: dict = {}
+
+class MusicFinderRequest(BaseModel):
     user_id: str
     filters: dict = {}
 
@@ -77,6 +86,23 @@ class MovieMarathonRequest(BaseModel):
     genre: str
     count: int
 
+class ArtistSpotlightRequest(BaseModel):
+    user_id: str
+    playlist_name: str
+    artist_id: str
+    count: int
+
+class AlbumPlaylistRequest(BaseModel):
+    user_id: str
+    playlist_name: str
+    album_id: str
+
+class MusicGenrePlaylistRequest(BaseModel):
+    user_id: str
+    playlist_name: str
+    genre: str
+    count: int
+
 class MixRequest(BaseModel):
     shows: List[str] = []
     count: int = 5
@@ -84,6 +110,9 @@ class MixRequest(BaseModel):
     delete: bool = False
     verbose: bool = False
     target_uid: Optional[str] = None
+
+class DeleteItemRequest(BaseModel):
+    item_id: str
 
 # --- Startup and Shutdown ---
 @app.on_event("startup")
@@ -148,6 +177,44 @@ def api_create_movie_marathon(req: MovieMarathonRequest):
     )
     return result
 
+@app.post("/api/create_artist_spotlight")
+def api_create_artist_spotlight(req: ArtistSpotlightRequest):
+    log_messages = []
+    result = core.create_artist_spotlight_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        artist_id=req.artist_id,
+        count=req.count,
+        hdr=HDR,
+        log=log_messages
+    )
+    return result
+
+@app.post("/api/create_album_playlist")
+def api_create_album_playlist(req: AlbumPlaylistRequest):
+    log_messages = []
+    result = core.create_album_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        album_id=req.album_id,
+        hdr=HDR,
+        log=log_messages
+    )
+    return result
+
+@app.post("/api/create_music_genre_playlist")
+def api_create_music_genre_playlist(req: MusicGenrePlaylistRequest):
+    log_messages = []
+    result = core.create_music_genre_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        genre=req.genre,
+        count=req.count,
+        hdr=HDR,
+        log=log_messages
+    )
+    return result
+
 @app.get("/api/users")
 def api_users():
     users = core.all_users(HDR)
@@ -201,6 +268,32 @@ def api_movie_genres():
 def api_movie_libraries():
     return core.get_movie_libraries(HDR)
 
+@app.get("/api/music/genres")
+def api_music_genres():
+    return core.get_music_genres(HDR)
+
+@app.get("/api/music/artists")
+def api_music_artists():
+    return core.get_music_artists(HDR)
+
+@app.get("/api/music/artists/{artist_id}/albums")
+def api_music_artist_albums(artist_id: str):
+    return core.get_albums_by_artist(artist_id, HDR)
+
+@app.get("/api/music/random_artist")
+def api_get_random_artist():
+    artist = core.get_random_artist(HDR)
+    if not artist:
+        raise HTTPException(status_code=404, detail="No artists found in the library.")
+    return artist
+
+@app.get("/api/music/random_album")
+def api_get_random_album():
+    album = core.get_random_album(HDR)
+    if not album:
+        raise HTTPException(status_code=404, detail="No albums found in the library.")
+    return album
+
 def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Fetches and combines playlists and collections for the Manager tab."""
     params = {
@@ -210,9 +303,9 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     }
     r = core.SESSION.get(f"{core.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
-    
+
     items = r.json().get("Items", [])
-    
+
     for item in items:
         item["ItemCount"] = item.get("ChildCount", 0)
         item["DisplayType"] = "Collection" if item.get("Type") == "BoxSet" else "Playlist"
@@ -223,11 +316,24 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 def api_manageable_items(user_id: str):
     return get_manageable_items(user_id, HDR)
 
+@app.post("/api/delete_item")
+def api_delete_item(req: DeleteItemRequest):
+    """Deletes a single playlist or collection by its ID."""
+    try:
+        success = core.delete_item_by_id(req.item_id, HDR)
+        if success:
+            return {"status": "ok", "log": ["Item deleted successfully."]}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to delete item. It may have been already deleted, or there was a permission issue.")
+    except Exception as e:
+        logging.error(f"Error deleting item {req.item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/mix")
 def api_mix(req: MixRequest):
     """
-    Legacy endpoint for deleting playlists from the 'Manage Playlists' modal.
-    The creation part of this is no longer used by the UI.
+    Legacy endpoint for deleting playlists by name. No longer used by the main UI
+    but kept for backwards compatibility with CLI or other tools.
     """
     try:
         # We only expect this to be used for deletion from the modal now.
@@ -257,12 +363,24 @@ def api_movies_preview_count(req: MovieFinderRequest):
     except Exception as e:
         raise HTTPException(400, str(e))
 
+@app.post("/api/music/preview_count")
+def api_music_preview_count(req: MusicFinderRequest):
+    try:
+        filters = req.filters.copy()
+        # Ensure we check all songs, regardless of limit, for the count
+        filters['limit'] = None
+        found_songs = core.find_songs(user_id=req.user_id, filters=filters, hdr=HDR)
+        return {"count": len(found_songs)}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
 @app.post("/api/create_mixed_playlist")
 def api_create_mixed_playlist(req: MixedPlaylistRequest):
     if req.create_as_collection:
         if not req.blocks or len(req.blocks) != 1 or req.blocks[0].get("type") != "movie":
             raise HTTPException(400, "Collections can only be created from a single movie block.")
-        
+
         movie_filters = req.blocks[0].get("filters", {})
         return core.create_movie_collection(
             user_id=req.user_id,

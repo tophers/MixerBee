@@ -26,7 +26,7 @@ function sortData() {
 
 function renderTable() {
     tableBody.innerHTML = '';
-    
+
     const searchTerm = searchInput.value.toLowerCase();
     const filteredData = tableData.filter(item => item.Name.toLowerCase().includes(searchTerm));
 
@@ -41,15 +41,15 @@ function renderTable() {
 
     filteredData.forEach(item => {
         const row = tableBody.insertRow();
-        
+
         row.insertCell().textContent = item.Name;
-        
+
         const typeCell = row.insertCell();
         const typeBadge = document.createElement('span');
         typeBadge.className = `badge ${item.DisplayType.toLowerCase()}`;
         typeBadge.textContent = item.DisplayType;
         typeCell.appendChild(typeBadge);
-        
+
         row.insertCell().textContent = item.ItemCount;
         row.insertCell().textContent = new Date(item.DateCreated).toLocaleDateString();
 
@@ -60,10 +60,18 @@ function renderTable() {
         deleteBtn.title = `Delete ${item.DisplayType}`;
         deleteBtn.onclick = (event) => {
              if (confirm(`Are you sure you want to delete the ${item.DisplayType.toLowerCase()} "${item.Name}"?`)) {
-                post('api/mix', { delete: true, playlist: item.Name, target_uid: item.UserId }, event)
+                post('api/delete_item', { item_id: item.Id }, event)
                     .then(status => {
                         if (status === 'ok') {
-                           initManager(); // Re-fetch and re-render
+                           // Animate-out and remove the row for a better UX
+                           row.style.transition = 'opacity 0.4s ease-out';
+                           row.style.opacity = '0';
+                           setTimeout(() => {
+                               row.remove();
+                               // Also remove from the underlying data model to keep it consistent
+                               // if the user sorts or filters again without a full refresh.
+                               tableData = tableData.filter(d => d.Id !== item.Id);
+                           }, 400);
                         }
                     });
             }
@@ -86,7 +94,7 @@ function handleSort(event) {
         sortColumn = newSortColumn;
         sortDirection = 'asc';
     }
-    
+
     // Update header indicators
     managerPane.querySelectorAll('th').forEach(th => {
         th.classList.remove('sort-asc', 'sort-desc');
@@ -106,11 +114,11 @@ export async function initManager() {
         setTimeout(initManager, 200);
         return;
     }
-    
+
     try {
         const response = await fetch(`api/manageable_items?user_id=${userSelect.value}`);
         if (!response.ok) throw new Error('Failed to fetch manageable items');
-        
+
         tableData = await response.json();
         sortData(); // Initial sort
         renderTable();

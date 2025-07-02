@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-mixerbee.py – command-line wrapper for mixerbee_core
+mixerbee.py – command-line wrapper for mixerbee
 
 Adds new options:
 
@@ -22,8 +22,79 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import Dict, List
 
-import mixerbee_core as core
+import requests
+
+# Use the new refactored app package
+import app as core
+
+
+def mix(*,
+        shows: List[str],
+        count: int,
+        playlist: str,
+        target_uid: str | None = None,
+        delete: bool = False,
+        verbose: bool = False) -> Dict[str, object]:
+    """
+    Legacy mix function for the CLI. This is a simplified version
+    that only handles TV shows for command-line use.
+    """
+    log: List[str] = []
+    try:
+        login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS)
+    except requests.HTTPError as err:
+        return {"status": "error",
+                "log": [f"Login failed: {err.response.text}"]}
+
+    hdr = core.auth_headers(token, login_uid)
+    tgt = target_uid or login_uid
+
+    if verbose:
+        log.append(f"Authenticated as {core.EMBY_USER} → uid={login_uid}")
+        if target_uid:
+            log.append(f"Acting on behalf of user id {tgt}")
+
+    if delete:
+        # This legacy endpoint can delete playlists OR collections.
+        core.delete_collection(playlist, tgt, hdr, log)
+        core.delete_playlist(playlist, tgt, hdr, log)
+        return {"status": "ok", "log": log,
+                "details": {"deleted": playlist, "user_id": tgt}}
+
+    if not shows:
+        return {"status": "error",
+                "log": ["No shows specified; nothing to do."]}
+
+    groups: List[List[dict]] = []
+    for raw in shows:
+        try:
+            name, s, e = core.parse_show(raw)
+        except ValueError as err:
+            return {"status": "error", "log": [str(err)]}
+        sid = core.series_id(name, hdr)
+        if not sid:
+            return {"status": "error",
+                    "log": [f"Show not found: {name}"]}
+
+        eps = core.episodes(sid, s, e, count, hdr)
+        if len(eps) < count:
+            log.append(f"Warning: only {len(eps)} eps found for "
+                       f"'{name}' starting S{s}E{e}")
+        groups.append(eps)
+
+    interleaved_ids = core.interleave(groups)
+    total = len(interleaved_ids)
+
+    if verbose:
+        log.append(f"Creating playlist with {total} episodes…")
+
+    core.create_playlist(playlist, tgt, interleaved_ids, hdr, log)
+    return {"status": "ok", "log": log,
+            "details": {"episodes": total,
+                        "playlist": playlist,
+                        "user_id": tgt}}
 
 
 def run_interactive_wizard(hdr: dict, initial_uid: str) -> dict:
@@ -82,7 +153,7 @@ def run_interactive_wizard(hdr: dict, initial_uid: str) -> dict:
     print("\n--- Final Playlist Details ---")
     count = input("Episodes per show [5]: ") or "5"
     playlist_name = input("Playlist name [MixerBee Playlist]: ") or "MixerBee Playlist"
-    
+
     target_uid = initial_uid
 
     print("\n--- Summary ---")
@@ -98,7 +169,7 @@ def run_interactive_wizard(hdr: dict, initial_uid: str) -> dict:
         return {"status": "cancelled", "log": []}
 
     print("\nProcessing...")
-    return core.mix(
+    return mix(
         shows=show_args,
         count=int(count),
         playlist=playlist_name,
@@ -109,12 +180,7 @@ def run_interactive_wizard(hdr: dict, initial_uid: str) -> dict:
 
 
 def parse_args() -> argparse.Namespace:
-    early = argparse.ArgumentParser(add_help=False)
-    early.add_argument("--config", "--env", metavar="FILE",
-                       help="explicit path to .env (forwarded to core)")
-
     ap = argparse.ArgumentParser(
-        parents=[early],
         description="Create or delete interleaved TV episode playlists in Emby",
     )
     ap.add_argument("shows", nargs="*", help="Each as 'Show::S3E1'")
@@ -153,7 +219,7 @@ def main() -> None:
         else:
             target_uid = None
 
-        result = core.mix(
+        result = mix(
             shows=args.shows,
             count=args.count,
             playlist=args.delete or args.playlist,

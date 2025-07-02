@@ -39,29 +39,52 @@
                 </div>
             </div>
              <fieldset id="ai-generator-container" class="filter-group" style="display: none;">
-                <legend style="display: flex; align-items: center; gap: 0.5rem;">
-                    <span>AI Block Builder</span>
-                </legend>
-                <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem;"></textarea>
-                <div class="button-group" style="justify-content: flex-end;">
-                    <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
-                </div>
+                <legend>AI Block Builder</legend>
+                <details>
+                    <summary>Expand AI Block Builder</summary>
+                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem; margin-top: 1rem;"></textarea>
+                    <div class="button-group" style="justify-content: flex-end;">
+                        <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
+                    </div>
+                </details>
             </fieldset>
             <fieldset class="filter-group">
                 <legend>Quick Playlists</legend>
-                <div class="button-group quick-playlist-buttons">
-                    <button type="button" class="secondary" id="pilot-sampler-btn" title="Creates a Random Playlist of Pilot Episodes"><i data-feather="film"></i> Pilot Sampler</button>
-                    <button type="button" class="secondary" id="continue-watching-btn" title="Creates a playlist from your most recent in-progress shows"><i data-feather="play"></i> Next Up</button>
-                    <button id="forgotten-favorites-btn" type="button" class="secondary" title="Creates a playlist of favorited movies you haven't watched in a while"><i data-feather="archive"></i> From the Vault</button>
-                    <button id="random-genre-marathon-btn" type="button" class="secondary" title="Creates a movie marathon from a randomly selected genre"><i data-feather="shuffle"></i> Genre Roulette</button>
-                </div>
+                <details open>
+                    <summary>Expand Quick Playlists</summary>
+                    <div class="quick-playlist-layout">
+                        <div class="quick-playlist-group">
+                            <span class="quick-playlist-label">Video:</span>
+                            <div class="button-group quick-playlist-buttons">
+                                <button type="button" class="secondary" id="pilot-sampler-btn" title="Creates a Random Playlist of Pilot Episodes"><i data-feather="film"></i> Pilot Sampler</button>
+                                <button type="button" class="secondary" id="continue-watching-btn" title="Creates a playlist from your most recent in-progress shows"><i data-feather="play"></i> Next Up</button>
+                                <button id="forgotten-favorites-btn" type="button" class="secondary" title="Creates a playlist of favorited movies you haven't watched in a while"><i data-feather="archive"></i> From the Vault</button>
+                                <button id="random-genre-marathon-btn" type="button" class="secondary" title="Creates a movie marathon from a randomly selected genre"><i data-feather="shuffle"></i> Genre Roulette</button>
+                            </div>
+                        </div>
+                         <div class="quick-playlist-group">
+                            <span class="quick-playlist-label">Music:</span>
+                            <div class="button-group quick-playlist-buttons">
+                               <button type="button" class="secondary" id="artist-spotlight-btn" title="Creates a playlist of top tracks from a random artist"><i data-feather="star"></i> Artist Spotlight</button>
+                               <button type="button" class="secondary" id="album-roulette-btn" title="Creates a playlist from a random album in your library"><i data-feather="disc"></i> Album Roulette</button>
+                               <button type="button" class="secondary" id="music-genre-sampler-btn" title="Creates a playlist from a random music genre"><i data-feather="git-merge"></i> Genre Sampler</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
             </fieldset>
             <div id="mixed-playlist-blocks">
                 <p class="placeholder-text">Click below to add your first block...</p>
             </div>
             <div id="add-block-controls" class="button-group">
-                <button id="add-tv-block-btn" class="secondary"><i data-feather="plus"></i> Add TV Block</button>
-                <button id="add-movie-block-btn" class="secondary"><i data-feather="plus"></i> Add Movie Block</button>
+                <div class="dropdown-container">
+                    <button id="add-block-btn" class="secondary"><i data-feather="plus"></i> Add Block <i data-feather="chevron-down" class="chevron"></i></button>
+                    <div id="add-block-menu" class="dropdown-menu hidden">
+                        <a href="#" class="dropdown-item" data-block-type="tv"><i data-feather="tv"></i> TV Block</a>
+                        <a href="#" class="dropdown-item" data-block-type="movie"><i data-feather="film"></i> Movie Block</a>
+                        <a href="#" class="dropdown-item" data-block-type="music"><i data-feather="music"></i> Music Block</a>
+                    </div>
+                </div>
                 <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
             </div>
         </div>
@@ -171,7 +194,7 @@
             </ul>
         </div>
     </div>
-    
+
     <div id="manager-pane" class="tab-pane" style="display: none;">
         <div class="container">
              <h3>Manage Playlists & Collections</h3>
@@ -248,7 +271,7 @@
                         <span>Playlist Name</span>
                         <input type="text" id="smart-playlist-name-input">
                     </label>
-                    <label class="control-item">
+                    <label class="control-item" id="smart-playlist-count-wrapper">
                         <span id="smart-playlist-count-label">Number of Items</span>
                         <input type="number" id="smart-playlist-count-input" min="1" value="10">
                     </label>
@@ -295,6 +318,6 @@
     <script>
       feather.replace()
     </script>
-    <script src="/static/app.js" type="module" defer></script>
+    <script src="/static/js/app.js" type="module" defer></script>
 </body>
 </html>

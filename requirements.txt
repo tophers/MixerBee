@@ -1,6 +1,7 @@
 # core
 python-dotenv
 requests>=2.32,<3
+apscheduler>=3.10,<4
 
 # web service (FastAPI + ASGI)
 fastapi>=0.111,<1
