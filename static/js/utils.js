@@ -1,4 +1,4 @@
-// static/utils.js
+// static/js/utils.js
 export function toast(m, ok) {
   const t = Object.assign(document.createElement('div'), { className: 'toast ' + (ok ? 'ok' : 'fail'), textContent: m });
   document.body.appendChild(t);
@@ -40,19 +40,30 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     headers: { 'Content-Type': 'application/json' },
     body: (method.toUpperCase() !== 'DELETE') ? JSON.stringify(body) : undefined
   })
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) {
+            // Attempt to parse error JSON, but handle cases where it's not JSON
+            return r.json().catch(() => {
+                return { status: 'error', detail: `Server error: ${r.status} ${r.statusText}` };
+            }).then(err => Promise.reject(err));
+        }
+        return r.json();
+    })
     .then(res => {
         if (res.status === 'ok') {
-            toast(res.log?.join(' • ') || 'Success!', true);
+            toast('Success!', true);
         } else {
-            toast('Error: ' + (res.log?.join(' • ') || res.detail || 'unknown'), false);
+            // This 'else' branch may not be hit if the server returns a non-200 status,
+            // but is good for cases where the status is 200 but operation failed logically.
+            const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
+            toast('Error: ' + errorMessage, false);
         }
-        return res; // Return the full response
+        return res; // Return the full response object
     })
-    .then(res => res.status) // Keep this for backward compatibility
-    .catch(e => {
-        toast('Error: ' + e, false);
-        return 'error';
+    .catch(err => {
+        const errorMessage = err.log?.join(' • ') || err.detail || err.message || 'An unknown error occurred.';
+        toast('Error: ' + errorMessage, false);
+        return { status: 'error', detail: errorMessage }; // Return a consistent error object
     })
     .finally(() => {
         if (loadingOverlay) loadingOverlay.style.display = 'none';
@@ -60,7 +71,55 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     });
 }
 
-export let presetModal, smartPlaylistModal, importPresetModal;
+export let presetModal, smartPlaylistModal, importPresetModal, confirmModal;
+
+class ConfirmationModal {
+    constructor() {}
+    _handleConfirm() {
+        if (this.onConfirmCallback) this.onConfirmCallback();
+        this.hide();
+    }
+    _handleCancel() {
+        this.hide();
+    }
+    _handleKeydown(e) {
+        if (e.key === 'Enter') this._handleConfirm();
+        if (e.key === 'Escape') this._handleCancel();
+    }
+    show({ title, text, confirmText = 'Confirm', onConfirm }) {
+        this.onConfirmCallback = onConfirm;
+        this.titleEl.textContent = title;
+        this.textEl.textContent = text;
+        this.confirmBtn.textContent = confirmText;
+
+        this._confirmHandler = this._handleConfirm.bind(this);
+        this._cancelHandler = this._handleCancel.bind(this);
+        this._keydownHandler = this._handleKeydown.bind(this);
+
+        this.confirmBtn.addEventListener('click', this._confirmHandler);
+        this.closeBtn.addEventListener('click', this._cancelHandler);
+        this.cancelBtn.addEventListener('click', this._cancelHandler);
+        this.overlay.addEventListener('keydown', this._keydownHandler);
+
+        this.overlay.style.display = 'flex';
+        this.confirmBtn.focus();
+    }
+    hide() {
+        this.overlay.style.display = 'none';
+        this.confirmBtn.removeEventListener('click', this._confirmHandler);
+        this.closeBtn.removeEventListener('click', this._cancelHandler);
+        this.cancelBtn.removeEventListener('click', this._cancelHandler);
+        this.overlay.removeEventListener('keydown', this._keydownHandler);
+    }
+    init() {
+        this.overlay = document.getElementById('confirm-modal-overlay');
+        this.closeBtn = document.getElementById('confirm-modal-close-btn');
+        this.cancelBtn = document.getElementById('confirm-modal-cancel-btn');
+        this.confirmBtn = document.getElementById('confirm-modal-confirm-btn');
+        this.titleEl = document.getElementById('confirm-modal-title');
+        this.textEl = document.getElementById('confirm-modal-text');
+    }
+}
 
 class SavePresetModal {
     constructor() {
@@ -257,9 +316,11 @@ export function initModals() {
     presetModal = new SavePresetModal();
     smartPlaylistModal = new SmartPlaylistModal();
     importPresetModal = new ImportPresetModal();
+    confirmModal = new ConfirmationModal();
     presetModal.init();
     smartPlaylistModal.init();
     importPresetModal.init();
+    confirmModal.init();
 }
 
 export class PresetManager {
@@ -309,16 +370,27 @@ export class PresetManager {
         this.ui.importBtn.addEventListener('click', () => {
             importPresetModal.show((name, data) => {
                 if (this.presets[name]) {
-                    if (!confirm(`A preset named "${name}" already exists. Overwrite it?`)) {
-                        return;
-                    }
+                    confirmModal.show({
+                        title: 'Overwrite Preset?',
+                        text: `A preset named "${name}" already exists. Do you want to overwrite it?`,
+                        confirmText: 'Overwrite',
+                        onConfirm: () => {
+                            this.presets[name] = data;
+                            this.savePresets();
+                            this.populateDropdown();
+                            this.ui.loadSelect.value = name;
+                            this.ui.loadSelect.dispatchEvent(new Event('change'));
+                            toast(`Preset "${name}" imported successfully!`, true);
+                        }
+                    });
+                } else {
+                    this.presets[name] = data;
+                    this.savePresets();
+                    this.populateDropdown();
+                    this.ui.loadSelect.value = name;
+                    this.ui.loadSelect.dispatchEvent(new Event('change'));
+                    toast(`Preset "${name}" imported successfully!`, true);
                 }
-                this.presets[name] = data;
-                this.savePresets();
-                this.populateDropdown();
-                this.ui.loadSelect.value = name;
-                this.ui.loadSelect.dispatchEvent(new Event('change'));
-                toast(`Preset "${name}" imported successfully!`, true);
             });
         });
 
@@ -347,12 +419,18 @@ export class PresetManager {
         this.ui.deleteBtn.addEventListener('click', () => {
             const presetName = this.ui.loadSelect.value;
             if (!presetName) { alert("Please select a preset to delete."); return; }
-            if (confirm(`Are you sure you want to delete the preset "${presetName}"?`)) {
-                delete this.presets[presetName];
-                this.savePresets();
-                this.populateDropdown();
-                this.ui.exportBtn.disabled = true;
-            }
+            
+            confirmModal.show({
+                title: 'Delete Preset?',
+                text: `Are you sure you want to delete the preset "${presetName}"? This cannot be undone.`,
+                confirmText: 'Delete',
+                onConfirm: () => {
+                    delete this.presets[presetName];
+                    this.savePresets();
+                    this.populateDropdown();
+                    this.ui.exportBtn.disabled = true;
+                }
+            });
         });
 
         this.ui.loadSelect.addEventListener('change', (event) => {

@@ -30,6 +30,17 @@ def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
         logging.error(f"Failed to delete item with ID {item_id}", exc_info=True)
         return False
 
+def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[Dict]:
+    """Fetches the child items of a given playlist or collection."""
+    params = {
+        "UserId": user_id,
+        "ParentId": item_id,
+        "Fields": "RunTimeTicks,ParentId", # Add fields for more context
+    }
+    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
+    r.raise_for_status()
+    return r.json().get("Items", [])
+
 # ---------------------------------------------------------------------------
 # Playlist Functions
 # ---------------------------------------------------------------------------

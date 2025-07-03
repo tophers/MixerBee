@@ -1,5 +1,5 @@
 // static/js/builder.js
-import { post, debounce } from './utils.js';
+import { post, debounce, confirmModal } from './utils.js';
 import { PresetManager, createTvShowRow } from './utils.js';
 import { initQuickPlaylists } from './quick_playlists.js';
 import { renderTvBlock, renderMovieBlock, renderMusicBlock } from './block_renderers.js';
@@ -198,11 +198,16 @@ export function initBuilderPane(userSelectElement, allData) {
     });
 
     document.getElementById('clear-all-blocks-btn').addEventListener('click', () => {
-        if (confirm('Are you sure you want to clear all blocks? This cannot be undone.')) {
-            blocksContainer.innerHTML = '';
-            checkPlaceholderVisibility();
-            autosave();
-        }
+        confirmModal.show({
+            title: 'Clear All Blocks?',
+            text: 'Are you sure you want to clear all blocks? This cannot be undone.',
+            confirmText: 'Clear All',
+            onConfirm: () => {
+                blocksContainer.innerHTML = '';
+                checkPlaceholderVisibility();
+                autosave();
+            }
+        });
     });
 
     blocksContainer.addEventListener('click', (event) => {
@@ -242,7 +247,7 @@ export function initBuilderPane(userSelectElement, allData) {
     });
 
     // Initialize all the one-click playlist buttons
-    initQuickPlaylists(userSelectElement, movieGenreData, musicGenreData);
+    initQuickPlaylists(userSelectElement, allData.movieGenreData, allData.musicGenreData);
 
     // --- INITIAL LOAD ---
     const autosavedState = mixedPresetManager.presets['__autosave__'];

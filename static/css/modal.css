@@ -102,3 +102,11 @@ body[data-theme='light'] .modal-overlay {
 #modal-playlist-list li:last-child {
     border-bottom: none;
 }
+#confirm-modal-confirm-btn.danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+#confirm-modal-confirm-btn.danger:hover {
+    background-color: #7c1a1a; /* A darker red for hover */
+}

@@ -62,6 +62,7 @@ from .items import (
     delete_collection,
     create_movie_collection,
     delete_item_by_id,
+    get_item_children,
     create_pilot_sampler_playlist,
     create_continue_watching_playlist,
     create_forgotten_favorites_playlist,

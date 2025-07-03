@@ -21,7 +21,7 @@ app = FastAPI(title="MixerBee API", root_path="/mixerbee")
 HERE = Path(__file__).parent
 
 # Correctly mount the entire static directory
-app.mount("/static", StaticFiles(directory=HERE / "static/js"), name="js")
+app.mount("/static/js", StaticFiles(directory=HERE / "static/js"), name="js")
 app.mount("/static/css", StaticFiles(directory=HERE / "static/css"), name="css")
 app.mount("/static/vendor", StaticFiles(directory=HERE / "static/vendor"), name="vendor")
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static_root")
@@ -316,6 +316,15 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 def api_manageable_items(user_id: str):
     return get_manageable_items(user_id, HDR)
 
+@app.get("/api/items/{item_id}/children")
+def api_get_item_children(item_id: str, user_id: str):
+    """Fetches the children of a given playlist or collection."""
+    try:
+        return core.get_item_children(user_id, item_id, HDR)
+    except Exception as e:
+        logging.error(f"Error fetching children for item {item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/delete_item")
 def api_delete_item(req: DeleteItemRequest):
     """Deletes a single playlist or collection by its ID."""
@@ -336,7 +345,6 @@ def api_mix(req: MixRequest):
     but kept for backwards compatibility with CLI or other tools.
     """
     try:
-        # We only expect this to be used for deletion from the modal now.
         if req.delete:
             return core.mix(
                 shows=[],
@@ -346,7 +354,6 @@ def api_mix(req: MixRequest):
                 verbose=False,
                 target_uid=req.target_uid,
             )
-        # Should not be reached from the current UI
         raise HTTPException(400, "This endpoint is for deletion only.")
     except Exception as e:
         raise HTTPException(400, str(e))
@@ -355,7 +362,6 @@ def api_mix(req: MixRequest):
 def api_movies_preview_count(req: MovieFinderRequest):
     try:
         filters = req.filters.copy()
-        # Ensure we check all movies, regardless of duration or limit, for the count
         filters['duration_minutes'] = None
         filters['limit'] = None
         found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=HDR)
@@ -367,7 +373,6 @@ def api_movies_preview_count(req: MovieFinderRequest):
 def api_music_preview_count(req: MusicFinderRequest):
     try:
         filters = req.filters.copy()
-        # Ensure we check all songs, regardless of limit, for the count
         filters['limit'] = None
         found_songs = core.find_songs(user_id=req.user_id, filters=filters, hdr=HDR)
         return {"count": len(found_songs)}
@@ -389,7 +394,6 @@ def api_create_mixed_playlist(req: MixedPlaylistRequest):
             hdr=HDR
         )
     else:
-        # Fallback to existing static playlist/mixed content logic
         if not req.blocks:
              raise HTTPException(400, "No blocks provided for playlist creation.")
         return core.create_mixed_playlist(
@@ -450,6 +454,13 @@ def api_create_schedule(req: ScheduleRequest):
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid schedule format: {e}")
+
+@app.post("/api/schedules/{schedule_id}/run")
+def api_run_schedule_now(schedule_id: str):
+    result = scheduler.scheduler_manager.run_schedule_now(schedule_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Schedule not found.")
+    return result
 
 @app.delete("/api/schedules/{schedule_id}")
 def api_delete_schedule(schedule_id: str):

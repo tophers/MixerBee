@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 from datetime import datetime
 import threading
 
@@ -33,18 +33,26 @@ def update_schedule_last_run(schedule_id: str, last_run_info: Dict):
         except (IOError, json.JSONDecodeError) as e:
             print(f"SCHEDULER: Error updating last run status for {schedule_id}: {e}")
 
-def run_playlist_job(**schedule_data):
-    """The function that is called by the scheduler to build a playlist."""
+def run_playlist_job(**schedule_data) -> Dict:
+    """
+    The function that is called to build a playlist.
+    Returns a dictionary with the result status and log.
+    """
     schedule_id = schedule_data.get("id")
     user_id = schedule_data.get("user_id")
     playlist_name = schedule_data.get("playlist_name")
     blocks = schedule_data.get("blocks")
-    
+
+    if not all([user_id, playlist_name, blocks]):
+        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data (user_id, playlist_name, or blocks). Aborting."
+        logging.error(msg)
+        return {"status": "error", "log": [msg]}
+
     print(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' for user {user_id}")
     result = {}
-    
+
     try:
-        # We need to get a fresh token
+        # We need to get a fresh token for each run
         _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS)
         hdr = core.auth_headers(token, user_id=user_id)
 
@@ -54,7 +62,7 @@ def run_playlist_job(**schedule_data):
             blocks=blocks,
             hdr=hdr
         )
-        
+
         if result.get("status") == "ok":
             print(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: OK.")
         else:
@@ -68,9 +76,15 @@ def run_playlist_job(**schedule_data):
         error_message = f"CRITICAL ERROR running job '{schedule_id}' for playlist '{playlist_name}': {e}"
         print(f"SCHEDULER: {error_message}")
         result = {"status": "error", "log": [error_message]}
+    
+    return result
 
-    finally:
-        # Always record the outcome of the run
+
+def scheduled_job_wrapper(**schedule_data):
+    """A wrapper for APScheduler to ensure last_run is always updated for scheduled runs."""
+    result = run_playlist_job(**schedule_data)
+    schedule_id = schedule_data.get("id")
+    if schedule_id:
         last_run_info = {
             "timestamp": datetime.now().isoformat(),
             "status": result.get("status", "error"),
@@ -101,19 +115,37 @@ class Scheduler:
         with _schedules_lock:
             with open(SCHEDULES_FILE, 'w') as f:
                 json.dump(self.schedules, f, indent=4)
+    
+    def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
+        """Runs a specific job immediately and updates its last_run status."""
+        schedule_data = self.schedules.get(schedule_id)
+        if not schedule_data:
+            return None
+        
+        # Run the job directly and wait for it to complete.
+        result = run_playlist_job(**schedule_data)
+        
+        # After it finishes, update the status file.
+        last_run_info = {
+            "timestamp": datetime.now().isoformat(),
+            "status": result.get("status", "error"),
+            "log": result.get("log", ["An unknown error occurred."])
+        }
+        update_schedule_last_run(schedule_id, last_run_info)
+        
+        # The API call will now wait until this point to return,
+        # ensuring the frontend refreshes after the file is updated.
+        return {"status": "ok", "log": [f"Job '{schedule_id}' triggered and completed."]}
+
 
     def start(self):
         """Starts the scheduler and re-adds all saved jobs."""
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:
-                # Pass the full schedule data, including its own ID, to the job
-                job_kwargs = schedule_data.copy()
-                job_kwargs['id'] = schedule_id
-                
                 self.scheduler.add_job(
-                    func=run_playlist_job,
+                    func=scheduled_job_wrapper, # Use the wrapper for scheduled runs
                     trigger=CronTrigger.from_crontab(schedule_data['crontab']),
-                    kwargs=job_kwargs,
+                    kwargs=schedule_data,
                     id=schedule_id,
                     name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
                     replace_existing=True
@@ -123,18 +155,16 @@ class Scheduler:
     def add_schedule(self, schedule_data: Dict) -> str:
         """Adds a new schedule to the scheduler and saves it."""
         schedule_id = str(uuid.uuid4())
+        schedule_data['id'] = schedule_id
         
-        job_kwargs = schedule_data.copy()
-        job_kwargs['id'] = schedule_id
-
         self.schedules[schedule_id] = schedule_data
 
         self.scheduler.add_job(
-            func=run_playlist_job,
-            trigger=CronTrigger.from_crontab(job_kwargs['crontab']),
-            kwargs=job_kwargs,
+            func=scheduled_job_wrapper, # Use the wrapper
+            trigger=CronTrigger.from_crontab(schedule_data['crontab']),
+            kwargs=schedule_data,
             id=schedule_id,
-            name=job_kwargs.get('playlist_name', 'Unnamed Schedule')
+            name=schedule_data.get('playlist_name', 'Unnamed Schedule')
         )
         self._save_schedules()
         return schedule_id
@@ -153,11 +183,11 @@ class Scheduler:
 
     def get_all_schedules(self) -> List[Dict]:
         """Returns a list of all saved schedules with their IDs."""
-        schedules_list = []
-        # We now read from the file to get the most up-to-date info, including `last_run`
         all_schedules = self._load_schedules()
+        schedules_list = []
         for schedule_id, schedule_data in all_schedules.items():
-            schedule_data['id'] = schedule_id
+            if 'id' not in schedule_data:
+                schedule_data['id'] = schedule_id
             schedules_list.append(schedule_data)
         return schedules_list
 

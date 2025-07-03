@@ -1,4 +1,5 @@
-import { post } from './utils.js';
+// static/js/scheduler.js
+import { post, confirmModal } from './utils.js';
 
 const presetSelect = document.getElementById('schedule-preset-select');
 const timeSelect = document.getElementById('schedule-time-select');
@@ -67,7 +68,7 @@ async function loadAndRenderSchedules() {
         }
 
         schedules.forEach(renderSchedule);
-        
+
         if (typeof feather !== 'undefined') {
             feather.replace();
         }
@@ -120,7 +121,7 @@ function renderSchedule(schedule) {
         <span style="font-weight: bold; font-style: normal; font-size: 1.2em; color: var(--accent); margin-right: 0.5rem;">→</span>
         ${friendlyText} from preset: <em>${presetName}</em>
     `;
-    
+
     const statusContainer = document.createElement('div');
     statusContainer.className = 'schedule-status-container';
 
@@ -129,11 +130,11 @@ function renderSchedule(schedule) {
         const statusClass = schedule.last_run.status === 'ok' ? 'status-success' : 'status-danger';
         const iconName = schedule.last_run.status === 'ok' ? 'check-circle' : 'alert-circle';
         statusIcon.dataset.feather = iconName;
-        
+
         const statusWrapper = document.createElement('span');
         statusWrapper.className = `last-run-status ${statusClass}`;
         statusWrapper.title = (schedule.last_run.log || []).join('\n');
-        
+
         const timeText = document.createElement('span');
         const runDate = new Date(schedule.last_run.timestamp);
         timeText.textContent = `Last run: ${runDate.toLocaleString()}`;
@@ -147,20 +148,43 @@ function renderSchedule(schedule) {
         statusContainer.appendChild(timeText);
     }
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'icon-btn danger';
-    deleteBtn.title = 'Delete Schedule';
-    deleteBtn.innerHTML = '×';
-
-    deleteBtn.addEventListener('click', async (event) => {
-        if (confirm(`Are you sure you want to delete the schedule for "${schedule.playlist_name}"?`)) {
-            await post(`api/schedules/${schedule.id}`, {}, event, 'DELETE');
+    const buttonContainer = document.createElement('div');
+    buttonContainer.className = 'schedule-button-container';
+    
+    const runBtn = document.createElement('button');
+    runBtn.type = 'button';
+    runBtn.className = 'icon-btn';
+    runBtn.title = 'Run Schedule Now';
+    runBtn.innerHTML = '<i data-feather="play"></i>';
+    runBtn.addEventListener('click', async (event) => {
+        const res = await post(`api/schedules/${schedule.id}/run`, {}, event, 'POST');
+        if (res.status === 'ok') {
             loadAndRenderSchedules();
         }
     });
 
-    contentWrapper.append(detailsText, statusContainer, deleteBtn);
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'icon-btn danger';
+    deleteBtn.title = 'Delete Schedule';
+    deleteBtn.innerHTML = '<i data-feather="trash-2"></i>';
+
+    deleteBtn.addEventListener('click', (event) => {
+        confirmModal.show({
+            title: 'Delete Schedule?',
+            text: `Are you sure you want to delete the schedule for "${schedule.playlist_name}"?`,
+            confirmText: 'Delete',
+            onConfirm: async () => {
+                const res = await post(`api/schedules/${schedule.id}`, {}, event.target, 'DELETE');
+                if (res.status === 'ok') {
+                    loadAndRenderSchedules();
+                }
+            }
+        });
+    });
+    
+    buttonContainer.append(runBtn, deleteBtn);
+    contentWrapper.append(detailsText, statusContainer, buttonContainer);
     fieldset.append(legend, contentWrapper);
     listItem.append(fieldset);
 
@@ -204,8 +228,8 @@ function handleCreateSchedule() {
         }
     };
 
-    post('api/schedules', requestBody).then(status => {
-        if (status === 'ok') {
+    post('api/schedules', requestBody).then(res => {
+        if (res.status === 'ok') {
             loadAndRenderSchedules();
         }
     });

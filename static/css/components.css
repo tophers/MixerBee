@@ -592,3 +592,37 @@ td:last-child {
     background-color: var(--success);
     color: #fff;
 }
+.schedule-button-container {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+/* Manager Pane - Link Styling */
+.item-name-link {
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 1px dashed var(--border-color);
+    transition: color 0.2s, border-color 0.2s;
+}
+.item-name-link:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+/* Contents Modal List */
+.contents-list {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin: 0;
+}
+.contents-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--divider-color);
+}
+.contents-list li:last-child {
+    border-bottom: none;
+}
