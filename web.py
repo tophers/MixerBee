@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Optional, Dict
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -18,7 +18,6 @@ import scheduler
 import gemini_client
 from apscheduler.triggers.cron import CronTrigger
 
-# This allows the app to work at "/" in Docker and "/mixerbee" behind a reverse proxy. Needs to be my dynamic but this works
 IS_DOCKER = os.path.exists('/.dockerenv')
 ROOT_PATH = "" if IS_DOCKER else "/mixerbee"
 
@@ -35,15 +34,8 @@ if not ENV_PATH.exists():
     ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
-# --- Favicon and Static Files ---
-# Add an endpoint for favicon.ico to prevent 404s from browsers
-@app.get('/favicon.ico', include_in_schema=False)
-async def favicon():
-    return FileResponse(HERE / 'static/favicon.svg')
-
-# --- mount static ---
+# Correctly mount the entire static directory
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
-
 
 # --- Global State Variables ---
 # These will now be managed and can be "hot-swapped"
@@ -58,7 +50,7 @@ def load_and_authenticate():
 
     # Use override to ensure it re-reads the file if it has changed
     load_dotenv(ENV_PATH, override=True)
-
+    
     # Reload from os.environ after load_dotenv
     core.EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
     core.EMBY_USER = os.environ.get("EMBY_USER")
@@ -71,10 +63,10 @@ def load_and_authenticate():
 
         login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
         HDR = core.auth_headers(token, login_uid)
-
+        
         DEFAULT_USER_NAME = core.EMBY_USER
         DEFAULT_UID = login_uid
-
+        
         is_configured = True
         logging.info("Successfully loaded configuration and authenticated with Emby.")
 
@@ -120,12 +112,18 @@ class ScheduleDetails(BaseModel):
     time: str
     days_of_week: Optional[List[int]] = Field(None, ge=0, le=6)
 
+class QuickPlaylistScheduleData(BaseModel):
+    quick_playlist_type: str
+    options: Optional[Dict] = None
+
 class ScheduleRequest(BaseModel):
+    job_type: str
     playlist_name: str
     user_id: str
-    blocks: List[Dict]
-    preset_name: str
     schedule_details: ScheduleDetails
+    preset_name: Optional[str] = None
+    blocks: Optional[List[Dict]] = None
+    quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
 
 class AiPromptRequest(BaseModel):
     prompt: str
@@ -207,12 +205,12 @@ def api_save_settings(req: SettingsRequest):
 
     try:
         core.authenticate(req.emby_user, req.emby_pass, req.emby_url)
-
+        
         with open(ENV_PATH, "w") as f:
             f.write(env_content)
-
+        
         load_and_authenticate()
-
+        
         return {
             "status": "ok",
             "log": ["Settings saved and applied successfully! The page will now reload."]
@@ -588,7 +586,7 @@ def api_create_schedule(req: ScheduleRequest):
 
         CronTrigger.from_crontab(crontab)
 
-        schedule_data_to_save = req.dict()
+        schedule_data_to_save = req.dict(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab
 
         schedule_id = scheduler.scheduler_manager.add_schedule(schedule_data_to_save)
