@@ -163,42 +163,21 @@ document.addEventListener('DOMContentLoaded', () => {
             mainContent.style.display = 'none';
             notConfiguredWarning.style.display = 'block';
             if (typeof feather !== 'undefined') feather.replace();
-            return; 
+            return;
         }
 
         mainContent.style.display = 'block';
         notConfiguredWarning.style.display = 'none';
 
-        // *** DIAGNOSTIC: Fetch data sequentially to find the failing API call ***
-        const loadInitialData = async () => {
-            try {
-                console.log("Fetching default_user...");
-                const defUser = await apiFetch('api/default_user');
-                console.log("...OK", defUser);
-
-                console.log("Fetching shows...");
-                const seriesData = await apiFetch('api/shows');
-                console.log("...OK", seriesData);
-
-                console.log("Fetching movie_genres...");
-                const movieGenreData = await apiFetch('api/movie_genres');
-                console.log("...OK", movieGenreData);
-
-                console.log("Fetching movie_libraries...");
-                const libraryData = await apiFetch('api/movie_libraries');
-                console.log("...OK", libraryData);
-
-                console.log("Fetching music_artists...");
-                const artistData = await apiFetch('api/music/artists');
-                console.log("...OK", artistData);
-
-                console.log("Fetching music_genres...");
-                const musicGenreData = await apiFetch('api/music/genres');
-                console.log("...OK", musicGenreData);
-
-                // If we get here, all calls succeeded. Now render the UI.
-                console.log("All data fetched successfully. Rendering UI...");
-                
+        Promise.all([
+            apiFetch('api/default_user'),
+            apiFetch('api/shows'),
+            apiFetch('api/movie_genres'),
+            apiFetch('api/movie_libraries'),
+            apiFetch('api/music/artists'),
+            apiFetch('api/music/genres'),
+        ])
+            .then(([defUser, seriesData, movieGenreData, libraryData, artistData, musicGenreData]) => {
                 activeUserDisplay.textContent = defUser.name;
 
                 userSel.innerHTML = ''; 
@@ -222,13 +201,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (typeof feather !== 'undefined') {
                     feather.replace();
                 }
-
-            } catch (err) {
-                console.error("Initialization failed during sequential fetch:", err);
+            })
+            .catch((err) => {
+                console.error("Initialization Error:", err);
                 toast('Init error. Check browser console (F12) for details.', false);
-            }
-        };
-
-        loadInitialData();
+            });
     });
 });

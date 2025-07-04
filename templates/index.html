@@ -109,89 +109,88 @@
         <div id="scheduler-pane" class="tab-pane" style="display: none;">
             <div class="container">
                 <h3>Create a New Schedule</h3>
-                <p style="font-size: 0.9em; color: var(--text-subtle); margin-top: -1rem; margin-bottom: 1.5rem;">
-                    Schedules will automatically rebuild a playlist from one of your saved presets.
-                </p>
+                
                 <fieldset class="filter-group">
-                    <legend>Schedule your playlist</legend>
-                    <div class="filter-grid" style="grid-template-columns: 2fr 1fr; gap: 1rem;">
-                        <label>Preset to Schedule
+                    <legend>Schedule Details</legend>
+                    <div class="scheduler-grid">
+                        <label class="control-item">
+                            <span>Playlist Name</span>
+                            <input type="text" id="schedule-playlist-name" value="MixerBee Scheduled">
+                        </label>
+                        <label class="control-item">
+                            <span>Schedule Source</span>
+                            <select id="schedule-source-select">
+                                <option value="builder">From Builder Preset</option>
+                                <option value="quick_playlist">From Quick Playlist</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div id="schedule-builder-options" class="scheduler-source-options">
+                        <label class="control-item">
+                            <span>Preset to Schedule</span>
                             <select id="schedule-preset-select">
                                 <option value="">-- Select a saved preset --</option>
                             </select>
                         </label>
-                        <label>Playlist Name
-                            <input type="text" id="schedule-playlist-name" value="MixerBee Scheduled">
-                        </label>
                     </div>
-                    <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                         <label>Frequency
+
+                    <div id="schedule-quick-options" class="scheduler-source-options" style="display: none;">
+                         <div class="scheduler-grid">
+                            <label class="control-item">
+                                <span>Quick Playlist Type</span>
+                                <select id="schedule-quick-type-select">
+                                    <option value="continue_watching">Next Up (Continue Watching)</option>
+                                    <option value="pilot_sampler">Pilot Sampler</option>
+                                    <option value="forgotten_favorites">From the Vault</option>
+                                </select>
+                            </label>
+                            <label class="control-item">
+                                <span>Number of Items</span>
+                                <input type="number" id="schedule-quick-count-input" value="10" min="1">
+                            </label>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <fieldset class="filter-group">
+                    <legend>Schedule Time</legend>
+                    <div class="scheduler-grid">
+                         <label class="control-item">
+                            <span>Frequency</span>
                             <select id="schedule-frequency">
                                 <option value="daily">Daily</option>
                                 <option value="weekly">Weekly</option>
                             </select>
                         </label>
-                        <label>Run At
+                        <label class="control-item">
+                            <span>Run At</span>
                             <select id="schedule-time-select">
                                 <optgroup label="Morning">
                                     <option value="05:00">5:00 AM</option>
-                                    <option value="05:30">5:30 AM</option>
                                     <option value="06:00">6:00 AM</option>
-                                    <option value="06:30">6:30 AM</option>
                                     <option value="07:00">7:00 AM</option>
-                                    <option value="07:30">7:30 AM</option>
                                     <option value="08:00">8:00 AM</option>
-                                    <option value="08:30">8:30 AM</option>
                                     <option value="09:00">9:00 AM</option>
-                                    <option value="09:30">9:30 AM</option>
-                                    <option value="10:00">10:00 AM</option>
-                                    <option value="10:30">10:30 AM</option>
-                                    <option value="11:00">11:00 AM</option>
-                                    <option value="11:30">11:30 AM</option>
                                 </optgroup>
                                 <optgroup label="Afternoon">
                                     <option value="12:00">12:00 PM</option>
-                                    <option value="12:30">12:30 PM</option>
-                                    <option value="13:00">1:00 PM</option>
-                                    <option value="13:30">1:30 PM</option>
-                                    <option value="14:00">2:00 PM</option>
-                                    <option value="14:30">2:30 PM</option>
                                     <option value="15:00">3:00 PM</option>
-                                    <option value="15:30">3:30 PM</option>
-                                    <option value="16:00">4:00 PM</option>
-                                    <option value="16:30">4:30 PM</option>
                                 </optgroup>
                                 <optgroup label="Evening">
-                                    <option value="17:00">5:00 PM</option>
-                                    <option value="17:30">5:30 PM</option>
                                     <option value="18:00">6:00 PM</option>
-                                    <option value="18:30">6:30 PM</option>
                                     <option value="19:00" selected>7:00 PM</option>
-                                    <option value="19:30">7:30 PM</option>
                                     <option value="20:00">8:00 PM</option>
-                                    <option value="20:30">8:30 PM</option>
                                     <option value="21:00">9:00 PM</option>
-                                    <option value="21:30">9:30 PM</option>
-                                    <option value="22:00">10:00 PM</option>
-                                    <option value="22:30">10:30 PM</option>
-                                    <option value="23:00">11:00 PM</option>
                                 </optgroup>
                                  <optgroup label="Late Night">
-                                    <option value="23:30">11:30 PM</option>
                                     <option value="00:00">12:00 AM (Midnight)</option>
-                                    <option value="00:30">12:30 AM</option>
-                                    <option value="01:00">1:00 AM</option>
-                                    <option value="01:30">1:30 AM</option>
                                     <option value="02:00">2:00 AM</option>
                                 </optgroup>
                             </select>
                         </label>
                     </div>
-                </fieldset>
-
-                <fieldset id="schedule-days-container" class="filter-group" style="display: none;">
-                    <legend>Days of the Week</legend>
-                    <div id="schedule-days-checkboxes" class="checkbox-grid">
+                     <div id="schedule-days-container" class="checkbox-grid" style="display: none; margin-top: 1rem;">
                         <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
                         <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
                         <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>

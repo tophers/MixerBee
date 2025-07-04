@@ -290,6 +290,12 @@ fieldset > details > div { /* The content inside */
     font-size: 1.4rem;
 }
 
+.mixed-block-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
 .mixed-block-controls .icon-btn {
     font-size: 1.1rem;
     padding: 0.4rem;
@@ -325,17 +331,9 @@ fieldset > details > div { /* The content inside */
     gap: .3rem;
 }
 
-.movie-block-footer {
-    text-align: right;
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-color-subtle);
-}
-
-.movie-block-preview-count {
-    font-size: 0.9rem;
+.movie-block-preview-count, .music-block-preview-count {
+    font-size: 0.9em;
     color: var(--text-subtle);
-    font-style: italic;
     transition: color 0.3s;
 }
 
@@ -479,10 +477,20 @@ fieldset > details > div { /* The content inside */
 #schedules-list {
     list-style: none;
     padding: 0;
-    margin: 0;
-    margin-top: 2rem;
+    margin: 2rem 0 0 0;
     padding-top: 1.5rem;
     border-top: 1px solid var(--divider-color);
+}
+
+.scheduler-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+.scheduler-source-options {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-color-subtle);
 }
 
 .schedule-item-content {

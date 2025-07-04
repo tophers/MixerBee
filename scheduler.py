@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 import threading
 
@@ -11,13 +11,20 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
 
 import app as core
+import app.items as items_api
 
 # Configure logging for the scheduler
 logging.basicConfig()
 logging.getLogger('apscheduler').setLevel(logging.INFO)
 
 SCHEDULES_FILE = Path(__file__).parent / "schedules.json"
-_schedules_lock = threading.Lock() # To prevent race conditions when updating the file
+_schedules_lock = threading.Lock()
+
+QUICK_PLAYLIST_MAP = {
+    "continue_watching": items_api.create_continue_watching_playlist,
+    "pilot_sampler": items_api.create_pilot_sampler_playlist,
+    "forgotten_favorites": items_api.create_forgotten_favorites_playlist,
+}
 
 
 def update_schedule_last_run(schedule_id: str, last_run_info: Dict):
@@ -41,42 +48,48 @@ def run_playlist_job(**schedule_data) -> Dict:
     schedule_id = schedule_data.get("id")
     user_id = schedule_data.get("user_id")
     playlist_name = schedule_data.get("playlist_name")
-    blocks = schedule_data.get("blocks")
+    job_type = schedule_data.get("job_type", "builder")
+    log_messages = []
 
-    if not all([user_id, playlist_name, blocks]):
-        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data (user_id, playlist_name, or blocks). Aborting."
+    if not all([user_id, playlist_name]):
+        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data. Aborting."
         logging.error(msg)
         return {"status": "error", "log": [msg]}
 
-    print(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' for user {user_id}")
+    print(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
     result = {}
 
     try:
-        # We need to get a fresh token for each run
-        _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS)
+        _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
         hdr = core.auth_headers(token, user_id=user_id)
 
-        result = core.create_mixed_playlist(
-            user_id=user_id,
-            playlist_name=playlist_name,
-            blocks=blocks,
-            hdr=hdr
-        )
-
-        if result.get("status") == "ok":
-            print(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: OK.")
-        else:
-            print(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {result.get('status', 'unknown_error')}.")
-            print("--- Job Details ---")
-            for line in result.get("log", ["No log messages returned."]):
-                print(f"  > {line}")
-            print("--- End of Job ---")
-
+        if job_type == "builder":
+            blocks = schedule_data.get("blocks", [])
+            if not blocks:
+                raise ValueError("Scheduled builder job has no blocks.")
+            result = core.create_mixed_playlist(
+                user_id=user_id, playlist_name=playlist_name, blocks=blocks, hdr=hdr, log=log_messages
+            )
+        elif job_type == "quick_playlist":
+            quick_playlist_data = schedule_data.get("quick_playlist_data", {})
+            quick_playlist_type = quick_playlist_data.get("quick_playlist_type")
+            func_to_call = QUICK_PLAYLIST_MAP.get(quick_playlist_type)
+            if not func_to_call:
+                raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
+            options = quick_playlist_data.get("options", {})
+            result = func_to_call(
+                user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options
+            )
+        
+        final_log = result.get("log", ["No log messages."])
+        final_status = result.get("status", "error")
+        logging.info(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
+        
     except Exception as e:
         error_message = f"CRITICAL ERROR running job '{schedule_id}' for playlist '{playlist_name}': {e}"
-        print(f"SCHEDULER: {error_message}")
+        logging.error(f"SCHEDULER: {error_message}", exc_info=True)
         result = {"status": "error", "log": [error_message]}
-    
+
     return result
 
 
@@ -105,7 +118,8 @@ class Scheduler:
                 return {}
             try:
                 with open(SCHEDULES_FILE, 'r') as f:
-                    return json.load(f)
+                    schedules = json.load(f)
+                    return schedules if isinstance(schedules, dict) else {}
             except (json.JSONDecodeError, IOError) as e:
                 print(f"SCHEDULER: Error loading schedules file: {e}. Starting fresh.")
                 return {}
@@ -115,17 +129,15 @@ class Scheduler:
         with _schedules_lock:
             with open(SCHEDULES_FILE, 'w') as f:
                 json.dump(self.schedules, f, indent=4)
-    
+
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         """Runs a specific job immediately and updates its last_run status."""
         schedule_data = self.schedules.get(schedule_id)
         if not schedule_data:
             return None
-        
-        # Run the job directly and wait for it to complete.
+
         result = run_playlist_job(**schedule_data)
-        
-        # After it finishes, update the status file.
+
         last_run_info = {
             "timestamp": datetime.now().isoformat(),
             "status": result.get("status", "error"),
@@ -133,17 +145,14 @@ class Scheduler:
         }
         update_schedule_last_run(schedule_id, last_run_info)
         
-        # The API call will now wait until this point to return,
-        # ensuring the frontend refreshes after the file is updated.
         return {"status": "ok", "log": [f"Job '{schedule_id}' triggered and completed."]}
 
-
     def start(self):
-        """Starts the scheduler and re-adds all saved jobs."""
+        """Starts the scheduler and re-adds all saved jobs from the JSON file."""
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:
                 self.scheduler.add_job(
-                    func=scheduled_job_wrapper, # Use the wrapper for scheduled runs
+                    func=scheduled_job_wrapper,
                     trigger=CronTrigger.from_crontab(schedule_data['crontab']),
                     kwargs=schedule_data,
                     id=schedule_id,
@@ -151,16 +160,17 @@ class Scheduler:
                     replace_existing=True
                 )
         self.scheduler.start()
+        logging.info("Scheduler started with JSON-based job definitions.")
 
     def add_schedule(self, schedule_data: Dict) -> str:
         """Adds a new schedule to the scheduler and saves it."""
         schedule_id = str(uuid.uuid4())
         schedule_data['id'] = schedule_id
-        
+
         self.schedules[schedule_id] = schedule_data
 
         self.scheduler.add_job(
-            func=scheduled_job_wrapper, # Use the wrapper
+            func=scheduled_job_wrapper,
             trigger=CronTrigger.from_crontab(schedule_data['crontab']),
             kwargs=schedule_data,
             id=schedule_id,
@@ -175,17 +185,19 @@ class Scheduler:
             try:
                 self.scheduler.remove_job(schedule_id)
             except JobLookupError:
-                print(f"SCHEDULER: Job {schedule_id} not found in running scheduler, removing from storage.")
+                print(f"SCHEDULER: Job {schedule_id} not found in running scheduler, removing from storage anyway.")
                 pass
-
+            
             del self.schedules[schedule_id]
             self._save_schedules()
 
     def get_all_schedules(self) -> List[Dict]:
-        """Returns a list of all saved schedules with their IDs."""
+        """Returns a list of all saved schedules from the JSON file."""
+        # The JSON file is the single source of truth for the UI list.
         all_schedules = self._load_schedules()
         schedules_list = []
         for schedule_id, schedule_data in all_schedules.items():
+            # Ensure the schedule data has an 'id' for the frontend.
             if 'id' not in schedule_data:
                 schedule_data['id'] = schedule_id
             schedules_list.append(schedule_data)

@@ -113,12 +113,18 @@ class ScheduleDetails(BaseModel):
     time: str
     days_of_week: Optional[List[int]] = Field(None, ge=0, le=6)
 
+class QuickPlaylistScheduleData(BaseModel):
+    quick_playlist_type: str
+    options: Optional[Dict] = None
+
 class ScheduleRequest(BaseModel):
+    job_type: str
     playlist_name: str
     user_id: str
-    blocks: List[Dict]
-    preset_name: str
     schedule_details: ScheduleDetails
+    preset_name: Optional[str] = None
+    blocks: Optional[List[Dict]] = None
+    quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
 
 class AiPromptRequest(BaseModel):
     prompt: str
@@ -581,7 +587,7 @@ def api_create_schedule(req: ScheduleRequest):
 
         CronTrigger.from_crontab(crontab)
 
-        schedule_data_to_save = req.dict()
+        schedule_data_to_save = req.dict(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab
 
         schedule_id = scheduler.scheduler_manager.add_schedule(schedule_data_to_save)

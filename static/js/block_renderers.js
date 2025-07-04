@@ -126,9 +126,13 @@ export function renderMovieBlock({ data = null, libraryData, movieGenreData, use
     header.className = 'mixed-block-header';
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<span class="block-icon">🎬</span> Movie Block`;
+    
     const headerControls = document.createElement('div');
     headerControls.className = 'mixed-block-controls';
-    headerControls.append(icon('×', 'danger delete-block-btn', 'Delete Block'));
+    const previewCountSpan = document.createElement('span');
+    previewCountSpan.className = 'movie-block-preview-count';
+    headerControls.append(previewCountSpan, icon('×', 'danger delete-block-btn', 'Delete Block'));
+    
     header.append(icon('↕', 'drag-handle icon-btn', 'Drag to reorder'), headerTitle, headerControls);
 
     const body = document.createElement('div');
@@ -220,12 +224,8 @@ export function renderMovieBlock({ data = null, libraryData, movieGenreData, use
     else limitSelect.value = 'limit:1';
     limitLabel.append('Limit: ', limitSelect);
     otherFiltersGrid.append(watchedLabel, yearFromLabel, yearToLabel, sortLabel, limitLabel);
-    const movieBlockFooter = document.createElement('div');
-    movieBlockFooter.className = 'movie-block-footer';
-    const previewCountSpan = document.createElement('span');
-    previewCountSpan.className = 'movie-block-preview-count';
-    movieBlockFooter.appendChild(previewCountSpan);
-    filterDetails.append(filterSummary, otherFiltersGrid, movieBlockFooter);
+    
+    filterDetails.append(filterSummary, otherFiltersGrid); // Removed footer from here
     otherFiltersFieldset.append(otherFiltersLegend, filterDetails);
     body.append(libraryFieldset, genreFieldset, otherFiltersFieldset);
     blockElement.append(header, body);
@@ -251,9 +251,13 @@ export function renderMusicBlock({ data = null, artistData, musicGenreData, user
     header.className = 'mixed-block-header';
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<span class="block-icon">🎵</span> Music Block`;
+    
     const headerControls = document.createElement('div');
     headerControls.className = 'mixed-block-controls';
-    headerControls.append(icon('×', 'danger delete-block-btn', 'Delete Block'));
+    const previewCountSpan = document.createElement('span');
+    previewCountSpan.className = 'music-block-preview-count';
+    headerControls.append(previewCountSpan, icon('×', 'danger delete-block-btn', 'Delete Block'));
+    
     header.append(icon('↕', 'drag-handle icon-btn', 'Drag to reorder'), headerTitle, headerControls);
 
     const body = document.createElement('div');
@@ -346,12 +350,8 @@ export function renderMusicBlock({ data = null, artistData, musicGenreData, user
     const limitInput = Object.assign(document.createElement('input'), { type: 'number', className: 'music-block-limit', placeholder: 'e.g., 25', value: filters.limit || 25, min: 1 });
     limitLabel.append('Limit: ', limitInput);
     otherFiltersGrid.append(sortLabel, limitLabel);
-    const musicBlockFooter = document.createElement('div');
-    musicBlockFooter.className = 'movie-block-footer';
-    const previewCountSpan = document.createElement('span');
-    previewCountSpan.className = 'music-block-preview-count';
-    musicBlockFooter.appendChild(previewCountSpan);
-    genreContainer.append(genreFieldset, otherFiltersGrid, musicBlockFooter);
+    
+    genreContainer.append(genreFieldset, otherFiltersGrid);
 
     body.append(modeLabel, artistContainer, genreContainer);
     blockElement.append(header, body);
