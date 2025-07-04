@@ -1,5 +1,5 @@
 // static/js/builder.js
-import { post, debounce, confirmModal } from './utils.js';
+import { post, debounce, confirmModal, smartPlaylistModal } from './utils.js';
 import { PresetManager, createTvShowRow } from './utils.js';
 import { initQuickPlaylists } from './quick_playlists.js';
 import { renderTvBlock, renderMovieBlock, renderMusicBlock } from './block_renderers.js';
@@ -82,6 +82,7 @@ export function initBuilderPane(userSelectElement, allData) {
     const collectionCb = document.getElementById('create-as-collection-cb');
     const addBlockBtn = document.getElementById('add-block-btn');
     const addBlockMenu = document.getElementById('add-block-menu');
+    const playlistNameInput = document.getElementById('action-bar-playlist-name');
 
     const mixedPresetManager = new PresetManager('mixerbeeMixedPresets', {
         loadSelect: document.getElementById('load-preset-select'),
@@ -98,16 +99,25 @@ export function initBuilderPane(userSelectElement, allData) {
     };
     const debouncedAutosave = debounce(autosave, 2000);
 
+    function checkPlaceholderVisibility() {
+        const blockCount = blocksContainer.querySelectorAll('.mixed-block').length;
+        if (placeholder) {
+            placeholder.style.display = blockCount === 0 ? 'block' : 'none';
+        }
+    }
+
     const applyPresetToUI = (blocksData) => {
         if (!blocksData) return;
-        blocksContainer.innerHTML = ''; // Clear existing blocks
+        // FIX: Selectively remove only the block elements, preserving the placeholder
+        blocksContainer.querySelectorAll('.mixed-block').forEach(block => block.remove());
+        
         blocksData.forEach(blockData => {
             let blockElement;
             const renderData = { data: blockData, userSelectElement, changeCallback: debouncedAutosave, ...allData };
             if (blockData.type === 'tv') blockElement = renderTvBlock(renderData);
             else if (blockData.type === 'movie') blockElement = renderMovieBlock(renderData);
             else if (blockData.type === 'music') blockElement = renderMusicBlock(renderData);
-    
+
             if (blockElement) {
                 blocksContainer.appendChild(blockElement);
                 addBlockEventListeners(blockElement, debouncedAutosave);
@@ -115,7 +125,7 @@ export function initBuilderPane(userSelectElement, allData) {
         });
         checkPlaceholderVisibility();
     };
-    
+
     async function checkAiConfig() {
         try {
             const response = await fetch('api/config_status');
@@ -125,11 +135,6 @@ export function initBuilderPane(userSelectElement, allData) {
             console.error("Could not check AI config status, hiding feature.", e);
             aiGeneratorContainer.style.display = 'none';
         }
-    }
-
-    function checkPlaceholderVisibility() {
-        const blockCount = blocksContainer.querySelectorAll('.mixed-block').length;
-        if (placeholder) placeholder.style.display = blockCount === 0 ? 'block' : 'none';
     }
 
     collectionCb.addEventListener('change', () => {
@@ -183,7 +188,7 @@ export function initBuilderPane(userSelectElement, allData) {
         if (blockType === 'tv') blockElement = renderTvBlock(renderData);
         else if (blockType === 'movie') blockElement = renderMovieBlock(renderData);
         else if (blockType === 'music') blockElement = renderMusicBlock(renderData);
-        
+
         if (blockElement) {
             blocksContainer.appendChild(blockElement);
             addBlockEventListeners(blockElement, debouncedAutosave);
@@ -203,7 +208,8 @@ export function initBuilderPane(userSelectElement, allData) {
             text: 'Are you sure you want to clear all blocks? This cannot be undone.',
             confirmText: 'Clear All',
             onConfirm: () => {
-                blocksContainer.innerHTML = '';
+                // FIX: Selectively remove only the block elements, preserving the placeholder
+                blocksContainer.querySelectorAll('.mixed-block').forEach(block => block.remove());
                 checkPlaceholderVisibility();
                 autosave();
             }
@@ -237,19 +243,47 @@ export function initBuilderPane(userSelectElement, allData) {
     generateBtn.addEventListener('click', (event) => {
         const blocks = getBlocksDataFromUI();
         const createAsCollection = collectionCb.checked;
+        let playlistName = playlistNameInput.value.trim();
+
+        // --- Validation Checks ---
         if (createAsCollection) {
-            if (blocks.length !== 1 || blocks[0].type !== 'movie') return alert('Collections can only be created from a single Movie Block.');
+            if (blocks.length !== 1 || blocks[0].type !== 'movie') {
+                return alert('Collections can only be created from a single Movie Block.');
+            }
         } else {
-            if (blocks.length === 0) return alert('Please add at least one block to build a playlist.');
+            if (blocks.length === 0) {
+                return alert('Please add at least one block to build a playlist.');
+            }
         }
-        const requestBody = { user_id: userSelectElement.value, playlist_name: document.getElementById('action-bar-playlist-name').value, blocks, create_as_collection: createAsCollection };
-        post('api/create_mixed_playlist', requestBody, event);
+
+        const executeBuild = (name) => {
+            const requestBody = {
+                user_id: userSelectElement.value,
+                playlist_name: name,
+                blocks,
+                create_as_collection: createAsCollection
+            };
+            post('api/create_mixed_playlist', requestBody, event);
+        };
+
+        if (!playlistName) {
+            smartPlaylistModal.show({
+                title: createAsCollection ? 'Name Your Collection' : 'Name Your Playlist',
+                description: 'Please provide a name before building.',
+                countInput: false,
+                defaultName: 'My Awesome Mix',
+                onCreate: ({ playlistName: modalPlaylistName }) => {
+                    playlistNameInput.value = modalPlaylistName;
+                    executeBuild(modalPlaylistName);
+                }
+            });
+        } else {
+            executeBuild(playlistName);
+        }
     });
 
-    // Initialize all the one-click playlist buttons
     initQuickPlaylists(userSelectElement, allData.movieGenreData, allData.musicGenreData);
 
-    // --- INITIAL LOAD ---
     const autosavedState = mixedPresetManager.presets['__autosave__'];
     if (autosavedState && autosavedState.length > 0) {
         console.log("Found autosaved state, restoring...");

@@ -6,10 +6,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
 import random
+import time
 
 import requests
 
-from .client import SESSION, EMBY_URL
+from . import client
 from .movies import find_movies
 from .music import get_songs_by_artist, get_songs_by_album, find_songs
 from .tv import get_first_unwatched_episode, get_specific_episode
@@ -23,7 +24,7 @@ def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
     if not item_id:
         return False
     try:
-        resp = SESSION.delete(f"{EMBY_URL}/Items/{item_id}", headers=hdr, timeout=10)
+        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{item_id}", headers=hdr, timeout=10)
         resp.raise_for_status()
         return True
     except requests.RequestException:
@@ -37,9 +38,29 @@ def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[D
         "ParentId": item_id,
         "Fields": "RunTimeTicks,ParentId", # Add fields for more context
     }
-    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
     return r.json().get("Items", [])
+
+
+def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
+    """Fetches and combines playlists and collections for the Manager tab."""
+    if not user_id: return []
+    params = {
+        "Recursive": "true",
+        "IncludeItemTypes": "Playlist,BoxSet",
+        "Fields": "ChildCount,DateCreated",
+    }
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
+    r.raise_for_status()
+
+    items = r.json().get("Items", [])
+
+    for item in items:
+        item["ItemCount"] = item.get("ChildCount", 0)
+        item["DisplayType"] = "Collection" if item.get("Type") == "BoxSet" else "Playlist"
+
+    return items
 
 # ---------------------------------------------------------------------------
 # Playlist Functions
@@ -50,10 +71,11 @@ def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     params = {
         "IncludeItemTypes": "Playlist",
         "Recursive": "true",
-        "Fields": "Id,Name"
+        "Fields": "Id,Name",
+        "_": int(time.time() * 1000) # Cache-busting parameter
     }
-    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items",
-                    params=params, headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items",
+                      params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     return r.json().get("Items", [])
 
@@ -62,12 +84,12 @@ def delete_playlist(name: str, user_id: str, hdr: Dict[str, str],
                     log: List[str]):
     """Deletes a playlist by its name."""
     targets = [pl for pl in get_playlists(user_id, hdr)
-               if pl["Name"].strip().lower() == name.strip().lower()]
+               if pl.get("Name") and pl.get("Name").strip().lower() == name.strip().lower()]
     if not targets:
         return
     for pl in targets:
-        resp = SESSION.delete(f"{EMBY_URL}/Items/{pl['Id']}",
-                              headers=hdr, timeout=10)
+        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{pl['Id']}",
+                                headers=hdr, timeout=10)
         if resp.status_code in (200, 204):
             log.append(f"Deleted existing playlist '{name}'.")
         else:
@@ -78,11 +100,11 @@ def create_playlist(name: str, user_id: str, ids: List[str],
                     hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, deleting any existing one with the same name."""
     delete_playlist(name, user_id, hdr, log)
-    resp = SESSION.post(f"{EMBY_URL}/Playlists",
-                        headers=hdr,
-                        params={"Name": name, "UserId": user_id,
-                                "Ids": ",".join(ids)},
-                        timeout=10)
+    resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists",
+                          headers=hdr,
+                          params={"Name": name, "UserId": user_id,
+                                  "Ids": ",".join(ids)},
+                          timeout=10)
     if resp.ok:
         log.append(f"Playlist '{name}' created successfully.")
     else:
@@ -96,8 +118,8 @@ def create_playlist(name: str, user_id: str, ids: List[str],
 def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of unwatched pilot episodes."""
     try:
-        all_series_resp = SESSION.get(
-            f"{EMBY_URL}/Users/{user_id}/Items",
+        all_series_resp = client.SESSION.get(
+            f"{client.EMBY_URL}/Users/{user_id}/Items",
             params={"IncludeItemTypes": "Series", "Recursive": "true", "Fields": "Id,Name"},
             headers=hdr,
             timeout=20
@@ -108,16 +130,16 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
         unwatched_pilots = []
         for series in all_series:
             series_id = series["Id"]
-            series_stats_resp = SESSION.get(
-                f"{EMBY_URL}/Shows/{series_id}/Episodes",
+            series_stats_resp = client.SESSION.get(
+                f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                 params={"UserId": user_id, "IsPlayed": "false", "Limit": 1},
                 headers=hdr, timeout=10
             )
             series_stats_resp.raise_for_status()
             unplayed_count = series_stats_resp.json().get("TotalRecordCount", 0)
 
-            series_total_resp = SESSION.get(
-                f"{EMBY_URL}/Shows/{series_id}/Episodes",
+            series_total_resp = client.SESSION.get(
+                f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                 params={"UserId": user_id, "Limit": 1},
                 headers=hdr, timeout=10
             )
@@ -130,11 +152,11 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
                     unwatched_pilots.append(pilot_ep)
 
         if not unwatched_pilots:
-            log.append("No shows with unwatched pilot episodes found.")
+            log.append("No unstarted shows found. Playlist not created.")
             return {"status": "ok", "log": log}
 
         num_to_sample = min(count, len(unwatched_pilots))
-        log.append(f"Found {len(unwatched_pilots)} unstarted shows. Randomly selecting {num_to_sample}.")
+        log.append(f"Found {len(unwatched_pilots)} unstarted shows. Creating playlist with {num_to_sample} random pilots.")
 
         selected_pilots = random.sample(unwatched_pilots, num_to_sample)
         pilot_ids = [ep["Id"] for ep in selected_pilots]
@@ -155,12 +177,12 @@ def create_continue_watching_playlist(user_id: str, playlist_name: str, count: i
             "SortBy": "DatePlayed",
             "SortOrder": "Descending"
         }
-        r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items/Resume", params=resume_params, headers=hdr, timeout=15)
+        r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items/Resume", params=resume_params, headers=hdr, timeout=15)
         r.raise_for_status()
         resume_items = r.json().get("Items", [])
 
         if not resume_items:
-            log.append("Could not find any in-progress shows.")
+            log.append("Could not find any in-progress shows. Playlist not created.")
             return {"status": "ok", "log": log}
 
         in_progress_series_ids = []
@@ -181,7 +203,7 @@ def create_continue_watching_playlist(user_id: str, playlist_name: str, count: i
                 next_episode_ids.append(next_ep["id"])
 
         if not next_episode_ids:
-            log.append("Found in-progress shows, but could not find any playable next episodes.")
+            log.append("Found in-progress shows, but could not find any playable next episodes. Playlist not created.")
             return {"status": "ok", "log": log}
 
         create_playlist(name=playlist_name, user_id=user_id, ids=next_episode_ids, hdr=hdr, log=log)
@@ -201,12 +223,12 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
             "Fields": "UserData,DateCreated",
             "UserId": user_id
         }
-        r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=20)
+        r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=20)
         r.raise_for_status()
         favorited_movies = r.json().get("Items", [])
 
         if not favorited_movies:
-            log.append("No favorited movies found for this user.")
+            log.append("No favorited movies found for this user. Playlist not created.")
             return {"status": "ok", "log": log}
 
         one_year_ago = datetime.now() - timedelta(days=365)
@@ -225,7 +247,7 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
                 forgotten_movies.append(movie)
 
         if not forgotten_movies:
-            log.append("Found favorite movies, but all have been watched recently.")
+            log.append("Found favorite movies, but all have been watched recently. Playlist not created.")
             return {"status": "ok", "log": log}
 
         random.shuffle(forgotten_movies)
@@ -256,7 +278,7 @@ def create_movie_marathon_playlist(user_id: str, playlist_name: str, genre: str,
         found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
 
         if not found_movies:
-            log.append(f"No unwatched movies found for genre '{genre}'.")
+            log.append(f"No unwatched movies found for genre '{genre}'. Playlist not created.")
             return {"status": "ok", "log": log}
 
         movie_ids = [m["Id"] for m in found_movies]
@@ -277,7 +299,7 @@ def create_artist_spotlight_playlist(user_id: str, playlist_name: str, artist_id
         top_songs = get_songs_by_artist(artist_id, hdr, sort="Top", limit=count)
 
         if not top_songs:
-            log.append(f"No songs found for the selected artist.")
+            log.append(f"No songs found for the selected artist. Playlist not created.")
             return {"status": "ok", "log": log}
 
         song_ids = [song["Id"] for song in top_songs]
@@ -295,11 +317,10 @@ def create_artist_spotlight_playlist(user_id: str, playlist_name: str, artist_id
 def create_album_playlist(user_id: str, playlist_name: str, album_id: str, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist from all the songs in a given album."""
     try:
-        # get_songs_by_album is imported from .music
         album_songs = get_songs_by_album(album_id, hdr)
 
         if not album_songs:
-            log.append(f"Could not find any songs for the selected album.")
+            log.append(f"Could not find any songs for the selected album. Playlist not created.")
             return {"status": "ok", "log": log}
 
         song_ids = [song["Id"] for song in album_songs]
@@ -322,11 +343,10 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
             "sort_by": "Random",
             "limit": count
         }
-        # find_songs is imported from .music
         found_songs = find_songs(user_id=user_id, filters=filters, hdr=hdr)
 
         if not found_songs:
-            log.append(f"No songs found for genre '{genre}'.")
+            log.append(f"No songs found for genre '{genre}'. Playlist not created.")
             return {"status": "ok", "log": log}
 
         song_ids = [s["Id"] for s in found_songs]
@@ -352,8 +372,8 @@ def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
         "Recursive": "true",
         "Fields": "Id,Name"
     }
-    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items",
-                    params=params, headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items",
+                      params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     return r.json().get("Items", [])
 
@@ -365,7 +385,7 @@ def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[st
     if not targets:
         return
     for c in targets:
-        resp = SESSION.delete(f"{EMBY_URL}/Items/{c['Id']}", headers=hdr, timeout=10)
+        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{c['Id']}", headers=hdr, timeout=10)
         if resp.status_code in (200, 204):
             log.append(f"Deleted existing collection '{name}'.")
         else:
@@ -394,7 +414,7 @@ def create_movie_collection(user_id: str, collection_name: str, filters: Dict, h
         request_headers = hdr.copy()
         request_headers["Content-Type"] = "application/json"
 
-        r = SESSION.post(f"{EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
+        r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
 
         log.append(f"Successfully created collection '{collection_name}' with {len(item_ids)} items.")

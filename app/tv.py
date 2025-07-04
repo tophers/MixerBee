@@ -6,7 +6,7 @@ import random
 from itertools import islice
 from typing import Tuple, Dict, List, Optional
 
-from .client import SESSION, EMBY_URL
+from . import client
 
 # ---------------------------------------------------------------------------
 # TV helpers
@@ -22,11 +22,11 @@ def parse_show(arg: str) -> Tuple[str, int, int]:
 
 def search_series(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Searches for a series by name and returns a list of matches."""
-    r = SESSION.get(f"{EMBY_URL}/Items",
-                    params={"IncludeItemTypes": "Series",
-                            "SearchTerm": name,
-                            "Recursive": "true"},
-                    headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Items",
+                      params={"IncludeItemTypes": "Series",
+                              "SearchTerm": name,
+                              "Recursive": "true"},
+                      headers=hdr, timeout=10)
     r.raise_for_status()
     items = r.json().get("Items", [])
     return [{"Id": it["Id"], "Name": it["Name"]} for it in items]
@@ -34,10 +34,10 @@ def search_series(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
 
 def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
     """Finds the exact series ID for a given name."""
-    r = SESSION.get(f"{EMBY_URL}/Items",
-                    params={"IncludeItemTypes": "Series",
-                            "SearchTerm": name, "Recursive": "true"},
-                    headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Items",
+                      params={"IncludeItemTypes": "Series",
+                              "SearchTerm": name, "Recursive": "true"},
+                      headers=hdr, timeout=10)
     for it in r.json().get("Items", []):
         if it["Name"].lower() == name.lower():
             return it["Id"]
@@ -47,8 +47,8 @@ def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
 def episodes(sid: str, season: int, episode: int, count: int,
              hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of episodes for a series, starting from a specific S/E."""
-    r = SESSION.get(f"{EMBY_URL}/Shows/{sid}/Episodes",
-                    headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{sid}/Episodes",
+                      headers=hdr, timeout=10)
     all_eps = sorted(r.json()["Items"],
                      key=lambda x: (x.get("ParentIndexNumber", 0),
                                     x.get("IndexNumber", 0)))
@@ -62,10 +62,10 @@ def episodes(sid: str, season: int, episode: int, count: int,
 def get_specific_episode(series_id: str, season: int,
                          episode: int, hdr: Dict[str, str]) -> Optional[Dict]:
     """Gets data for a single, specific episode."""
-    r = SESSION.get(f"{EMBY_URL}/Shows/{series_id}/Episodes",
-                    params={"Season": season,
-                            "Fields": "Name,ParentIndexNumber,IndexNumber"},
-                    headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
+                      params={"Season": season,
+                              "Fields": "Name,ParentIndexNumber,IndexNumber"},
+                      headers=hdr, timeout=10)
     r.raise_for_status()
     items = r.json().get("Items", [])
 
@@ -82,8 +82,8 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
         "userId": user_id,
         "Fields": "UserData,ParentIndexNumber,IndexNumber"
     }
-    r = SESSION.get(f"{EMBY_URL}/Shows/{series_id}/Episodes",
-                    params=params, headers=hdr, timeout=15)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
+                      params=params, headers=hdr, timeout=15)
     r.raise_for_status()
     all_eps = sorted(r.json().get("Items", []),
                      key=lambda x: (x.get("ParentIndexNumber", 0),
@@ -113,8 +113,8 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
         "userId": user_id,
         "Fields": "UserData,ParentIndexNumber,IndexNumber"
     }
-    r = SESSION.get(f"{EMBY_URL}/Shows/{series_id}/Episodes",
-                    params=params, headers=hdr, timeout=15)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
+                      params=params, headers=hdr, timeout=15)
     r.raise_for_status()
     all_eps = r.json().get("Items", [])
     unwatched_eps = [

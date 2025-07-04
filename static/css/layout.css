@@ -1,6 +1,41 @@
 /* static/css/layout.css */
 /* Manages main page structure: containers, action bar, tabs, etc. */
 
+.main-header-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin: 1.3rem 1rem;
+}
+
+.main-header-bar h2 {
+    margin: 0;
+    text-align: center;
+    flex-grow: 1;
+}
+
+.header-user-display {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+#active-user-display {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--text-subtle);
+    opacity: 0.8;
+}
+
+#settings-btn {
+    font-size: 1.5rem;
+}
+
 .container {
     max-width: 680px;
     margin: auto;
@@ -18,7 +53,7 @@
     box-shadow: 0 -2px 6px rgba(0,0,0,.5);
     display: flex;
     justify-content: center; /* Center the inner container */
-/*    padding: .8rem 0; /* Vertical padding only on the bar itself */
+/* padding: .8rem 0; /* Vertical padding only on the bar itself */
     padding: .8rem 1rem;
     z-index: 10;
     margin-top: auto;
@@ -28,7 +63,7 @@
     width: 100%;
     max-width: 680px; /* Match the main container width */
     display: flex;
-    align-items: center; 
+    align-items: center;
     gap: 1rem;
     padding: 0 1rem; /* Horizontal padding is now here */
 }
@@ -41,7 +76,7 @@
     min-width: 200px;
 }
 
-.action-bar-content button, 
+.action-bar-content button,
 .action-bar-content .action-bar-checkbox-label,
 .action-bar-content .theme-switcher {
     flex-shrink: 0; /* Prevent these items from shrinking */
@@ -108,4 +143,26 @@ body[data-theme='light'] .tab-btn:hover {
     text-align: center;
     font-size: 1.4rem;
     margin-bottom: 1rem;
+}
+
+.warning-box {
+    border: 1px solid #e6a800;
+    background-color: rgba(230, 168, 0, 0.1);
+    color: #e6a800;
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    text-align: center;
+}
+.warning-box .feather {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+.warning-box h3 {
+    margin: 0.5rem 0;
+    color: var(--text);
+}
+.warning-box p {
+    color: var(--text-subtle);
+    margin: 0.5rem 0 1.5rem 0;
 }

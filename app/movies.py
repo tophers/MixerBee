@@ -5,28 +5,28 @@ app/movies.py - All movie-related logic.
 import random
 from typing import Dict, List, Optional
 
-from .client import SESSION, EMBY_URL
+from . import client
 
 
-def get_movie_libraries(hdr: Dict[str, str]) -> List[Dict[str, str]]:
-    """Fetches all movie libraries (folders) from Emby."""
-    r = SESSION.get(f"{EMBY_URL}/Library/MediaFolders", headers=hdr, timeout=10)
+def get_movie_libraries(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+    """Fetches all movie libraries (folders) a specific user can see."""
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Views", headers=hdr, timeout=10)
     r.raise_for_status()
-    all_folders = r.json().get("Items", [])
-    # Filter for folders that are specifically of the 'movies' collection type
+    all_views = r.json().get("Items", [])
+    # Filter for views that are of the 'movies' collection type
     movie_folders = [
         {"Id": f["Id"], "Name": f["Name"]}
-        for f in all_folders
+        for f in all_views
         if f.get("CollectionType") == "movies"
     ]
     return movie_folders
 
 
-def get_movie_genres(hdr: Dict[str, str]) -> List[Dict[str, str]]:
-    """Fetches all movie genres from Emby."""
-    params = {"IncludeItemTypes": "Movie"}
-    r = SESSION.get(f"{EMBY_URL}/Genres",
-                    params=params, headers=hdr, timeout=10)
+def get_movie_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+    """Fetches all movie genres available to a specific user."""
+    params = {"IncludeItemTypes": "Movie", "UserId": user_id}
+    r = client.SESSION.get(f"{client.EMBY_URL}/Genres",
+                      params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     return r.json().get("Items", [])
 
@@ -48,7 +48,7 @@ def find_movies(user_id: str, filters: Dict,
     if filters.get("year_to"):
         base_params["MaxPremiereDate"] = f"{filters['year_to']}-12-31"
 
-    r = SESSION.get(f"{EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
     r.raise_for_status()
     all_movies = r.json().get("Items", [])
 
@@ -67,10 +67,15 @@ def find_movies(user_id: str, filters: Dict,
                 m for m in all_movies
                 if required_genres.intersection(set(g.lower() for g in m.get("Genres", [])))
             ]
-        else: # 'all'
+        elif genre_match_type == "all":
             all_movies = [
                 m for m in all_movies
                 if required_genres.issubset(set(g.lower() for g in m.get("Genres", [])))
+            ]
+        elif genre_match_type == "none":
+            all_movies = [
+                m for m in all_movies
+                if not required_genres.intersection(set(g.lower() for g in m.get("Genres", [])))
             ]
 
     final_list = all_movies

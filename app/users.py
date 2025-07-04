@@ -3,12 +3,12 @@ app/users.py - User-related functions.
 """
 from typing import Dict, List, Optional
 
-from .client import SESSION, EMBY_URL
+from . import client
 
 
 def all_users(hdr: Dict[str, str]) -> List[dict]:
     """Fetches a list of all users on the Emby server."""
-    r = SESSION.get(f"{EMBY_URL}/Users", headers=hdr, timeout=10)
+    r = client.SESSION.get(f"{client.EMBY_URL}/Users", headers=hdr, timeout=10)
     r.raise_for_status()
     return r.json()
 

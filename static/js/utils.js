@@ -42,7 +42,6 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
   })
     .then(r => {
         if (!r.ok) {
-            // Attempt to parse error JSON, but handle cases where it's not JSON
             return r.json().catch(() => {
                 return { status: 'error', detail: `Server error: ${r.status} ${r.statusText}` };
             }).then(err => Promise.reject(err));
@@ -51,10 +50,9 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     })
     .then(res => {
         if (res.status === 'ok') {
-            toast('Success!', true);
+            const successMessage = res.log?.join(' • ') || 'Success!';
+            toast(successMessage, true);
         } else {
-            // This 'else' branch may not be hit if the server returns a non-200 status,
-            // but is good for cases where the status is 200 but operation failed logically.
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);
         }
@@ -178,15 +176,19 @@ class SavePresetModal {
 class SmartPlaylistModal {
     constructor() {}
     _handleCreate() {
+        this.confirmBtn.disabled = true;
+
         const playlistName = this.nameInput.value.trim();
-        // Use a dummy count of 1 if the input is hidden, otherwise get the value
         const count = this.countWrapper.style.display === 'none' ? 1 : parseInt(this.countInput.value, 10);
-        
+
         if (playlistName && count > 0) {
-            if (this.onCreateCallback) this.onCreateCallback({ playlistName, count });
+            if (this.onCreateCallback) {
+                this.onCreateCallback({ playlistName, count });
+            }
             this.hide();
         } else {
             alert('Please provide a valid playlist name and number of items.');
+            this.confirmBtn.disabled = false;
         }
     }
     _handleCancel() {
@@ -198,12 +200,23 @@ class SmartPlaylistModal {
         if (e.key === 'Escape') this._handleCancel();
     }
     show({ title, description, countLabel, countInput = true, defaultCount, defaultName, onCreate, onCancel }) {
+        // *** FIX: Aggressively remove any old listeners to prevent duplication ***
+        if (this._createHandler) {
+            this.confirmBtn.removeEventListener('click', this._createHandler);
+        }
+        if (this._cancelHandler) {
+            this.closeBtn.removeEventListener('click', this._cancelHandler);
+            this.cancelBtn.removeEventListener('click', this._cancelHandler);
+        }
+        if (this._keydownHandler) {
+            this.overlay.removeEventListener('keydown', this._keydownHandler);
+        }
+        
         this.onCreateCallback = onCreate;
         this.onCancelCallback = onCancel;
         this.titleEl.textContent = title;
         this.descriptionEl.textContent = description;
 
-        // Show/hide the count input based on the 'countInput' flag
         if (countInput) {
             this.countWrapper.style.display = '';
             this.countLabel.textContent = countLabel;
@@ -233,6 +246,7 @@ class SmartPlaylistModal {
         this.closeBtn.removeEventListener('click', this._cancelHandler);
         this.cancelBtn.removeEventListener('click', this._cancelHandler);
         this.overlay.removeEventListener('keydown', this._keydownHandler);
+        this.confirmBtn.disabled = false;
     }
     init() {
         this.overlay = document.getElementById('smart-playlist-modal-overlay');
@@ -419,7 +433,7 @@ export class PresetManager {
         this.ui.deleteBtn.addEventListener('click', () => {
             const presetName = this.ui.loadSelect.value;
             if (!presetName) { alert("Please select a preset to delete."); return; }
-            
+
             confirmModal.show({
                 title: 'Delete Preset?',
                 text: `Are you sure you want to delete the preset "${presetName}"? This cannot be undone.`,

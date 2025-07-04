@@ -5,7 +5,7 @@ import os
 import sys
 import atexit
 from pathlib import Path
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -25,18 +25,20 @@ if not ENV_PATH.exists():
     xdg = Path(os.getenv("XDG_CONFIG_HOME", "~/.config")).expanduser()
     ENV_PATH = xdg / "mixerbee" / ".env"
 
+# We load the .env file here, but the actual credential variables are set
+# in web.py by the load_and_authenticate function.
 if not load_dotenv(ENV_PATH):
     sys.stderr.write(f"[mixerbee] warning: no .env file found at {ENV_PATH}\n")
 
-try:
-    EMBY_URL = os.environ["EMBY_URL"].rstrip("/")
-    EMBY_USER = os.environ["EMBY_USER"]
-    EMBY_PASS = os.environ["EMBY_PASS"]
-except KeyError as m:
-    raise RuntimeError(f"Missing {m} in environment settings") from None
+# These will be populated by load_and_authenticate() in web.py
+EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
+EMBY_USER = os.environ.get("EMBY_USER")
+EMBY_PASS = os.environ.get("EMBY_PASS")
 
-CLIENT_NAME = os.getenv("CLIENT_NAME", "MixerBee")
-DEVICE_ID = os.getenv("DEVICE_ID", "MixerBee_CLI")
+
+# Static client identifiers. These are no longer needed in the .env file.
+CLIENT_NAME = "MixerBee"
+DEVICE_ID = "MixerBeePy"
 
 
 # ---------------------------------------------------------------------------
@@ -57,12 +59,17 @@ atexit.register(SESSION.close)
 # authentication helpers
 # ---------------------------------------------------------------------------
 
-def authenticate(username: str, password: str) -> Tuple[str, str]:
+def authenticate(username: str, password: str, url: Optional[str] = None) -> Tuple[str, str]:
     """Authenticates with Emby and returns the User ID and Access Token."""
+    auth_url = (url or EMBY_URL).rstrip("/")
+    if not auth_url:
+        raise ValueError("Emby URL is not configured.")
+
     hdr = {"X-Emby-Authorization":
            f'MediaBrowser Client="{CLIENT_NAME}",Device="script",'
            f'DeviceId="{DEVICE_ID}",Version="1.0"'}
-    r = SESSION.post(f"{EMBY_URL}/Users/AuthenticateByName",
+    
+    r = SESSION.post(f"{auth_url}/Users/AuthenticateByName",
                      data={"Username": username, "Pw": password},
                      headers=hdr, timeout=10)
     r.raise_for_status()

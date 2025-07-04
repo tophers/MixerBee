@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import List, Optional, Dict
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
 
 import app as core
 import scheduler
@@ -20,6 +21,16 @@ from apscheduler.triggers.cron import CronTrigger
 app = FastAPI(title="MixerBee API", root_path="/mixerbee")
 HERE = Path(__file__).parent
 
+# --- Environment File Path Resolution ---
+ENV_PATH = HERE / ".mixerbee.env"
+if not ENV_PATH.exists():
+    xdg_config_home = os.getenv("XDG_CONFIG_HOME", "~/.config")
+    xdg_config_path = Path(xdg_config_home).expanduser() / "mixerbee" / ".env"
+    if xdg_config_path.exists():
+        ENV_PATH = xdg_config_path
+    ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+
 # Correctly mount the entire static directory
 app.mount("/static/js", StaticFiles(directory=HERE / "static/js"), name="js")
 app.mount("/static/css", StaticFiles(directory=HERE / "static/css"), name="css")
@@ -27,15 +38,52 @@ app.mount("/static/vendor", StaticFiles(directory=HERE / "static/vendor"), name=
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static_root")
 
 
-# --- Load Environment ---
-login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS)
-HDR = core.auth_headers(token, login_uid)
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+# --- Global State Variables ---
+# These will now be managed and can be "hot-swapped"
+login_uid, token, HDR, is_configured = None, None, {}, False
+DEFAULT_USER_NAME, DEFAULT_UID = None, None
+GEMINI_API_KEY = None
 
-DEFAULT_USER_NAME = os.getenv("FRONTEND_DEFAULT_USER", core.EMBY_USER)
-DEFAULT_UID = core.user_id_by_name(DEFAULT_USER_NAME, HDR) or login_uid
+
+def load_and_authenticate():
+    """Loads config from .env and authenticates, setting global state."""
+    global login_uid, token, HDR, is_configured, DEFAULT_USER_NAME, DEFAULT_UID, GEMINI_API_KEY
+
+    # Use override to ensure it re-reads the file if it has changed
+    load_dotenv(ENV_PATH, override=True)
+    
+    # Reload from os.environ after load_dotenv
+    core.EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
+    core.EMBY_USER = os.environ.get("EMBY_USER")
+    core.EMBY_PASS = os.environ.get("EMBY_PASS")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+    try:
+        if not all([core.EMBY_URL, core.EMBY_USER, core.EMBY_PASS]):
+            raise ValueError("Missing required Emby credentials in environment.")
+
+        login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
+        HDR = core.auth_headers(token, login_uid)
+        
+        DEFAULT_USER_NAME = core.EMBY_USER
+        DEFAULT_UID = login_uid
+        
+        is_configured = True
+        logging.info("Successfully loaded configuration and authenticated with Emby.")
+
+    except Exception as e:
+        login_uid, token, HDR, is_configured = None, None, {}, False
+        DEFAULT_USER_NAME, DEFAULT_UID = None, None
+        logging.warning(f"Initial configuration load failed: {e}")
+
 
 # --- Define Models ---
+class SettingsRequest(BaseModel):
+    emby_url: str
+    emby_user: str
+    emby_pass: str
+    gemini_key: Optional[str] = None
+
 class MovieFinderRequest(BaseModel):
     user_id: str
     filters: dict = {}
@@ -113,10 +161,13 @@ class MixRequest(BaseModel):
 
 class DeleteItemRequest(BaseModel):
     item_id: str
+    user_id: str
 
 # --- Startup and Shutdown ---
 @app.on_event("startup")
 def startup_event():
+    """Load config on startup."""
+    load_and_authenticate()
     scheduler.scheduler_manager.start()
 
 @app.on_event("shutdown")
@@ -131,17 +182,67 @@ def index():
 
 @app.get("/api/config_status")
 def api_config_status():
-    return {"is_ai_configured": bool(GEMINI_API_KEY)}
+    return {
+        "is_configured": is_configured,
+        "is_ai_configured": bool(GEMINI_API_KEY)
+    }
+
+@app.post("/api/settings")
+def api_save_settings(req: SettingsRequest):
+    """Saves connection details and hot-swaps the active configuration."""
+    env_content = (
+        f'EMBY_URL="{req.emby_url}"\n'
+        f'EMBY_USER="{req.emby_user}"\n'
+        f'EMBY_PASS="{req.emby_pass}"\n'
+    )
+    if req.gemini_key:
+        env_content += f'GEMINI_API_KEY="{req.gemini_key}"\n'
+
+    try:
+        core.authenticate(req.emby_user, req.emby_pass, req.emby_url)
+        
+        with open(ENV_PATH, "w") as f:
+            f.write(env_content)
+        
+        load_and_authenticate()
+        
+        return {
+            "status": "ok",
+            "log": ["Settings saved and applied successfully! The page will now reload."]
+        }
+    except Exception as e:
+        logging.error(f"Failed to save settings: {e}", exc_info=True)
+        error_detail = "Could not authenticate with the provided Emby credentials. Please check the URL, username, and password."
+        raise HTTPException(status_code=400, detail=error_detail)
+
+
+@app.post("/api/settings/test")
+def api_test_settings():
+    """Tests the currently loaded .env configuration."""
+    if not is_configured:
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "log": ["Application is not configured."]}
+        )
+    try:
+        core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
+        return {"status": "ok", "log": ["Emby connection test successful!"]}
+    except Exception as e:
+        logging.error(f"Failed to test settings: {e}", exc_info=True)
+        return JSONResponse(
+            status_code=400,
+            content={"status": "error", "log": ["Connection test failed. Check .env file and Emby server status."]}
+        )
 
 @app.post("/api/create_from_text")
 def api_create_from_text(req: AiPromptRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
 
     try:
         available_shows = [s['Name'] for s in core.search_series("", HDR)]
-        available_genres = [g['Name'] for g in core.get_movie_genres(HDR)]
-
+        available_genres = [g['Name'] for g in core.get_movie_genres(login_uid, HDR)]
         blocks = gemini_client.generate_blocks_from_prompt(
             prompt=req.prompt,
             api_key=GEMINI_API_KEY,
@@ -154,78 +255,119 @@ def api_create_from_text(req: AiPromptRequest):
 
 @app.post("/api/create_forgotten_favorites")
 def api_create_forgotten_favorites(req: ForgottenFavoritesRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     result = core.create_forgotten_favorites_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
         count=req.count,
-        hdr=HDR,
+        hdr=user_specific_hdr,
         log=log_messages
     )
     return result
 
 @app.post("/api/create_movie_marathon")
 def api_create_movie_marathon(req: MovieMarathonRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     result = core.create_movie_marathon_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
         genre=req.genre,
         count=req.count,
-        hdr=HDR,
+        hdr=user_specific_hdr,
         log=log_messages
     )
     return result
 
 @app.post("/api/create_artist_spotlight")
 def api_create_artist_spotlight(req: ArtistSpotlightRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     result = core.create_artist_spotlight_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
         artist_id=req.artist_id,
         count=req.count,
-        hdr=HDR,
+        hdr=user_specific_hdr,
         log=log_messages
     )
     return result
 
 @app.post("/api/create_album_playlist")
 def api_create_album_playlist(req: AlbumPlaylistRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     result = core.create_album_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
         album_id=req.album_id,
-        hdr=HDR,
+        hdr=user_specific_hdr,
         log=log_messages
     )
     return result
 
 @app.post("/api/create_music_genre_playlist")
 def api_create_music_genre_playlist(req: MusicGenrePlaylistRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     result = core.create_music_genre_playlist(
         user_id=req.user_id,
         playlist_name=req.playlist_name,
         genre=req.genre,
         count=req.count,
-        hdr=HDR,
+        hdr=user_specific_hdr,
+        log=log_messages
+    )
+    return result
+
+@app.post("/api/create_pilot_sampler")
+def api_create_pilot_sampler(req: PilotSamplerRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
+    result = core.create_pilot_sampler_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        count=req.count,
+        hdr=user_specific_hdr,
+        log=log_messages
+    )
+    return result
+
+@app.post("/api/create_continue_watching_playlist")
+def api_create_continue_watching_playlist(req: ContinueWatchingRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    log_messages = []
+    user_specific_hdr = core.auth_headers(token, req.user_id)
+    result = core.create_continue_watching_playlist(
+        user_id=req.user_id,
+        playlist_name=req.playlist_name,
+        count=req.count,
+        hdr=user_specific_hdr,
         log=log_messages
     )
     return result
 
 @app.get("/api/users")
 def api_users():
+    if not is_configured: return []
     users = core.all_users(HDR)
     return [{"id": u["Id"], "name": u["Name"]} for u in users]
 
 @app.get("/api/default_user")
 def api_default_user():
+    if not is_configured: return {"id": None, "name": "Not Configured"}
     return {"id": DEFAULT_UID, "name": DEFAULT_USER_NAME}
 
 @app.get("/api/shows")
 def api_shows():
+    if not is_configured: return []
     r = core.SESSION.get(
         f"{core.EMBY_URL}/Users/{login_uid}/Items",
         params={"IncludeItemTypes": "Series", "Recursive": "true", "Limit": 1000},
@@ -236,6 +378,7 @@ def api_shows():
 
 @app.get("/api/episode_lookup")
 def api_episode_lookup(series_id: str, season: int, episode: int):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     ep_data = core.get_specific_episode(series_id, season, episode, HDR)
     if not ep_data:
         raise HTTPException(status_code=404, detail="Specific episode not found.")
@@ -243,45 +386,57 @@ def api_episode_lookup(series_id: str, season: int, episode: int):
 
 @app.get("/api/shows/{series_id}/first_unwatched")
 def api_get_first_unwatched(series_id: str, user_id: str):
-    ep_data = core.get_first_unwatched_episode(series_id, user_id, HDR)
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    user_specific_hdr = core.auth_headers(token, user_id)
+    ep_data = core.get_first_unwatched_episode(series_id, user_id, user_specific_hdr)
     if not ep_data:
         raise HTTPException(status_code=404, detail="Could not find an unwatched episode.")
     return ep_data
 
 @app.get("/api/shows/{series_id}/random_unwatched")
 def api_get_random_unwatched(series_id: str, user_id: str):
-    ep_data = core.get_random_unwatched_episode(series_id, user_id, HDR)
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    user_specific_hdr = core.auth_headers(token, user_id)
+    ep_data = core.get_random_unwatched_episode(series_id, user_id, user_specific_hdr)
     if not ep_data:
         raise HTTPException(status_code=404, detail="Could not find a random episode.")
     return ep_data
 
 @app.get("/api/users/{user_id}/playlists")
 def api_get_playlists(user_id: str):
-    playlists = core.get_playlists(user_id, HDR)
+    if not is_configured: return []
+    user_specific_hdr = core.auth_headers(token, user_id)
+    playlists = core.get_playlists(user_id, user_specific_hdr)
     return playlists
 
 @app.get("/api/movie_genres")
 def api_movie_genres():
-    return core.get_movie_genres(HDR)
+    if not is_configured: return []
+    return core.get_movie_genres(login_uid, HDR)
 
 @app.get("/api/movie_libraries")
 def api_movie_libraries():
-    return core.get_movie_libraries(HDR)
+    if not is_configured: return []
+    return core.get_movie_libraries(login_uid, HDR)
 
 @app.get("/api/music/genres")
 def api_music_genres():
-    return core.get_music_genres(HDR)
+    if not is_configured: return []
+    return core.get_music_genres(login_uid, HDR)
 
 @app.get("/api/music/artists")
 def api_music_artists():
+    if not is_configured: return []
     return core.get_music_artists(HDR)
 
 @app.get("/api/music/artists/{artist_id}/albums")
 def api_music_artist_albums(artist_id: str):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     return core.get_albums_by_artist(artist_id, HDR)
 
 @app.get("/api/music/random_artist")
 def api_get_random_artist():
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     artist = core.get_random_artist(HDR)
     if not artist:
         raise HTTPException(status_code=404, detail="No artists found in the library.")
@@ -289,61 +444,51 @@ def api_get_random_artist():
 
 @app.get("/api/music/random_album")
 def api_get_random_album():
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     album = core.get_random_album(HDR)
     if not album:
         raise HTTPException(status_code=404, detail="No albums found in the library.")
     return album
 
-def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
-    """Fetches and combines playlists and collections for the Manager tab."""
-    params = {
-        "Recursive": "true",
-        "IncludeItemTypes": "Playlist,BoxSet",
-        "Fields": "ChildCount,DateCreated",
-    }
-    r = core.SESSION.get(f"{core.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
-    r.raise_for_status()
-
-    items = r.json().get("Items", [])
-
-    for item in items:
-        item["ItemCount"] = item.get("ChildCount", 0)
-        item["DisplayType"] = "Collection" if item.get("Type") == "BoxSet" else "Playlist"
-
-    return items
-
 @app.get("/api/manageable_items")
 def api_manageable_items(user_id: str):
-    return get_manageable_items(user_id, HDR)
+    if not is_configured: return []
+    user_specific_hdr = core.auth_headers(token, user_id)
+    items = core.get_manageable_items(user_id, user_specific_hdr)
+    cache_headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+    return JSONResponse(content=items, headers=cache_headers)
 
 @app.get("/api/items/{item_id}/children")
 def api_get_item_children(item_id: str, user_id: str):
-    """Fetches the children of a given playlist or collection."""
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    user_specific_hdr = core.auth_headers(token, user_id)
     try:
-        return core.get_item_children(user_id, item_id, HDR)
+        return core.get_item_children(user_id, item_id, user_specific_hdr)
     except Exception as e:
         logging.error(f"Error fetching children for item {item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/delete_item")
 def api_delete_item(req: DeleteItemRequest):
-    """Deletes a single playlist or collection by its ID."""
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
-        success = core.delete_item_by_id(req.item_id, HDR)
+        action_hdr = core.auth_headers(token, req.user_id)
+        success = core.delete_item_by_id(req.item_id, action_hdr)
         if success:
             return {"status": "ok", "log": ["Item deleted successfully."]}
         else:
-            raise HTTPException(status_code=400, detail="Failed to delete item. It may have been already deleted, or there was a permission issue.")
+            raise HTTPException(status_code=400, detail="Failed to delete item. Check server logs for permission issues.")
     except Exception as e:
-        logging.error(f"Error deleting item {req.item_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logging.error(f"Error processing delete request for item {req.item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
 
 @app.post("/api/mix")
 def api_mix(req: MixRequest):
-    """
-    Legacy endpoint for deleting playlists by name. No longer used by the main UI
-    but kept for backwards compatibility with CLI or other tools.
-    """
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
         if req.delete:
             return core.mix(
@@ -360,21 +505,25 @@ def api_mix(req: MixRequest):
 
 @app.post("/api/movies/preview_count")
 def api_movies_preview_count(req: MovieFinderRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
+        user_specific_hdr = core.auth_headers(token, req.user_id)
         filters = req.filters.copy()
         filters['duration_minutes'] = None
         filters['limit'] = None
-        found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=HDR)
+        found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=user_specific_hdr)
         return {"count": len(found_movies)}
     except Exception as e:
         raise HTTPException(400, str(e))
 
 @app.post("/api/music/preview_count")
 def api_music_preview_count(req: MusicFinderRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
+        user_specific_hdr = core.auth_headers(token, req.user_id)
         filters = req.filters.copy()
         filters['limit'] = None
-        found_songs = core.find_songs(user_id=req.user_id, filters=filters, hdr=HDR)
+        found_songs = core.find_songs(user_id=req.user_id, filters=filters, hdr=user_specific_hdr)
         return {"count": len(found_songs)}
     except Exception as e:
         raise HTTPException(400, str(e))
@@ -382,6 +531,8 @@ def api_music_preview_count(req: MusicFinderRequest):
 
 @app.post("/api/create_mixed_playlist")
 def api_create_mixed_playlist(req: MixedPlaylistRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
+    user_specific_hdr = core.auth_headers(token, req.user_id)
     if req.create_as_collection:
         if not req.blocks or len(req.blocks) != 1 or req.blocks[0].get("type") != "movie":
             raise HTTPException(400, "Collections can only be created from a single movie block.")
@@ -391,7 +542,7 @@ def api_create_mixed_playlist(req: MixedPlaylistRequest):
             user_id=req.user_id,
             collection_name=req.playlist_name,
             filters=movie_filters,
-            hdr=HDR
+            hdr=user_specific_hdr
         )
     else:
         if not req.blocks:
@@ -400,39 +551,23 @@ def api_create_mixed_playlist(req: MixedPlaylistRequest):
             user_id=req.user_id,
             playlist_name=req.playlist_name,
             blocks=req.blocks,
-            hdr=HDR
+            hdr=user_specific_hdr
         )
-
-@app.post("/api/create_pilot_sampler")
-def api_create_pilot_sampler(req: PilotSamplerRequest):
-    log_messages = []
-    result = core.create_pilot_sampler_playlist(
-        user_id=req.user_id,
-        playlist_name=req.playlist_name,
-        count=req.count,
-        hdr=HDR,
-        log=log_messages
-    )
-    return result
-
-@app.post("/api/create_continue_watching_playlist")
-def api_create_continue_watching_playlist(req: ContinueWatchingRequest):
-    log_messages = []
-    result = core.create_continue_watching_playlist(
-        user_id=req.user_id,
-        playlist_name=req.playlist_name,
-        count=req.count,
-        hdr=HDR,
-        log=log_messages
-    )
-    return result
 
 @app.get("/api/schedules")
 def api_get_schedules():
-    return scheduler.scheduler_manager.get_all_schedules()
+    if not is_configured: return []
+    schedules = scheduler.scheduler_manager.get_all_schedules()
+    cache_headers = {
+        "Cache-Control": "no-cache, no-store, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    }
+    return JSONResponse(content=schedules, headers=cache_headers)
 
 @app.post("/api/schedules")
 def api_create_schedule(req: ScheduleRequest):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
         hour, minute = req.schedule_details.time.split(':')
 
@@ -457,6 +592,7 @@ def api_create_schedule(req: ScheduleRequest):
 
 @app.post("/api/schedules/{schedule_id}/run")
 def api_run_schedule_now(schedule_id: str):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     result = scheduler.scheduler_manager.run_schedule_now(schedule_id)
     if not result:
         raise HTTPException(status_code=404, detail="Schedule not found.")
@@ -464,5 +600,6 @@ def api_run_schedule_now(schedule_id: str):
 
 @app.delete("/api/schedules/{schedule_id}")
 def api_delete_schedule(schedule_id: str):
+    if not is_configured: raise HTTPException(status_code=400, detail="Not configured")
     scheduler.scheduler_manager.remove_schedule(schedule_id)
     return {"status": "ok", "log": ["Schedule deleted."]}

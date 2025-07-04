@@ -32,7 +32,7 @@ async function showContentsModal(item) {
             throw new Error('Failed to fetch item contents.');
         }
         const children = await response.json();
-        
+
         if (children.length === 0) {
             contentsModalBody.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">This item is empty.</p>';
             return;
@@ -77,7 +77,8 @@ function renderTable() {
     tableBody.innerHTML = '';
 
     const searchTerm = searchInput.value.toLowerCase();
-    const filteredData = tableData.filter(item => item.Name.toLowerCase().includes(searchTerm));
+    // FIX: Defensively handle items that might not have a Name property.
+    const filteredData = tableData.filter(item => (item.Name || '').toLowerCase().includes(searchTerm));
 
     if (filteredData.length === 0) {
         const row = tableBody.insertRow();
@@ -122,15 +123,16 @@ function renderTable() {
                 text: `Are you sure you want to delete the ${item.DisplayType.toLowerCase()} "${item.Name}"? This cannot be undone.`,
                 confirmText: 'Delete',
                 onConfirm: () => {
-                    post('api/delete_item', { item_id: item.Id }, event)
+                    const userId = userSelect.value;
+                    post('api/delete_item', { item_id: item.Id, user_id: userId }, event)
                         .then(res => {
                             if (res.status === 'ok') {
-                               row.style.transition = 'opacity 0.4s ease-out';
-                               row.style.opacity = '0';
-                               setTimeout(() => {
-                                   row.remove();
-                                   tableData = tableData.filter(d => d.Id !== item.Id);
-                               }, 400);
+                                row.style.transition = 'opacity 0.4s ease-out';
+                                row.style.opacity = '0';
+                                setTimeout(() => {
+                                    row.remove();
+                                    tableData = tableData.filter(d => d.Id !== item.Id);
+                                }, 400);
                             }
                         });
                 }

@@ -166,12 +166,22 @@ export function renderMovieBlock({ data = null, libraryData, movieGenreData, use
     });
     const genreMatchToggle = document.createElement('div');
     genreMatchToggle.className = 'genre-match-toggle';
-    ['any', 'all'].forEach(val => {
+    ['any', 'all', 'none'].forEach(val => {
         const label = document.createElement('label');
         const radio = Object.assign(document.createElement('input'), { type: 'radio', name: `movie-block-genre-match-${blockId}`, value: val });
-        if ((val === 'any' && filters.genre_match !== 'all') || !filters.genre_match) radio.checked = true;
-        if (val === 'all' && filters.genre_match === 'all') radio.checked = true;
-        label.append(radio, ` Match ${val.charAt(0).toUpperCase() + val.slice(1)}`);
+        
+        if (filters.genre_match === val) {
+            radio.checked = true;
+        } else if (!filters.genre_match && val === 'any') {
+            radio.checked = true;
+        }
+
+        let labelText = val.charAt(0).toUpperCase() + val.slice(1);
+        if (val === 'any') labelText = 'Match Any';
+        if (val === 'all') labelText = 'Match All';
+        if (val === 'none') labelText = 'Exclude These';
+
+        label.append(radio, ` ${labelText}`);
         genreMatchToggle.appendChild(label);
     });
     genreDetails.append(genreSummary, genreGrid, genreMatchToggle);
@@ -286,22 +296,43 @@ export function renderMusicBlock({ data = null, artistData, musicGenreData, user
     genreSummary.textContent = 'Expand/Collapse Genre List';
     const genreGrid = document.createElement('div');
     genreGrid.className = 'checkbox-grid';
-    musicGenreData.forEach(g => {
-        const label = document.createElement('label');
-        const cb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'music-block-genre-cb', value: g.Name, checked: filters.genres?.includes(g.Name) });
-        label.append(cb, ` ${g.Name}`);
-        genreGrid.appendChild(label);
-    });
     const genreMatchToggle = document.createElement('div');
     genreMatchToggle.className = 'genre-match-toggle';
-    ['any', 'all'].forEach(val => {
-        const label = document.createElement('label');
-        const radio = Object.assign(document.createElement('input'), { type: 'radio', name: `music-block-genre-match-${blockId}`, value: val });
-        if ((val === 'any' && filters.genre_match !== 'all') || !filters.genre_match) radio.checked = true;
-        if (val === 'all' && filters.genre_match === 'all') radio.checked = true;
-        label.append(radio, ` Match ${val.charAt(0).toUpperCase() + val.slice(1)}`);
-        genreMatchToggle.appendChild(label);
-    });
+
+    if (musicGenreData && musicGenreData.length > 0) {
+        musicGenreData.forEach(g => {
+            const label = document.createElement('label');
+            const cb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'music-block-genre-cb', value: g.Name, checked: filters.genres?.includes(g.Name) });
+            label.append(cb, ` ${g.Name}`);
+            genreGrid.appendChild(label);
+        });
+
+        ['any', 'all', 'none'].forEach(val => {
+            const label = document.createElement('label');
+            const radio = Object.assign(document.createElement('input'), { type: 'radio', name: `music-block-genre-match-${blockId}`, value: val });
+            
+            if (filters.genre_match === val) {
+                radio.checked = true;
+            } else if (!filters.genre_match && val === 'any') {
+                radio.checked = true;
+            }
+            
+            let labelText = val.charAt(0).toUpperCase() + val.slice(1);
+            if (val === 'any') labelText = 'Match Any';
+            if (val === 'all') labelText = 'Match All';
+            if (val === 'none') labelText = 'Exclude These';
+
+            label.append(radio, ` ${labelText}`);
+            genreMatchToggle.appendChild(label);
+        });
+    } else {
+        const noGenresMessage = document.createElement('p');
+        noGenresMessage.className = 'placeholder-text-small';
+        noGenresMessage.textContent = 'No music genres found in your library to filter by.';
+        genreGrid.appendChild(noGenresMessage);
+        genreMatchToggle.style.display = 'none'; // Hide if there are no genres
+    }
+
     genreDetails.append(genreSummary, genreGrid, genreMatchToggle);
     genreFieldset.append(genreLegend, genreDetails);
     const otherFiltersGrid = document.createElement('div');
@@ -321,7 +352,7 @@ export function renderMusicBlock({ data = null, artistData, musicGenreData, user
     previewCountSpan.className = 'music-block-preview-count';
     musicBlockFooter.appendChild(previewCountSpan);
     genreContainer.append(genreFieldset, otherFiltersGrid, musicBlockFooter);
-    
+
     body.append(modeLabel, artistContainer, genreContainer);
     blockElement.append(header, body);
 

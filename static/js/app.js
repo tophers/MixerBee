@@ -1,21 +1,81 @@
 // static/js/app.js
-import { toast, initModals } from './utils.js';
+import { post, toast, initModals } from './utils.js';
 import { initBuilderPane } from './builder.js';
 import { initSchedulerPane } from './scheduler.js';
 import { initManager } from './manager.js';
 import { initQuickPlaylists } from './quick_playlists.js';
 
+function initSettingsModal() {
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal-overlay');
+    const closeBtn = document.getElementById('settings-close-btn');
+    const cancelBtn = document.getElementById('settings-cancel-btn');
+    const saveBtn = document.getElementById('settings-save-btn');
+    const testBtn = document.getElementById('settings-test-btn');
+    const notConfiguredBtn = document.getElementById('not-configured-settings-btn');
+
+    const urlInput = document.getElementById('settings-url-input');
+    const userInput = document.getElementById('settings-user-input');
+    const passInput = document.getElementById('settings-pass-input');
+    const geminiInput = document.getElementById('settings-gemini-input');
+
+    const showModal = () => settingsModal.style.display = 'flex';
+    const hideModal = () => settingsModal.style.display = 'none';
+
+    settingsBtn.addEventListener('click', showModal);
+    notConfiguredBtn.addEventListener('click', showModal);
+    closeBtn.addEventListener('click', hideModal);
+    cancelBtn.addEventListener('click', hideModal);
+
+    testBtn.addEventListener('click', (event) => {
+        post('api/settings/test', {}, event).then(res => {
+            toast(res.log.join(' '), res.status === 'ok');
+        });
+    });
+
+    saveBtn.addEventListener('click', (event) => {
+        const payload = {
+            emby_url: urlInput.value.trim(),
+            emby_user: userInput.value.trim(),
+            emby_pass: passInput.value,
+            gemini_key: geminiInput.value.trim()
+        };
+
+        if (!payload.emby_url || !payload.emby_user || !payload.emby_pass) {
+            toast('URL, Username, and Password are required.', false);
+            return;
+        }
+
+        post('api/settings', payload, event).then(res => {
+            if (res.status === 'ok') {
+                hideModal();
+                toast(res.log.join(' '), true);
+                // Reload the page after a short delay to apply changes
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            }
+        });
+    });
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
 
     initModals();
+    initSettingsModal();
 
     const userSel = document.getElementById('user-select');
     const themeToggle = document.getElementById('theme-toggle-cb');
     const body = document.body;
+    const activeUserDisplay = document.getElementById('active-user-display');
 
     const mixedTabBtn = document.getElementById('mixed-tab-btn');
     const schedulerTabBtn = document.getElementById('scheduler-tab-btn');
     const managerTabBtn = document.getElementById('manager-tab-btn');
+
+    const mainContent = document.getElementById('main-content-area');
+    const notConfiguredWarning = document.getElementById('not-configured-warning');
 
     const mixedPane = document.getElementById('mixed-pane');
     const schedulerPane = document.getElementById('scheduler-pane');
@@ -40,17 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
     themeToggle.addEventListener('change', toggleTheme);
 
     function saveGlobalState() {
+        if (!userSel.value) return;
         localStorage.setItem('mixerbeeGlobalState', JSON.stringify({
             userId: userSel.value,
         }));
-    }
-
-    function loadGlobalState() {
-        const stateJSON = localStorage.getItem('mixerbeeGlobalState');
-        if (!stateJSON) return null;
-        try {
-            return JSON.parse(stateJSON)?.userId || null;
-        } catch (e) { console.error("Failed to load global state:", e); return null; }
     }
 
     function switchTab(activeTab) {
@@ -69,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (activeTab === 'manager') {
             managerTabBtn.classList.add('active');
             managerPane.classList.add('active');
-            initManager(); // Refresh data every time the tab is opened
+            initManager();
         }
 
         mixedPane.style.display = (activeTab === 'mixed') ? 'block' : 'none';
@@ -85,41 +138,97 @@ document.addEventListener('DOMContentLoaded', () => {
     schedulerTabBtn.addEventListener('click', () => switchTab('scheduler'));
     managerTabBtn.addEventListener('click', () => switchTab('manager'));
 
-    userSel.addEventListener('input', saveGlobalState);
+    userSel.addEventListener('input', () => {
+        saveGlobalState();
+        if (managerPane.classList.contains('active')) {
+            initManager();
+        }
+    });
 
-    // Initial Load sequence
-    const savedUserId = loadGlobalState();
     const savedTheme = localStorage.getItem('mixerbeeTheme');
     applyTheme(savedTheme || 'dark');
 
-    Promise.all([
-      fetch('api/users').then(r => r.json()),
-      fetch('api/default_user').then(r => r.json()),
-      fetch('api/shows').then(r => r.json()),
-      fetch('api/movie_genres').then(r => r.json()),
-      fetch('api/movie_libraries').then(r => r.json()),
-      fetch('api/music/artists').then(r => r.json()),
-      fetch('api/music/genres').then(r => r.json()),
-    ])
-      .then(([users, defUser, seriesData, movieGenreData, libraryData, artistData, musicGenreData]) => {
-        users.forEach(u => userSel.appendChild(Object.assign(document.createElement('option'), { value: u.id, textContent: u.name })));
-        userSel.value = (savedUserId && users.some(u => u.id === savedUserId)) ? savedUserId : defUser.id;
-        saveGlobalState();
-        
-        const allData = { seriesData, movieGenreData, libraryData, artistData, musicGenreData };
+    // This helper function makes fetch errors more informative
+    const apiFetch = (url) => fetch(url)
+        .then(r => {
+            if (!r.ok) {
+                throw new Error(`API call to ${url} failed with status ${r.status}`);
+            }
+            return r.json();
+        });
 
-        initBuilderPane(userSel, allData);
-        initQuickPlaylists(userSel, movieGenreData, musicGenreData);
-        initSchedulerPane();
-
-        switchTab('mixed');
-
-        if (typeof feather !== 'undefined') {
-            feather.replace();
+    // Initial Load sequence
+    fetch('api/config_status').then(r => r.json()).then(config => {
+        if (!config.is_configured) {
+            mainContent.style.display = 'none';
+            notConfiguredWarning.style.display = 'block';
+            if (typeof feather !== 'undefined') feather.replace();
+            return; 
         }
-      })
-      .catch((err) => {
-        console.error("Initialization Error:", err);
-        toast('Init error', false);
-      });
+
+        mainContent.style.display = 'block';
+        notConfiguredWarning.style.display = 'none';
+
+        // *** DIAGNOSTIC: Fetch data sequentially to find the failing API call ***
+        const loadInitialData = async () => {
+            try {
+                console.log("Fetching default_user...");
+                const defUser = await apiFetch('api/default_user');
+                console.log("...OK", defUser);
+
+                console.log("Fetching shows...");
+                const seriesData = await apiFetch('api/shows');
+                console.log("...OK", seriesData);
+
+                console.log("Fetching movie_genres...");
+                const movieGenreData = await apiFetch('api/movie_genres');
+                console.log("...OK", movieGenreData);
+
+                console.log("Fetching movie_libraries...");
+                const libraryData = await apiFetch('api/movie_libraries');
+                console.log("...OK", libraryData);
+
+                console.log("Fetching music_artists...");
+                const artistData = await apiFetch('api/music/artists');
+                console.log("...OK", artistData);
+
+                console.log("Fetching music_genres...");
+                const musicGenreData = await apiFetch('api/music/genres');
+                console.log("...OK", musicGenreData);
+
+                // If we get here, all calls succeeded. Now render the UI.
+                console.log("All data fetched successfully. Rendering UI...");
+                
+                activeUserDisplay.textContent = defUser.name;
+
+                userSel.innerHTML = ''; 
+                const userOption = Object.assign(document.createElement('option'), {
+                    value: defUser.id,
+                    textContent: defUser.name
+                });
+                userSel.appendChild(userOption);
+                userSel.value = defUser.id;
+                
+                saveGlobalState();
+
+                const allData = { seriesData, movieGenreData, libraryData, artistData, musicGenreData };
+
+                initBuilderPane(userSel, allData);
+                initQuickPlaylists(userSel, movieGenreData, musicGenreData);
+                initSchedulerPane();
+
+                switchTab('mixed');
+
+                if (typeof feather !== 'undefined') {
+                    feather.replace();
+                }
+
+            } catch (err) {
+                console.error("Initialization failed during sequential fetch:", err);
+                toast('Init error. Check browser console (F12) for details.', false);
+            }
+        };
+
+        loadInitialData();
+    });
 });

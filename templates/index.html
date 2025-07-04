@@ -11,10 +11,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Hidden select for user ID. Required by JS, but multi-user feature is disabled due to Emby API issues. -->
     <select id="user-select" style="display: none;"></select>
 
-    <h2 style="margin-top: 2.5rem;">MixerBee</h2>
+    <div class="main-header-bar">
+        <h2>MixerBee</h2>
+        <div class="header-user-display">
+            <span id="active-user-display"></span>
+            <button id="settings-btn" type="button" class="icon-btn" title="Settings"><i data-feather="settings"></i></button>
+        </div>
+    </div>
+
 
     <div class="tab-switcher">
         <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
@@ -22,199 +28,209 @@
         <button id="manager-tab-btn" class="tab-btn">Manager</button>
     </div>
 
-    <div id="mixed-pane" class="tab-pane active" style="display: block;">
-        <div class="container">
-            <div class="preset-controls">
-                <label class="control-item" for="load-preset-select">
-                    <span>Load Preset</span>
-                    <select id="load-preset-select">
-                        <option value="">-- Select a preset --</option>
-                    </select>
-                </label>
-                <div class="preset-buttons button-group">
-                    <button id="save-preset-btn" type="button" class="secondary">Save as Preset</button>
-                    <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
-                    <button id="import-preset-btn" type="button" class="secondary">Import</button>
-                    <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
-                </div>
-            </div>
-             <fieldset id="ai-generator-container" class="filter-group" style="display: none;">
-                <legend>AI Block Builder</legend>
-                <details>
-                    <summary>Expand AI Block Builder</summary>
-                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem; margin-top: 1rem;"></textarea>
-                    <div class="button-group" style="justify-content: flex-end;">
-                        <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
-                    </div>
-                </details>
-            </fieldset>
-            <fieldset class="filter-group">
-                <legend>Quick Playlists</legend>
-                <details open>
-                    <summary>Expand Quick Playlists</summary>
-                    <div class="quick-playlist-layout">
-                        <div class="quick-playlist-group">
-                            <span class="quick-playlist-label">Video:</span>
-                            <div class="button-group quick-playlist-buttons">
-                                <button type="button" class="secondary" id="pilot-sampler-btn" title="Creates a Random Playlist of Pilot Episodes"><i data-feather="film"></i> Pilot Sampler</button>
-                                <button type="button" class="secondary" id="continue-watching-btn" title="Creates a playlist from your most recent in-progress shows"><i data-feather="play"></i> Next Up</button>
-                                <button id="forgotten-favorites-btn" type="button" class="secondary" title="Creates a playlist of favorited movies you haven't watched in a while"><i data-feather="archive"></i> From the Vault</button>
-                                <button id="random-genre-marathon-btn" type="button" class="secondary" title="Creates a movie marathon from a randomly selected genre"><i data-feather="shuffle"></i> Genre Roulette</button>
-                            </div>
-                        </div>
-                         <div class="quick-playlist-group">
-                            <span class="quick-playlist-label">Music:</span>
-                            <div class="button-group quick-playlist-buttons">
-                               <button type="button" class="secondary" id="artist-spotlight-btn" title="Creates a playlist of top tracks from a random artist"><i data-feather="star"></i> Artist Spotlight</button>
-                               <button type="button" class="secondary" id="album-roulette-btn" title="Creates a playlist from a random album in your library"><i data-feather="disc"></i> Album Roulette</button>
-                               <button type="button" class="secondary" id="music-genre-sampler-btn" title="Creates a playlist from a random music genre"><i data-feather="git-merge"></i> Genre Sampler</button>
-                            </div>
-                        </div>
-                    </div>
-                </details>
-            </fieldset>
-            <div id="mixed-playlist-blocks">
-                <p class="placeholder-text">Click below to add your first block...</p>
-            </div>
-            <div id="add-block-controls" class="button-group">
-                <div class="dropdown-container">
-                    <button id="add-block-btn" class="secondary"><i data-feather="plus"></i> Add Block <i data-feather="chevron-down" class="chevron"></i></button>
-                    <div id="add-block-menu" class="dropdown-menu hidden">
-                        <a href="#" class="dropdown-item" data-block-type="tv"><i data-feather="tv"></i> TV Block</a>
-                        <a href="#" class="dropdown-item" data-block-type="movie"><i data-feather="film"></i> Movie Block</a>
-                        <a href="#" class="dropdown-item" data-block-type="music"><i data-feather="music"></i> Music Block</a>
-                    </div>
-                </div>
-                <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
+    <div id="main-content-area">
+        <div id="not-configured-warning" class="container" style="display: none;">
+             <div class="warning-box">
+                <i data-feather="alert-triangle"></i>
+                <h3>Application Not Configured</h3>
+                <p>MixerBee can't connect to Emby. Please open the settings and provide your server details.</p>
+                <button id="not-configured-settings-btn">Open Settings</button>
             </div>
         </div>
-    </div>
 
-    <div id="scheduler-pane" class="tab-pane" style="display: none;">
-        <div class="container">
-            <h3>Create a New Schedule</h3>
-            <p style="font-size: 0.9em; color: var(--text-subtle); margin-top: -1rem; margin-bottom: 1.5rem;">
-                Schedules will automatically rebuild a playlist from one of your saved presets.
-            </p>
-            <fieldset class="filter-group">
-                <legend>Schedule your playlist</legend>
-                <div class="filter-grid" style="grid-template-columns: 2fr 1fr; gap: 1rem;">
-                    <label>Preset to Schedule
-                        <select id="schedule-preset-select">
-                            <option value="">-- Select a saved preset --</option>
+        <div id="mixed-pane" class="tab-pane active" style="display: block;">
+            <div class="container">
+                <div class="preset-controls">
+                    <label class="control-item" for="load-preset-select">
+                        <span>Load Preset</span>
+                        <select id="load-preset-select">
+                            <option value="">-- Select a preset --</option>
                         </select>
                     </label>
-                    <label>Playlist Name
-                        <input type="text" id="schedule-playlist-name" value="MixerBee Scheduled">
-                    </label>
+                    <div class="preset-buttons button-group">
+                        <button id="save-preset-btn" type="button" class="secondary">Save as Preset</button>
+                        <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
+                        <button id="import-preset-btn" type="button" class="secondary">Import</button>
+                        <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
+                    </div>
                 </div>
-                <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                     <label>Frequency
-                        <select id="schedule-frequency">
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                        </select>
-                    </label>
-                    <label>Run At
-                        <select id="schedule-time-select">
-                            <optgroup label="Morning">
-                                <option value="05:00">5:00 AM</option>
-                                <option value="05:30">5:30 AM</option>
-                                <option value="06:00">6:00 AM</option>
-                                <option value="06:30">6:30 AM</option>
-                                <option value="07:00">7:00 AM</option>
-                                <option value="07:30">7:30 AM</option>
-                                <option value="08:00">8:00 AM</option>
-                                <option value="08:30">8:30 AM</option>
-                                <option value="09:00">9:00 AM</option>
-                                <option value="09:30">9:30 AM</option>
-                                <option value="10:00">10:00 AM</option>
-                                <option value="10:30">10:30 AM</option>
-                                <option value="11:00">11:00 AM</option>
-                                <option value="11:30">11:30 AM</option>
-                            </optgroup>
-                            <optgroup label="Afternoon">
-                                <option value="12:00">12:00 PM</option>
-                                <option value="12:30">12:30 PM</option>
-                                <option value="13:00">1:00 PM</option>
-                                <option value="13:30">1:30 PM</option>
-                                <option value="14:00">2:00 PM</option>
-                                <option value="14:30">2:30 PM</option>
-                                <option value="15:00">3:00 PM</option>
-                                <option value="15:30">3:30 PM</option>
-                                <option value="16:00">4:00 PM</option>
-                                <option value="16:30">4:30 PM</option>
-                            </optgroup>
-                            <optgroup label="Evening">
-                                <option value="17:00">5:00 PM</option>
-                                <option value="17:30">5:30 PM</option>
-                                <option value="18:00">6:00 PM</option>
-                                <option value="18:30">6:30 PM</option>
-                                <option value="19:00" selected>7:00 PM</option>
-                                <option value="19:30">7:30 PM</option>
-                                <option value="20:00">8:00 PM</option>
-                                <option value="20:30">8:30 PM</option>
-                                <option value="21:00">9:00 PM</option>
-                                <option value="21:30">9:30 PM</option>
-                                <option value="22:00">10:00 PM</option>
-                                <option value="22:30">10:30 PM</option>
-                                <option value="23:00">11:00 PM</option>
-                            </optgroup>
-                             <optgroup label="Late Night">
-                                <option value="23:30">11:30 PM</option>
-                                <option value="00:00">12:00 AM (Midnight)</option>
-                                <option value="00:30">12:30 AM</option>
-                                <option value="01:00">1:00 AM</option>
-                                <option value="01:30">1:30 AM</option>
-                                <option value="02:00">2:00 AM</option>
-                            </optgroup>
-                        </select>
-                    </label>
+                 <fieldset id="ai-generator-container" class="filter-group" style="display: none;">
+                    <legend>AI Block Builder</legend>
+                    <details>
+                        <summary>Expand AI Block Builder</summary>
+                        <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem; margin-top: 1rem;"></textarea>
+                        <div class="button-group" style="justify-content: flex-end;">
+                            <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
+                        </div>
+                    </details>
+                </fieldset>
+                <fieldset class="filter-group">
+                    <legend>Quick Playlists</legend>
+                    <details open>
+                        <summary>Expand Quick Playlists</summary>
+                        <div class="quick-playlist-layout">
+                            <div class="quick-playlist-group">
+                                <span class="quick-playlist-label">Video:</span>
+                                <div class="button-group quick-playlist-buttons">
+                                    <button type="button" class="secondary" id="pilot-sampler-btn" title="Creates a Random Playlist of Pilot Episodes"><i data-feather="film"></i> Pilot Sampler</button>
+                                    <button type="button" class="secondary" id="continue-watching-btn" title="Creates a playlist from your most recent in-progress shows"><i data-feather="play"></i> Next Up</button>
+                                    <button id="forgotten-favorites-btn" type="button" class="secondary" title="Creates a playlist of favorited movies you haven't watched in a while"><i data-feather="archive"></i> From the Vault</button>
+                                    <button id="random-genre-marathon-btn" type="button" class="secondary" title="Creates a movie marathon from a randomly selected genre"><i data-feather="shuffle"></i> Genre Roulette</button>
+                                </div>
+                            </div>
+                             <div class="quick-playlist-group">
+                                <span class="quick-playlist-label">Music:</span>
+                                <div class="button-group quick-playlist-buttons">
+                                   <button type="button" class="secondary" id="artist-spotlight-btn" title="Creates a playlist of top tracks from a random artist"><i data-feather="star"></i> Artist Spotlight</button>
+                                   <button type="button" class="secondary" id="album-roulette-btn" title="Creates a playlist from a random album in your library"><i data-feather="disc"></i> Album Roulette</button>
+                                   <button type="button" class="secondary" id="music-genre-sampler-btn" title="Creates a playlist from a random music genre"><i data-feather="git-merge"></i> Genre Sampler</button>
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                </fieldset>
+                <div id="mixed-playlist-blocks">
+                    <p class="placeholder-text">Click below to add your first block...</p>
                 </div>
-            </fieldset>
-
-            <fieldset id="schedule-days-container" class="filter-group" style="display: none;">
-                <legend>Days of the Week</legend>
-                <div id="schedule-days-checkboxes" class="checkbox-grid">
-                    <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
-                    <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
-                    <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
-                    <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
-                    <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
-                    <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
-                    <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
+                <div id="add-block-controls" class="button-group">
+                    <div class="dropdown-container">
+                        <button id="add-block-btn" class="secondary"><i data-feather="plus"></i> Add Block <i data-feather="chevron-down" class="chevron"></i></button>
+                        <div id="add-block-menu" class="dropdown-menu hidden">
+                            <a href="#" class="dropdown-item" data-block-type="tv"><i data-feather="tv"></i> TV Block</a>
+                            <a href="#" class="dropdown-item" data-block-type="movie"><i data-feather="film"></i> Movie Block</a>
+                            <a href="#" class="dropdown-item" data-block-type="music"><i data-feather="music"></i> Music Block</a>
+                        </div>
+                    </div>
+                    <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
                 </div>
-            </fieldset>
-
-            <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
-                <button id="create-schedule-btn">Create Schedule</button>
             </div>
-
-            <ul id="schedules-list">
-            </ul>
         </div>
-    </div>
 
-    <div id="manager-pane" class="tab-pane" style="display: none;">
-        <div class="container">
-             <h3>Manage Playlists & Collections</h3>
-             <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
-             <div class="table-container">
-                 <table>
-                     <thead>
-                         <tr>
-                             <th class="sortable sort-asc" data-sort="Name">Name</th>
-                             <th class="sortable" data-sort="DisplayType">Type</th>
-                             <th class="sortable" data-sort="ItemCount">Items</th>
-                             <th class="sortable" data-sort="DateCreated">Created</th>
-                             <th>Actions</th>
-                         </tr>
-                     </thead>
-                     <tbody>
-                         <!-- Rows will be inserted by JS -->
-                     </tbody>
-                 </table>
-             </div>
+        <div id="scheduler-pane" class="tab-pane" style="display: none;">
+            <div class="container">
+                <h3>Create a New Schedule</h3>
+                <p style="font-size: 0.9em; color: var(--text-subtle); margin-top: -1rem; margin-bottom: 1.5rem;">
+                    Schedules will automatically rebuild a playlist from one of your saved presets.
+                </p>
+                <fieldset class="filter-group">
+                    <legend>Schedule your playlist</legend>
+                    <div class="filter-grid" style="grid-template-columns: 2fr 1fr; gap: 1rem;">
+                        <label>Preset to Schedule
+                            <select id="schedule-preset-select">
+                                <option value="">-- Select a saved preset --</option>
+                            </select>
+                        </label>
+                        <label>Playlist Name
+                            <input type="text" id="schedule-playlist-name" value="MixerBee Scheduled">
+                        </label>
+                    </div>
+                    <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                         <label>Frequency
+                            <select id="schedule-frequency">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </label>
+                        <label>Run At
+                            <select id="schedule-time-select">
+                                <optgroup label="Morning">
+                                    <option value="05:00">5:00 AM</option>
+                                    <option value="05:30">5:30 AM</option>
+                                    <option value="06:00">6:00 AM</option>
+                                    <option value="06:30">6:30 AM</option>
+                                    <option value="07:00">7:00 AM</option>
+                                    <option value="07:30">7:30 AM</option>
+                                    <option value="08:00">8:00 AM</option>
+                                    <option value="08:30">8:30 AM</option>
+                                    <option value="09:00">9:00 AM</option>
+                                    <option value="09:30">9:30 AM</option>
+                                    <option value="10:00">10:00 AM</option>
+                                    <option value="10:30">10:30 AM</option>
+                                    <option value="11:00">11:00 AM</option>
+                                    <option value="11:30">11:30 AM</option>
+                                </optgroup>
+                                <optgroup label="Afternoon">
+                                    <option value="12:00">12:00 PM</option>
+                                    <option value="12:30">12:30 PM</option>
+                                    <option value="13:00">1:00 PM</option>
+                                    <option value="13:30">1:30 PM</option>
+                                    <option value="14:00">2:00 PM</option>
+                                    <option value="14:30">2:30 PM</option>
+                                    <option value="15:00">3:00 PM</option>
+                                    <option value="15:30">3:30 PM</option>
+                                    <option value="16:00">4:00 PM</option>
+                                    <option value="16:30">4:30 PM</option>
+                                </optgroup>
+                                <optgroup label="Evening">
+                                    <option value="17:00">5:00 PM</option>
+                                    <option value="17:30">5:30 PM</option>
+                                    <option value="18:00">6:00 PM</option>
+                                    <option value="18:30">6:30 PM</option>
+                                    <option value="19:00" selected>7:00 PM</option>
+                                    <option value="19:30">7:30 PM</option>
+                                    <option value="20:00">8:00 PM</option>
+                                    <option value="20:30">8:30 PM</option>
+                                    <option value="21:00">9:00 PM</option>
+                                    <option value="21:30">9:30 PM</option>
+                                    <option value="22:00">10:00 PM</option>
+                                    <option value="22:30">10:30 PM</option>
+                                    <option value="23:00">11:00 PM</option>
+                                </optgroup>
+                                 <optgroup label="Late Night">
+                                    <option value="23:30">11:30 PM</option>
+                                    <option value="00:00">12:00 AM (Midnight)</option>
+                                    <option value="00:30">12:30 AM</option>
+                                    <option value="01:00">1:00 AM</option>
+                                    <option value="01:30">1:30 AM</option>
+                                    <option value="02:00">2:00 AM</option>
+                                </optgroup>
+                            </select>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset id="schedule-days-container" class="filter-group" style="display: none;">
+                    <legend>Days of the Week</legend>
+                    <div id="schedule-days-checkboxes" class="checkbox-grid">
+                        <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
+                        <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
+                        <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
+                        <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
+                        <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
+                        <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
+                        <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
+                    </div>
+                </fieldset>
+
+                <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
+                    <button id="create-schedule-btn">Create Schedule</button>
+                </div>
+
+                <ul id="schedules-list">
+                </ul>
+            </div>
+        </div>
+
+        <div id="manager-pane" class="tab-pane" style="display: none;">
+            <div class="container">
+                 <h3>Manage Playlists & Collections</h3>
+                 <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
+                 <div class="table-container">
+                     <table>
+                         <thead>
+                             <tr>
+                                 <th class="sortable sort-asc" data-sort="Name">Name</th>
+                                 <th class="sortable" data-sort="DisplayType">Type</th>
+                                 <th class="sortable" data-sort="ItemCount">Items</th>
+                                 <th class="sortable" data-sort="DateCreated">Created</th>
+                                 <th>Actions</th>
+                             </tr>
+                         </thead>
+                         <tbody>
+                             </tbody>
+                     </table>
+                 </div>
+            </div>
         </div>
     </div>
 
@@ -234,6 +250,41 @@
                     <span class="slider"></span>
                     <i data-feather="sun"></i>
                 </label>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal-overlay" class="modal-overlay" style="display: none;">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="settings-close-btn" class="icon-btn">×</button>
+            </div>
+            <div class="modal-body">
+                <p>Enter your Emby server details. The page will reload automatically to apply your changes.</p>
+                <div class="modal-form-layout">
+                    <label class="control-item">
+                        <span>Emby Server URL</span>
+                        <input type="text" id="settings-url-input" placeholder="e.g., http://localhost:8096">
+                    </label>
+                    <label class="control-item">
+                        <span>Emby Username</span>
+                        <input type="text" id="settings-user-input" placeholder="Emby username">
+                    </label>
+                    <label class="control-item">
+                        <span>Emby Password</span>
+                        <input type="password" id="settings-pass-input" placeholder="Emby password">
+                    </label>
+                    <label class="control-item">
+                        <span>Gemini API Key (Optional)</span>
+                        <input type="password" id="settings-gemini-input" placeholder="Google Gemini API Key">
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="settings-test-btn" type="button" class="secondary mr-auto">Test Current Connection</button>
+                <button id="settings-cancel-btn" type="button" class="secondary">Cancel</button>
+                <button id="settings-save-btn" type="button">Save</button>
             </div>
         </div>
     </div>
@@ -316,8 +367,7 @@
                 <button id="contents-modal-close-btn" class="icon-btn">×</button>
             </div>
             <div class="modal-body" id="contents-modal-body">
-                <!-- Content will be inserted by JS -->
-            </div>
+                </div>
             <div class="modal-footer">
                 <button id="contents-modal-ok-btn" type="button">OK</button>
             </div>
