@@ -4,8 +4,8 @@
 
 MixerBee can be run in **two** ways:
 
-1. **Docker** – the quickest, all‑in‑one route.
-2. **Manual Python environment** – for those who prefer not to use Docker.
+1. **Docker**
+2. **Manual Python environment**
 
 ---
 ### Docker
