@@ -27,6 +27,7 @@ Follow these steps for a clean, containerized setup.
     * Click the **Open Settings** button.
     * Enter your Emby credentials and save. The page will reload.
     * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
+    * You will get an Init error on reload, restart the container and it will be fine #todo
 
 ---
 To upgrade to the latest version of MixerBee:
