@@ -43,7 +43,7 @@ To enable the AI Block Builder feature, you must add your `GEMINI_API_KEY` to yo
 
 </details>
 
-Browse to the server URL (default `http://localhost:9000`) and start building.
+After install browse to the server URL (default `http://localhost:9000`) and start building.
 
 *   **Builder Tab:** The most powerful feature.
     *   **Add Blocks**: Add TV, Movie, or Music "blocks" to design a custom content lineup.
@@ -58,6 +58,5 @@ Browse to the server URL (default `http://localhost:9000`) and start building.
     *   View all of your existing playlists and collections.
     *   Search by name to quickly find an item.
     *   Sort by name, type, item count, or creation date.
-    *   Delete items you no longer need.
 
 
