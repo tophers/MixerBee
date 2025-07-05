@@ -5,49 +5,38 @@
 MixerBee can be run in **two** ways:
 
 1. **Docker**
-2. **Manual Python environment**
+2. **Custom Python environment**
 
 ---
 ### Docker
 
-Follow these steps for a clean, containerized setup.
+Follow these steps for a containerized setup.
 
 1.  **Clone the Repository:** If you haven't already, clone this repository to your local machine.
-2.  **Create a Docker Config Directory:** Before starting, create a directory to permanently store your configuration. In the project's root folder (next to `docker-compose.yml`), run:
     ```sh
-    mkdir mixerbee_config
+    git clone https://github.com/tophers/mixerbee.git && cd mixerbee
     ```
-3.  **Start the Container:** From the project's root directory, run:
+
+2.  **Start the Container:** From the project's root directory, run:
     ```sh
     docker-compose up -d
     ```
     This will build the Docker image and start the MixerBee container.
-4.  **Configure the Application:**
+
+3.  **Configure the Application:**
     * Open your web browser and navigate to `http://localhost:9000`.
-    * Click the **Open Settings** button.
+    * Click the cog **Open Settings** button.
     * Enter your Emby credentials and save. The page will reload.
     * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
-    * You will get an Init error on reload, restart the container and it will be fine #todo
+    * You will get an Init error on reload, restart the container _#todo: improve live reload of environment config_
 
 ---
-To upgrade to the latest version of MixerBee:
-```sh
-# Pull the latest changes from the repository
-git pull
-
-# Rebuild the image and restart the container
-docker-compose up -d --build
----
-
-## 2 · Manual Installation (Python)
-
-Choose this path only if you do **not** want to use Docker.
+Custom Python Environment 
 
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/tophers/mixerbee.git
-   cd mixerbee
+   git clone https://github.com/tophers/mixerbee.git && cd mixerbee
    ```
 
 2. **Create and activate a virtual environment**
@@ -66,9 +55,10 @@ Choose this path only if you do **not** want to use Docker.
 4. **Create and edit the configuration**
 
    ```bash
-   cp examples/mixerbee.env.example .mixerbee.env
-   vi .mixerbee.env
+   cp examples/mixerbee.env.example config/.env
+   vi config/.env
    ```
+Edit the required variables. (You can also setup the .env in the UI settings cog, *requires a restart)
 
 5. **Run the web server** (or use the provided *systemd* service file)
 
@@ -89,7 +79,7 @@ git pull
 # Docker users
 docker compose build --pull && docker compose up -d
 
-# Manual install
+# Custom install
 pip install -r requirements.txt
 # then restart uvicorn or:  systemctl restart mixerbee
 ```
