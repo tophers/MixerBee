@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
@@ -17,7 +18,21 @@ import app.items as items_api
 logging.basicConfig()
 logging.getLogger('apscheduler').setLevel(logging.INFO)
 
-SCHEDULES_FILE = Path(__file__).parent / "schedules.json"
+# --- Persistent Storage Path Resolution ---
+IS_DOCKER = os.path.exists('/.dockerenv')
+HERE = Path(__file__).parent
+
+if IS_DOCKER:
+    # Inside Docker, we use a dedicated, mountable /config volume.
+    CONFIG_DIR = Path("/config")
+else:
+    # For local/service execution, store config in a './config' subdirectory.
+    CONFIG_DIR = HERE / "config"
+
+# Ensure the config directory exists.
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+SCHEDULES_FILE = CONFIG_DIR / "schedules.json"
 _schedules_lock = threading.Lock()
 
 QUICK_PLAYLIST_MAP = {
@@ -80,11 +95,11 @@ def run_playlist_job(**schedule_data) -> Dict:
             result = func_to_call(
                 user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options
             )
-        
+
         final_log = result.get("log", ["No log messages."])
         final_status = result.get("status", "error")
         logging.info(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
-        
+
     except Exception as e:
         error_message = f"CRITICAL ERROR running job '{schedule_id}' for playlist '{playlist_name}': {e}"
         logging.error(f"SCHEDULER: {error_message}", exc_info=True)
@@ -144,7 +159,7 @@ class Scheduler:
             "log": result.get("log", ["An unknown error occurred."])
         }
         update_schedule_last_run(schedule_id, last_run_info)
-        
+
         return {"status": "ok", "log": [f"Job '{schedule_id}' triggered and completed."]}
 
     def start(self):
@@ -187,7 +202,7 @@ class Scheduler:
             except JobLookupError:
                 print(f"SCHEDULER: Job {schedule_id} not found in running scheduler, removing from storage anyway.")
                 pass
-            
+
             del self.schedules[schedule_id]
             self._save_schedules()
 

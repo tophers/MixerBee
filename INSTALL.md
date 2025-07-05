@@ -8,35 +8,34 @@ MixerBee can be run in **two** ways:
 2. **Manual Python environment** – for those who prefer not to use Docker.
 
 ---
+### Docker
 
-## 1 · Docker Setup
+Follow these steps for a clean, containerized setup.
 
-Running MixerBee with Docker is the simplest approach.
+1.  **Clone the Repository:** If you haven't already, clone this repository to your local machine.
+2.  **Create a Docker Config Directory:** Before starting, create a directory to permanently store your configuration. In the project's root folder (next to `docker-compose.yml`), run:
+    ```sh
+    mkdir mixerbee_config
+    ```
+3.  **Start the Container:** From the project's root directory, run:
+    ```sh
+    docker-compose up -d
+    ```
+    This will build the Docker image and start the MixerBee container.
+4.  **Configure the Application:**
+    * Open your web browser and navigate to `http://localhost:9000`.
+    * Click the **Open Settings** button.
+    * Enter your Emby credentials and save. The page will reload.
+    * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
 
-1. **Install Docker and Docker Compose** if they are not already on your system.
+---
+To upgrade to the latest version of MixerBee:
+```sh
+# Pull the latest changes from the repository
+git pull
 
-2. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/tophers/mixerbee.git
-   cd mixerbee
-   ```
-
-3. **Create and edit the configuration**
-
-   ```bash
-   cp examples/mixerbee.env.example .mixerbee.env
-   vi .mixerbee.env   # set EMBY_URL, EMBY_USER, EMBY_PASS, …
-   ```
-
-4. **Launch MixerBee**
-
-   ```bash
-   docker compose up -d
-   ```
-
-   The web UI will be available at [http://localhost:9000](http://localhost:9000) (replace `localhost` with your server’s IP if remote).
-
+# Rebuild the image and restart the container
+docker-compose up -d --build
 ---
 
 ## 2 · Manual Installation (Python)

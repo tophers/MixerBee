@@ -4,6 +4,6 @@ services:
     container_name: mixerbee
     ports:
       - "9000:9000"
-    env_file:
-      - .mixerbee.env
+    volumes:
+      - ./mixerbee_config:/config
     restart: unless-stopped

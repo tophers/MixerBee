@@ -25,13 +25,18 @@ app = FastAPI(title="MixerBee API", root_path=ROOT_PATH)
 HERE = Path(__file__).parent
 
 # --- Environment File Path Resolution ---
-ENV_PATH = HERE / ".mixerbee.env"
-if not ENV_PATH.exists():
-    xdg_config_home = os.getenv("XDG_CONFIG_HOME", "~/.config")
-    xdg_config_path = Path(xdg_config_home).expanduser() / "mixerbee" / ".env"
-    if xdg_config_path.exists():
-        ENV_PATH = xdg_config_path
-    ENV_PATH.parent.mkdir(parents=True, exist_ok=True)
+if IS_DOCKER:
+    # Inside Docker, we use a dedicated, mountable /config volume.
+    CONFIG_DIR = Path("/config")
+else:
+    # For local/service execution, store config in a './config' subdirectory.
+    CONFIG_DIR = HERE / "config"
+
+# Standardize on '.env' for the environment file name
+ENV_PATH = CONFIG_DIR / ".env"
+
+# Ensure the config directory exists.
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Correctly mount the entire static directory
@@ -48,9 +53,11 @@ def load_and_authenticate():
     """Loads config from .env and authenticates, setting global state."""
     global login_uid, token, HDR, is_configured, DEFAULT_USER_NAME, DEFAULT_UID, GEMINI_API_KEY
 
-    # Use override to ensure it re-reads the file if it has changed
+    # This function is called on startup and on save.
+    # We re-run load_dotenv with override=True to "hot-swap" the config
+    # if the user has just saved new settings from the UI.
     load_dotenv(ENV_PATH, override=True)
-    
+
     # Reload from os.environ after load_dotenv
     core.EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
     core.EMBY_USER = os.environ.get("EMBY_USER")
@@ -63,10 +70,10 @@ def load_and_authenticate():
 
         login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
         HDR = core.auth_headers(token, login_uid)
-        
+
         DEFAULT_USER_NAME = core.EMBY_USER
         DEFAULT_UID = login_uid
-        
+
         is_configured = True
         logging.info("Successfully loaded configuration and authenticated with Emby.")
 
@@ -204,13 +211,15 @@ def api_save_settings(req: SettingsRequest):
         env_content += f'GEMINI_API_KEY="{req.gemini_key}"\n'
 
     try:
+        # Test credentials before saving
         core.authenticate(req.emby_user, req.emby_pass, req.emby_url)
-        
+
         with open(ENV_PATH, "w") as f:
             f.write(env_content)
-        
+
+        # Hot-swap the new configuration
         load_and_authenticate()
-        
+
         return {
             "status": "ok",
             "log": ["Settings saved and applied successfully! The page will now reload."]
@@ -421,7 +430,8 @@ def api_movie_genres():
 
 @app.get("/api/movie_libraries")
 def api_movie_libraries():
-    if not is_configured: return []
+    if not is_configured:
+        return []
     return core.get_movie_libraries(login_uid, HDR)
 
 @app.get("/api/music/genres")

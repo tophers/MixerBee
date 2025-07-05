@@ -12,25 +12,27 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
 
-# ---------------------------------------------------------------------------
-# config / .env handling
-# ---------------------------------------------------------------------------
+# --- Config Path Resolution ---
+IS_DOCKER = os.path.exists('/.dockerenv')
+# Path(__file__).parent is .../app/, so .parent.parent is the project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# This logic is designed to find the .env file relative to the project root,
-# not the app/ directory itself.
-project_root = Path(__file__).resolve().parent.parent
+if IS_DOCKER:
+    CONFIG_DIR = Path("/config")
+else:
+    CONFIG_DIR = PROJECT_ROOT / "config"
 
-ENV_PATH = project_root / ".mixerbee.env"
-if not ENV_PATH.exists():
-    xdg = Path(os.getenv("XDG_CONFIG_HOME", "~/.config")).expanduser()
-    ENV_PATH = xdg / "mixerbee" / ".env"
+ENV_PATH = CONFIG_DIR / ".env"
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-# We load the .env file here, but the actual credential variables are set
-# in web.py by the load_and_authenticate function.
-if not load_dotenv(ENV_PATH):
-    sys.stderr.write(f"[mixerbee] warning: no .env file found at {ENV_PATH}\n")
+# --- Load Environment Early ---
+# This must happen at import time to ensure EMBY_URL and other
+# variables are populated before any other modules try to use them.
+load_dotenv(ENV_PATH)
 
-# These will be populated by load_and_authenticate() in web.py
+
+# --- Global Config Variables ---
+# These are now populated correctly from the .env file loaded above.
 EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
 EMBY_USER = os.environ.get("EMBY_USER")
 EMBY_PASS = os.environ.get("EMBY_PASS")
@@ -68,7 +70,7 @@ def authenticate(username: str, password: str, url: Optional[str] = None) -> Tup
     hdr = {"X-Emby-Authorization":
            f'MediaBrowser Client="{CLIENT_NAME}",Device="script",'
            f'DeviceId="{DEVICE_ID}",Version="1.0"'}
-    
+
     r = SESSION.post(f"{auth_url}/Users/AuthenticateByName",
                      data={"Username": username, "Pw": password},
                      headers=hdr, timeout=10)
