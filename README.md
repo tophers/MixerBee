@@ -2,6 +2,17 @@
 
 **MixerBee** is a self-hosted web app for building and updating smart playlists and collections on your [Emby](https://emby.media/) server. Mix episodes from multiple shows, create movie collections that fit your criteria, blend in music from your favorite artists, or schedule block-style programming to mimic a TV channel.
 
+<details>
+<summary><strong>Known Issues</strong></summary>
+
+<br>
+
+- **Initial environment file not fully applied after web login setup**  
+  If the `.env` file is first created through the Web UI login process, the application or container must be restarted for it to function correctly. Until a restart, the app may not behave as expected.  
+  _[#todo: improve live reload of environment config]_
+
+</details>
+
 ## ✨ Features
 
 *   **Advanced Playlist & Collection Builder**:
@@ -48,3 +59,5 @@ Browse to the server URL (default `http://localhost:9000`) and start building.
     *   Search by name to quickly find an item.
     *   Sort by name, type, item count, or creation date.
     *   Delete items you no longer need.
+
+
