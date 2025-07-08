@@ -4,6 +4,7 @@ ai
 gen
 tools/
 schedules.json
+presets.json
 #I have my reasons
 tests/*
 

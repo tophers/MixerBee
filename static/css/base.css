@@ -122,7 +122,68 @@ body[data-theme='light'] #loading-overlay {
 .toast.fail {
     background: var(--danger);
 }
+.typewriter-wrapper {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 1rem;
+}
 
+.typewriter-header {
+  font-family: monospace;
+  font-size: 2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  width: fit-content;
+  background-color: black;
+  color: #00ff00;
+  transition: color 1.5s ease, background-color 1.5s ease;
+  margin: 0;
+}
+
+#typed-text::after {
+  content: "_";
+  animation: blink 1s steps(2, start) infinite;
+  color: inherit;
+}
+
+.typing-done {
+  background-color: transparent;
+  color: inherit;
+}
+
+#typed-text.cursor-done::after {
+  content: "";
+  animation: none;
+}
+.typewriter-wrapper {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  padding: 0.5rem 1rem;
+}
+.typewriter-wrapper.fade-out {
+  animation: fadeOutAndCollapse 1s ease-in forwards;
+  overflow: hidden;
+}
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+@keyframes fadeOutAndCollapse {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+    max-height: 100px;
+    margin-bottom: 1rem;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px); /* subtle upward slide */
+    max-height: 0;
+    margin-bottom: 0;
+    padding: 0;
+  }
+}
 @keyframes fadeIn {
     from {
         opacity: 0;

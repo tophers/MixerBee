@@ -53,7 +53,6 @@ input[type="number"] {
     cursor: grab;
     touch-action: none;
 }
-
 button {
     background: var(--accent);
     color: #fff;
@@ -72,12 +71,6 @@ button {
 
 button:hover {
     background: var(--accent-dark);
-}
-
-button.secondary {
-    background: transparent;
-    border: 1px dashed var(--accent);
-    color: var(--accent);
 }
 
 .button-group {
@@ -198,5 +191,16 @@ body[data-theme="light"] .theme-switcher .feather-moon {
     color: var(--text-subtle);
 }
 body[data-theme="light"] .theme-switcher .feather-sun {
+    color: var(--accent);
+}
+button.secondary {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+button.secondary:hover {
+    border-color: var(--accent);
     color: var(--accent);
 }

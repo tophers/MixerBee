@@ -191,7 +191,7 @@ fieldset > details > div { /* The content inside */
 }
 .dropdown-menu {
     position: absolute;
-    bottom: 100%; /* Position above the button */
+    top: 100%; /* Position above the button */
     left: 0;
     background-color: var(--panel);
     border: 1px solid var(--border-color);
@@ -253,6 +253,9 @@ fieldset > details > div { /* The content inside */
     margin: 0;
     font-size: 1.1rem;
     padding-left: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
 }
 
 .mixed-block-header .drag-handle {

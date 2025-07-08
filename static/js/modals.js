@@ -301,31 +301,31 @@ export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, sma
 export function initModals() {
     confirmModal = new ConfirmationModal('confirm-modal-overlay', {
         closeBtn: '#confirm-modal-close-btn',
-        cancelBtn: '#confirm-modal-cancel-btn',
+     //   cancelBtn: '#confirm-modal-cancel-btn',
         confirmBtn: '#confirm-modal-confirm-btn',
     });
 
     presetModal = new SavePresetModal('save-preset-modal-overlay', {
         closeBtn: '#save-preset-close-btn',
-        cancelBtn: '#save-preset-cancel-btn',
+     //   cancelBtn: '#save-preset-cancel-btn',
         confirmBtn: '#save-preset-confirm-btn',
     });
 
     smartPlaylistModal = new SmartPlaylistModal('smart-playlist-modal-overlay', {
         closeBtn: '#smart-playlist-close-btn',
-        cancelBtn: '#smart-playlist-cancel-btn',
+     //   cancelBtn: '#smart-playlist-cancel-btn',
         confirmBtn: '#smart-playlist-confirm-btn',
     });
 
     importPresetModal = new ImportPresetModal('import-preset-modal-overlay', {
         closeBtn: '#import-preset-close-btn',
-        cancelBtn: '#import-preset-cancel-btn',
+      //  cancelBtn: '#import-preset-cancel-btn',
         confirmBtn: '#import-preset-confirm-btn',
     });
 
     smartBuildModal = new SmartBuildModal('smart-build-modal-overlay', {
         closeBtn: '#smart-build-close-btn',
-        cancelBtn: '#smart-build-cancel-btn',
+     //   cancelBtn: '#smart-build-cancel-btn',
     });
 
     [confirmModal, presetModal, smartPlaylistModal, importPresetModal, smartBuildModal].forEach(m => m.init());

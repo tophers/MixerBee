@@ -9,12 +9,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <script src="/static/js/header.js"></script>
 </head>
 <body>
     <select id="user-select" style="display: none;"></select>
 
     <div class="main-header-bar">
-        <h2>MixerBee</h2>
         <div class="header-user-display">
             <i data-feather="user"></i>
             <span id="active-user-display"></span>
@@ -26,10 +26,16 @@
                     <i data-feather="sun"></i>
                 </label>
             </div>
+
             <button id="settings-btn" type="button" class="icon-btn" title="Settings"><i data-feather="settings"></i></button>
         </div>
     </div>
 
+<div class="typewriter-wrapper">
+  <h2 class="typewriter-header">
+    <span id="typed-text"></span>
+  </h2>
+</div>
 
     <div class="tab-switcher">
         <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
@@ -101,7 +107,7 @@
                     <div class="scheduler-grid">
                         <label class="control-item">
                             <span>Playlist Name</span>
-                            <input type="text" id="schedule-playlist-name" value="MixerBee Scheduled">
+                            <input type="text" id="schedule-playlist-name" value="Scheduled">
                         </label>
                         <label class="control-item">
                             <span>Schedule Source</span>
@@ -186,7 +192,7 @@
                 </fieldset>
 
                 <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
-                    <button id="create-schedule-btn">Create Schedule</button>
+                    <button id="create-schedule-btn" class="secondary">Create Schedule</button>
                 </div>
 
                 <ul id="schedules-list">
@@ -285,7 +291,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="save-preset-cancel-btn" type="button" class="secondary">Cancel</button>
+                <!-- <button id="save-preset-cancel-btn" type="button" class="secondary">Cancel</button> -->
                 <button id="save-preset-confirm-btn" type="button">Save</button>
             </div>
         </div>
@@ -311,7 +317,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="smart-playlist-cancel-btn" type="button" class="secondary">Cancel</button>
+               <!-- <button id="smart-playlist-cancel-btn" type="button" class="secondary">Cancel</button> -->
                 <button id="smart-playlist-confirm-btn" type="button">Create</button>
             </div>
         </div>
@@ -336,7 +342,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="import-preset-cancel-btn" type="button" class="secondary">Cancel</button>
+               <!-- <button id="import-preset-cancel-btn" type="button" class="secondary">Cancel</button> -->
                 <button id="import-preset-confirm-btn" type="button">Import</button>
             </div>
         </div>
@@ -355,7 +361,7 @@
                 </ul>
             </div>
             <div class="modal-footer">
-                <button id="smart-build-cancel-btn" type="button" class="secondary">Cancel</button>
+                <!-- <button id="smart-build-cancel-btn" type="button" class="secondary">Cancel</button> -->
             </div>
         </div>
     </div>
@@ -370,7 +376,7 @@
             </div>
             <div class="modal-footer">
                 <button id="contents-modal-ok-btn" type="button">OK</button>
-            </div>
+            </div> 
         </div>
     </div>
 
@@ -384,7 +390,7 @@
                 <p id="confirm-modal-text">This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
-                <button id="confirm-modal-cancel-btn" type="button" class="secondary">Cancel</button>
+                <!-- <button id="confirm-modal-cancel-btn" type="button" class="secondary">Cancel</button> -->
                 <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
             </div>
         </div>

@@ -132,11 +132,15 @@ export class PresetManager {
 }
 
 export function createTvShowRow({ rowData, seriesData, userSelectElement, changeCallback }) {
-    const icon = (txt, cls, title) => Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn ' + cls, textContent: txt, title: title });
 
+    const icon = (featherName, cls, title) => {
+    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn ' + cls, title: title });
+    btn.innerHTML = `<i data-feather="${featherName}"></i>`;
+    return btn;
+};
     const r = Object.assign(document.createElement('div'), { className: 'show-row tv-block-show-row' });
 
-    const handle = icon('↕', 'drag-handle icon-btn', 'Drag to reorder');
+    const handle = icon('move', 'drag-handle icon-btn', 'Drag to reorder');
 
     const showSelectWrapper = document.createElement('div');
     showSelectWrapper.className = 'show-select-wrapper';
@@ -161,8 +165,7 @@ export function createTvShowRow({ rowData, seriesData, userSelectElement, change
     });
 
     searchAndSelectGroup.append(searchInput, sel);
-
-    const shuffleBtn = icon('🔀', 'shuffle-show-btn', 'Pick Random Show');
+    const shuffleBtn = icon('shuffle', 'shuffle-show-btn', 'Pick Random Show');
     showSelectWrapper.append(searchAndSelectGroup, shuffleBtn);
 
     const sInput = Object.assign(document.createElement('input'), { type: 'number', className: 'tv-block-season', value: rowData?.season ?? 1, min: 1 });
@@ -183,9 +186,9 @@ export function createTvShowRow({ rowData, seriesData, userSelectElement, change
     unwatchedLabel.append(unwatchedCb, ' Start from next unwatched');
     optionsDiv.appendChild(unwatchedLabel);
 
-    const randomBtn = icon('🎲', 'random-ep-btn', 'Pick Random Episode');
-    const delBtn = icon('❌', 'delete-btn', 'Delete Row');
-
+    const randomBtn = icon('shuffle', 'random-ep-btn', 'Pick Random Episode');
+    const delBtn = icon('x', 'delete-btn danger', 'Delete Row');
+    
     const controlsDiv = document.createElement('div');
     controlsDiv.className = 'show-row-controls';
     [randomBtn, delBtn].forEach(btn => controlsDiv.appendChild(btn));
