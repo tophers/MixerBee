@@ -1,0 +1,116 @@
+/* static/css/modal.css */
+/* Styles for all modal windows: overlay, header, body, footer, etc. */
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+body[data-theme='light'] .modal-overlay {
+    background-color: rgba(255, 255, 255, 0.7);
+}
+
+.modal-window {
+    background: var(--panel);
+    padding: 1rem 1.2rem;
+    border-radius: var(--radius);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+    width: 90%;
+    max-width: 500px;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color-subtle);
+    padding-bottom: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.modal-header h2 {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    font-size: 1.4rem;
+}
+
+#modal-close-btn, #save-preset-close-btn, #smart-playlist-close-btn, #movie-marathon-close-btn, #import-preset-close-btn, #settings-close-btn {
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+
+.modal-body {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.modal-body .modal-form-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.modal-body .modal-form-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0.8rem;
+}
+
+.modal-body .control-item {
+    flex: 0 1 auto;
+}
+
+.modal-body p {
+    font-size: 0.9em;
+    color: var(--text-subtle);
+    margin: 0 0 0.5rem 0;
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--divider-color);
+}
+
+.modal-footer .mr-auto {
+    margin-right: auto;
+}
+
+#modal-playlist-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#modal-playlist-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 0.5rem;
+    border-bottom: 1px solid var(--divider-color);
+}
+
+#modal-playlist-list li:last-child {
+    border-bottom: none;
+}
+#confirm-modal-confirm-btn.danger {
+    background-color: var(--danger);
+    border-color: var(--danger);
+    color: #fff;
+}
+#confirm-modal-confirm-btn.danger:hover {
+    background-color: #7c1a1a;
+}

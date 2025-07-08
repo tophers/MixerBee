@@ -1,0 +1,58 @@
+{
+    "Refactor": [
+        {
+            "type": "tv",
+            "shows": [
+                {
+                    "name": "Almost Human",
+                    "season": "1",
+                    "episode": "1",
+                    "unwatched": false
+                },
+                {
+                    "name": "Andor",
+                    "season": "1",
+                    "episode": "1",
+                    "unwatched": true
+                },
+                {
+                    "name": "Cops",
+                    "season": "34",
+                    "episode": "2",
+                    "unwatched": true
+                }
+            ],
+            "mode": "count",
+            "interleave": true,
+            "count": "1"
+        }
+    ],
+    "Nightly": [
+        {
+            "type": "tv",
+            "shows": [
+                {
+                    "name": "The Big Bang Theory",
+                    "season": "9",
+                    "episode": "9",
+                    "unwatched": true
+                },
+                {
+                    "name": "M*A*S*H",
+                    "season": "3",
+                    "episode": "11",
+                    "unwatched": true
+                },
+                {
+                    "name": "Star Trek: The Next Generation",
+                    "season": "4",
+                    "episode": "8",
+                    "unwatched": true
+                }
+            ],
+            "mode": "count",
+            "interleave": true,
+            "count": "10"
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+services:
+  mixerbee:
+    build: .
+    container_name: mixerbee
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./mixerbee_config:/config
+    restart: unless-stopped

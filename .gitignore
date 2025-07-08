@@ -1,0 +1,30 @@
+# Personal
+list
+ai
+gen
+tools/
+schedules.json
+#I have my reasons
+tests/*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Secrets
+*.env
+!*.env.example
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+
+# Other
+.DS_Store

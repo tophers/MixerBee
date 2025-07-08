@@ -1,0 +1,14 @@
+# /etc/systemd/system/mixerbee.service
+[Unit]
+Description=MixerBee Web frontend
+After=network.target
+
+[Service]
+WorkingDirectory=/path/to/mixerbee
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/path/to/mixerbee/venv/bin/uvicorn web:app --host 127.0.0.1 --port 9000
+Restart=on-failure
+User=mixerbee 
+
+[Install]
+WantedBy=multi-user.target

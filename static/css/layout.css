@@ -1,0 +1,180 @@
+/* static/css/layout.css */
+/* Manages main page structure: containers, action bar, tabs, etc. */
+
+.main-header-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin: 1.3rem 1rem;
+}
+
+.main-header-bar h2 {
+    margin: 0;
+    text-align: center;
+    flex-grow: 1;
+}
+
+.header-user-display {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.header-user-display .feather-user {
+    width: 20px;
+    height: 20px;
+    color: var(--text-subtle);
+}
+
+#active-user-display {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.header-user-display .theme-switcher {
+    display: flex;
+    align-items: center;
+}
+
+.header-user-display .theme-switcher::before {
+    content: '';
+    width: 1px;
+    height: 24px;
+    background: var(--border-color);
+    margin-right: .25rem;
+}
+
+#settings-btn {
+    font-size: 1.5rem;
+}
+
+.container {
+    max-width: 680px;
+    margin: auto;
+    padding: 0 1rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+#action-bar {
+    position: sticky;
+    bottom: 0;
+    width: 100%;
+    background: var(--panel);
+    box-shadow: 0 -2px 6px rgba(0,0,0,.5);
+    display: flex;
+    justify-content: center; /* Center the inner container */
+    padding: .8rem 1rem;
+    z-index: 10;
+    margin-top: auto;
+}
+
+.action-bar-content {
+    width: 100%;
+    max-width: 680px; /* Match the main container width */
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0 1rem; /* Horizontal padding is now here */
+}
+
+.build-options-container {
+    display: flex;
+    gap: 0.5rem;
+    flex-grow: 1;
+    justify-content: flex-start;
+}
+
+.action-bar-content button,
+.action-bar-content .action-bar-checkbox-label {
+    flex-shrink: 0; 
+}
+
+.action-bar-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-subtle);
+    padding: 0 .5rem;
+    margin-left: auto;
+}
+
+.tab-switcher {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tab-btn {
+    font-family: 'Poppins', sans-serif;
+    background: none;
+    border: none;
+    color: var(--text);
+    opacity: 0.7;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 0.8rem 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border-bottom: 3px solid transparent;
+    transform: translateY(1px);
+}
+
+.tab-btn:hover {
+    opacity: 1;
+    background: rgba(255,255,255,0.05);
+}
+
+body[data-theme='light'] .tab-btn:hover {
+    background: rgba(0,0,0,0.05);
+}
+
+.tab-btn.active {
+    opacity: 1;
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.tab-pane {
+    padding-bottom: 2rem;
+}
+
+#scheduler-pane h3, #manager-pane h3 {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    text-align: center;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+}
+
+.warning-box {
+    border: 1px solid #e6a800;
+    background-color: rgba(230, 168, 0, 0.1);
+    color: #e6a800;
+    border-radius: var(--radius);
+    padding: 1.5rem 2rem;
+    text-align: center;
+}
+.warning-box .feather {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0.5rem;
+}
+.warning-box h3 {
+    margin: 0.5rem 0;
+    color: var(--text);
+}
+.warning-box p {
+    color: var(--text-subtle);
+    margin: 0.5rem 0 1.5rem 0;
+}

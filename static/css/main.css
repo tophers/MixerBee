@@ -1,0 +1,8 @@
+/* static/css/main.css */
+/* imports other CSS */
+
+@import url('base.css');
+@import url('layout.css');
+@import url('forms.css');
+@import url('components.css');
+@import url('modal.css');

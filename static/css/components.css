@@ -1,0 +1,650 @@
+/* static/css/components.css */
+/* Styles for specific, reusable components like TV/Movie blocks, schedules, presets. */
+
+/* Shared Components */
+.filter-group {
+    border: 1px solid var(--border-color);
+    padding: 1rem 1.2rem 1.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+
+.filter-group legend {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 0 0.5rem;
+    margin-left: 0.5rem;
+    color: var(--accent);
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.filter-grid input, .filter-grid select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+
+.checkbox-grid label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.genre-match-toggle {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.2rem;
+    font-size: 0.9rem;
+}
+
+.genre-match-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+/* Make top-level fieldset details look consistent */
+fieldset > details {
+    padding-top: 0.2rem;
+}
+fieldset > details > summary {
+    font-weight: 600;
+    color: var(--text-subtle);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+    user-select: none;
+    padding: 0.2rem;
+}
+fieldset > details > summary:hover {
+    color: var(--text);
+}
+fieldset > details > summary::-webkit-details-marker {
+    display: none;
+}
+fieldset > details > summary::before {
+    content: '►';
+    margin-right: 0.6rem;
+    font-size: 0.8em;
+    transition: transform 0.2s ease-in-out;
+}
+fieldset > details[open] > summary::before {
+    transform: rotate(90deg);
+}
+fieldset > details > div { /* The content inside */
+    padding-top: 1rem;
+}
+
+/* Specific styling for nested details */
+.filter-group > .filter-group-nested details {
+    padding: 0.2rem 0;
+}
+
+.filter-group > .filter-group-nested details > summary {
+    font-weight: 600;
+    color: var(--text-subtle);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    transition: color 0.2s;
+    user-select: none;
+}
+
+.filter-group > .filter-group-nested details > summary:hover {
+    color: var(--text);
+}
+
+.filter-group > .filter-group-nested details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.filter-group > .filter-group-nested details > summary::before {
+    content: '►';
+    margin-right: 0.6rem;
+    font-size: 0.8em;
+    transition: transform 0.2s ease-in-out;
+}
+
+.filter-group > .filter-group-nested details[open] > summary::before {
+    transform: rotate(90deg);
+}
+
+.filter-group > .filter-group-nested details > .checkbox-grid {
+    padding-top: 1.2rem;
+    margin-bottom: 0;
+}
+
+/* Preset Controls */
+.preset-controls {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-end;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    background: var(--panel-alt);
+    border: 1px solid var(--border-color-subtle);
+    border-radius: var(--radius);
+}
+
+.preset-controls .control-item {
+    flex: 1 1 200px;
+}
+
+.preset-controls .preset-buttons {
+    flex: 1 1 auto;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.preset-buttons.button-group {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+.preset-buttons.button-group button {
+    flex: 1 1 auto;
+    padding: 0.5em 1.25em;
+}
+
+
+/* Mixed Playlist Builder */
+.placeholder-text-small {
+    font-size: 0.9em;
+    color: var(--text-placeholder);
+    padding: .4rem .8rem;
+}
+
+#mixed-playlist-blocks .placeholder-text {
+    text-align: center;
+    color: var(--text-placeholder);
+    padding: 3rem 1rem;
+    border: 2px dashed var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+
+#add-block-controls {
+    justify-content: space-between;
+}
+
+/* Dropdown Styles */
+.dropdown-container {
+    position: relative;
+    display: inline-block;
+}
+.dropdown-menu {
+    position: absolute;
+    bottom: 100%; /* Position above the button */
+    left: 0;
+    background-color: var(--panel);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    z-index: 100;
+    min-width: 180px;
+    margin-bottom: 0.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.dropdown-menu.hidden {
+    display: none;
+}
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 1rem;
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s;
+}
+.dropdown-item:hover {
+    background-color: var(--accent);
+    color: #fff;
+}
+.dropdown-item .feather {
+    width: 1.1em;
+    height: 1.1em;
+}
+.dropdown-item:hover .feather {
+    stroke: #fff;
+}
+
+.mixed-block {
+    background: var(--panel-alt);
+    border: 1px solid var(--border-color-subtle);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow);
+    position: relative;
+}
+
+.mixed-block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--header-bg);
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border-color-subtle);
+    border-radius: var(--radius) var(--radius) 0 0;
+}
+
+.mixed-block-header h3 {
+    font-family: 'Poppins', sans-serif;
+    margin: 0;
+    font-size: 1.1rem;
+    padding-left: 1.5rem;
+}
+
+.mixed-block-header .drag-handle {
+    position: absolute;
+    top: 0.4rem;
+    left: 0.5rem;
+    font-size: 1.4rem;
+}
+
+.mixed-block-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.mixed-block-controls .icon-btn {
+    font-size: 1.1rem;
+    padding: 0.4rem;
+}
+
+.mixed-block-body {
+    padding: 1rem 1.2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.tv-block-shows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+}
+
+.tv-block-show-row input[type="number"] {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+}
+
+.movie-block-filter-grid, .music-block-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.movie-block-filter-grid > label, .music-block-filter-grid > label {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+
+.movie-block-preview-count, .music-block-preview-count {
+    font-size: 0.9em;
+    color: var(--text-subtle);
+    transition: color 0.3s;
+}
+
+.block-options-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.interleave-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* TV Block Specific Layouts */
+.show-search-input, .artist-search-input {
+    width: 100%;
+    margin-bottom: 0.4rem;
+}
+
+.tv-block-show-row {
+    display: grid;
+    align-items: center;
+    background: var(--panel);
+    padding: .8rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 0.8rem;
+    gap: 0.8rem 0.5rem;
+    grid-template-columns: auto 1fr 1fr;
+    grid-template-areas:
+        "handle select  select"
+        "handle season  episode"
+        ".      options options"
+        ".      controls controls"
+        ".      preview preview";
+}
+
+.tv-block-show-row > .drag-handle {
+    grid-area: handle;
+    align-self: center;
+    font-size: 1.4rem;
+}
+
+.tv-block-show-row > .show-select-wrapper {
+    grid-area: select;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    min-width: 0;
+}
+
+.show-select-wrapper .search-and-select {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.show-select-wrapper select {
+    width: 100%;
+}
+
+.tv-block-show-row > .tv-block-season { grid-area: season; }
+.tv-block-show-row > .tv-block-episode { grid-area: episode; }
+
+.tv-block-show-row > .show-row-controls {
+    grid-area: controls;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.4rem;
+}
+
+.tv-block-show-row > .tv-block-show-options {
+    grid-area: options;
+    margin-top: 0;
+    grid-column: 2 / -1;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .9rem;
+    cursor: pointer;
+}
+
+.tv-block-show-row > .tv-block-preview {
+    grid-area: preview;
+    margin-top: 0;
+    text-align: left;
+    font-style: italic;
+    color: var(--text-subtle);
+    font-size: .9rem;
+    grid-column: 2 / -1;
+}
+
+.show-row-controls .icon-btn {
+    padding: 0.2rem;
+    font-size: 1rem;
+}
+
+.random-ep-btn {
+    font-size: 1.1rem !important;
+}
+
+@media (min-width: 680px) {
+    .tv-block-show-row {
+        display: flex;
+        flex-flow: row wrap;
+        align-items: center;
+        gap: var(--gap) .8rem;
+        grid-template-areas: none;
+        grid-template-columns: none;
+        grid-template-rows: none;
+    }
+    .tv-block-show-row > .drag-handle { order: 1; }
+    .tv-block-show-row > .show-select-wrapper { order: 2; flex: 1 1 300px; }
+    .tv-block-show-row > .tv-block-season { order: 3; flex: 0 1 60px; }
+    .tv-block-show-row > .tv-block-episode { order: 4; flex: 0 1 60px; }
+    .tv-block-show-row > .show-row-controls { order: 5; flex: 1 1 auto; justify-content: flex-end; }
+    .tv-block-show-row > .tv-block-show-options { order: 6; flex: 1 1 50%; margin: 0; padding-left: 32px; }
+    .tv-block-show-row > .tv-block-preview { order: 7; flex: 1 1 45%; margin: 0; text-align: right; font-size: .85rem; }
+}
+
+/* Drag-and-Drop */
+.sortable-ghost {
+    background: var(--accent);
+    opacity: 0.2;
+}
+
+.sortable-chosen .drag-handle {
+    cursor: grabbing;
+}
+
+/* Scheduler List */
+#schedules-list {
+    list-style: none;
+    padding: 0;
+    margin: 2rem 0 0 0;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--divider-color);
+}
+
+.scheduler-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+.scheduler-source-options {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--border-color-subtle);
+}
+
+.schedule-item-content {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 0.5rem 1rem;
+    align-items: center;
+    padding: 0.2rem;
+}
+.schedule-details-text {
+    grid-column: 1 / 2;
+    grid-row: 1 / 2;
+    margin: 0;
+    color: var(--text-subtle);
+}
+.schedule-status-container {
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-subtle);
+    padding-left: 2.2em;
+}
+.schedule-item-content > .icon-btn.danger {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    align-self: center;
+}
+
+.last-run-status {
+    display: inline-flex;
+    align-items: center;
+    cursor: help;
+}
+.last-run-status .feather {
+    width: 1em;
+    height: 1em;
+}
+
+.status-success .feather {
+    stroke: var(--success);
+}
+.status-danger .feather {
+    stroke: var(--danger);
+}
+
+/* Manager Pane */
+.table-container {
+    overflow-x: auto;
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+th, td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--divider-color);
+}
+thead {
+    background-color: var(--panel-alt);
+}
+th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+th.sortable:hover {
+    color: var(--accent);
+}
+th.sortable::after {
+    content: ' ';
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-left: 0.4rem;
+    opacity: 0.4;
+}
+th.sort-asc::after {
+    content: '▲';
+    opacity: 1;
+}
+th.sort-desc::after {
+    content: '▼';
+    opacity: 1;
+}
+td:last-child {
+    text-align: right;
+}
+.badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.badge.playlist {
+    background-color: var(--accent);
+    color: #fff;
+}
+.badge.collection {
+    background-color: var(--success);
+    color: #fff;
+}
+.schedule-button-container {
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+    align-self: center;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Manager Pane - Link Styling */
+.item-name-link {
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 1px dashed var(--border-color);
+    transition: color 0.2s, border-color 0.2s;
+}
+.item-name-link:hover {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+/* Contents Modal List */
+.contents-list {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin: 0;
+}
+.contents-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--divider-color);
+}
+.contents-list li:last-child {
+    border-bottom: none;
+}
+
+/* Smart Build Modal Selection List */
+.item-selection-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.item-selection-list li {
+    display: block;
+    border: 1px solid var(--border-color-subtle);
+    border-radius: var(--radius);
+    transition: all 0.2s ease-in-out;
+}
+.item-selection-list li a {
+    display: block;
+    padding: 0.8rem 1.2rem;
+    text-decoration: none;
+    color: var(--text);
+}
+.item-selection-list li:hover {
+    border-color: var(--accent);
+    background-color: rgba(33, 150, 243, 0.1);
+    cursor: pointer;
+}
+.item-selection-list .item-name {
+    font-weight: 600;
+    font-size: 1.05rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+.item-selection-list .item-description {
+    font-size: 0.9rem;
+    color: var(--text-subtle);
+    margin-top: 0.3rem;
+    padding-left: 2rem;
+}
