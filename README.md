@@ -28,7 +28,7 @@
 
 See **[INSTALL.md](INSTALL.md)** for setup instructions. For container-based setups, see the included `Dockerfile` and `docker-compose.yml`.
 
-To enable the AI Block Builder feature, you must add your `GEMINI_API_KEY` to your `.mixerbee.env` file.
+To enable the AI Block Builder feature, you must add your `GEMINI_API_KEY` to your `.env` file.
 
 ## ⚙️ Usage
 
