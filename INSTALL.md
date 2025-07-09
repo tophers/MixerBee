@@ -1,37 +1,74 @@
-# MixerBee – Installation Guide
+# MixerBee – Installation Guide
 
 ## 🚀 Getting Started
 
-MixerBee can be run in **two** ways:
+MixerBee can be run in multiple ways, depending on your environment and preferences:
 
-1. **Docker**
-2. **Custom Python environment**
-
----
-### Docker
-
-Follow these steps for a containerized setup.
-
-1.  **Clone the Repository:** If you haven't already, clone this repository to your local machine.
-    ```sh
-    git clone https://github.com/tophers/mixerbee.git && cd mixerbee
-    ```
-
-2.  **Start the Container:** From the project's root directory, run:
-    ```sh
-    docker-compose up -d
-    ```
-    This will build the Docker image and start the MixerBee container.
-
-3.  **Configure the Application:**
-    * Open your web browser and navigate to `http://localhost:9000`.
-    * Click the cog **Open Settings** button.
-    * Enter your Emby or JellyFin credentials and save. The page will reload.
-    * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
-    * You will get an Init error on reload, restart the container _#todo: improve live reload of environment config_
+1. **Prebuilt Docker Image (Docker Hub)**
+2. **Manual Docker Build from Source**
+3. **Custom Python Environment**
 
 ---
-Custom Python Environment 
+
+### Option 1: Prebuilt Docker Image (Docker Hub)
+
+You can now run MixerBee directly using the public image from Docker Hub.
+
+```bash
+docker run -d \
+  --name mixerbee \
+  -p 9000:9000 \
+  -v "$PWD/mixerbee_config:/config" \
+  trulytilted/mixerbee:latest
+```
+
+> *Adjust `$PWD` to an absolute path if needed on your OS.*
+>
+> Example for Linux/macOS:
+>
+> ```bash
+> -v "$PWD/mixerbee_config:/config"
+> ```
+>
+> Example for Windows Git Bash:
+>
+> ```bash
+> -v "/c/Users/youruser/mixerbee_config:/config"
+> ```
+
+Then open [http://localhost:9000](http://localhost:9000) in your browser to configure settings.
+
+To enable the AI Block Builder, add your `GEMINI_API_KEY` to your `.env` file in the `mixerbee_config` volume.
+
+---
+
+### Option 2: Manual Docker Build (From Source)
+
+1. **Clone the Repository:**
+
+   ```bash
+   git clone https://github.com/tophers/mixerbee.git && cd mixerbee
+   ```
+
+2. **Start the Container:**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+   This will build the Docker image locally and start the MixerBee container.
+
+3. **Initial Configuration:**
+
+   * Visit [http://localhost:9000](http://localhost:9000)
+   * Click the **Settings** (gear icon)
+   * Enter your Emby or JellyFin details and save
+   * Config will be stored in `./mixerbee_config/.env`
+   * Restart container after first setup (*#todo: improve live reload of environment config*)
+
+---
+
+### Option 3: Custom Python Environment
 
 1. **Clone the repository**
 
@@ -58,30 +95,38 @@ Custom Python Environment
    cp examples/mixerbee.env.example config/.env
    vi config/.env
    ```
-Edit the required variables. (You can also setup the .env in the UI settings cog, *requires a restart)
 
-5. **Run the web server** (or use the provided *systemd* service file)
+   Or configure via the Web UI cog icon, followed by a restart.
+
+5. **Run the app**
 
    ```bash
    uvicorn web:app --host 0.0.0.0 --port 9000
    ```
 
-   Access the UI at [http://localhost:9000](http://localhost:9000).
+   Access it at [http://localhost:9000](http://localhost:9000)
+
+   *(You can also use the included systemd service: `examples/mixerbee.service.example`)*
 
 ---
 
 ## Updating MixerBee
 
 ```bash
-# pull the latest code
+# Pull latest code
 git pull
 
-# Docker users
+# Docker (prebuilt image)
+docker pull trulytilted/mixerbee:latest
+docker container rm -f mixerbee
+# Re-run the same docker run command used in Option 1 above
+
+# Docker (manual build)
 docker compose build --pull && docker compose up -d
 
 # Custom install
 pip install -r requirements.txt
-# then restart uvicorn or:  systemctl restart mixerbee
+# Restart uvicorn or:  systemctl restart mixerbee
 ```
 
 ---
@@ -89,7 +134,7 @@ pip install -r requirements.txt
 ## Uninstalling / Cleaning Up
 
 * **Docker:** `docker compose down -v` removes containers *and* volumes.
-* **Manual:** deactivate and delete the virtual‑env folder, then remove the project directory.
+* **Manual Python install:** deactivate and delete the `venv` folder, then remove the project directory.
 
 ---
 
