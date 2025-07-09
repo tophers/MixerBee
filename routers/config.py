@@ -35,7 +35,6 @@ def api_save_settings(req: models.SettingsRequest):
         with open(app_state.ENV_PATH, "w") as f:
             f.write(env_content)
 
-        # Hot-swap the new configuration
         app_state.load_and_authenticate()
 
         return {

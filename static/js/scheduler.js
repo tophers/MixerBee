@@ -1,4 +1,5 @@
-// static/js/scheduler.js
+// Filename: static/js/scheduler.js
+
 import { post } from './utils.js';
 import { confirmModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
@@ -14,6 +15,9 @@ const frequencySelect = document.getElementById('schedule-frequency');
 const timeSelect = document.getElementById('schedule-time-select');
 const daysContainer = document.getElementById('schedule-days-container');
 const daysCheckboxes = document.querySelectorAll('input[name="schedule-day"]');
+// START: Add the new custom time input element
+const customTimeInput = document.getElementById('schedule-time-custom-input');
+// END: Add the new custom time input element
 
 // Source-Specific Option Containers
 const builderOptionsContainer = document.getElementById('schedule-builder-options');
@@ -54,6 +58,16 @@ export function initSchedulerPane() {
     frequencySelect.addEventListener('change', toggleDaysOfWeek);
     quickTypeSelect.addEventListener('change', syncPlaylistName);
     presetSelect.addEventListener('change', syncPlaylistName);
+
+    // START: Add event listener for showing/hiding the custom time input
+    timeSelect.addEventListener('change', () => {
+        const isCustom = timeSelect.value === 'custom';
+        customTimeInput.style.display = isCustom ? 'block' : 'none';
+        if (isCustom) {
+            customTimeInput.focus();
+        }
+    });
+    // END: Add event listener
 
     // Re-populate preset dropdown when presets are changed elsewhere
     document.getElementById('save-preset-confirm-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
@@ -203,11 +217,23 @@ function renderSchedule(schedule) {
 
 async function handleCreateSchedule(event) {
     const sourceType = scheduleSourceSelect.value;
-    const timeValue = timeSelect.value;
     const userId = userSelect.value;
     const frequency = frequencySelect.value;
     const selectedDays = [...daysCheckboxes].filter(cb => cb.checked).map(cb => parseInt(cb.value));
     const playlistName = schedulePlaylistNameInput.value.trim();
+
+    // START: Update time value logic
+    let timeValue;
+    if (timeSelect.value === 'custom') {
+        timeValue = customTimeInput.value;
+        if (!timeValue) {
+            alert('Please select a valid custom time.');
+            return;
+        }
+    } else {
+        timeValue = timeSelect.value;
+    }
+    // END: Update time value logic
 
     if (!playlistName || !timeValue || !userId) {
         alert('Please provide a playlist name and select a time.');

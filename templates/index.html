@@ -155,6 +155,9 @@
                         <label class="control-item">
                             <span>Run At</span>
                             <select id="schedule-time-select">
+                                <optgroup label="Custom">
+                                    <option value="custom">Choose Time...</option>
+                                </optgroup>
                                 <optgroup label="Morning">
                                     <option value="05:00">5:00 AM</option>
                                     <option value="06:00">6:00 AM</option>
@@ -176,7 +179,8 @@
                                     <option value="00:00">12:00 AM (Midnight)</option>
                                     <option value="02:00">2:00 AM</option>
                                 </optgroup>
-                            </select>
+                           </select>
+                           <input type="time" id="schedule-time-custom-input" style="display: none; margin-top:0.5rem;">
                         </label>
                     </div>
                      <div id="schedule-days-container" class="checkbox-grid" style="display: none; margin-top: 1rem;">

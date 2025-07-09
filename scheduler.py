@@ -14,6 +14,7 @@ from apscheduler.jobstores.base import JobLookupError
 
 import app as core
 import app.items as items_api
+import app_state  # THE FIX: Import the global state manager
 
 # Configure logging for the scheduler
 logging.basicConfig()
@@ -82,7 +83,10 @@ def run_playlist_job(**schedule_data) -> Dict:
     result = {}
 
     try:
-        _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
+        # THE FIX: Pass the configured server_type to the authenticate function.
+        _, token = core.authenticate(
+            core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE
+        )
         hdr = core.auth_headers(token, user_id=user_id)
 
         if job_type == "builder":
@@ -153,7 +157,7 @@ class Scheduler:
                             schedules[schedule_id]["quick_playlist_data"]["quick_playlist_type"] = new_type
                             logging.info(f"Migrated legacy schedule type '{old_type}' to '{new_type}' for job {schedule_id}.")
                             needs_save = True
-                
+
                 if needs_save:
                     self._save_schedules_from_data(schedules)
 
