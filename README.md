@@ -1,6 +1,6 @@
 # MixerBee 🐝
 
-**MixerBee** is a self-hosted web app for building and updating smart playlists and collections on your [Emby](https://emby.media/) server. Mix episodes from multiple shows, create movie collections that fit your criteria, blend in music from your favorite artists, or schedule block-style programming to mimic a TV channel.
+**MixerBee** is a self-hosted web app for building and updating smart playlists and collections on your [Emby](https://emby.media/) or [JellyFin](https://jellyfin.org/) server. Mix episodes from multiple shows, create movie collections that fit your criteria, blend in music from your favorite artists, or schedule block-style programming to mimic a TV channel.
 
 ## ✨ Features
 
@@ -8,7 +8,7 @@
     *   **TV Blocks**: Mix episodes from multiple shows. Start from a specific episode or let MixerBee automatically find the next unwatched one for you.
     *   **Movie Blocks**: Filter your movie library by genre, year range, watched status, and more to create highly specific lists.
     *   **Music Blocks**: Add songs by artist and album, create a mix of an artist's top tracks, or build a playlist based on music genre.
-    *   **Create as Collection**: Generate a static **Collection** in your Emby library instead of a playlist for easier visual navigation.
+    *   **Create as Collection**: Generate a static **Collection** in your library instead of a playlist for easier visual navigation.
 *   **AI Block Builder** (Optional): Use natural language to build complex playlists. Simply ask for what you want (e.g., "80s action movies and some episodes of Star Trek"), and let the AI generate the playlist blocks for you. *Requires a Google Gemini API key.*
 *   **Scheduler**: Automatically rebuild your favorite presets on a daily or weekly schedule. Set your "prime time" or "Saturday morning cartoon" blocks once and always have fresh content ready. Includes a "Last Run" status to monitor job success.
 *   **Manager**: A unified dashboard to view, search, sort, and delete all of your Playlists and Collections in one place.
@@ -47,13 +47,13 @@ After install browse to the server URL (default `http://localhost:9000`) and sta
 
 *   **Builder Tab:** The most powerful feature.
     *   **Add Blocks**: Add TV, Movie, or Music "blocks" to design a custom content lineup.
-    *   **Build**: Use the Action Bar at the bottom to give your creation a name and build it as either a static Playlist or a Collection inside Emby.
+    *   **Build**: Use the Action Bar at the bottom to give your creation a name and build it as either a static Playlist or a Collection inside Emby or JellyFin.
     *   **Presets**: Save your block configuration as a preset for easy access later or for use with the scheduler.
 *   **Scheduler Tab:** Automate your content.
     1.  First, build a playlist on the "Builder" tab and save it as a preset.
     2.  Go to the "Scheduler" tab.
     3.  Select your saved preset, choose a frequency (Daily or Weekly), pick the days, and set a time.
-    4.  Click "Create Schedule". Your playlist or collection will now be automatically rebuilt on Emby at the specified time.
+    4.  Click "Create Schedule". Your playlist or collection will now be automatically rebuilt on your server at the specified time.
 *   **Manager Tab:**
     *   View all of your existing playlists and collections.
     *   Search by name to quickly find an item.
