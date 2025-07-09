@@ -45,7 +45,8 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     if not user_id: return []
     params = {
         "Recursive": "true",
-        "IncludeItemTypes": "Playlist,BoxSet",
+        # THE FIX: Ask for Playlist, BoxSet (Emby), and Collection (Jellyfin) types.
+        "IncludeItemTypes": "Playlist,BoxSet,Collection",
         "Fields": "ChildCount,DateCreated",
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
@@ -55,7 +56,9 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 
     for item in items:
         item["ItemCount"] = item.get("ChildCount", 0)
-        item["DisplayType"] = "Collection" if item.get("Type") == "BoxSet" else "Playlist"
+        # THE FIX: Harmonize the display type for the frontend.
+        item_type = item.get("Type")
+        item["DisplayType"] = "Collection" if item_type in ["BoxSet", "Collection"] else "Playlist"
 
     return items
 
@@ -163,7 +166,7 @@ def create_playlist(name: str, user_id: str, ids: List[str],
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
     try:
-        limit = count * 2 
+        limit = count * 2
         base_params = {
             "UserId": user_id,
             "SortBy": "DateCreated",
@@ -199,15 +202,15 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
             if next_ep_data and next_ep_data.get("Id"):
                 next_ep_data["DateCreated"] = date_created
                 next_up_episodes.append(next_ep_data)
-        
+
         combined_items = recent_movies + next_up_episodes
         if not combined_items:
             log.append("No recently added items found. Playlist not created.")
             return {"status": "ok", "log": log}
-        
+
         combined_items.sort(key=lambda x: x.get("DateCreated", ""), reverse=True)
         final_items = combined_items[:count]
-        
+
         # This now correctly handles items with 'Id' from movies/episodes
         item_ids = [item["Id"] for item in final_items]
 
@@ -472,9 +475,10 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
 
 # Collection Functions
 def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
-    """Gets a list of all collections (BoxSets) for a user."""
+    """Gets a list of all collections (BoxSets/Collections) for a user."""
     params = {
-        "IncludeItemTypes": "BoxSet",
+        # THE FIX: Ask for both BoxSet (Emby) and Collection (Jellyfin).
+        "IncludeItemTypes": "BoxSet,Collection",
         "Recursive": "true",
         "Fields": "Id,Name"
     }
@@ -485,7 +489,8 @@ def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 
 
 def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
-    """Deletes a collection by its name."""
+    """Deletes a collection by its name, checking for both Emby and Jellyfin types."""
+    # THE FIX: The get_collections function now correctly fetches both types.
     targets = [c for c in get_collections(user_id, hdr)
                if c["Name"].strip().lower() == name.strip().lower()]
     if not targets:

@@ -4,12 +4,12 @@
     <meta charset="utf-8">
     <title>MixerBee</title>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/main.css">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
-    <script src="/static/js/header.js"></script>
+    <script src="static/js/header.js"></script>
 </head>
 <body>
     <select id="user-select" style="display: none;"></select>
@@ -47,7 +47,7 @@
          <div class="warning-box">
              <i data-feather="alert-triangle"></i>
              <h3>Application Not Configured</h3>
-             <p>MixerBee can't connect to Emby. Please open the settings and provide your server details, or check if the server is running.</p>
+             <p>MixerBee can't connect to your server. Please open the settings and provide your server details, or check if the server is running.</p>
              <button id="not-configured-settings-btn">Open Settings</button>
          </div>
     </div>
@@ -132,8 +132,7 @@
                             <label class="control-item">
                                 <span>Quick Playlist Type</span>
                                 <select id="schedule-quick-type-select">
-                                    <!-- Options are populated by scheduler.js -->
-                                </select>
+                                                                    </select>
                             </label>
                             <label class="control-item">
                                 <span>Number of Items</span>
@@ -249,19 +248,26 @@
                 <button id="settings-close-btn" class="icon-btn">×</button>
             </div>
             <div class="modal-body">
-                <p>Enter your Emby server details. The page will reload automatically to apply your changes.</p>
+                <p>Enter your server details. The page will reload automatically to apply your changes.</p>
                 <div class="modal-form-layout">
                     <label class="control-item">
-                        <span>Emby Server URL</span>
+                        <span>Server Type</span>
+                        <select id="settings-server-type-select">
+                          <option value="emby">Emby</option>
+                          <option value="jellyfin">Jellyfin</option>
+                        </select>
+                    </label>
+                    <label class="control-item">
+                        <span>Server URL</span>
                         <input type="text" id="settings-url-input" placeholder="e.g., http://localhost:8096">
                     </label>
                     <label class="control-item">
-                        <span>Emby Username</span>
-                        <input type="text" id="settings-user-input" placeholder="Emby username">
+                        <span>Username</span>
+                        <input type="text" id="settings-user-input" placeholder="Your username">
                     </label>
                     <label class="control-item">
-                        <span>Emby Password</span>
-                        <input type="password" id="settings-pass-input" placeholder="Emby password">
+                        <span>Password</span>
+                        <input type="password" id="settings-pass-input" placeholder="Your password">
                     </label>
                     <label class="control-item">
                         <span>Gemini API Key (Optional)</span>
@@ -291,8 +297,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <!-- <button id="save-preset-cancel-btn" type="button" class="secondary">Cancel</button> -->
-                <button id="save-preset-confirm-btn" type="button">Save</button>
+                                <button id="save-preset-confirm-btn" type="button">Save</button>
             </div>
         </div>
     </div>
@@ -317,8 +322,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-               <!-- <button id="smart-playlist-cancel-btn" type="button" class="secondary">Cancel</button> -->
-                <button id="smart-playlist-confirm-btn" type="button">Create</button>
+                               <button id="smart-playlist-confirm-btn" type="button">Create</button>
             </div>
         </div>
     </div>
@@ -342,8 +346,7 @@
                 </div>
             </div>
             <div class="modal-footer">
-               <!-- <button id="import-preset-cancel-btn" type="button" class="secondary">Cancel</button> -->
-                <button id="import-preset-confirm-btn" type="button">Import</button>
+                               <button id="import-preset-confirm-btn" type="button">Import</button>
             </div>
         </div>
     </div>
@@ -352,17 +355,15 @@
         <div class="modal-window">
             <div class="modal-header">
                 <h2>Build an Auto Playlist</h2>
-                <button id="smart-build-close-btn" class="icon-btn">×</button>
+            	<button id="smart-build-close-btn" class="icon-btn">×</button>
             </div>
             <div class="modal-body">
                 <p>Select a pre-configured playlist type to create.</p>
                 <ul id="smart-build-list" class="item-selection-list">
-                    <!-- Items will be dynamically inserted here by JS -->
-                </ul>
+                                    </ul>
             </div>
             <div class="modal-footer">
-                <!-- <button id="smart-build-cancel-btn" type="button" class="secondary">Cancel</button> -->
-            </div>
+                            </div>
         </div>
     </div>
 
@@ -376,7 +377,7 @@
             </div>
             <div class="modal-footer">
                 <button id="contents-modal-ok-btn" type="button">OK</button>
-            </div> 
+            </div>
         </div>
     </div>
 
@@ -390,8 +391,7 @@
                 <p id="confirm-modal-text">This action cannot be undone.</p>
             </div>
             <div class="modal-footer">
-                <!-- <button id="confirm-modal-cancel-btn" type="button" class="secondary">Cancel</button> -->
-                <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
+                                <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
             </div>
         </div>
     </div>
@@ -421,6 +421,6 @@
       // Make it available for other scripts to call
       window.featherReplace = replaceFeatherIcons;
     </script>
-    <script src="/static/js/app.js" type="module" defer></script>
+    <script src="static/js/app.js" type="module" defer></script>
 </body>
 </html>

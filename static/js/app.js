@@ -26,6 +26,8 @@ function initSettingsModal() {
     const testBtn = document.getElementById('settings-test-btn');
     const notConfiguredBtn = document.getElementById('not-configured-settings-btn');
 
+    // THIS LINE MUST BE PRESENT
+    const serverTypeSelect = document.getElementById('settings-server-type-select');
     const urlInput = document.getElementById('settings-url-input');
     const userInput = document.getElementById('settings-user-input');
     const passInput = document.getElementById('settings-pass-input');
@@ -47,6 +49,8 @@ function initSettingsModal() {
 
     saveBtn.addEventListener('click', (event) => {
         const payload = {
+            // THIS LINE MUST BE PRESENT
+            server_type: serverTypeSelect.value, 
             emby_url: urlInput.value.trim(),
             emby_user: userInput.value.trim(),
             emby_pass: passInput.value,

@@ -12,13 +12,15 @@ router = APIRouter()
 def api_config_status():
     return {
         "is_configured": app_state.is_configured,
-        "is_ai_configured": bool(app_state.GEMINI_API_KEY)
+        "is_ai_configured": bool(app_state.GEMINI_API_KEY),
+        "server_type": app_state.SERVER_TYPE
     }
 
 @router.post("/api/settings")
 def api_save_settings(req: models.SettingsRequest):
     """Saves connection details and hot-swaps the active configuration."""
     env_content = (
+        f'SERVER_TYPE="{req.server_type}"\n'
         f'EMBY_URL="{req.emby_url}"\n'
         f'EMBY_USER="{req.emby_user}"\n'
         f'EMBY_PASS="{req.emby_pass}"\n'
@@ -28,7 +30,7 @@ def api_save_settings(req: models.SettingsRequest):
 
     try:
         # Test credentials before saving
-        core.authenticate(req.emby_user, req.emby_pass, req.emby_url)
+        core.authenticate(req.emby_user, req.emby_pass, req.emby_url, req.server_type)
 
         with open(app_state.ENV_PATH, "w") as f:
             f.write(env_content)
@@ -42,7 +44,7 @@ def api_save_settings(req: models.SettingsRequest):
         }
     except Exception as e:
         logging.error(f"Failed to save settings: {e}", exc_info=True)
-        error_detail = "Could not authenticate with the provided Emby credentials. Please check the URL, username, and password."
+        error_detail = "Could not authenticate with the provided credentials. Please check the server type, URL, username, and password."
         raise HTTPException(status_code=400, detail=error_detail)
 
 
@@ -55,11 +57,12 @@ def api_test_settings():
             content={"status": "error", "log": ["Application is not configured."]}
         )
     try:
-        core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL)
-        return {"status": "ok", "log": ["Emby connection test successful!"]}
+        # Pass the currently configured server type to the test
+        core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE)
+        return {"status": "ok", "log": [f"{app_state.SERVER_TYPE.capitalize()} connection test successful!"]}
     except Exception as e:
         logging.error(f"Failed to test settings: {e}", exc_info=True)
         return JSONResponse(
             status_code=400,
-            content={"status": "error", "log": ["Connection test failed. Check .env file and Emby server status."]}
+            content={"status": "error", "log": ["Connection test failed. Check .env file and server status."]}
         )

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-models.py – Pydantic models for the MixerBee API.
+models.py   Pydantic models for the MixerBee API.
 """
 from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 class SettingsRequest(BaseModel):
+    server_type: str
     emby_url: str
     emby_user: str
     emby_pass: str
