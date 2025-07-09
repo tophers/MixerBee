@@ -162,7 +162,7 @@ def create_playlist(name: str, user_id: str, ids: List[str],
         log.append(f"Failed to create playlist (HTTP {resp.status_code}):")
         log.append(resp.text)
 
-# "Quick Playlist" / Smart Playlist Functions
+# "Quick/Auto Playlist" / Smart Playlist Functions
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
     try:

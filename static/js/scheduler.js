@@ -26,7 +26,7 @@ const quickOptionsContainer = document.getElementById('schedule-quick-options');
 // Builder Options
 const presetSelect = document.getElementById('schedule-preset-select');
 
-// Quick Playlist Options
+// Quick/Auto Playlist Options
 const quickTypeSelect = document.getElementById('schedule-quick-type-select');
 const quickCountInput = document.getElementById('schedule-quick-count-input');
 
@@ -149,8 +149,8 @@ function renderSchedule(schedule) {
     if (schedule.job_type === 'builder') {
         sourceText = `preset: <em>${schedule.preset_name || 'Unknown Preset'}</em>`;
     } else if (schedule.job_type === 'quick_playlist') {
-        const friendlyName = quickPlaylistFriendlyNames[schedule.quick_playlist_data?.quick_playlist_type] || 'Quick Playlist';
-        sourceText = `Quick Playlist: <em>${friendlyName}</em>`;
+        const friendlyName = quickPlaylistFriendlyNames[schedule.quick_playlist_data?.quick_playlist_type] || 'Auto Playlist';
+        sourceText = `Auto Playlist: <em>${friendlyName}</em>`;
     }
 
     const [hour, minute] = schedule.schedule_details.time.split(':');
@@ -274,14 +274,14 @@ async function handleCreateSchedule(event) {
         const quickType = quickTypeSelect.value;
         const count = parseInt(quickCountInput.value, 10);
         if (!quickType || !count || count < 1) {
-            alert('Please select a Quick Playlist type and enter a valid number of items.');
+            alert('Please select an Auto Playlist type and enter a valid number of items.');
             return;
         }
         requestBody.quick_playlist_data = {
             quick_playlist_type: quickType,
             options: { count: count }
         };
-        requestBody.preset_name = quickPlaylistFriendlyNames[quickType] || 'Quick Playlist';
+        requestBody.preset_name = quickPlaylistFriendlyNames[quickType] || 'Auto Playlist';
     }
 
     post('api/schedules', requestBody, event.currentTarget).then(res => {
