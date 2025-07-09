@@ -39,9 +39,19 @@ Mix episodes across shows, create themed movie blocks, blend music from your fav
 
 ## 💻 Web Interface
 
-| Builder                                          | Scheduler                                            | Manager                                          |
-| ------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------ |
-| ![Builder Tab](screenshots/mixerbee_builder.png) | ![Scheduler Tab](screenshots/mixerbee_scheduler.png) | ![Manager Tab](screenshots/mixerbee_manager.png) |
+Dark mode and light mode views of the core tabs:
+
+| Builder (Dark)                                         | Builder (Light)                                          |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| ![Builder Dark](screenshots/mixerbee-builder-dark.png) | ![Builder Light](screenshots/mixerbee-builder-light.png) |
+
+| Scheduler (Dark)                                           | Scheduler (Light)                                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| ![Scheduler Dark](screenshots/mixerbee-scheduler-dark.png) | ![Scheduler Light](screenshots/mixerbee-scheduler-light.png) |
+
+| Manager (Dark)                                         | Manager (Light)                                          |
+| ------------------------------------------------------ | -------------------------------------------------------- |
+| ![Manager Dark](screenshots/mixerbee-manager-dark.png) | ![Manager Light](screenshots/mixerbee-manager-light.png) |
 
 ---
 
@@ -97,4 +107,5 @@ If the `.env` file is first created through the Web UI, you must restart the con
 
 ---
 
-Enjoy!
+Enjoy! 🐝
+
