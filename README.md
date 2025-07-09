@@ -1,63 +1,100 @@
 # MixerBee 🐝
 
-**MixerBee** is a self-hosted web app for building and updating smart playlists and collections on your [Emby](https://emby.media/) or [JellyFin](https://jellyfin.org) server. Mix episodes from multiple shows, create movie collections that fit your criteria, blend in music from your favorite artists, or schedule block-style programming to mimic a TV channel.
+**MixerBee** is a self-hosted web app for building and managing smart playlists and collections on your [Emby](https://emby.media/) or [Jellyfin](https://jellyfin.org) server. It started as a basic CLI tool to interleave episodes from multiple shows, and has evolved into a fully-featured web-based scheduler and media playlist manager.
+
+Mix episodes across shows, create themed movie blocks, blend music from your favorite artists, or schedule block-style programming to mimic a custom TV channel.
+
+---
 
 ## ✨ Features
 
-*   **Advanced Playlist & Collection Builder**:
-    *   **TV Blocks**: Mix episodes from multiple shows. Start from a specific episode or let MixerBee automatically find the next unwatched one for you.
-    *   **Movie Blocks**: Filter your movie library by genre, year range, watched status, and more to create highly specific lists.
-    *   **Music Blocks**: Add songs by artist and album, create a mix of an artist's top tracks, or build a playlist based on music genre.
-    *   **Create as Collection**: Generate a static **Collection** in your server library instead of a playlist for easier visual navigation.
-*   **AI Block Builder** (Optional): Use natural language to build complex playlists. Simply ask for what you want (e.g., "80s action movies and some episodes of Star Trek"), and let the AI generate the playlist blocks for you. *Requires a Google Gemini API key.*
-*   **Scheduler**: Automatically rebuild your favorite presets on a daily or weekly schedule. Set your "prime time" or "Saturday morning cartoon" blocks once and always have fresh content ready. Includes a "Last Run" status to monitor job success.
-*   **Manager**: A unified dashboard to view, search, sort, and delete all of your Playlists and Collections in one place.
-*   **Quick Playlists**: Instantly create special playlists with a single click.
-    *   **Video**: Pilot Sampler, Next Up, From the Vault, and Movie Genre Roulette.
-    *   **Music**: Artist Spotlight, Album Roulette, and Music Genre Sampler.
-*   **Modern UI**: A clean, responsive interface with both **Light and Dark modes** and collapsible sections to keep the workspace tidy.
-*   **Preset System**: Save your complex builder configurations as presets. Import and export presets via shareable text codes to share with friends.
+* **Advanced Playlist & Collection Builder**:
 
-## 🖥️ Web Interface
+  * **TV Blocks**: Mix episodes from multiple shows. Start from a specific episode or let MixerBee pick up where you left off.
+  * **Movie Blocks**: Filter your movie library by genre, year range, watched status, and more.
+  * **Music Blocks**: Add songs by artist/album, top tracks, or genre-based selections.
+  * **Create as Collection**: Generate static **Collections** inside your server instead of playlists.
 
-| Builder                                             | Scheduler                                             | Manager                                             |
-| --------------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+* **AI Block Builder** (Optional):
+  Use natural language to build playlists (e.g. *"80s action movies and a few episodes of Star Trek"*). Requires a Google Gemini API key.
+
+* **Scheduler**:
+  Automate playlist or collection builds daily or weekly. Includes "Last Run" status to confirm success.
+
+* **Manager**:
+  View, sort, and delete all playlists/collections from a single dashboard.
+
+* **Auto Playlists**:
+
+  * **Video**: Pilot Sampler, Next Up, From the Vault, Movie Genre Roulette
+  * **Music**: Artist Spotlight, Album Roulette, Genre Sampler
+
+* **Modern UI**:
+  Responsive dark/light mode interface with collapsible sections.
+
+* **Preset System**:
+  Save and reuse block configurations. Shareable via export/import text codes.
+
+---
+
+## 💻 Web Interface
+
+| Builder                                          | Scheduler                                            | Manager                                          |
+| ------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------ |
 | ![Builder Tab](screenshots/mixerbee_builder.png) | ![Scheduler Tab](screenshots/mixerbee_scheduler.png) | ![Manager Tab](screenshots/mixerbee_manager.png) |
+
+---
 
 ## 🚀 Installation
 
-See **[INSTALL.md](INSTALL.md)** for setup instructions. For container-based setups, see the included `Dockerfile` and `docker-compose.yml`.
+See [INSTALL.md](INSTALL.md) for full setup instructions.
 
-To enable the AI Block Builder feature, you must add your `GEMINI_API_KEY` to your `.env` file.
+You can run MixerBee via:
+
+* [Docker Hub](https://hub.docker.com/r/trulytilted/mixerbee)
+* Manual Docker build
+* Custom Python environment
+
+To enable AI features, add your `GEMINI_API_KEY` to your `.env` file.
+
+---
 
 ## ⚙️ Usage
 
-<details>
-<summary><strong>Known Issues</strong></summary>
+After install, open [http://localhost:9000](http://localhost:9000) and start building.
 
+### Builder Tab
+
+* Add TV, Movie, or Music blocks
+* Name and build as Playlist or Collection
+* Save as preset for automation later
+
+### Scheduler Tab
+
+* Pick one or more saved presets or Auto Playlists
+* Choose frequency (Daily or Weekly)
+* Set the time and days
+* Let MixerBee rebuild the content on schedule automatically
+
+### Manager Tab
+
+* View all your playlists and collections
+* Search, sort, and delete items
+
+---
+
+## ⚠️ Known Issues
+
+<details>
+<summary><strong>Initial environment setup via UI may require restart</strong></summary>
 <br>
 
-- **Initial environment file not fully applied after web login setup**  
-  If the `.env` file is first created through the Web UI login process, the application or container must be restarted for it to function correctly. Until a restart, the app may not behave as expected.  
-  _[#todo: improve live reload of environment config]_
+If the `.env` file is first created through the Web UI, you must restart the container or app for it to take effect. Until restarted, the app may behave unexpectedly.
+
+*\[#todo: improve live reload of environment config]*
 
 </details>
 
-After install browse to the server URL (default `http://localhost:9000`) and start building.
+---
 
-*   **Builder Tab:** The most powerful feature.
-    *   **Add Blocks**: Add TV, Movie, or Music "blocks" to design a custom content lineup.
-    *   **Build**: Use the Action Bar at the bottom to give your creation a name and build it as either a static Playlist or a Collection inside Emby or JellyFin.
-    *   **Presets**: Save your block configuration as a preset for easy access later or for use with the scheduler.
-*   **Scheduler Tab:** Automate your content.
-    1.  First, build a playlist on the "Builder" tab and save it as a preset.
-    2.  Go to the "Scheduler" tab.
-    3.  Select your saved preset, choose a frequency (Daily or Weekly), pick the days, and set a time.
-    4.  Click "Create Schedule". Your playlist or collection will now be automatically rebuilt on the server at the specified time.
-*   **Manager Tab:**
-    *   View all of your existing playlists and collections.
-    *   Search by name to quickly find an item.
-    *   Sort by name, type, item count, or creation date.
-    *   Delete individual items from playlists you don't want.
-
-
+Enjoy!
