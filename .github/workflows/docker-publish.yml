@@ -1,6 +1,7 @@
 name: Build and Push Docker image
 
 on:
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -26,3 +27,4 @@ jobs:
           context: .
           push: true
           tags: trulytilted/mixerbee:latest
+
