@@ -26,7 +26,7 @@ Follow these steps for a containerized setup.
 3.  **Configure the Application:**
     * Open your web browser and navigate to `http://localhost:9000`.
     * Click the cog **Open Settings** button.
-    * Enter your Emby credentials and save. The page will reload.
+    * Enter your Emby or JellyFin credentials and save. The page will reload.
     * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
     * You will get an Init error on reload, restart the container _#todo: improve live reload of environment config_
 
