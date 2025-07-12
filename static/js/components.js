@@ -3,11 +3,19 @@ import { post, toast } from './utils.js';
 import { presetModal, confirmModal, importPresetModal } from './modals.js';
 
 export class PresetManager {
-    constructor(storageKey, { loadSelect, saveBtn, deleteBtn, importBtn, exportBtn }) {
+    constructor(storageKey, { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn }) {
         // storageKey is no longer used but kept for compatibility with existing calls
-        this.ui = { loadSelect, saveBtn, deleteBtn, importBtn, exportBtn };
+        this.ui = { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn };
         this.presets = {}; // Will be populated from the server
     }
+
+    // START: New method to control which save button is visible
+    toggleSaveButtons() {
+        const isPresetSelected = !!this.ui.loadSelect.value;
+        this.ui.updateBtn.style.display = isPresetSelected ? 'inline-flex' : 'none';
+        this.ui.saveAsBtn.style.display = isPresetSelected ? 'none' : 'inline-flex';
+    }
+    // END: New method
 
     async populateDropdown() {
         try {
@@ -29,27 +37,53 @@ export class PresetManager {
             } else {
                  this.ui.exportBtn.disabled = true;
             }
+            this.toggleSaveButtons(); // Update buttons after populating
         } catch (error) {
             console.error('Error populating presets:', error);
             toast('Could not load presets from server.', false);
         }
     }
 
+    // START: New method to handle updating an existing preset
+    async update(getUIDataFn) {
+        const presetName = this.ui.loadSelect.value;
+        if (!presetName) return; // Should not happen if button is visible, but good practice
+
+        const payload = {
+            name: presetName,
+            data: getUIDataFn()
+        };
+        const res = await post('api/presets', payload, this.ui.updateBtn, 'POST');
+        if (res.status === 'ok') {
+            // No need to re-populate dropdown, just update local cache
+            this.presets[presetName] = payload.data;
+            toast(`Preset "${presetName}" saved!`, true);
+        }
+    }
+    // END: New method
+
     async init(getUIDataFn, applyPresetFn) {
         await this.populateDropdown();
 
-        this.ui.saveBtn.addEventListener('click', () => {
+        // Listener for the new "Save" (update) button
+        this.ui.updateBtn.addEventListener('click', () => {
+            this.update(getUIDataFn);
+        });
+
+        // Updated listener for the "Save as..." button
+        this.ui.saveAsBtn.addEventListener('click', () => {
             presetModal.show(
                 async (presetName) => {
                     const payload = {
                         name: presetName,
                         data: getUIDataFn()
                     };
-                    const res = await post('api/presets', payload, this.ui.saveBtn, 'POST');
+                    const res = await post('api/presets', payload, this.ui.saveAsBtn, 'POST');
                     if (res.status === 'ok') {
                         await this.populateDropdown();
                         this.ui.loadSelect.value = presetName;
                         this.ui.exportBtn.disabled = false;
+                        this.toggleSaveButtons();
                     }
                 },
                 Object.keys(this.presets)
@@ -113,7 +147,7 @@ export class PresetManager {
                     const res = await post(`api/presets/${presetName}`, {}, this.ui.deleteBtn, 'DELETE');
                     if (res.status === 'ok') {
                         await this.populateDropdown();
-                        // This will implicitly deselect and disable the export button
+                        // This will implicitly deselect and disable the export/save buttons
                     }
                 }
             });
@@ -122,6 +156,7 @@ export class PresetManager {
         this.ui.loadSelect.addEventListener('change', (event) => {
             const presetName = event.target.value;
             this.ui.exportBtn.disabled = !presetName;
+            this.toggleSaveButtons(); // Control visibility of save buttons
             if (!presetName) {
                 applyPresetFn([]); // Clear blocks if no preset is selected
                 return;
@@ -188,7 +223,7 @@ export function createTvShowRow({ rowData, seriesData, userSelectElement, change
 
     const randomBtn = icon('shuffle', 'random-ep-btn', 'Pick Random Episode');
     const delBtn = icon('x', 'delete-btn danger', 'Delete Row');
-    
+
     const controlsDiv = document.createElement('div');
     controlsDiv.className = 'show-row-controls';
     [randomBtn, delBtn].forEach(btn => controlsDiv.appendChild(btn));

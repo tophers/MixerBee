@@ -12,6 +12,25 @@ function createHeaderButton(iconName, className, title) {
     return btn;
 }
 
+export function updateTvBlockSummary(blockElement) {
+    const summarySpan = blockElement.querySelector('.tv-block-preview-summary');
+    if (!summarySpan) return;
+
+    const showRows = blockElement.querySelectorAll('.tv-block-show-row');
+    const modeSelect = blockElement.querySelector('.tv-block-mode-select');
+
+    const showCount = showRows.length;
+    let modeText = modeSelect.options[modeSelect.selectedIndex].textContent;
+
+    if (modeSelect.value === 'count') {
+        const countInput = blockElement.querySelector('.tv-block-count');
+        const episodeCount = countInput.value;
+        modeText += ` (${episodeCount})`;
+    }
+
+    summarySpan.textContent = `${showCount} Show${showCount !== 1 ? 's' : ''} • ${modeText}`;
+}
+
 async function updateMovieBlockPreviewCount(blockElement, userSelectElement) {
     const countSpan = blockElement.querySelector('.movie-block-preview-count');
     if (!countSpan) return;
@@ -48,10 +67,14 @@ async function updateMusicBlockPreviewCount(blockElement, userSelectElement) {
     const countSpan = blockElement.querySelector('.music-block-preview-count');
     if (!countSpan) return;
     countSpan.textContent = '...';
+    
 
-    const filters = {
+    const genreMatchRadio = blockElement.querySelector(`input[name^="music-block-genre-match-"]:checked`);
+   
+
+    const filters = {
         genres: [...blockElement.querySelectorAll('.music-block-genre-cb:checked')].map(cb => cb.value),
-        genre_match: blockElement.querySelector(`input[name^="music-block-genre-match-"]:checked`).value,
+        genre_match: genreMatchRadio ? genreMatchRadio.value : 'any',
         sort_by: blockElement.querySelector('.music-block-sort-by').value,
     };
     const requestBody = { user_id: userSelectElement.value, filters: filters };
@@ -71,30 +94,85 @@ async function updateMusicBlockPreviewCount(blockElement, userSelectElement) {
     }
 }
 
+// START: New exported function for the Music Block summary
+export function updateMusicBlockSummary(blockElement) {
+    const summarySpan = blockElement.querySelector('.music-block-preview-summary');
+    if (!summarySpan) return;
+
+    const modeSelect = blockElement.querySelector('.music-block-mode');
+    const mode = modeSelect.value;
+    const modeText = modeSelect.options[modeSelect.selectedIndex].textContent;
+    let summary = modeText;
+
+    if (mode === 'genre') {
+        const limitInput = blockElement.querySelector('.music-block-limit');
+        const genreCount = blockElement.querySelectorAll('.music-block-genre-cb:checked').length;
+        if (genreCount > 0) {
+            summary = `${genreCount} Genre${genreCount !== 1 ? 's' : ''} • ${limitInput.value} songs`;
+        } else {
+            summary = `All Genres • ${limitInput.value} songs`;
+        }
+    } else if (mode.startsWith('artist_')) {
+        const artistSelect = blockElement.querySelector('.music-block-artist');
+        const countInput = blockElement.querySelector('.music-block-count');
+        if (artistSelect.value && artistSelect.options[artistSelect.selectedIndex]) {
+            const artistName = artistSelect.options[artistSelect.selectedIndex].textContent;
+            summary = `${artistName} • ${countInput.value} tracks`;
+        }
+    } else if (mode === 'album') {
+        const artistSelect = blockElement.querySelector('.music-block-artist');
+        const albumSelect = blockElement.querySelector('.music-block-album');
+        if (albumSelect.value && albumSelect.options[albumSelect.selectedIndex]) {
+            const albumName = albumSelect.options[albumSelect.selectedIndex].textContent;
+            const artistName = artistSelect.options[artistSelect.selectedIndex].textContent;
+            summary = `${albumName} by ${artistName}`;
+        }
+    }
+    summarySpan.textContent = summary;
+}
+// END: New function
 
 export function renderTvBlock({ data = null, userSelectElement, changeCallback }) {
     const initialRows = data?.shows || [{}];
     const isInterleaved = (data?.interleave !== false);
 
-    const blockElement = document.createElement('div');
+    const blockElement = document.createElement('details');
+    blockElement.open = true;
+
     blockElement.className = 'mixed-block';
     blockElement.dataset.type = 'tv';
+
+    const summary = document.createElement('summary');
 
     const header = document.createElement('div');
     header.className = 'mixed-block-header';
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<i data-feather="tv"></i> TV Block`;
-    const headerControls = document.createElement('div');
-    headerControls.className = 'mixed-block-controls';
-    headerControls.append(
+
+    const rightControlsContainer = document.createElement('div');
+    rightControlsContainer.className = 'mixed-block-controls';
+
+    const summarySpan = document.createElement('span');
+    summarySpan.className = 'tv-block-preview-summary';
+
+    const collapseIcon = document.createElement('span');
+    collapseIcon.className = 'icon-btn collapse-toggle-btn';
+    collapseIcon.innerHTML = `<i data-feather="chevron-up"></i>`;
+
+    rightControlsContainer.append(
+        summarySpan,
         createHeaderButton('copy', 'duplicate-block-btn', 'Duplicate Block'),
-        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block')
+        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block'),
+        collapseIcon
     );
+
     const dragHandle = createHeaderButton('move', 'drag-handle', 'Drag to reorder');
-    dragHandle.innerHTML = '<i data-feather="move"></i>'; // 'move' is more descriptive than unicode arrow
+    dragHandle.innerHTML = '<i data-feather="move"></i>';
     dragHandle.style.cursor = 'grab';
 
-    header.append(dragHandle, headerTitle, headerControls);
+    header.append(dragHandle, headerTitle, rightControlsContainer);
+
+    summary.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
@@ -115,7 +193,6 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
     const footer = document.createElement('div');
     footer.className = 'block-options-footer';
 
-    // --- New Mode Selector ---
     const modeSelectLabel = document.createElement('label');
     const modeSelect = Object.assign(document.createElement('select'), { className: 'tv-block-mode-select' });
     modeSelect.innerHTML = `
@@ -124,7 +201,6 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
     `;
     modeSelectLabel.append('Mode:', modeSelect);
 
-    // --- Count Container ---
     const countContainer = document.createElement('div');
     countContainer.className = 'tv-block-count-container';
     const countLabel = document.createElement('label');
@@ -132,10 +208,9 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
     countLabel.append('Episodes per show:', countInput);
     countContainer.appendChild(countLabel);
 
-    // --- Range Container ---
     const rangeContainer = document.createElement('div');
     rangeContainer.className = 'tv-block-range-container';
-    rangeContainer.style.display = 'none'; // Hidden by default
+    rangeContainer.style.display = 'none';
     const endSeasonLabel = document.createElement('label');
     const endSeasonInput = Object.assign(document.createElement('input'), { type: 'number', className: 'tv-block-end-season', value: data?.end_season || 1, min: 1 });
     endSeasonLabel.append('End S:', endSeasonInput);
@@ -144,13 +219,11 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
     endEpisodeLabel.append('End E:', endEpisodeInput);
     rangeContainer.append(endSeasonLabel, endEpisodeLabel);
 
-    // --- Interleave Option ---
     const interleaveLabel = document.createElement('label');
     interleaveLabel.className = 'interleave-label';
     const interleaveCb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'tv-block-interleave', checked: isInterleaved });
     interleaveLabel.append(interleaveCb, ' Interleave');
 
-    // --- Mode Toggle Logic ---
     modeSelect.addEventListener('change', () => {
         if (modeSelect.value === 'count') {
             countContainer.style.display = 'block';
@@ -159,6 +232,7 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
             countContainer.style.display = 'none';
             rangeContainer.style.display = 'flex';
         }
+        updateTvBlockSummary(blockElement);
         if (changeCallback) changeCallback();
     });
 
@@ -168,13 +242,11 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
         });
     });
 
-    // Set initial mode based on loaded data
     if (data?.end_season) {
         modeSelect.value = 'range';
     }
-    modeSelect.dispatchEvent(new Event('change')); // Trigger change to set initial visibility
+    modeSelect.dispatchEvent(new Event('change'));
 
-    // Append new controls to the footer
     const optionsGrid = document.createElement('div');
     optionsGrid.className = 'block-options-grid';
     optionsGrid.append(modeSelectLabel, countContainer, rangeContainer, interleaveLabel);
@@ -182,7 +254,10 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
 
 
     body.append(showsContainer, buttonGroup, footer);
-    blockElement.append(header, body);
+    
+    blockElement.append(summary, body);
+
+    updateTvBlockSummary(blockElement);
 
     return blockElement;
 }
@@ -191,29 +266,43 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     const filters = data?.filters || {};
     const blockId = `block-${Date.now()}`;
 
-    const blockElement = document.createElement('div');
+    const blockElement = document.createElement('details');
+    blockElement.open = true;
+
     blockElement.className = 'mixed-block';
     blockElement.dataset.type = 'movie';
     blockElement.dataset.id = blockId;
 
-    const header = document.createElement('div');
+    const summary = document.createElement('summary');
+    const header = document.createElement('div');
     header.className = 'mixed-block-header';
+
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<i data-feather="film"></i> Movie Block`;
 
-    const headerControls = document.createElement('div');
-    headerControls.className = 'mixed-block-controls';
+    const rightControlsContainer = document.createElement('div');
+    rightControlsContainer.className = 'mixed-block-controls'; 
+
     const previewCountSpan = document.createElement('span');
     previewCountSpan.className = 'movie-block-preview-count';
-    headerControls.append(
+
+    const collapseIcon = document.createElement('span');
+    collapseIcon.className = 'icon-btn collapse-toggle-btn';
+    collapseIcon.innerHTML = `<i data-feather="chevron-up"></i>`;
+
+    rightControlsContainer.append(
         previewCountSpan,
         createHeaderButton('copy', 'duplicate-block-btn', 'Duplicate Block'),
-        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block')
+        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block'),
+        collapseIcon
     );
+
     const dragHandle = createHeaderButton('move', 'drag-handle', 'Drag to reorder');
     dragHandle.style.cursor = 'grab';
 
-    header.append(dragHandle, headerTitle, headerControls);
+    header.append(dragHandle, headerTitle, rightControlsContainer);
+
+    summary.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
@@ -308,7 +397,8 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     filterDetails.append(filterSummary, otherFiltersGrid);
     otherFiltersFieldset.append(otherFiltersLegend, filterDetails);
     body.append(libraryFieldset, genreFieldset, otherFiltersFieldset);
-    blockElement.append(header, body);
+
+    blockElement.append(summary, body);
 
     const moviePreviewDebouncer = debounce(() => {
         updateMovieBlockPreviewCount(blockElement, userSelectElement);
@@ -326,29 +416,50 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     const filters = musicData.filters || {};
     const blockId = `block-${Date.now()}`;
 
-    const blockElement = document.createElement('div');
+    // START CHANGE: Convert root to <details>
+    const blockElement = document.createElement('details');
+    blockElement.open = true;
+    // END CHANGE
+
     blockElement.className = 'mixed-block';
     blockElement.dataset.type = 'music';
     blockElement.dataset.id = blockId;
+
+    // START CHANGE: Create summary tag
+    const summary = document.createElement('summary');
+    // END CHANGE
 
     const header = document.createElement('div');
     header.className = 'mixed-block-header';
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<i data-feather="music"></i> Music Block`;
 
-    const headerControls = document.createElement('div');
-    headerControls.className = 'mixed-block-controls';
+    // START CHANGE: Create right controls container
+    const rightControlsContainer = document.createElement('div');
+    rightControlsContainer.className = 'mixed-block-controls';
+
     const previewCountSpan = document.createElement('span');
     previewCountSpan.className = 'music-block-preview-count';
-    headerControls.append(
+    const summarySpan = document.createElement('span');
+    summarySpan.className = 'music-block-preview-summary';
+
+    const collapseIcon = document.createElement('span');
+    collapseIcon.className = 'icon-btn collapse-toggle-btn';
+    collapseIcon.innerHTML = `<i data-feather="chevron-up"></i>`;
+    // END CHANGE
+
+    rightControlsContainer.append(
         previewCountSpan,
+        summarySpan,
         createHeaderButton('copy', 'duplicate-block-btn', 'Duplicate Block'),
-        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block')
+        createHeaderButton('x', 'danger delete-block-btn', 'Delete Block'),
+        collapseIcon
     );
     const dragHandle = createHeaderButton('move', 'drag-handle', 'Drag to reorder');
     dragHandle.style.cursor = 'grab';
 
-    header.append(dragHandle, headerTitle, headerControls);
+    header.append(dragHandle, headerTitle, rightControlsContainer);
+    summary.appendChild(header); // Add header to summary
 
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
@@ -424,7 +535,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         noGenresMessage.className = 'placeholder-text-small';
         noGenresMessage.textContent = 'No music genres found in your library to filter by.';
         genreGrid.appendChild(noGenresMessage);
-        genreMatchToggle.style.display = 'none'; // Hide if there are no genres
+        genreMatchToggle.style.display = 'none';
     }
 
     genreDetails.append(genreSummary, genreGrid, genreMatchToggle);
@@ -444,9 +555,11 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     genreContainer.append(genreFieldset, otherFiltersGrid);
 
     body.append(modeLabel, artistContainer, genreContainer);
-    blockElement.append(header, body);
+    blockElement.append(summary, body);
 
+    // START CHANGE: Debounced listener for all inputs
     const musicPreviewDebouncer = debounce(() => {
+        updateMusicBlockSummary(blockElement);
         if (modeSelect.value === 'genre') {
              updateMusicBlockPreviewCount(blockElement, userSelectElement);
         }
@@ -454,6 +567,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     }, 500);
 
     blockElement.addEventListener('input', musicPreviewDebouncer);
+    // END CHANGE
 
     const toggleFields = () => {
         const mode = modeSelect.value;
@@ -461,7 +575,9 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         genreContainer.style.display = (mode === 'genre') ? 'block' : 'none';
         albumLabel.style.display = (mode === 'album') ? 'flex' : 'none';
         countLabel.style.display = (mode.startsWith('artist_')) ? 'flex' : 'none';
+        previewCountSpan.style.display = (mode === 'genre') ? 'inline' : 'none';
         if (mode === 'genre') updateMusicBlockPreviewCount(blockElement, userSelectElement);
+        updateMusicBlockSummary(blockElement);
     };
 
     artistSearchInput.addEventListener('input', debounce((e) => {
@@ -476,6 +592,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         albumSelect.innerHTML = '<option>Loading albums...</option>';
         albumSelect.disabled = true;
         const artistId = artistSelect.value;
+        updateMusicBlockSummary(blockElement); // Update summary on artist change
         if (!artistId) {
             albumSelect.innerHTML = '';
             return;
@@ -492,6 +609,10 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         }
     });
 
+    // START CHANGE: Update summary when album changes
+    albumSelect.addEventListener('change', () => updateMusicBlockSummary(blockElement));
+    // END CHANGE
+
     modeSelect.addEventListener('change', toggleFields);
     toggleFields();
     if (musicData.artistId) {
@@ -500,6 +621,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
             const observer = new MutationObserver(() => {
                 if (!albumSelect.disabled) {
                     albumSelect.value = musicData.albumId;
+                        updateMusicBlockSummary(blockElement);
                     observer.disconnect();
                 }
             });

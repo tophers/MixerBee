@@ -5,7 +5,7 @@
 :root {
     --bg: #121212;
     --panel: #1e1e1e;
-    --panel-alt: #2a2a2a;
+    --panel-alt: #121212;
     --header-bg: #333;
     --text: #e0e0e0;
     --text-subtle: #9e9e9e;
@@ -22,6 +22,9 @@
     --radius: 8px;
     --shadow: 0 2px 6px rgba(0,0,0,.4);
     font-family: system-ui, sans-serif;
+    
+    /* Default color scheme for native form elements */
+    color-scheme: dark;
 }
 
 body[data-theme='light'] {
@@ -37,6 +40,9 @@ body[data-theme='light'] {
     --border-color-subtle: #e9ecef;
     --divider-color: #f1f3f5;
     --shadow: 0 2px 6px rgba(0,0,0,.1);
+
+    /* Set color scheme for light theme */
+    color-scheme: light;
 }
 
 html, body {
@@ -208,4 +214,23 @@ body[data-theme='light'] #loading-overlay {
         opacity: 0;
         transform: translate(-50%,-50%) scale(.9);
     }
+}
+/* --- New Typewriter Overlay Styles --- */
+#typewriter-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3000; /* Make sure it's on top of everything */
+    background: var(--bg); /* Use the body background color */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: opacity 1s ease-in-out;
+}
+
+#typewriter-overlay.fade-out-overlay {
+    opacity: 0;
+    pointer-events: none; /* Prevent clicks during fade out */
 }

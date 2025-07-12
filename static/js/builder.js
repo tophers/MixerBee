@@ -1,8 +1,8 @@
 // static/js/builder.js
 import { post, debounce, toast } from './utils.js';
-import { confirmModal, smartPlaylistModal, smartBuildModal, presetModal } from './modals.js';
+import { confirmModal, smartPlaylistModal, smartBuildModal } from './modals.js';
 import { PresetManager, createTvShowRow } from './components.js';
-import { renderTvBlock, renderMovieBlock, renderMusicBlock } from './block_renderers.js';
+import { renderTvBlock, renderMovieBlock, renderMusicBlock, updateTvBlockSummary, updateMusicBlockSummary } from './block_renderers.js';
 import { appState } from './app.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
@@ -103,9 +103,10 @@ function getBlockDataFromElement(blockEl) {
         const mode = blockEl.querySelector('.music-block-mode').value;
         let musicData = { mode };
         if (mode === 'genre') {
+            const genreMatchRadio = blockEl.querySelector(`input[name^="music-block-genre-match-"]:checked`);
             musicData.filters = {
                 genres: [...blockEl.querySelectorAll('.music-block-genre-cb:checked')].map(cb => cb.value),
-                genre_match: blockEl.querySelector(`input[name^="music-block-genre-match-"]:checked`).value,
+                genre_match: genreMatchRadio ? genreMatchRadio.value : 'any',
                 sort_by: blockEl.querySelector('.music-block-sort-by').value,
                 limit: blockEl.querySelector('.music-block-limit').value
             };
@@ -142,6 +143,9 @@ function getBlocksDataFromUI() {
 }
 
 const saveBuilderState = () => {
+    // This function can be called before the UI is ready, so we need a guard.
+    if (!document.getElementById('mixed-playlist-blocks')) return;
+    
     const data = getBlocksDataFromUI();
     if (data.length > 0) {
         localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
@@ -152,6 +156,7 @@ const saveBuilderState = () => {
 const debouncedSaveBuilderState = debounce(saveBuilderState, 1500);
 
 export function initBuilderPane(userSelectElement) {
+    // Assign all DOM elements now that the DOM is ready.
     const blocksContainer = document.getElementById('mixed-playlist-blocks');
     const placeholder = blocksContainer.querySelector('.placeholder-text');
     const aiGeneratorContainer = document.getElementById('ai-generator-container');
@@ -164,10 +169,12 @@ export function initBuilderPane(userSelectElement) {
     const smartBuildBtn = document.getElementById('smart-build-btn');
     const buildModeSelect = document.getElementById('build-mode-select');
     const existingPlaylistSelect = document.getElementById('existing-playlist-select');
-
+    
+    // Instantiate the manager now that its elements exist.
     const mixedPresetManager = new PresetManager('mixerbeeMixedPresets', {
         loadSelect: document.getElementById('load-preset-select'),
-        saveBtn: document.getElementById('save-preset-btn'),
+        updateBtn: document.getElementById('update-preset-btn'),
+        saveAsBtn: document.getElementById('save-as-preset-btn'),
         deleteBtn: document.getElementById('delete-preset-btn'),
         importBtn: document.getElementById('import-preset-btn'),
         exportBtn: document.getElementById('export-preset-btn')
@@ -320,14 +327,14 @@ export function initBuilderPane(userSelectElement) {
         const button = event.target.closest('button');
         if (!button) return;
 
-        // Delete button
         if (button.classList.contains('delete-block-btn')) {
+            event.preventDefault();
             button.closest('.mixed-block')?.remove();
             checkPlaceholderVisibility();
             debouncedSaveBuilderState();
         }
-        // Duplicate button
         else if (button.classList.contains('duplicate-block-btn')) {
+            event.preventDefault();
             const sourceBlock = button.closest('.mixed-block');
             if (!sourceBlock) return;
 
@@ -341,18 +348,30 @@ export function initBuilderPane(userSelectElement) {
 
             if (newBlockElement) {
                 sourceBlock.after(newBlockElement);
-                addBlockEventListeners(newBlockElement); // For Sortable
-                if (window.featherReplace) window.featherReplace(); // To render icons on the new block
+                addBlockEventListeners(newBlockElement); 
+                if (window.featherReplace) window.featherReplace();
                 debouncedSaveBuilderState();
             }
         }
-        // Add show button
         else if (button.classList.contains('add-show-row-btn')) {
-            const showsContainer = button.closest('.mixed-block-body').querySelector('.tv-block-shows');
+            const block = button.closest('.mixed-block');
+            const showsContainer = block.querySelector('.tv-block-shows');
             const newRow = createTvShowRow({ rowData: {}, seriesData: appState.seriesData, userSelectElement, changeCallback: debouncedSaveBuilderState });
             showsContainer.appendChild(newRow);
+            if (block.dataset.type === 'tv') {
+                updateTvBlockSummary(block);
+            }
             if (window.featherReplace) window.featherReplace();
             debouncedSaveBuilderState();
+        }
+    });
+
+    blocksContainer.addEventListener('input', (event) => {
+        if (event.target.classList.contains('tv-block-count')) {
+            const block = event.target.closest('.mixed-block[data-type="tv"]');
+            if (block) {
+                updateTvBlockSummary(block);
+            }
         }
     });
 
@@ -361,6 +380,9 @@ export function initBuilderPane(userSelectElement) {
         const block = row.closest('.mixed-block');
         if (block.querySelectorAll('.show-row').length > 1) {
             row.remove();
+            if (block.dataset.type === 'tv') {
+                updateTvBlockSummary(block);
+            }
         }
         debouncedSaveBuilderState();
     });

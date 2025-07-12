@@ -1,7 +1,7 @@
 /* static/css/forms.css */
 /* Default styles for all form elements: inputs, selects, buttons, etc. */
 
-select, input[type="number"], input[type="text"], input[type="search"], textarea {
+select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], textarea {
     background: var(--input-bg);
     color: var(--text);
     border: 1px solid var(--border-color);

@@ -4,12 +4,12 @@
     <meta charset="utf-8">
     <title>MixerBee</title>
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="stylesheet" href="/static/css/main.css">
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
-    <script src="/static/js/header.js"></script>
+    <script src="static/js/header.js"></script>
 </head>
 <body>
     <select id="user-select" style="display: none;"></select>
@@ -31,11 +31,13 @@
         </div>
     </div>
 
-<div class="typewriter-wrapper">
-  <h2 class="typewriter-header">
-    <span id="typed-text"></span>
-  </h2>
-</div>
+    <div id="typewriter-overlay">
+        <div class="typewriter-wrapper">
+          <h2 class="typewriter-header">
+            <span id="typed-text"></span>
+          </h2>
+        </div>
+    </div>
 
     <div class="tab-switcher">
         <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
@@ -63,7 +65,8 @@
                         </select>
                     </label>
                     <div class="preset-buttons button-group">
-                        <button id="save-preset-btn" type="button" class="secondary">Save as Preset</button>
+                        <button id="update-preset-btn" type="button" style="display: none;">Save</button>
+                        <button id="save-as-preset-btn" type="button" class="secondary">Save as Preset...</button>
                         <button id="delete-preset-btn" type="button" class="secondary">Delete Preset</button>
                         <button id="import-preset-btn" type="button" class="secondary">Import</button>
                         <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
@@ -92,7 +95,7 @@
                             <a href="#" class="dropdown-item" data-block-type="music"><i data-feather="music"></i> Music Block</a>
                         </div>
                     </div>
-            <button id="smart-build-btn" type="button" class="secondary"><i data-feather="framer"></i> Auto Playlists</button>
+                    <button id="smart-build-btn" type="button" class="secondary"><i data-feather="framer"></i> Auto Playlists</button>
                     <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
                 </div>
             </div>
@@ -100,128 +103,124 @@
 
         <div id="scheduler-pane" class="tab-pane" style="display: none;">
             <div class="container">
-                <h3>Create a New Schedule</h3>
-
-                <fieldset class="filter-group">
-                    <legend>Schedule Details</legend>
-                    <div class="scheduler-grid">
-                        <label class="control-item">
-                            <span>Playlist Name</span>
-                            <input type="text" id="schedule-playlist-name" value="Scheduled">
-                        </label>
-                        <label class="control-item">
-                            <span>Schedule Source</span>
-                            <select id="schedule-source-select">
-                                <option value="builder">From Builder Preset</option>
-                                <option value="quick_playlist">From Auto Playlists</option>
-                            </select>
-                        </label>
-                    </div>
-
-                    <div id="schedule-builder-options" class="scheduler-source-options">
-                        <label class="control-item">
-                            <span>Preset to Schedule</span>
-                            <select id="schedule-preset-select">
-                                <option value="">-- Select a saved preset --</option>
-                            </select>
-                        </label>
-                    </div>
-
-                    <div id="schedule-quick-options" class="scheduler-source-options" style="display: none;">
-                         <div class="scheduler-grid">
-                            <label class="control-item">
-                                <span>Auto Playlist Type</span>
-                                <select id="schedule-quick-type-select">
-                                                                    </select>
-                            </label>
-                            <label class="control-item">
-                                <span>Number of Items</span>
-                                <input type="number" id="schedule-quick-count-input" value="10" min="1">
-                            </label>
+                <details class="collapsible-section" open>
+                    <summary class="collapsible-section-header">
+                        <h3><i data-feather="plus-circle"></i> Create a New Schedule</h3>
+                        <span class="icon-btn collapse-toggle-btn">
+                            <i data-feather="chevron-up"></i>
+                        </span>
+                    </summary>
+                    <div class="collapsible-section-body">
+                        <fieldset class="filter-group">
+                            <legend>Schedule Details</legend>
+                            <div class="scheduler-grid">
+                                <label class="control-item">
+                                    <span>Playlist Name</span>
+                                    <input type="text" id="schedule-playlist-name" value="Scheduled">
+                                </label>
+                                <label class="control-item">
+                                    <span>Schedule Source</span>
+                                    <select id="schedule-source-select">
+                                        <option value="builder">From Builder Preset</option>
+                                        <option value="quick_playlist">From Auto Playlists</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div id="schedule-builder-options" class="scheduler-source-options">
+                                <label class="control-item">
+                                    <span>Preset to Schedule</span>
+                                    <select id="schedule-preset-select">
+                                        <option value="">-- Select a saved preset --</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div id="schedule-quick-options" class="scheduler-source-options" style="display: none;">
+                                 <div class="scheduler-grid">
+                                    <label class="control-item">
+                                        <span>Auto Playlist Type</span>
+                                        <select id="schedule-quick-type-select"></select>
+                                    </label>
+                                    <label class="control-item">
+                                        <span>Number of Items</span>
+                                        <input type="number" id="schedule-quick-count-input" value="10" min="1">
+                                    </label>
+                                </div>
+                            </div>
+                        </fieldset>
+                        <fieldset class="filter-group">
+                            <legend>Schedule Time</legend>
+                            <div class="scheduler-grid">
+                                 <label class="control-item">
+                                    <span>Frequency</span>
+                                    <select id="schedule-frequency">
+                                        <option value="daily">Daily</option>
+                                        <option value="weekly">Weekly</option>
+                                    </select>
+                                </label>
+                                <label class="control-item">
+                                    <span>Run At</span>
+                                    <input type="time" id="schedule-time-input" value="19:00">
+                                </label>
+                            </div>
+                             <div id="schedule-days-container" class="checkbox-grid" style="display: none; margin-top: 1rem;">
+                                <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
+                                <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
+                                <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
+                                <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
+                                <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
+                                <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
+                                <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
+                            </div>
+                        </fieldset>
+                        <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
+                            <button id="create-schedule-btn" class="secondary">Create Schedule</button>
                         </div>
                     </div>
-                </fieldset>
+                </details>
 
-                <fieldset class="filter-group">
-                    <legend>Schedule Time</legend>
-                    <div class="scheduler-grid">
-                         <label class="control-item">
-                            <span>Frequency</span>
-                            <select id="schedule-frequency">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                            </select>
-                        </label>
-                        <label class="control-item">
-                            <span>Run At</span>
-                            <select id="schedule-time-select">
-                                <optgroup label="Custom">
-                                    <option value="custom">Choose Time...</option>
-                                </optgroup>
-                                <optgroup label="Morning">
-                                    <option value="05:00">5:00 AM</option>
-                                    <option value="06:00">6:00 AM</option>
-                                    <option value="07:00">7:00 AM</option>
-                                    <option value="08:00">8:00 AM</option>
-                                    <option value="09:00">9:00 AM</option>
-                                </optgroup>
-                                <optgroup label="Afternoon">
-                                    <option value="12:00">12:00 PM</option>
-                                    <option value="15:00">3:00 PM</option>
-                                </optgroup>
-                                <optgroup label="Evening">
-                                    <option value="18:00">6:00 PM</option>
-                                    <option value="19:00" selected>7:00 PM</option>
-                                    <option value="20:00">8:00 PM</option>
-                                    <option value="21:00">9:00 PM</option>
-                                </optgroup>
-                                 <optgroup label="Late Night">
-                                    <option value="00:00">12:00 AM (Midnight)</option>
-                                    <option value="02:00">2:00 AM</option>
-                                </optgroup>
-                           </select>
-                           <input type="time" id="schedule-time-custom-input" style="display: none; margin-top:0.5rem;">
-                        </label>
+                <details id="schedules-list-container" class="collapsible-section" open>
+                    <summary class="collapsible-section-header">
+                        <h3><i data-feather="list"></i> Active Schedules <span id="schedule-count"></span></h3>
+                        <span class="icon-btn collapse-toggle-btn">
+                            <i data-feather="chevron-up"></i>
+                        </span>
+                    </summary>
+                    <div class="collapsible-section-body no-padding">
+                        <ul id="schedules-list">
+                        </ul>
                     </div>
-                     <div id="schedule-days-container" class="checkbox-grid" style="display: none; margin-top: 1rem;">
-                        <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
-                        <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
-                        <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
-                        <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
-                        <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
-                        <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
-                        <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
-                    </div>
-                </fieldset>
-
-                <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
-                    <button id="create-schedule-btn" class="secondary">Create Schedule</button>
-                </div>
-
-                <ul id="schedules-list">
-                </ul>
+                </details>
             </div>
         </div>
 
         <div id="manager-pane" class="tab-pane" style="display: none;">
             <div class="container">
-                <h3>Manage Playlists & Collections</h3>
-                <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
-                <div class="table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th class="sortable sort-asc" data-sort="Name">Name</th>
-                                <th class="sortable" data-sort="DisplayType">Type</th>
-                                <th class="sortable" data-sort="ItemCount">Items</th>
-                                <th class="sortable" data-sort="DateCreated">Created</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        </tbody>
-                    </table>
-                </div>
+                <details class="collapsible-section" open>
+                    <summary class="collapsible-section-header">
+                        <h3><i data-feather="folder"></i> Manage Playlists & Collections</h3>
+                        <span class="icon-btn collapse-toggle-btn">
+                            <i data-feather="chevron-up"></i>
+                        </span>
+                    </summary>
+                    <div class="collapsible-section-body no-padding">
+                        <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th class="sortable sort-asc" data-sort="Name">Name</th>
+                                        <th class="sortable" data-sort="DisplayType">Type</th>
+                                        <th class="sortable" data-sort="ItemCount">Items</th>
+                                        <th class="sortable" data-sort="DateCreated">Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </details>
             </div>
         </div>
     </div>
@@ -359,7 +358,7 @@
         <div class="modal-window">
             <div class="modal-header">
                 <h2>Build an Auto Playlist</h2>
-            	<button id="smart-build-close-btn" class="icon-btn">×</button>
+                <button id="smart-build-close-btn" class="icon-btn">×</button>
             </div>
             <div class="modal-body">
                 <p>Select a pre-configured playlist type to create.</p>
@@ -404,17 +403,15 @@
         <div class="spinner"></div>
     </div>
 
-    <script src="/static/vendor/Sortable.min.js"></script>
-    <script src="/static/vendor/feather.min.js"></script>
+    <script src="static/vendor/Sortable.min.js"></script>
+    <script src="static/vendor/feather.min.js"></script>
     <script>
-      // A custom version of feather.replace() to add a class to the wand icon
       function replaceFeatherIcons() {
           feather.replace({
               'stroke-width': 2.5,
               'width': '1.1em',
               'height': '1.1em'
           });
-          // Special handling for the wand icon
           const wandIcon = document.querySelector('#smart-build-btn .feather-wand');
           if(wandIcon) {
               wandIcon.style.strokeWidth = '3';
@@ -422,9 +419,8 @@
           }
       }
       replaceFeatherIcons();
-      // Make it available for other scripts to call
       window.featherReplace = replaceFeatherIcons;
     </script>
-    <script src="/static/js/app.js" type="module" defer></script>
+    <script src="static/js/app.js" type="module" defer></script>
 </body>
 </html>

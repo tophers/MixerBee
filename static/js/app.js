@@ -26,7 +26,6 @@ function initSettingsModal() {
     const testBtn = document.getElementById('settings-test-btn');
     const notConfiguredBtn = document.getElementById('not-configured-settings-btn');
 
-    // THIS LINE MUST BE PRESENT
     const serverTypeSelect = document.getElementById('settings-server-type-select');
     const urlInput = document.getElementById('settings-url-input');
     const userInput = document.getElementById('settings-user-input');
@@ -49,8 +48,7 @@ function initSettingsModal() {
 
     saveBtn.addEventListener('click', (event) => {
         const payload = {
-            // THIS LINE MUST BE PRESENT
-            server_type: serverTypeSelect.value, 
+            server_type: serverTypeSelect.value,
             emby_url: urlInput.value.trim(),
             emby_user: userInput.value.trim(),
             emby_pass: passInput.value,
@@ -65,7 +63,6 @@ function initSettingsModal() {
         post('api/settings', payload, event).then(res => {
             if (res.status === 'ok') {
                 hideModal();
-                // Clear cache on settings change
                 sessionStorage.removeItem(CACHE_KEY);
                 toast(res.log.join(' '), true);
                 setTimeout(() => {
@@ -79,6 +76,7 @@ function initSettingsModal() {
 
 document.addEventListener('DOMContentLoaded', () => {
 
+    // Initialize modals and settings first, as they are always needed.
     initModals();
     initSettingsModal();
 
@@ -157,8 +155,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return r.json();
     });
 
+    // START: Refactored initialization function
     function initializeUI(data, defUser) {
-        if (uiInitialized) return; // Prevent double initialization
+        if (uiInitialized) return;
 
         activeUserDisplay.textContent = defUser.name;
         userSel.innerHTML = '';
@@ -172,12 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Object.assign(appState, data);
 
+        // This is the key change: The init functions are ONLY called here,
+        // after we are 100% sure the app is configured and data is ready.
         initBuilderPane(userSel);
         initSchedulerPane();
         switchTab('mixed');
+        
         if (typeof window.featherReplace === 'function') window.featherReplace();
         uiInitialized = true;
     }
+    // END: Refactored initialization function
 
     fetch('api/config_status')
     .then(r => {
@@ -186,12 +189,14 @@ document.addEventListener('DOMContentLoaded', () => {
     })
     .then(async config => {
         if (config.is_configured) {
-            // --- Red Pill ---
-            notConfiguredWarning.style.display = 'none';
-            mainContent.style.display = 'block';
-
             try {
+                // We must successfully fetch the user before doing anything else
                 const defUser = await apiFetch('api/default_user');
+                
+                // Now that we have a user, we can show the main content
+                notConfiguredWarning.style.display = 'none';
+                mainContent.style.display = 'block';
+
                 const cachedData = sessionStorage.getItem(CACHE_KEY);
 
                 if (cachedData) {
@@ -218,17 +223,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
             } catch (err) {
+                // If any part of the configured path fails, we fall back to the unconfigured state.
                 console.error("Initialization Error:", err);
-                toast('Init error. Check browser console (F12) for details.', false);
+                toast('Initialization error. Check settings or server status.', false);
                 notConfiguredWarning.style.display = 'block';
                 mainContent.style.display = 'none';
+                if (typeof window.featherReplace === 'function') window.featherReplace();
             }
         } else {
+            // This is the unconfigured path. We do nothing but ensure the warning is visible.
+            notConfiguredWarning.style.display = 'block';
+            mainContent.style.display = 'none';
             if (typeof window.featherReplace === 'function') window.featherReplace();
         }
     })
     .catch(err => {
+        // This catches network errors etc. before we even know the config status.
         console.error("Failed to connect to MixerBee backend:", err);
+        notConfiguredWarning.style.display = 'block';
+        mainContent.style.display = 'none';
         if (typeof window.featherReplace === 'function') window.featherReplace();
     });
 });

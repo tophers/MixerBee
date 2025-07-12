@@ -6,17 +6,9 @@ let tableData = [];
 let sortColumn = 'Name';
 let sortDirection = 'asc';
 
-const managerPane = document.getElementById('manager-pane');
-const tableBody = managerPane.querySelector('tbody');
-const searchInput = document.getElementById('manager-search-input');
-const userSelect = document.getElementById('user-select');
-
-// --- Contents Modal Elements ---
-const contentsModalOverlay = document.getElementById('contents-modal-overlay');
-const contentsModalTitle = document.getElementById('contents-modal-title');
-const contentsModalBody = document.getElementById('contents-modal-body');
-const contentsModalCloseBtn = document.getElementById('contents-modal-close-btn');
-const contentsModalOkBtn = document.getElementById('contents-modal-ok-btn');
+let managerPane, tableBody, searchInput, userSelect,
+    contentsModalOverlay, contentsModalTitle, contentsModalBody,
+    contentsModalCloseBtn, contentsModalOkBtn;
 
 function hideContentsModal() {
     contentsModalOverlay.style.display = 'none';
@@ -221,6 +213,22 @@ function handleSort(event) {
 }
 
 export async function initManager() {
+    managerPane = document.getElementById('manager-pane');
+    tableBody = managerPane.querySelector('tbody');
+    searchInput = document.getElementById('manager-search-input');
+    userSelect = document.getElementById('user-select');
+    contentsModalOverlay = document.getElementById('contents-modal-overlay');
+    contentsModalTitle = document.getElementById('contents-modal-title');
+    contentsModalBody = document.getElementById('contents-modal-body');
+    contentsModalCloseBtn = document.getElementById('contents-modal-close-btn');
+    contentsModalOkBtn = document.getElementById('contents-modal-ok-btn');
+
+    // Attach event listeners that were previously at the top level
+    searchInput.addEventListener('input', renderTable);
+    managerPane.querySelector('thead').addEventListener('click', handleSort);
+    contentsModalCloseBtn.addEventListener('click', hideContentsModal);
+    contentsModalOkBtn.addEventListener('click', hideContentsModal);
+
     if (!userSelect.value) {
         console.log("Manager: Waiting for user ID...");
         setTimeout(initManager, 200);
@@ -240,8 +248,3 @@ export async function initManager() {
         tableBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--danger);">Error loading data.</td></tr>';
     }
 }
-
-searchInput.addEventListener('input', renderTable);
-managerPane.querySelector('thead').addEventListener('click', handleSort);
-contentsModalCloseBtn.addEventListener('click', hideContentsModal);
-contentsModalOkBtn.addEventListener('click', hideContentsModal);

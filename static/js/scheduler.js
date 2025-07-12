@@ -1,36 +1,17 @@
 // Filename: static/js/scheduler.js
+// VERSION 2 - DOM elements moved inside init to prevent race conditions.
 
 import { post } from './utils.js';
 import { confirmModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
-const userSelect = document.getElementById('user-select');
-const createBtn = document.getElementById('create-schedule-btn');
-const schedulesList = document.getElementById('schedules-list');
+// --- Declare variables in the module scope ---
+// They will be assigned inside the init function to ensure the DOM is ready.
+let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSourceSelect,
+    frequencySelect, scheduleTimeInput, daysContainer, daysCheckboxes,
+    builderOptionsContainer, quickOptionsContainer, presetSelect, quickTypeSelect, quickCountInput;
 
-// Main Form Elements
-const schedulePlaylistNameInput = document.getElementById('schedule-playlist-name');
-const scheduleSourceSelect = document.getElementById('schedule-source-select');
-const frequencySelect = document.getElementById('schedule-frequency');
-const timeSelect = document.getElementById('schedule-time-select');
-const daysContainer = document.getElementById('schedule-days-container');
-const daysCheckboxes = document.querySelectorAll('input[name="schedule-day"]');
-// START: Add the new custom time input element
-const customTimeInput = document.getElementById('schedule-time-custom-input');
-// END: Add the new custom time input element
-
-// Source-Specific Option Containers
-const builderOptionsContainer = document.getElementById('schedule-builder-options');
-const quickOptionsContainer = document.getElementById('schedule-quick-options');
-
-// Builder Options
-const presetSelect = document.getElementById('schedule-preset-select');
-
-// Quick/Auto Playlist Options
-const quickTypeSelect = document.getElementById('schedule-quick-type-select');
-const quickCountInput = document.getElementById('schedule-quick-count-input');
-
-// Filter for smart build types that can be scheduled
+// --- Non-DOM dependent constants can stay at the top level ---
 const schedulableQuickPlaylists = SMART_BUILD_TYPES.filter(t => t.schedulable);
 const quickPlaylistFriendlyNames = schedulableQuickPlaylists.reduce((acc, curr) => {
     acc[curr.type] = curr.name;
@@ -47,8 +28,25 @@ function populateQuickPlaylistDropdown() {
     });
 }
 
-
 export function initSchedulerPane() {
+    // --- Assign DOM elements inside the init function ---
+    // This guarantees the elements exist when the script looks for them.
+    userSelect = document.getElementById('user-select');
+    createBtn = document.getElementById('create-schedule-btn');
+    schedulesList = document.getElementById('schedules-list');
+    schedulePlaylistNameInput = document.getElementById('schedule-playlist-name');
+    scheduleSourceSelect = document.getElementById('schedule-source-select');
+    frequencySelect = document.getElementById('schedule-frequency');
+    scheduleTimeInput = document.getElementById('schedule-time-input');
+    daysContainer = document.getElementById('schedule-days-container');
+    daysCheckboxes = document.querySelectorAll('input[name="schedule-day"]');
+    builderOptionsContainer = document.getElementById('schedule-builder-options');
+    quickOptionsContainer = document.getElementById('schedule-quick-options');
+    presetSelect = document.getElementById('schedule-preset-select');
+    quickTypeSelect = document.getElementById('schedule-quick-type-select');
+    quickCountInput = document.getElementById('schedule-quick-count-input');
+
+    // --- The rest of the initialization logic ---
     populatePresetDropdown();
     populateQuickPlaylistDropdown();
     loadAndRenderSchedules();
@@ -58,16 +56,6 @@ export function initSchedulerPane() {
     frequencySelect.addEventListener('change', toggleDaysOfWeek);
     quickTypeSelect.addEventListener('change', syncPlaylistName);
     presetSelect.addEventListener('change', syncPlaylistName);
-
-    // START: Add event listener for showing/hiding the custom time input
-    timeSelect.addEventListener('change', () => {
-        const isCustom = timeSelect.value === 'custom';
-        customTimeInput.style.display = isCustom ? 'block' : 'none';
-        if (isCustom) {
-            customTimeInput.focus();
-        }
-    });
-    // END: Add event listener
 
     // Re-populate preset dropdown when presets are changed elsewhere
     document.getElementById('save-preset-confirm-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
@@ -122,10 +110,16 @@ async function populatePresetDropdown() {
 }
 
 async function loadAndRenderSchedules() {
+    const scheduleCountSpan = document.getElementById('schedule-count');
+    const scheduleListContainer = document.getElementById('schedules-list-container');
+
     try {
         const response = await fetch('api/schedules');
         if (!response.ok) throw new Error('Failed to fetch schedules');
         const schedules = await response.json();
+
+        scheduleCountSpan.textContent = `(${schedules.length})`;
+        scheduleListContainer.style.display = schedules.length > 0 ? 'block' : 'none';
 
         schedulesList.innerHTML = '';
         if (schedules.length === 0) {
@@ -214,26 +208,13 @@ function renderSchedule(schedule) {
     });
 }
 
-
 async function handleCreateSchedule(event) {
     const sourceType = scheduleSourceSelect.value;
     const userId = userSelect.value;
     const frequency = frequencySelect.value;
     const selectedDays = [...daysCheckboxes].filter(cb => cb.checked).map(cb => parseInt(cb.value));
     const playlistName = schedulePlaylistNameInput.value.trim();
-
-    // START: Update time value logic
-    let timeValue;
-    if (timeSelect.value === 'custom') {
-        timeValue = customTimeInput.value;
-        if (!timeValue) {
-            alert('Please select a valid custom time.');
-            return;
-        }
-    } else {
-        timeValue = timeSelect.value;
-    }
-    // END: Update time value logic
+    const timeValue = scheduleTimeInput.value;
 
     if (!playlistName || !timeValue || !userId) {
         alert('Please provide a playlist name and select a time.');

@@ -1,8 +1,13 @@
 window.addEventListener("DOMContentLoaded", () => {
   const text = "./mixerbee";
   const el = document.getElementById("typed-text");
+  const overlay = document.getElementById("typewriter-overlay");
 
-  if (!el) return;
+  if (!el || !overlay) {
+    // If the overlay doesn't exist for some reason, just remove it to be safe.
+    if (overlay) overlay.remove();
+    return;
+  }
 
   let i = 0;
   const speed = 100;
@@ -13,26 +18,24 @@ window.addEventListener("DOMContentLoaded", () => {
       i++;
       setTimeout(typeChar, speed);
     } else {
+      // Exit sequence
       setTimeout(() => {
         el.parentElement.classList.add("typing-done");
-      }, 300);
 
-      setTimeout(() => {
-        const wrapper = el.closest(".typewriter-wrapper");
-        if (wrapper) wrapper.classList.add("fade-out");
+        setTimeout(() => {
+          // Add a one-time event listener for when the transition ends
+          overlay.addEventListener('transitionend', () => {
+            overlay.remove();
+          }, { once: true }); // { once: true } automatically cleans up the listener
 
-  // Stop cursor blinking after fade-out starts
-      setTimeout(() => {
-        el.classList.add("cursor-done");
-     }, 1000); // match fadeOutAndCollapse duration
-   }, 5000);
-      setTimeout(() => {
-        const wrapper = el.closest(".typewriter-wrapper");
-        if (wrapper) wrapper.classList.add("fade-out");
-      }, 5000);
+          // Start the fade-out
+          overlay.classList.add("fade-out-overlay");
+
+        }, 1200); // Pause before fading
+
+      }, 100); // Pause after typing
     }
   }
 
   typeChar();
 });
-
