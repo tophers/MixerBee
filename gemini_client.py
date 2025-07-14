@@ -35,13 +35,19 @@ JSON_SCHEMA = """
   {
     "type": "movie",
     "filters": {
-      "genres": ["Action", "Adventure"],
-      "genre_match": "any",
+      "genres_any": ["Action"],
+      "genres_all": [],
+      "genres_exclude": ["Comedy"],
+      "people": [{"Name": "Tom Hanks"}],
+      "exclude_people": [],
+      "studios": ["A24"],
+      "exclude_studios": [],
       "watched_status": "unplayed",
       "year_from": 1980,
       "year_to": 1989,
       "sort_by": "Random",
-      "limit": 5
+      "limit": 5,
+      "duration_minutes": null
     }
   }
 ]
@@ -58,11 +64,9 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
-    # Provide context to the AI about what shows and genres are available.
     show_list = ", ".join(available_shows[:200]) # Limit to avoid excessive length
     genre_list = ", ".join(available_genres)
 
-    # JSON schema, context, and the user's request.
     full_prompt = f"""
     You are an expert at creating Emby playlist blocks from user requests.
     Your response MUST be a valid JSON array of objects that strictly adheres to the following schema.
@@ -74,6 +78,9 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     Instructions:
     - For TV shows, if the user specifies a range (e.g., "season 1 to 3", "through episode 5"), use "mode": "range" and provide "end_season" and "end_episode".
     - Otherwise, for a specific number of episodes, use "mode": "count".
+    - For Movie genres, use 'genres_any' for genres to include, 'genres_all' to require all specified genres, and 'genres_exclude' to ban genres.
+    - For People, put their name in the 'people' or 'exclude_people' array as an object: {{"Name": "Person Name"}}.
+    - For Studios, put the name in the 'studios' or 'exclude_studios' array as a string.
 
     Here is some context about the user's library:
     - Available TV shows include (but are not limited to): {show_list}
@@ -86,11 +93,9 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
 
     try:
         response = model.generate_content(full_prompt)
-        # Clean up the response to ensure it's valid JSON
         cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
         parsed_json = json.loads(cleaned_response)
 
-        # A simple validation to ensure we got a list
         if isinstance(parsed_json, list):
             return parsed_json
         else:
@@ -98,5 +103,4 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
 
     except Exception as e:
         print(f"Error calling Gemini API or parsing response: {e}")
-        # In case of an error, return an empty list or raise a specific exception
         raise ConnectionError(f"Failed to get a valid response from the AI: {e}")

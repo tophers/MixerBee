@@ -33,6 +33,24 @@ def api_create_from_text(req: models.AiPromptRequest):
             available_shows=available_shows,
             available_genres=available_genres
         )
+        
+        # Post-process blocks to resolve person names to full objects with IDs
+        for block in blocks:
+            if block.get("type") == "movie":
+                filters = block.get("filters", {})
+                
+                # Resolve people names to full person objects
+                for person_key in ["people", "exclude_people"]:
+                    if person_key in filters and filters[person_key]:
+                        resolved_people = []
+                        for person_info in filters[person_key]:
+                            if person_info.get("Name"):
+                                # Search for the person by name, take the first result
+                                found_people = core.get_people(person_info["Name"], auth_deps["HDR"])
+                                if found_people:
+                                    resolved_people.append(found_people[0])
+                        filters[person_key] = resolved_people
+
         return {"status": "ok", "blocks": blocks}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -83,15 +83,15 @@ function getBlockDataFromElement(blockEl) {
     } else if (blockType === 'movie') {
         const yearFrom = blockEl.querySelector('.movie-block-year-from').value;
         const yearTo = blockEl.querySelector('.movie-block-year-to').value;
-        
+
         const genres_any = [];
         const genres_all = [];
         const genres_exclude = [];
         blockEl.querySelectorAll('.token-genre').forEach(token => {
             const state = token.dataset.state;
             const name = token.dataset.name;
-            if (state === 'any') { genres_any.push(name); } 
-            else if (state === 'all') { genres_all.push(name); } 
+            if (state === 'any') { genres_any.push(name); }
+            else if (state === 'all') { genres_all.push(name); }
             else if (state === 'exclude') { genres_exclude.push(name); }
         });
 
@@ -103,15 +103,15 @@ function getBlockDataFromElement(blockEl) {
             const state = token.dataset.state;
             if (token.dataset.type === 'person') {
                 const personData = { Id: token.dataset.id, Name: token.dataset.name, Role: token.dataset.role };
-                if (state === 'include') { people.push(personData); } 
+                if (state === 'include') { people.push(personData); }
                 else { exclude_people.push(personData); }
             } else if (token.dataset.type === 'studio') {
                 const studioName = token.dataset.name;
-                if (state === 'include') { studios.push(studioName); } 
+                if (state === 'include') { studios.push(studioName); }
                 else { exclude_studios.push(studioName); }
             }
         });
-        
+
         const filters = {
             genres_any, genres_all, genres_exclude,
             people, exclude_people,
@@ -139,7 +139,7 @@ function getBlockDataFromElement(blockEl) {
                 }
             }
         }
-        
+
         blockData.filters = filters;
     } else if (blockType === 'music') {
         const mode = blockEl.querySelector('.music-block-mode').value;
@@ -253,6 +253,17 @@ export function initBuilderPane(userSelectElement) {
 const applyPresetToUI = (blocksData) => {
     if (!blocksData) return;
     blocksContainer.querySelectorAll('.mixed-block').forEach(el => el.remove());
+
+    // Pre-process data for robustness against old AI formats
+    blocksData.forEach(blockData => {
+        if (blockData.type === 'movie' && blockData.filters) {
+            // If the AI gives us an old 'genres' array, convert it to 'genres_any'
+            if (blockData.filters.genres && !blockData.filters.genres_any) {
+                blockData.filters.genres_any = blockData.filters.genres;
+                delete blockData.filters.genres;
+            }
+        }
+    });
 
     if (blocksData.length > 0) {
         blocksData.forEach(blockData => {

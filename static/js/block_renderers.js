@@ -288,8 +288,8 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
         blockElement.querySelectorAll('.token-genre').forEach(token => {
             const state = token.dataset.state;
             const name = token.dataset.name;
-            if (state === 'any') { genres_any.push(name); } 
-            else if (state === 'all') { genres_all.push(name); } 
+            if (state === 'any') { genres_any.push(name); }
+            else if (state === 'all') { genres_all.push(name); }
             else if (state === 'exclude') { genres_exclude.push(name); }
         });
 
@@ -301,15 +301,15 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
             const state = token.dataset.state;
             if (token.dataset.type === 'person') {
                 const personData = { Id: token.dataset.id, Name: token.dataset.name, Role: token.dataset.role };
-                if (state === 'include') { people.push(personData); } 
+                if (state === 'include') { people.push(personData); }
                 else { exclude_people.push(personData); }
             } else if (token.dataset.type === 'studio') {
                 const studioName = token.dataset.name;
-                if (state === 'include') { studios.push(studioName); } 
+                if (state === 'include') { studios.push(studioName); }
                 else { exclude_studios.push(studioName); }
             }
         });
-        
+
         const localFilters = {
             genres_any, genres_all, genres_exclude,
             people, exclude_people,
@@ -380,14 +380,14 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     genreFieldset.className = 'filter-group';
     const genreLegend = document.createElement('legend');
     genreLegend.textContent = 'Genres';
-    
+
     const genreDetails = document.createElement('details');
     const genreSummary = document.createElement('summary');
     genreSummary.textContent = 'Expand/Collapse Genre Filters';
 
     const genreTokenFieldWrapper = document.createElement('div');
     genreTokenFieldWrapper.className = 'token-field-wrapper';
-    
+
     const genreInput = Object.assign(document.createElement('input'), {
         type: 'search',
         className: 'token-input movie-block-genre-input',
@@ -396,7 +396,7 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
 
     const genreSuggestionsContainer = document.createElement('div');
     genreSuggestionsContainer.className = 'autocomplete-suggestions';
-    
+
     const genreTokenContainer = document.createElement('div');
     genreTokenContainer.className = 'token-container movie-block-genre-tokens';
 
@@ -420,10 +420,10 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
         className: 'token-input movie-block-person-input',
         placeholder: 'Search for People or Studios...'
     });
-    
+
     const personSuggestionsContainer = document.createElement('div');
     personSuggestionsContainer.className = 'autocomplete-suggestions';
-    
+
     const peopleTokenContainer = document.createElement('div');
     peopleTokenContainer.className = 'token-container movie-block-person-tokens';
 
@@ -451,10 +451,11 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     const watchedBtn = document.createElement('button');
     watchedBtn.type = 'button';
     watchedBtn.className = 'filter-toggle-btn movie-block-watched';
-    
+
     const setWatchedBtnState = (state) => {
-        watchedBtn.dataset.state = state;
-        const config = watchedStateConfig[state];
+        const validState = watchedStateConfig[state] ? state : 'all';
+        watchedBtn.dataset.state = validState;
+        const config = watchedStateConfig[validState];
         watchedBtn.innerHTML = `<i data-feather="${config.icon}"></i> ${config.text}`;
         if (window.featherReplace) window.featherReplace();
     };
@@ -476,10 +477,10 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
 
     const sliderContainer = document.createElement('div');
     sliderContainer.className = 'range-slider-container';
-    
+
     const sliderTrack = document.createElement('div');
     sliderTrack.className = 'range-slider-track';
-    
+
     const sliderProgress = document.createElement('div');
     sliderProgress.className = 'range-slider-progress';
 
@@ -512,11 +513,11 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     yearSliderWrapper.append(yearDisplay, sliderContainer);
     updateYearSlider();
 
-    const sortStateCycle = { 
-        'Random': 'PremiereDate', 
-        'PremiereDate': 'DateCreated', 
-        'DateCreated': 'SortName', 
-        'SortName': 'Random' 
+    const sortStateCycle = {
+        'Random': 'PremiereDate',
+        'PremiereDate': 'DateCreated',
+        'DateCreated': 'SortName',
+        'SortName': 'Random'
     };
     const sortStateConfig = {
         'Random': { icon: 'shuffle', text: 'Random' },
@@ -528,10 +529,11 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     const sortBtn = document.createElement('button');
     sortBtn.type = 'button';
     sortBtn.className = 'filter-toggle-btn movie-block-sort-by';
-    
+
     const setSortBtnState = (state) => {
-        sortBtn.dataset.state = state;
-        const config = sortStateConfig[state];
+        const validState = sortStateConfig[state] ? state : 'Random';
+        sortBtn.dataset.state = validState;
+        const config = sortStateConfig[validState];
         sortBtn.innerHTML = `<i data-feather="${config.icon}"></i> Sort: ${config.text}`;
         if (window.featherReplace) window.featherReplace();
     };
@@ -550,7 +552,7 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     const countRadio = Object.assign(document.createElement('input'), { type: 'radio', name: `limit-mode-${blockId}`, value: 'count' });
     const countLabel = Object.assign(document.createElement('label'), { textContent: 'Count' });
     countLabel.prepend(countRadio);
-    
+
     const durationRadio = Object.assign(document.createElement('input'), { type: 'radio', name: `limit-mode-${blockId}`, value: 'duration' });
     const durationLabel = Object.assign(document.createElement('label'), { textContent: 'Duration' });
     durationLabel.prepend(durationRadio);
@@ -593,14 +595,14 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
         sharedInput.value = filters.limit || 3;
         sharedInput.dataset.lastMode = 'count';
     }
-    
+
     const sharedInputGroup = document.createElement('div');
     sharedInputGroup.className = 'input-group';
     sharedInputGroup.append(sharedInput, unitsContainer);
 
     limitWrapper.append(countLabel, durationLabel, sharedInputGroup);
     toggleLimitMode();
-    
+   
     otherFiltersGrid.append(watchedBtn, sortBtn, yearSliderWrapper, limitWrapper);
 
     filterDetails.append(filterSummary, otherFiltersGrid);
@@ -756,7 +758,7 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     }, 300));
 
     personInput.addEventListener('blur', () => { setTimeout(() => { personSuggestionsContainer.innerHTML = ''; }, 150); });
-    
+
     if (filters.genres_any) { filters.genres_any.forEach(g => addGenreToken(g, 'any')); }
     if (filters.genres_all) { filters.genres_all.forEach(g => addGenreToken(g, 'all')); }
     if (filters.genres_exclude) { filters.genres_exclude.forEach(g => addGenreToken(g, 'exclude')); }
@@ -764,7 +766,7 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     if (filters.exclude_people) { filters.exclude_people.forEach(p => addToken(p, 'person', 'exclude')); }
     if (filters.studios) { filters.studios.forEach(s => addToken({ Name: s }, 'studio', 'include')); }
     if (filters.exclude_studios) { filters.exclude_studios.forEach(s => addToken({ Name: s }, 'studio', 'exclude')); }
-    
+
     blockElement.addEventListener('input', moviePreviewDebouncer);
     updateMovieBlockPreviewCount();
 
