@@ -76,7 +76,10 @@
                     <legend>AI Block Builder</legend>
                     <details>
                         <summary>Expand AI Block Builder</summary>
-                        <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem; margin-top: 1rem;"></textarea>
+                        <div class="textarea-wrapper">
+                            <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" style="width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 0.5rem; margin-top: 1rem;"></textarea>
+                            <button type="button" id="ai-prompt-clear-btn" class="icon-btn clear-btn hidden" title="Clear text"><i data-feather="x-circle"></i></button>
+                        </div>
                         <div class="button-group" style="justify-content: flex-end;">
                             <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
                         </div>
@@ -84,7 +87,7 @@
                 </fieldset>
 
                 <div id="mixed-playlist-blocks">
-                    <p class="placeholder-text">Click below to add your first block...</p>
+                    <p class="placeholder-text">Click <strong>'Add Block'</strong> below to begin building your mix, <br> or try <strong>'Auto Playlists'</strong> for a quick start.</p>
                 </div>
                 <div id="add-block-controls" class="button-group">
                     <div class="dropdown-container">
@@ -192,19 +195,18 @@
                 </details>
             </div>
         </div>
-
         <div id="manager-pane" class="tab-pane" style="display: none;">
-            <div class="container">
-                <details class="collapsible-section" open>
-                    <summary class="collapsible-section-header">
-                        <h3><i data-feather="folder"></i> Manage Playlists & Collections</h3>
-                        <span class="icon-btn collapse-toggle-btn">
-                            <i data-feather="chevron-up"></i>
-                        </span>
-                    </summary>
-                    <div class="collapsible-section-body no-padding">
-                        <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin-bottom: 1rem; box-sizing: border-box;">
-                        <div class="table-container">
+          <div class="container">
+           <details class="collapsible-section" open>
+            <summary class="collapsible-section-header">
+                <h3><i data-feather="folder"></i> Manage Playlists & Collections</h3>
+                <span class="icon-btn collapse-toggle-btn">
+                    <i data-feather="chevron-up"></i>
+                </span>
+            </summary>
+            <div class="collapsible-section-body no-padding">
+                <input type="search" id="manager-search-input" placeholder="Filter by name..." style="width: 100%; margin: 0 0 1rem 0; padding-left: 1.2rem; padding-right: 1.2rem; box-sizing: border-box;">
+                      <div class="table-container">
                             <table>
                                 <thead>
                                     <tr>

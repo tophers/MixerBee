@@ -89,6 +89,20 @@ def api_music_artist_albums(artist_id: str):
     if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")
     return core.get_albums_by_artist(artist_id, app_state.HDR)
 
+@router.get("/api/people")
+def api_get_people(name: str = ""):
+    """Searches for people (actors, directors, etc.) by name."""
+    if not app_state.is_configured:
+        return []
+    return core.get_people(name, app_state.HDR)
+
+@router.get("/api/studios")
+def api_get_studios(name: str = ""):
+    """Searches for studios by name."""
+    if not app_state.is_configured:
+        return []
+    return core.get_studios(name, app_state.login_uid, app_state.HDR)
+
 @router.get("/api/music/random_artist")
 def api_get_random_artist():
     if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")

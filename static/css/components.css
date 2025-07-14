@@ -163,6 +163,30 @@ fieldset > details > div { /* The content inside */
     padding: 0.5em 1.25em;
 }
 
+.filter-toggle-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    background-color: var(--panel);
+    border: 1px solid var(--border-color);
+    color: var(--text-subtle);
+    padding: 0.45rem 0.8rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+
+.filter-toggle-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.filter-toggle-btn .feather {
+    width: 1.1em;
+    height: 1.1em;
+    stroke-width: 2.5;
+}
 
 /* Mixed Playlist Builder */
 .placeholder-text-small {
@@ -463,14 +487,15 @@ fieldset > details > div { /* The content inside */
 
 /* Drag-and-Drop */
 .sortable-ghost {
-    background: var(--accent);
-    opacity: 0.2;
+    background: var(--panel); /* Use a solid background */
+    opacity: 0.9;
+    box-shadow: var(--shadow-drag);
+    transform: rotate(.5deg); 
+    cursor: grabbing;
 }
-
 .sortable-chosen .drag-handle {
     cursor: grabbing;
 }
-
 /* Scheduler List */
 #schedules-list {
     list-style: none;
@@ -729,4 +754,311 @@ td:last-child {
 /* When section is closed, hide the body */
 .collapsible-section:not([open]) > .collapsible-section-body {
     display: none;
+}
+.token-field-wrapper {
+    position: relative;
+}
+
+.token-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding-right: 2rem; /* Space for a potential spinner */
+}
+
+.autocomplete-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--panel);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--radius) var(--radius);
+    z-index: 100;
+    max-height: 250px;
+    overflow-y: auto;
+}
+
+.autocomplete-suggestions ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.autocomplete-suggestions li {
+    padding: 0.6rem 1rem;
+    cursor: default; /* Change cursor since the li itself is no longer clickable */
+    border-bottom: 1px solid var(--divider-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.autocomplete-suggestions li:hover .genre-add-buttons .icon-btn,
+.autocomplete-suggestions li.selected .genre-add-buttons .icon-btn {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.autocomplete-suggestions li:hover .genre-add-buttons .icon-btn .feather,
+.autocomplete-suggestions li.selected .genre-add-buttons .icon-btn .feather {
+    stroke: #fff;
+}
+
+/* Light theme overrides */
+body[data-theme='light'] .autocomplete-suggestions li:hover .genre-add-buttons .icon-btn,
+body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-buttons .icon-btn {
+    background-color: rgba(0, 0, 0, 0.08);
+}
+
+body[data-theme='light'] .autocomplete-suggestions li:hover .genre-add-buttons .icon-btn .feather,
+body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-buttons .icon-btn .feather {
+    stroke: var(--accent-dark);
+}
+
+.autocomplete-suggestions .genre-add-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.autocomplete-suggestions li:last-child {
+    border-bottom: none;
+}
+.autocomplete-suggestions .suggestion-header {
+    font-weight: bold;
+    color: var(--accent);
+    background-color: var(--panel-alt);
+    padding: 0.4rem 1rem;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: default;
+}
+.autocomplete-suggestions li:hover, .autocomplete-suggestions li.selected {
+    background-color: var(--accent);
+    color: #fff;
+}
+
+.autocomplete-suggestions .suggestion-role {
+    font-size: 0.8em;
+    color: var(--text-subtle);
+    margin-left: 0.5rem;
+}
+
+.autocomplete-suggestions li:hover .suggestion-role {
+    color: #eee;
+}
+
+/* Add/modify these rules with the other token styles */
+.token {
+    display: inline-flex;
+    align-items: center;
+    background-color: var(--accent);
+    color: #fff;
+    padding: 0.3rem 0.7rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: background-color 0.2s, color 0.2s, opacity 0.2s;
+}
+
+.token-genre {
+    /* States will be handled by data-attributes */
+}
+
+.token[data-state="all"] {
+    background-color: var(--success);
+}
+
+.token[data-state="exclude"] {
+    background-color: var(--danger);
+    text-decoration: line-through;
+    opacity: 0.8;
+}
+
+.token .token-state {
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 0.5rem;
+    font-size: 1.1em;
+    padding: 0 0.1rem;
+}
+
+.token .token-remove {
+    background: none;
+    border: none;
+    color: #fff;
+    margin-left: 0.5rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.7;
+}
+
+.token-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.8rem;
+}
+
+
+.token .token-remove:hover {
+    opacity: 1;
+}
+.genre-search-wrapper {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.genre-search-wrapper .token-field-wrapper {
+    flex-grow: 1;
+}
+
+.genre-add-buttons .icon-btn {
+    font-size: 1.3rem;
+    padding: 0.3rem;
+}
+
+.genre-zone {
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius);
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    min-height: 40px; /* Ensure drop zone is visible when empty */
+}
+
+.genre-zone-label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--text-subtle);
+    margin-bottom: 0.6rem;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+/* --- NEW Styles for Range Slider --- */
+.range-slider-wrapper {
+    padding: 0.5rem 0;
+}
+
+.range-slider-display {
+    text-align: center;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.8rem;
+    font-size: 1.1rem;
+}
+
+.range-slider-container {
+    position: relative;
+    height: 20px;
+    display: flex;
+    align-items: center;
+}
+
+.range-slider-track {
+    position: absolute;
+    height: 4px;
+    border-radius: 4px;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border-color);
+    width: 100%;
+    z-index: 1;
+}
+
+.range-slider-progress {
+    position: absolute;
+    height: 4px;
+    background-color: var(--accent);
+    z-index: 2;
+    border-radius: 4px;
+}
+
+.range-slider-container input[type=range] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    position: absolute;
+    width: 100%;
+    height: 4px;
+    background: transparent;
+    pointer-events: none;
+    z-index: 3;
+    margin: 0;
+}
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: all;
+    width: 20px;
+    height: 20px;
+    background-color: var(--accent);
+    border: 3px solid var(--panel);
+    border-radius: 50%;
+    cursor: grab;
+    transition: box-shadow 0.2s;
+}
+input[type=range]:active::-webkit-slider-thumb {
+    cursor: grabbing;
+    box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.3);
+}
+
+input[type=range]::-moz-range-thumb {
+    -moz-appearance: none;
+    pointer-events: all;
+    width: 14px; /* Firefox requires smaller base for same visual */
+    height: 14px;
+    background-color: var(--accent);
+    border: 3px solid var(--panel);
+    border-radius: 50%;
+    cursor: grab;
+    transition: box-shadow 0.2s;
+}
+input[type=range]:active::-moz-range-thumb {
+    cursor: grabbing;
+    box-shadow: 0 0 0 6px rgba(33, 150, 243, 0.3);
+}
+
+body[data-theme='light'] input[type=range]::-webkit-slider-thumb,
+body[data-theme='light'] input[type=range]::-moz-range-thumb {
+    border-color: #fff;
+}
+.limit-by-wrapper {
+    display: flex;
+    flex-direction: row; 
+    gap: .5rem; /* Reduced gap between Count and Duration groups */
+    align-items: center; 
+    padding-top: 0.5rem;
+    grid-column: span 2; 
+    flex-wrap: wrap;
+}
+
+.limit-by-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Tighter gap for radio and its label */
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.limit-by-option label {
+    cursor: pointer;
+}
+
+.limit-by-wrapper .input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* Tighter gap for the input and its unit */
+}
+
+.limit-by-wrapper .movie-block-limit-value {
+    width: 80px;
+    text-align: center;
+}
+
+.limit-by-wrapper .limit-unit {
+    display: inline-flex;
+    align-items: center;
+    height: 40px; /* Match the approximate height of the input */
+    padding: 0 0.2rem;
 }

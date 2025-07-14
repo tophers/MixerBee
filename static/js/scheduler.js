@@ -123,7 +123,7 @@ async function loadAndRenderSchedules() {
 
         schedulesList.innerHTML = '';
         if (schedules.length === 0) {
-            schedulesList.innerHTML = '<li style="color: var(--text-subtle);">No schedules configured.</li>';
+            schedulesList.innerHTML = '<li style="text-align: center; padding: 2rem; color: var(--text-subtle);">No schedules configured. <br> Use the form above to create your first automated playlist.</li>';
             return;
         }
 

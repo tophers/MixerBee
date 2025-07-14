@@ -1,4 +1,5 @@
 // static/js/manager.js
+
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 
@@ -120,7 +121,7 @@ function renderTable() {
         const row = tableBody.insertRow();
         const cell = row.insertCell();
         cell.colSpan = 5;
-        cell.textContent = 'No playlists or collections found.';
+        cell.textContent = 'No playlists or collections found. <br> Create your first one in the <strong>Builder</strong> tab!';
         cell.style.textAlign = 'center';
         return;
     }
@@ -211,8 +212,8 @@ function handleSort(event) {
     sortData();
     renderTable();
 }
-
 export async function initManager() {
+    // --- Assign DOM elements now that the DOM is ready ---
     managerPane = document.getElementById('manager-pane');
     tableBody = managerPane.querySelector('tbody');
     searchInput = document.getElementById('manager-search-input');
@@ -223,11 +224,13 @@ export async function initManager() {
     contentsModalCloseBtn = document.getElementById('contents-modal-close-btn');
     contentsModalOkBtn = document.getElementById('contents-modal-ok-btn');
 
-    // Attach event listeners that were previously at the top level
+    // --- Attach event listeners ---
+    // The 'input' event fires when the user types OR when they click the native clear button.
     searchInput.addEventListener('input', renderTable);
     managerPane.querySelector('thead').addEventListener('click', handleSort);
     contentsModalCloseBtn.addEventListener('click', hideContentsModal);
     contentsModalOkBtn.addEventListener('click', hideContentsModal);
+
 
     if (!userSelect.value) {
         console.log("Manager: Waiting for user ID...");

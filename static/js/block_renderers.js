@@ -31,43 +31,11 @@ export function updateTvBlockSummary(blockElement) {
     summarySpan.textContent = `${showCount} Show${showCount !== 1 ? 's' : ''} • ${modeText}`;
 }
 
-async function updateMovieBlockPreviewCount(blockElement, userSelectElement) {
-    const countSpan = blockElement.querySelector('.movie-block-preview-count');
-    if (!countSpan) return;
-    countSpan.textContent = '...';
-    const yearFrom = blockElement.querySelector('.movie-block-year-from').value;
-    const yearTo = blockElement.querySelector('.movie-block-year-to').value;
-    const filters = {
-        genres: [...blockElement.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value),
-        genre_match: blockElement.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
-        watched_status: blockElement.querySelector('.movie-block-watched').value,
-        year_from: yearFrom ? parseInt(yearFrom) : undefined,
-        year_to: yearTo ? parseInt(yearTo) : undefined,
-        sort_by: blockElement.querySelector('.movie-block-sort-by').value,
-        parent_ids: [...blockElement.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value)
-    };
-
-    const requestBody = { user_id: userSelectElement.value, filters };
-    try {
-        const response = await fetch('api/movies/preview_count', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody)
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        countSpan.textContent = `${data.count} movies match`;
-    } catch (error) {
-        console.error("Error fetching movie preview count:", error);
-        countSpan.textContent = 'Error!';
-    }
-}
-
 async function updateMusicBlockPreviewCount(blockElement, userSelectElement) {
     const countSpan = blockElement.querySelector('.music-block-preview-count');
     if (!countSpan) return;
     countSpan.textContent = '...';
-    
+
 
     const genreMatchRadio = blockElement.querySelector(`input[name^="music-block-genre-match-"]:checked`);
    
@@ -254,7 +222,7 @@ export function renderTvBlock({ data = null, userSelectElement, changeCallback }
 
 
     body.append(showsContainer, buttonGroup, footer);
-    
+
     blockElement.append(summary, body);
 
     updateTvBlockSummary(blockElement);
@@ -281,7 +249,7 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     headerTitle.innerHTML = `<i data-feather="film"></i> Movie Block`;
 
     const rightControlsContainer = document.createElement('div');
-    rightControlsContainer.className = 'mixed-block-controls'; 
+    rightControlsContainer.className = 'mixed-block-controls';
 
     const previewCountSpan = document.createElement('span');
     previewCountSpan.className = 'movie-block-preview-count';
@@ -307,6 +275,92 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
 
+    async function updateMovieBlockPreviewCount() {
+        const countSpan = blockElement.querySelector('.movie-block-preview-count');
+        if (!countSpan) return;
+        countSpan.textContent = '...';
+        const yearFrom = blockElement.querySelector('.movie-block-year-from').value;
+        const yearTo = blockElement.querySelector('.movie-block-year-to').value;
+
+        const genres_any = [];
+        const genres_all = [];
+        const genres_exclude = [];
+        blockElement.querySelectorAll('.token-genre').forEach(token => {
+            const state = token.dataset.state;
+            const name = token.dataset.name;
+            if (state === 'any') { genres_any.push(name); } 
+            else if (state === 'all') { genres_all.push(name); } 
+            else if (state === 'exclude') { genres_exclude.push(name); }
+        });
+
+        const people = [];
+        const exclude_people = [];
+        const studios = [];
+        const exclude_studios = [];
+        blockElement.querySelectorAll('.movie-block-person-tokens .token').forEach(token => {
+            const state = token.dataset.state;
+            if (token.dataset.type === 'person') {
+                const personData = { Id: token.dataset.id, Name: token.dataset.name, Role: token.dataset.role };
+                if (state === 'include') { people.push(personData); } 
+                else { exclude_people.push(personData); }
+            } else if (token.dataset.type === 'studio') {
+                const studioName = token.dataset.name;
+                if (state === 'include') { studios.push(studioName); } 
+                else { exclude_studios.push(studioName); }
+            }
+        });
+        
+        const localFilters = {
+            genres_any, genres_all, genres_exclude,
+            people, exclude_people,
+            studios, exclude_studios,
+            watched_status: blockElement.querySelector('.movie-block-watched').dataset.state,
+            year_from: yearFrom ? parseInt(yearFrom) : undefined,
+            year_to: yearTo ? parseInt(yearTo) : undefined,
+            sort_by: blockElement.querySelector('.movie-block-sort-by').dataset.state,
+            parent_ids: [...blockElement.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value),
+        };
+
+        const limitModeRadio = blockElement.querySelector('input[name^="limit-mode-"]:checked');
+        if (limitModeRadio) {
+            const limitMode = limitModeRadio.value;
+            const limitValue = parseInt(blockElement.querySelector('.movie-block-limit-value').value, 10);
+            if (!isNaN(limitValue) && limitValue > 0) {
+                if (limitMode === 'count') {
+                    localFilters.limit = limitValue;
+                } else if (limitMode === 'duration') {
+                    const durationUnits = blockElement.querySelector('.movie-block-limit-duration-units');
+                    if (durationUnits) {
+                        const units = parseInt(durationUnits.value, 10);
+                        if (!isNaN(units)) {
+                            localFilters.duration_minutes = limitValue * units;
+                        }
+                    }
+                }
+            }
+        }
+
+        const requestBody = { user_id: userSelectElement.value, filters: localFilters };
+        try {
+            const response = await fetch('api/movies/preview_count', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            countSpan.textContent = `${data.count} movies match`;
+        } catch (error) {
+            console.error("Error fetching movie preview count:", error);
+            countSpan.textContent = 'Error!';
+        }
+    }
+
+    const moviePreviewDebouncer = debounce(() => {
+        updateMovieBlockPreviewCount();
+        if (changeCallback) changeCallback();
+    }, 500);
+
     const libraryFieldset = document.createElement('fieldset');
     libraryFieldset.className = 'filter-group';
     const libraryLegend = document.createElement('legend');
@@ -322,91 +376,397 @@ export function renderMovieBlock({ data = null, userSelectElement, changeCallbac
     });
     libraryFieldset.append(libraryLegend, libraryGrid);
 
-    const genreFieldset = document.createElement('fieldset');
-    genreFieldset.className = 'filter-group';
-    const genreLegend = document.createElement('legend');
-    genreLegend.textContent = 'Genres';
-    const genreDetails = document.createElement('details');
-    const genreSummary = document.createElement('summary');
-    genreSummary.textContent = 'Expand/Collapse Genre List';
-    const genreGrid = document.createElement('div');
-    genreGrid.className = 'checkbox-grid';
-    appState.movieGenreData.forEach(g => {
-        const label = document.createElement('label');
-        const cb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'movie-block-genre-cb', value: g.Name, checked: filters.genres?.includes(g.Name) });
-        label.append(cb, ` ${g.Name}`);
-        genreGrid.appendChild(label);
-    });
-    const genreMatchToggle = document.createElement('div');
-    genreMatchToggle.className = 'genre-match-toggle';
-    ['any', 'all', 'none'].forEach(val => {
-        const label = document.createElement('label');
-        const radio = Object.assign(document.createElement('input'), { type: 'radio', name: `movie-block-genre-match-${blockId}`, value: val });
+    const genreFieldset = document.createElement('fieldset');
+    genreFieldset.className = 'filter-group';
+    const genreLegend = document.createElement('legend');
+    genreLegend.textContent = 'Genres';
+    
+    const genreDetails = document.createElement('details');
+    const genreSummary = document.createElement('summary');
+    genreSummary.textContent = 'Expand/Collapse Genre Filters';
 
-        if (filters.genre_match === val) {
-            radio.checked = true;
-        } else if (!filters.genre_match && val === 'any') {
-            radio.checked = true;
-        }
+    const genreTokenFieldWrapper = document.createElement('div');
+    genreTokenFieldWrapper.className = 'token-field-wrapper';
+    
+    const genreInput = Object.assign(document.createElement('input'), {
+        type: 'search',
+        className: 'token-input movie-block-genre-input',
+        placeholder: 'Search for a genre...'
+    });
 
-        let labelText = val.charAt(0).toUpperCase() + val.slice(1);
-        if (val === 'any') labelText = 'Match Any';
-        if (val === 'all') labelText = 'Match All';
-        if (val === 'none') labelText = 'Exclude These';
+    const genreSuggestionsContainer = document.createElement('div');
+    genreSuggestionsContainer.className = 'autocomplete-suggestions';
+    
+    const genreTokenContainer = document.createElement('div');
+    genreTokenContainer.className = 'token-container movie-block-genre-tokens';
 
-        label.append(radio, ` ${labelText}`);
-        genreMatchToggle.appendChild(label);
-    });
-    genreDetails.append(genreSummary, genreGrid, genreMatchToggle);
-    genreFieldset.append(genreLegend, genreDetails);
+    genreTokenFieldWrapper.append(genreInput, genreSuggestionsContainer);
+    genreDetails.append(genreSummary, genreTokenFieldWrapper, genreTokenContainer);
+    genreFieldset.append(genreLegend, genreDetails);
+
+    const peopleFieldset = document.createElement('fieldset');
+    peopleFieldset.className = 'filter-group';
+    const peopleLegend = document.createElement('legend');
+    peopleLegend.textContent = 'People & Studios';
+    const peopleDetails = document.createElement('details');
+    const peopleSummary = document.createElement('summary');
+    peopleSummary.textContent = 'Expand/Collapse Filters';
+
+    const personTokenFieldWrapper = document.createElement('div');
+    personTokenFieldWrapper.className = 'token-field-wrapper';
+
+    const personInput = Object.assign(document.createElement('input'), {
+        type: 'search',
+        className: 'token-input movie-block-person-input',
+        placeholder: 'Search for People or Studios...'
+    });
+    
+    const personSuggestionsContainer = document.createElement('div');
+    personSuggestionsContainer.className = 'autocomplete-suggestions';
+    
+    const peopleTokenContainer = document.createElement('div');
+    peopleTokenContainer.className = 'token-container movie-block-person-tokens';
+
+    personTokenFieldWrapper.append(personInput, personSuggestionsContainer);
+    peopleDetails.append(peopleSummary, personTokenFieldWrapper, peopleTokenContainer);
+    peopleFieldset.append(peopleLegend, peopleDetails);
 
     const otherFiltersFieldset = document.createElement('fieldset');
     otherFiltersFieldset.className = 'filter-group';
     const otherFiltersLegend = document.createElement('legend');
-    otherFiltersLegend.textContent = 'Filters';
+    otherFiltersLegend.textContent = 'Other Filters';
     const filterDetails = document.createElement('details');
     const filterSummary = document.createElement('summary');
-    filterSummary.textContent = 'Expand/Collapse Filters';
+    filterSummary.textContent = 'Expand/Collapse Other Filters';
     const otherFiltersGrid = document.createElement('div');
     otherFiltersGrid.className = 'movie-block-filter-grid';
-    const watchedLabel = document.createElement('label');
-    const watchedSelect = Object.assign(document.createElement('select'), { className: 'movie-block-watched' });
-    watchedSelect.innerHTML = `<option value="all">All</option><option value="unplayed">Unwatched Only</option><option value="played">Watched Only</option>`;
-    watchedSelect.value = filters.watched_status || 'all';
-    watchedLabel.append('Watched: ', watchedSelect);
-    const yearFromLabel = document.createElement('label');
-    const yearFromInput = Object.assign(document.createElement('input'), { type: 'number', className: 'movie-block-year-from', placeholder: 'e.g., 1980', value: filters.year_from || '' });
-    yearFromLabel.append('From Year: ', yearFromInput);
-    const yearToLabel = document.createElement('label');
-    const yearToInput = Object.assign(document.createElement('input'), { type: 'number', className: 'movie-block-year-to', placeholder: 'e.g., 1989', value: filters.year_to || '' });
-    yearToLabel.append('To Year: ', yearToInput);
-    const sortLabel = document.createElement('label');
-    const sortSelect = Object.assign(document.createElement('select'), { className: 'movie-block-sort-by' });
-    sortSelect.innerHTML = `<option value="Random">Random</option><option value="PremiereDate">Release Date</option><option value="DateCreated">Date Added</option><option value="SortName">Name</option>`;
-    sortSelect.value = filters.sort_by || 'Random';
-    sortLabel.append('Sort By: ', sortSelect);
-    const limitLabel = document.createElement('label');
-    const limitSelect = Object.assign(document.createElement('select'), { className: 'movie-block-limit-select' });
-    limitSelect.innerHTML = `<optgroup label="By Count"><option value="limit:1">1 Movie</option><option value="limit:2">2 Movies</option><option value="limit:3">3 Movies</option><option value="limit:5">5 Movies</option><option value="limit:10">10 Movies</option></optgroup><optgroup label="By Duration"><option value="duration:180">~3 Hours</option><option value="duration:240">~4 Hours</option><option value="duration:360">~6 Hours</option><option value="duration:480">~8 Hours</option><option value="duration:600">~10 Hours</option></optgroup><option value="">All Matching Movies</option>`;
-    if (filters.duration_minutes) limitSelect.value = `duration:${filters.duration_minutes}`;
-    else if (filters.limit) limitSelect.value = `limit:${filters.limit}`;
-    else limitSelect.value = 'limit:1';
-    limitLabel.append('Limit: ', limitSelect);
-    otherFiltersGrid.append(watchedLabel, yearFromLabel, yearToLabel, sortLabel, limitLabel);
+
+    const watchedStateCycle = { 'all': 'unplayed', 'unplayed': 'played', 'played': 'all' };
+    const watchedStateConfig = {
+        'all': { icon: 'eye', text: 'All' },
+        'unplayed': { icon: 'check-circle', text: 'Unplayed' },
+        'played': { icon: 'slash', text: 'Played' }
+    };
+
+    const watchedBtn = document.createElement('button');
+    watchedBtn.type = 'button';
+    watchedBtn.className = 'filter-toggle-btn movie-block-watched';
+    
+    const setWatchedBtnState = (state) => {
+        watchedBtn.dataset.state = state;
+        const config = watchedStateConfig[state];
+        watchedBtn.innerHTML = `<i data-feather="${config.icon}"></i> ${config.text}`;
+        if (window.featherReplace) window.featherReplace();
+    };
+
+    watchedBtn.onclick = () => {
+        const nextState = watchedStateCycle[watchedBtn.dataset.state];
+        setWatchedBtnState(nextState);
+        moviePreviewDebouncer();
+    };
+
+    setWatchedBtnState(filters.watched_status || 'all');
+
+    const yearSliderWrapper = document.createElement('div');
+    yearSliderWrapper.className = 'range-slider-wrapper';
+    yearSliderWrapper.style.gridColumn = 'span 2';
+
+    const yearDisplay = document.createElement('div');
+    yearDisplay.className = 'range-slider-display';
+
+    const sliderContainer = document.createElement('div');
+    sliderContainer.className = 'range-slider-container';
+    
+    const sliderTrack = document.createElement('div');
+    sliderTrack.className = 'range-slider-track';
+    
+    const sliderProgress = document.createElement('div');
+    sliderProgress.className = 'range-slider-progress';
+
+    const minYearInput = Object.assign(document.createElement('input'), { type: 'range', className: 'movie-block-year-from', min: 1920, max: new Date().getFullYear(), value: filters.year_from || 1920 });
+    const maxYearInput = Object.assign(document.createElement('input'), { type: 'range', className: 'movie-block-year-to', min: 1920, max: new Date().getFullYear(), value: filters.year_to || new Date().getFullYear() });
+
+    const updateYearSlider = () => {
+        const minVal = parseInt(minYearInput.value, 10);
+        const maxVal = parseInt(maxYearInput.value, 10);
+
+        if (maxVal < minVal) {
+            minYearInput.value = maxVal;
+            maxYearInput.value = minVal;
+        }
+
+        const minPercent = ((minYearInput.value - minYearInput.min) / (minYearInput.max - minYearInput.min)) * 100;
+        const maxPercent = ((maxYearInput.value - maxYearInput.min) / (maxYearInput.max - maxYearInput.min)) * 100;
+
+        sliderProgress.style.left = `${minPercent}%`;
+        sliderProgress.style.width = `${maxPercent - minPercent}%`;
+        yearDisplay.textContent = `${minYearInput.value} - ${maxYearInput.value}`;
+    };
+
+    minYearInput.addEventListener('input', updateYearSlider);
+    maxYearInput.addEventListener('input', updateYearSlider);
+    minYearInput.addEventListener('change', moviePreviewDebouncer);
+    maxYearInput.addEventListener('change', moviePreviewDebouncer);
+
+    sliderContainer.append(sliderTrack, sliderProgress, minYearInput, maxYearInput);
+    yearSliderWrapper.append(yearDisplay, sliderContainer);
+    updateYearSlider();
+
+    const sortStateCycle = { 
+        'Random': 'PremiereDate', 
+        'PremiereDate': 'DateCreated', 
+        'DateCreated': 'SortName', 
+        'SortName': 'Random' 
+    };
+    const sortStateConfig = {
+        'Random': { icon: 'shuffle', text: 'Random' },
+        'PremiereDate': { icon: 'calendar', text: 'Release' },
+        'DateCreated': { icon: 'plus', text: 'Added' },
+        'SortName': { icon: 'chevrons-down', text: 'Name' }
+    };
+
+    const sortBtn = document.createElement('button');
+    sortBtn.type = 'button';
+    sortBtn.className = 'filter-toggle-btn movie-block-sort-by';
+    
+    const setSortBtnState = (state) => {
+        sortBtn.dataset.state = state;
+        const config = sortStateConfig[state];
+        sortBtn.innerHTML = `<i data-feather="${config.icon}"></i> Sort: ${config.text}`;
+        if (window.featherReplace) window.featherReplace();
+    };
+
+    sortBtn.onclick = () => {
+        const nextState = sortStateCycle[sortBtn.dataset.state];
+        setSortBtnState(nextState);
+        moviePreviewDebouncer();
+    };
+
+    setSortBtnState(filters.sort_by || 'Random');
+
+    const limitWrapper = document.createElement('div');
+    limitWrapper.className = 'limit-by-wrapper';
+
+    const countRadio = Object.assign(document.createElement('input'), { type: 'radio', name: `limit-mode-${blockId}`, value: 'count' });
+    const countLabel = Object.assign(document.createElement('label'), { textContent: 'Count' });
+    countLabel.prepend(countRadio);
+    
+    const durationRadio = Object.assign(document.createElement('input'), { type: 'radio', name: `limit-mode-${blockId}`, value: 'duration' });
+    const durationLabel = Object.assign(document.createElement('label'), { textContent: 'Duration' });
+    durationLabel.prepend(durationRadio);
+
+    const sharedInput = Object.assign(document.createElement('input'), { type: 'number', className: 'movie-block-limit-value', min: 1 });
+    const unitsContainer = document.createElement('span');
+    unitsContainer.className = 'limit-unit';
+
+    const toggleLimitMode = () => {
+        if (countRadio.checked) {
+            unitsContainer.textContent = 'movies';
+            if (sharedInput.dataset.lastMode === 'duration') {
+                sharedInput.value = 3;
+            }
+            sharedInput.dataset.lastMode = 'count';
+        } else {
+            if (!unitsContainer.querySelector('select')) {
+                const durationUnits = Object.assign(document.createElement('select'), { className: 'movie-block-limit-duration-units' });
+                durationUnits.innerHTML = `<option value="60">Hours</option><option value="1">Minutes</option>`;
+                unitsContainer.innerHTML = '';
+                unitsContainer.appendChild(durationUnits);
+            }
+            if (sharedInput.dataset.lastMode === 'count') {
+                sharedInput.value = 3;
+            }
+            sharedInput.dataset.lastMode = 'duration';
+        }
+        moviePreviewDebouncer();
+    };
+
+    countRadio.addEventListener('change', toggleLimitMode);
+    durationRadio.addEventListener('change', toggleLimitMode);
+
+    if (filters.duration_minutes) {
+        durationRadio.checked = true;
+        sharedInput.value = Math.round(filters.duration_minutes / 60) || 3;
+        sharedInput.dataset.lastMode = 'duration';
+    } else {
+        countRadio.checked = true;
+        sharedInput.value = filters.limit || 3;
+        sharedInput.dataset.lastMode = 'count';
+    }
+    
+    const sharedInputGroup = document.createElement('div');
+    sharedInputGroup.className = 'input-group';
+    sharedInputGroup.append(sharedInput, unitsContainer);
+
+    limitWrapper.append(countLabel, durationLabel, sharedInputGroup);
+    toggleLimitMode();
+    
+    otherFiltersGrid.append(watchedBtn, sortBtn, yearSliderWrapper, limitWrapper);
 
     filterDetails.append(filterSummary, otherFiltersGrid);
     otherFiltersFieldset.append(otherFiltersLegend, filterDetails);
-    body.append(libraryFieldset, genreFieldset, otherFiltersFieldset);
+    body.append(libraryFieldset, genreFieldset, peopleFieldset, otherFiltersFieldset);
 
     blockElement.append(summary, body);
 
-    const moviePreviewDebouncer = debounce(() => {
-        updateMovieBlockPreviewCount(blockElement, userSelectElement);
-        if (changeCallback) changeCallback();
-    }, 500);
+    const genreStateCycle = { 'any': 'all', 'all': 'exclude', 'exclude': 'any' };
+    const genreStateIcons = { 'any': '⊕', 'all': '✓', 'exclude': '⊖' };
 
+    const addGenreToken = (genreName, state = 'any') => {
+        if (genreTokenContainer.querySelector(`.token[data-name="${genreName}"]`)) return;
+        const token = document.createElement('span');
+        token.className = 'token token-genre';
+        token.dataset.name = genreName;
+        token.dataset.state = state;
+        const stateSpan = document.createElement('span');
+        stateSpan.className = 'token-state';
+        stateSpan.textContent = genreStateIcons[state];
+        stateSpan.title = 'Click to cycle state (Any -> All -> Exclude)';
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = genreName;
+        stateSpan.onclick = () => {
+            const currentState = token.dataset.state;
+            const nextState = genreStateCycle[currentState];
+            token.dataset.state = nextState;
+            stateSpan.textContent = genreStateIcons[nextState];
+            moviePreviewDebouncer();
+        };
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'token-remove';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = () => {
+            token.remove();
+            moviePreviewDebouncer();
+        };
+        token.append(stateSpan, nameSpan, removeBtn);
+        genreTokenContainer.appendChild(token);
+    };
+
+    genreInput.addEventListener('input', (e) => {
+        const searchTerm = e.target.value.trim().toLowerCase();
+        genreSuggestionsContainer.innerHTML = '';
+        if (searchTerm.length < 2) return;
+        const matchingGenres = appState.movieGenreData.map(g => g.Name).filter(name => name.toLowerCase().includes(searchTerm)).slice(0, 10);
+        if (matchingGenres.length > 0) {
+            const ul = document.createElement('ul');
+            matchingGenres.forEach(genreName => {
+                const li = document.createElement('li');
+                li.textContent = genreName;
+                li.onclick = () => {
+                    addGenreToken(genreName);
+                    genreInput.value = '';
+                    genreSuggestionsContainer.innerHTML = '';
+                    genreInput.focus();
+                    moviePreviewDebouncer();
+                };
+                ul.appendChild(li);
+            });
+            genreSuggestionsContainer.appendChild(ul);
+        }
+    });
+
+    genreInput.addEventListener('blur', () => { setTimeout(() => { genreSuggestionsContainer.innerHTML = ''; }, 150); });
+
+    const personStateCycle = { 'include': 'exclude', 'exclude': 'include' };
+    const personStateIcons = { 'include': '⊕', 'exclude': '⊖' };
+
+    const addToken = (item, type, state = 'include') => {
+        const tokenKey = `${type}-${type === 'person' ? item.Id : item.Name}`;
+        if (peopleTokenContainer.querySelector(`.token[data-key="${tokenKey}"]`)) return;
+        const token = document.createElement('span');
+        token.className = `token token-${type}`;
+        token.dataset.key = tokenKey;
+        token.dataset.type = type;
+        token.dataset.name = item.Name;
+        token.dataset.state = state;
+        const stateSpan = document.createElement('span');
+        stateSpan.className = 'token-state';
+        stateSpan.textContent = personStateIcons[state];
+        stateSpan.title = 'Click to cycle state (Include/Exclude)';
+        const nameSpan = document.createElement('span');
+        if (type === 'person') {
+            token.dataset.id = item.Id;
+            token.dataset.role = item.Role || '';
+            nameSpan.textContent = `${item.Name} (${item.Role || 'Person'})`;
+        } else {
+            nameSpan.textContent = `${item.Name} (Studio)`;
+        }
+        stateSpan.onclick = () => {
+            const currentState = token.dataset.state;
+            const nextState = personStateCycle[currentState];
+            token.dataset.state = nextState;
+            stateSpan.textContent = personStateIcons[nextState];
+            moviePreviewDebouncer();
+        };
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'token-remove';
+        removeBtn.innerHTML = '×';
+        removeBtn.onclick = () => {
+            token.remove();
+            moviePreviewDebouncer();
+        };
+        token.append(stateSpan, nameSpan, removeBtn);
+        peopleTokenContainer.appendChild(token);
+    };
+
+    personInput.addEventListener('input', debounce(async (e) => {
+        const searchTerm = e.target.value.trim();
+        personSuggestionsContainer.innerHTML = '';
+        if (searchTerm.length < 2) return;
+        try {
+            const [people, studios] = await Promise.all([
+                fetch(`api/people?name=${encodeURIComponent(searchTerm)}`).then(res => res.json()),
+                fetch(`api/studios?name=${encodeURIComponent(searchTerm)}`).then(res => res.json())
+            ]);
+            if (people.length > 0 || studios.length > 0) {
+                const ul = document.createElement('ul');
+                if (people.length > 0) {
+                    ul.innerHTML += `<li class="suggestion-header">People</li>`;
+                    people.forEach(person => {
+                        const li = document.createElement('li');
+                        li.textContent = `${person.Name} (${person.Role || 'Person'})`;
+                        li.onclick = () => {
+                            addToken(person, 'person');
+                            personInput.value = '';
+                            personSuggestionsContainer.innerHTML = '';
+                            moviePreviewDebouncer();
+                        };
+                        ul.appendChild(li);
+                    });
+                }
+                if (studios.length > 0) {
+                    ul.innerHTML += `<li class="suggestion-header">Studios</li>`;
+                    studios.forEach(studio => {
+                        const li = document.createElement('li');
+                        li.textContent = studio.Name;
+                        li.onclick = () => {
+                            addToken(studio, 'studio');
+                            personInput.value = '';
+                            personSuggestionsContainer.innerHTML = '';
+                            moviePreviewDebouncer();
+                        };
+                        ul.appendChild(li);
+                    });
+                }
+                personSuggestionsContainer.appendChild(ul);
+            }
+        } catch (error) { console.error("Error fetching people/studios:", error); }
+    }, 300));
+
+    personInput.addEventListener('blur', () => { setTimeout(() => { personSuggestionsContainer.innerHTML = ''; }, 150); });
+    
+    if (filters.genres_any) { filters.genres_any.forEach(g => addGenreToken(g, 'any')); }
+    if (filters.genres_all) { filters.genres_all.forEach(g => addGenreToken(g, 'all')); }
+    if (filters.genres_exclude) { filters.genres_exclude.forEach(g => addGenreToken(g, 'exclude')); }
+    if (filters.people) { filters.people.forEach(p => addToken(p, 'person', 'include')); }
+    if (filters.exclude_people) { filters.exclude_people.forEach(p => addToken(p, 'person', 'exclude')); }
+    if (filters.studios) { filters.studios.forEach(s => addToken({ Name: s }, 'studio', 'include')); }
+    if (filters.exclude_studios) { filters.exclude_studios.forEach(s => addToken({ Name: s }, 'studio', 'exclude')); }
+    
     blockElement.addEventListener('input', moviePreviewDebouncer);
-    updateMovieBlockPreviewCount(blockElement, userSelectElement);
+    updateMovieBlockPreviewCount();
 
     return blockElement;
 }
@@ -416,25 +776,20 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     const filters = musicData.filters || {};
     const blockId = `block-${Date.now()}`;
 
-    // START CHANGE: Convert root to <details>
-    const blockElement = document.createElement('details');
+    const blockElement = document.createElement('details');
     blockElement.open = true;
-    // END CHANGE
 
     blockElement.className = 'mixed-block';
     blockElement.dataset.type = 'music';
     blockElement.dataset.id = blockId;
 
-    // START CHANGE: Create summary tag
     const summary = document.createElement('summary');
-    // END CHANGE
 
     const header = document.createElement('div');
     header.className = 'mixed-block-header';
     const headerTitle = document.createElement('h3');
     headerTitle.innerHTML = `<i data-feather="music"></i> Music Block`;
 
-    // START CHANGE: Create right controls container
     const rightControlsContainer = document.createElement('div');
     rightControlsContainer.className = 'mixed-block-controls';
 
@@ -446,7 +801,6 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     const collapseIcon = document.createElement('span');
     collapseIcon.className = 'icon-btn collapse-toggle-btn';
     collapseIcon.innerHTML = `<i data-feather="chevron-up"></i>`;
-    // END CHANGE
 
     rightControlsContainer.append(
         previewCountSpan,
@@ -459,7 +813,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     dragHandle.style.cursor = 'grab';
 
     header.append(dragHandle, headerTitle, rightControlsContainer);
-    summary.appendChild(header); // Add header to summary
+    summary.appendChild(header);
 
     const body = document.createElement('div');
     body.className = 'mixed-block-body';
@@ -557,7 +911,6 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     body.append(modeLabel, artistContainer, genreContainer);
     blockElement.append(summary, body);
 
-    // START CHANGE: Debounced listener for all inputs
     const musicPreviewDebouncer = debounce(() => {
         updateMusicBlockSummary(blockElement);
         if (modeSelect.value === 'genre') {
@@ -567,7 +920,6 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
     }, 500);
 
     blockElement.addEventListener('input', musicPreviewDebouncer);
-    // END CHANGE
 
     const toggleFields = () => {
         const mode = modeSelect.value;
@@ -592,7 +944,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         albumSelect.innerHTML = '<option>Loading albums...</option>';
         albumSelect.disabled = true;
         const artistId = artistSelect.value;
-        updateMusicBlockSummary(blockElement); // Update summary on artist change
+        updateMusicBlockSummary(blockElement);
         if (!artistId) {
             albumSelect.innerHTML = '';
             return;
@@ -609,9 +961,7 @@ export function renderMusicBlock({ data = null, userSelectElement, changeCallbac
         }
     });
 
-    // START CHANGE: Update summary when album changes
     albumSelect.addEventListener('change', () => updateMusicBlockSummary(blockElement));
-    // END CHANGE
 
     modeSelect.addEventListener('change', toggleFields);
     toggleFields();

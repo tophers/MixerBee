@@ -41,6 +41,16 @@ from .movies import (
     find_movies
 )
 
+# From people.py
+from .people import (
+    get_people
+)
+
+# From studios.py
+from .studios import (
+    get_studios
+)
+
 # From music.py
 from .music import (
     get_music_genres,

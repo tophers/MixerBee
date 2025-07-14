@@ -21,6 +21,8 @@
     --gap: .6rem;
     --radius: 8px;
     --shadow: 0 2px 6px rgba(0,0,0,.4);
+    --shadow-drag: 0 10px 30px rgba(255,255,255,0.2);
+
     font-family: system-ui, sans-serif;
     
     /* Default color scheme for native form elements */
@@ -40,7 +42,7 @@ body[data-theme='light'] {
     --border-color-subtle: #e9ecef;
     --divider-color: #f1f3f5;
     --shadow: 0 2px 6px rgba(0,0,0,.1);
-
+    --shadow-drag: 0 10px 30px rgba(0,0,0,0.2);
     /* Set color scheme for light theme */
     color-scheme: light;
 }

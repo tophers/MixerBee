@@ -116,6 +116,8 @@ button .feather.chevron {
     font-size: 1.05rem;
     font-family: inherit;
     transition: all 0.2s ease-in-out;
+    /* Add padding to the right to make space for the clear button */
+    padding-right: 2.5rem;
 }
 
 #ai-prompt-input::placeholder {
@@ -132,6 +134,36 @@ button .feather.chevron {
 body[data-theme='light'] #ai-prompt-input:focus {
      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
+
+/* START: New styles for clearable textarea */
+.textarea-wrapper {
+    position: relative;
+    width: 100%;
+    margin-top: 1rem; /* Re-applying margin here from inline style */
+    margin-bottom: 0.5rem; /* Re-applying margin here from inline style */
+}
+
+.textarea-wrapper textarea {
+    margin: 0 !important; /* Remove margins from the textarea itself */
+}
+
+.textarea-wrapper .clear-btn {
+    position: absolute;
+    top: 2.0rem; /* ADJUSTED: Increased from 0.6rem to move the button down */
+    right: 0.6rem;
+    opacity: 0.6;
+    z-index: 2;
+}
+
+.textarea-wrapper .clear-btn:hover {
+    opacity: 1;
+}
+
+.textarea-wrapper .clear-btn .feather {
+    width: 1.2rem;
+    height: 1.2rem;
+}
+/* END: New styles */
 
 /* Theme Toggle Switch */
 .theme-toggle-label {

@@ -83,21 +83,63 @@ function getBlockDataFromElement(blockEl) {
     } else if (blockType === 'movie') {
         const yearFrom = blockEl.querySelector('.movie-block-year-from').value;
         const yearTo = blockEl.querySelector('.movie-block-year-to').value;
+        
+        const genres_any = [];
+        const genres_all = [];
+        const genres_exclude = [];
+        blockEl.querySelectorAll('.token-genre').forEach(token => {
+            const state = token.dataset.state;
+            const name = token.dataset.name;
+            if (state === 'any') { genres_any.push(name); } 
+            else if (state === 'all') { genres_all.push(name); } 
+            else if (state === 'exclude') { genres_exclude.push(name); }
+        });
+
+        const people = [];
+        const exclude_people = [];
+        const studios = [];
+        const exclude_studios = [];
+        blockEl.querySelectorAll('.movie-block-person-tokens .token').forEach(token => {
+            const state = token.dataset.state;
+            if (token.dataset.type === 'person') {
+                const personData = { Id: token.dataset.id, Name: token.dataset.name, Role: token.dataset.role };
+                if (state === 'include') { people.push(personData); } 
+                else { exclude_people.push(personData); }
+            } else if (token.dataset.type === 'studio') {
+                const studioName = token.dataset.name;
+                if (state === 'include') { studios.push(studioName); } 
+                else { exclude_studios.push(studioName); }
+            }
+        });
+        
         const filters = {
-            genres: [...blockEl.querySelectorAll('.movie-block-genre-cb:checked')].map(cb => cb.value),
-            genre_match: blockEl.querySelector(`input[name^="movie-block-genre-match-"]:checked`).value,
-            watched_status: blockEl.querySelector('.movie-block-watched').value,
+            genres_any, genres_all, genres_exclude,
+            people, exclude_people,
+            studios, exclude_studios,
+            watched_status: blockEl.querySelector('.movie-block-watched').dataset.state,
             year_from: yearFrom || null,
             year_to: yearTo || null,
-            sort_by: blockEl.querySelector('.movie-block-sort-by').value,
-            parent_ids: [...blockEl.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value)
+            sort_by: blockEl.querySelector('.movie-block-sort-by').dataset.state,
+            parent_ids: [...blockEl.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value),
         };
-        const limitValue = blockEl.querySelector('.movie-block-limit-select').value;
-        if (limitValue) {
-            const [type, value] = limitValue.split(':');
-            if (type === 'limit') filters.limit = parseInt(value, 10);
-            else if (type === 'duration') filters.duration_minutes = parseInt(value, 10);
+
+        const limitModeRadio = blockEl.querySelector('input[name^="limit-mode-"]:checked');
+        if (limitModeRadio) {
+            const limitMode = limitModeRadio.value;
+            const limitValue = parseInt(blockEl.querySelector('.movie-block-limit-value').value, 10);
+            if (!isNaN(limitValue)) {
+                if (limitMode === 'count') {
+                    filters.limit = limitValue;
+                } else if (limitMode === 'duration') {
+                    const durationUnits = blockEl.querySelector('.movie-block-limit-duration-units');
+                    const units = parseInt(durationUnits.value, 10);
+                    if (!isNaN(units)) {
+                        filters.duration_minutes = limitValue * units;
+                    }
+                }
+            }
         }
+        
         blockData.filters = filters;
     } else if (blockType === 'music') {
         const mode = blockEl.querySelector('.music-block-mode').value;
@@ -145,7 +187,7 @@ function getBlocksDataFromUI() {
 const saveBuilderState = () => {
     // This function can be called before the UI is ready, so we need a guard.
     if (!document.getElementById('mixed-playlist-blocks')) return;
-    
+
     const data = getBlocksDataFromUI();
     if (data.length > 0) {
         localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
@@ -169,7 +211,8 @@ export function initBuilderPane(userSelectElement) {
     const smartBuildBtn = document.getElementById('smart-build-btn');
     const buildModeSelect = document.getElementById('build-mode-select');
     const existingPlaylistSelect = document.getElementById('existing-playlist-select');
-    
+    const aiPromptClearBtn = document.getElementById('ai-prompt-clear-btn');
+
     // Instantiate the manager now that its elements exist.
     const mixedPresetManager = new PresetManager('mixerbeeMixedPresets', {
         loadSelect: document.getElementById('load-preset-select'),
@@ -207,28 +250,28 @@ export function initBuilderPane(userSelectElement) {
         if (placeholder) placeholder.style.display = blocksContainer.querySelectorAll('.mixed-block').length === 0 ? 'block' : 'none';
     }
 
-    const applyPresetToUI = (blocksData) => {
-        if (!blocksData) return;
-        blocksContainer.innerHTML = ''; // Clear all blocks
-        if (blocksData.length === 0) {
-            blocksContainer.appendChild(placeholder);
-        } else {
-            blocksData.forEach(blockData => {
-                let blockElement;
-                const renderData = { data: blockData, userSelectElement, changeCallback: debouncedSaveBuilderState };
-                if (blockData.type === 'tv') blockElement = renderTvBlock(renderData);
-                else if (blockData.type === 'movie') blockElement = renderMovieBlock(renderData);
-                else if (blockData.type === 'music') blockElement = renderMusicBlock(renderData);
-                if (blockElement) {
-                    blocksContainer.appendChild(blockElement);
-                    addBlockEventListeners(blockElement);
-                }
-            });
-        }
-        checkPlaceholderVisibility();
-        if (window.featherReplace) window.featherReplace();
-        debouncedSaveBuilderState();
-    };
+const applyPresetToUI = (blocksData) => {
+    if (!blocksData) return;
+    blocksContainer.querySelectorAll('.mixed-block').forEach(el => el.remove());
+
+    if (blocksData.length > 0) {
+        blocksData.forEach(blockData => {
+            let blockElement;
+            const renderData = { data: blockData, userSelectElement, changeCallback: debouncedSaveBuilderState };
+            if (blockData.type === 'tv') blockElement = renderTvBlock(renderData);
+            else if (blockData.type === 'movie') blockElement = renderMovieBlock(renderData);
+            else if (blockData.type === 'music') blockElement = renderMusicBlock(renderData);
+            if (blockElement) {
+                blocksContainer.appendChild(blockElement);
+                addBlockEventListeners(blockElement);
+            }
+        });
+    }
+
+    checkPlaceholderVisibility();
+    if (window.featherReplace) window.featherReplace();
+    debouncedSaveBuilderState();
+};
 
     async function checkAiConfig() {
         try {
@@ -259,6 +302,16 @@ export function initBuilderPane(userSelectElement) {
     });
 
     mixedPresetManager.init(getBlocksDataFromUI, applyPresetToUI);
+
+    aiPromptInput.addEventListener('input', () => {
+        aiPromptClearBtn.classList.toggle('hidden', !aiPromptInput.value);
+    });
+
+    aiPromptClearBtn.addEventListener('click', () => {
+        aiPromptInput.value = '';
+        aiPromptClearBtn.classList.add('hidden');
+        aiPromptInput.focus();
+    });
 
     generateWithAiBtn.addEventListener('click', async (event) => {
         const prompt = aiPromptInput.value;
@@ -318,7 +371,7 @@ export function initBuilderPane(userSelectElement) {
             text: 'Are you sure you want to clear all blocks? This cannot be undone.',
             confirmText: 'Clear All',
             onConfirm: () => {
-                applyPresetToUI([]); // Use applyPresetToUI to handle clearing and autosaving
+                applyPresetToUI([]);
             }
         });
     });
@@ -348,7 +401,7 @@ export function initBuilderPane(userSelectElement) {
 
             if (newBlockElement) {
                 sourceBlock.after(newBlockElement);
-                addBlockEventListeners(newBlockElement); 
+                addBlockEventListeners(newBlockElement);
                 if (window.featherReplace) window.featherReplace();
                 debouncedSaveBuilderState();
             }
