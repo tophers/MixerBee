@@ -1,7 +1,7 @@
 /* static/css/forms.css */
 /* Default styles for all form elements: inputs, selects, buttons, etc. */
 
-select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], textarea {
+select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
     background: var(--input-bg);
     color: var(--text);
     border: 1px solid var(--border-color);
@@ -11,12 +11,6 @@ select, input[type="number"], input[type="text"], input[type="search"], input[ty
     min-width: 0;
     box-sizing: border-box;
     font-family: inherit;
-}
-
-input[type="password"] {
-    font-family: 'Courier New', Courier, monospace;
-    font-size: 1rem;
-    letter-spacing: 0.1em;
 }
 
 select {
@@ -118,6 +112,8 @@ button .feather.chevron {
     transition: all 0.2s ease-in-out;
     /* Add padding to the right to make space for the clear button */
     padding-right: 2.5rem;
+    width: 100%;
+    resize: none;
 }
 
 #ai-prompt-input::placeholder {
@@ -135,21 +131,16 @@ body[data-theme='light'] #ai-prompt-input:focus {
      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
 
-/* START: New styles for clearable textarea */
+/* Styles for clearable textarea */
 .textarea-wrapper {
     position: relative;
     width: 100%;
-    margin-top: 1rem; /* Re-applying margin here from inline style */
-    margin-bottom: 0.5rem; /* Re-applying margin here from inline style */
-}
-
-.textarea-wrapper textarea {
-    margin: 0 !important; /* Remove margins from the textarea itself */
 }
 
 .textarea-wrapper .clear-btn {
     position: absolute;
-    top: 2.0rem; /* ADJUSTED: Increased from 0.6rem to move the button down */
+    top: 50%;
+    transform: translateY(-50%);
     right: 0.6rem;
     opacity: 0.6;
     z-index: 2;
@@ -163,7 +154,6 @@ body[data-theme='light'] #ai-prompt-input:focus {
     width: 1.2rem;
     height: 1.2rem;
 }
-/* END: New styles */
 
 /* Theme Toggle Switch */
 .theme-toggle-label {

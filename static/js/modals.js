@@ -1,203 +1,151 @@
 // static/js/modals.js
 import { toast } from './utils.js';
 
-// MODAL SYSTEM
 class BaseModal {
-    constructor(modalId, config = {}) {
+    constructor(modalId) {
         this.modalId = modalId;
-        this.config = config;
-        this.eventHandlers = new Map();
-    }
-
-    init() {
         this.overlay = document.getElementById(this.modalId);
         if (!this.overlay) {
             console.error(`Modal overlay with ID "${this.modalId}" not found.`);
             return;
         }
-        this.closeBtn = this.overlay.querySelector(this.config.closeBtn);
-        this.cancelBtn = this.overlay.querySelector(this.config.cancelBtn);
-        this.confirmBtn = this.overlay.querySelector(this.config.confirmBtn);
 
-        // Bind core event handlers once
+        this.closeBtn = this.overlay.querySelector('.js-modal-close');
+        this.cancelBtn = this.overlay.querySelector('.js-modal-cancel');
+
+        this._resolvePromise = () => {};
+        this._rejectPromise = () => {};
+
         this._handleKeyDown = this._onKeyDown.bind(this);
-        this._handleClose = this.hide.bind(this);
+
+        if (this.closeBtn) {
+            this.closeBtn.addEventListener('click', () => this.hide(true));
+        }
+        if (this.cancelBtn) {
+            this.cancelBtn.addEventListener('click', () => this.hide(true));
+        }
     }
 
     _onKeyDown(e) {
         if (e.key === 'Escape') {
-            this.hide();
+            this.hide(true);
         }
-    }
-
-    _attachEventListeners(listeners) {
-        listeners.forEach(({ element, event, handler }) => {
-            const boundHandler = handler.bind(this);
-            element.addEventListener(event, boundHandler);
-            this.eventHandlers.set(handler, { element, event, boundHandler });
-        });
-    }
-
-    _cleanupEventListeners() {
-        this.eventHandlers.forEach(({ element, event, boundHandler }) => {
-            element.removeEventListener(event, boundHandler);
-        });
-        this.eventHandlers.clear();
     }
 
     show() {
-        this._cleanupEventListeners(); // Ensure no old listeners are attached
-        const commonListeners = [
-            { element: this.closeBtn, event: 'click', handler: this._handleClose },
-            { element: this.overlay, event: 'keydown', handler: this._onKeyDown },
-        ];
-        if (this.cancelBtn) {
-            commonListeners.push({ element: this.cancelBtn, event: 'click', handler: this._handleClose });
-        }
-        this._attachEventListeners(commonListeners);
-        this.overlay.style.display = 'flex';
+        return new Promise((resolve, reject) => {
+            this._resolvePromise = resolve;
+            this._rejectPromise = reject;
+
+            this.overlay.classList.remove('hidden');
+            document.addEventListener('keydown', this._handleKeyDown);
+        });
     }
 
-    hide() {
-        if (this.onCancelCallback) {
-            this.onCancelCallback();
-            this.onCancelCallback = null;
-        }
+    hide(isCancel = false) {
         if (this.overlay) {
-            this.overlay.style.display = 'none';
+            this.overlay.classList.add('hidden');
         }
-        this._cleanupEventListeners();
+        document.removeEventListener('keydown', this._handleKeyDown);
+
+        if (isCancel) {
+            this._rejectPromise(new Error('Modal cancelled by user.'));
+        }
     }
 }
 
 class ConfirmationModal extends BaseModal {
-    init() {
-        super.init();
+    constructor(modalId) {
+        super(modalId);
         this.titleEl = this.overlay.querySelector('#confirm-modal-title');
         this.textEl = this.overlay.querySelector('#confirm-modal-text');
+        this.confirmBtn = this.overlay.querySelector('#confirm-modal-confirm-btn');
+
+        this.confirmBtn.addEventListener('click', () => {
+            this.hide(false);
+            this._resolvePromise();
+        });
     }
 
-    _onConfirm() {
-        if (this.onConfirmCallback) this.onConfirmCallback();
-        this.onCancelCallback = null; // Prevent cancel from firing on confirm
-        this.hide();
-    }
-    
-    _onCancel() {
-        if (this.onCancelCallback) this.onCancelCallback();
-        this.hide();
-    }
-
-    hide() {
-        if (this.overlay) {
-            this.overlay.style.display = 'none';
-        }
-        this._cleanupEventListeners();
-    }
-
-    show({ title, text, confirmText = 'Confirm', onConfirm, onCancel }) {
-        // Use a slightly different show method that doesn't call super's hide
-        this._cleanupEventListeners();
-        this.overlay.style.display = 'flex';
-
-        this.onConfirmCallback = onConfirm;
-        this.onCancelCallback = onCancel;
-
+    show({ title, text, confirmText = 'Confirm' }) {
         this.titleEl.textContent = title;
         this.textEl.textContent = text;
         this.confirmBtn.textContent = confirmText;
         this.confirmBtn.focus();
-
-        const listeners = [
-            { element: this.closeBtn, event: 'click', handler: this._onCancel },
-            { element: this.overlay, event: 'keydown', handler: this._onKeyDown },
-            { element: this.confirmBtn, event: 'click', handler: this._onConfirm },
-        ];
-        if (this.cancelBtn) {
-            listeners.push({ element: this.cancelBtn, event: 'click', handler: this._onCancel });
-        }
-        this._attachEventListeners(listeners);
+        return super.show();
     }
 }
 
 class SavePresetModal extends BaseModal {
-    init() {
-        super.init();
+    constructor(modalId) {
+        super(modalId);
         this.nameInput = this.overlay.querySelector('#preset-name-input');
         this.warning = this.overlay.querySelector('#preset-overwrite-warning');
+        this.confirmBtn = this.overlay.querySelector('#save-preset-confirm-btn');
+        this.existingPresets = [];
+
+        this._checkOverwrite = () => {
+            this.warning.style.display = this.existingPresets.includes(this.nameInput.value.trim()) ? 'block' : 'none';
+        };
+
+        this.confirmBtn.addEventListener('click', () => {
+            const presetName = this.nameInput.value.trim();
+            if (presetName) {
+                this.hide(false);
+                this._resolvePromise(presetName);
+            } else {
+                toast('Please enter a name for the preset.', false);
+            }
+        });
+
+        this.nameInput.addEventListener('input', this._checkOverwrite);
     }
 
-    _onSave() {
-        const presetName = this.nameInput.value.trim();
-        if (presetName) {
-            if (this.onSaveCallback) this.onSaveCallback(presetName);
-            this.hide();
-        } else {
-            alert('Please enter a name for the preset.');
-        }
-    }
-
-    _checkOverwrite() {
-        this.warning.style.display = this.existingPresets.includes(this.nameInput.value.trim()) ? 'block' : 'none';
-    }
-
-    show(onSave, existingPresets = []) {
-        super.show();
-        this.onSaveCallback = onSave;
-        this.onCancelCallback = null;
+    show(existingPresets = []) {
         this.existingPresets = existingPresets;
         this.nameInput.value = '';
         this.warning.style.display = 'none';
         this.nameInput.focus();
-
-        this._attachEventListeners([
-            { element: this.confirmBtn, event: 'click', handler: this._onSave },
-            { element: this.nameInput, event: 'input', handler: this._checkOverwrite }
-        ]);
+        return super.show();
     }
 }
 
 class SmartPlaylistModal extends BaseModal {
-    init() {
-        super.init();
+    constructor(modalId) {
+        super(modalId);
         this.titleEl = this.overlay.querySelector('#smart-playlist-title');
         this.descriptionEl = this.overlay.querySelector('#smart-playlist-description');
         this.nameInput = this.overlay.querySelector('#smart-playlist-name-input');
         this.countInput = this.overlay.querySelector('#smart-playlist-count-input');
         this.countLabel = this.overlay.querySelector('#smart-playlist-count-label');
         this.countWrapper = this.overlay.querySelector('#smart-playlist-count-wrapper');
+        this.confirmBtn = this.overlay.querySelector('#smart-playlist-confirm-btn');
+
+        this.confirmBtn.addEventListener('click', () => {
+            const playlistName = this.nameInput.value.trim();
+            const count = this.countWrapper.classList.contains('hidden') ? 1 : parseInt(this.countInput.value, 10);
+
+            if (playlistName && (this.countWrapper.classList.contains('hidden') || count > 0)) {
+                this.hide(false);
+                this._resolvePromise({ playlistName, count });
+            } else {
+                toast('Please provide a valid playlist name and number of items.', false);
+            }
+        });
     }
 
-    _onCreate() {
-        this.confirmBtn.disabled = true;
-        const playlistName = this.nameInput.value.trim();
-        const count = this.countWrapper.style.display === 'none' ? 1 : parseInt(this.countInput.value, 10);
-
-        if (playlistName && (this.countWrapper.style.display === 'none' || count > 0)) {
-            if (this.onCreateCallback) this.onCreateCallback({ playlistName, count });
-            this.onCancelCallback = null; // Prevent cancel from firing on create
-            this.hide();
-        } else {
-            alert('Please provide a valid playlist name and number of items.');
-            this.confirmBtn.disabled = false;
-        }
+    hide(isCancel = false) {
+        this.confirmBtn.disabled = false;
+        super.hide(isCancel);
     }
 
-    hide() {
-        super.hide();
-        this.confirmBtn.disabled = false; // Always re-enable on hide
-    }
-
-    show({ title, description, countLabel, countInput = true, defaultCount, defaultName, onCreate, onCancel }) {
-        super.show();
-        this.onCreateCallback = onCreate;
-        this.onCancelCallback = onCancel;
-
+    show({ title, description, countLabel, countInput = true, defaultCount, defaultName }) {
         this.titleEl.textContent = title;
         this.descriptionEl.textContent = description;
         this.nameInput.value = defaultName;
+        this.confirmBtn.disabled = false;
 
-        this.countWrapper.style.display = countInput ? '' : 'none';
+        this.countWrapper.classList.toggle('hidden', !countInput);
         if (countInput) {
             this.countLabel.textContent = countLabel;
             this.countInput.value = defaultCount;
@@ -206,76 +154,69 @@ class SmartPlaylistModal extends BaseModal {
         this.nameInput.focus();
         this.nameInput.select();
 
-        this._attachEventListeners([{ element: this.confirmBtn, event: 'click', handler: this._onCreate }]);
+        return super.show();
     }
 }
 
 class ImportPresetModal extends BaseModal {
-    init() {
-        super.init();
+    constructor(modalId) {
+        super(modalId);
         this.codeInput = this.overlay.querySelector('#import-code-input');
         this.nameInput = this.overlay.querySelector('#import-name-input');
+        this.confirmBtn = this.overlay.querySelector('#import-preset-confirm-btn');
+
+        this.confirmBtn.addEventListener('click', () => {
+            const rawCode = this.codeInput.value.trim();
+            const name = this.nameInput.value.trim();
+            if (!rawCode || !name) {
+                toast('Please provide both a share code and a new name.', false);
+                return;
+            }
+            try {
+                const lines = rawCode.split('\n').filter(line => line.trim() !== '');
+                const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
+                if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
+
+                const sharePayload = JSON.parse(atob(base64String));
+                if (!sharePayload.data || !Array.isArray(sharePayload.data)) {
+                    throw new Error("The share code has an invalid format.");
+                }
+
+                this.hide(false);
+                this._resolvePromise({ name, data: sharePayload.data });
+            } catch (e) {
+                console.error("Failed to decode or parse preset:", e);
+                toast(`Invalid share code. Error: ${e.message}`, false);
+            }
+        });
     }
 
-    _onImport() {
-        const rawCode = this.codeInput.value.trim();
-        const name = this.nameInput.value.trim();
-        if (!rawCode || !name) {
-            alert('Please provide both a share code and a new name for the preset.');
-            return;
-        }
-        try {
-            const lines = rawCode.split('\n').filter(line => line.trim() !== '');
-            const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
-            if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
-
-            const sharePayload = JSON.parse(atob(base64String));
-            if (!sharePayload.data || !Array.isArray(sharePayload.data)) throw new Error("The share code has an invalid format.");
-
-            if (this.onImportCallback) this.onImportCallback(name, sharePayload.data);
-            this.hide();
-        } catch (e) {
-            console.error("Failed to decode or parse preset:", e);
-            alert(`Invalid share code. Please check the code and try again.\nError: ${e.message}`);
-        }
-    }
-
-    show(onImport) {
-        super.show();
-        this.onImportCallback = onImport;
-        this.onCancelCallback = null;
+    show() {
         this.codeInput.value = '';
         this.nameInput.value = '';
         this.codeInput.focus();
-
-        this._attachEventListeners([{ element: this.confirmBtn, event: 'click', handler: this._onImport }]);
+        return super.show();
     }
 }
 
 class SmartBuildModal extends BaseModal {
-    init() {
-        super.init();
+    constructor(modalId) {
+        super(modalId);
         this.list = this.overlay.querySelector('#smart-build-list');
+
+        this.list.addEventListener('click', (event) => {
+            event.preventDefault();
+            const target = event.target.closest('li a');
+            if (!target) return;
+
+            const type = target.dataset.type;
+            this.hide(false);
+            this._resolvePromise(type);
+        });
     }
 
-    _onSelect(event) {
-        event.preventDefault();
-        const target = event.target.closest('li a');
-        if (!target) return;
-
-        const type = target.dataset.type;
-        if (this.onSelectCallback) {
-            this.onSelectCallback(type);
-        }
-        this.hide();
-    }
-
-    show(items, onSelect) {
-        super.show();
-        this.onSelectCallback = onSelect;
-        this.onCancelCallback = null;
-        this.list.innerHTML = ''; // Clear previous items
-
+    show(items) {
+        this.list.innerHTML = '';
         items.forEach(item => {
             const li = document.createElement('li');
             li.innerHTML = `
@@ -290,8 +231,7 @@ class SmartBuildModal extends BaseModal {
         if (window.featherReplace) {
             window.featherReplace();
         }
-
-        this._attachEventListeners([{ element: this.list, event: 'click', handler: this._onSelect }]);
+        return super.show();
     }
 }
 
@@ -299,34 +239,9 @@ class SmartBuildModal extends BaseModal {
 export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal;
 
 export function initModals() {
-    confirmModal = new ConfirmationModal('confirm-modal-overlay', {
-        closeBtn: '#confirm-modal-close-btn',
-     //   cancelBtn: '#confirm-modal-cancel-btn',
-        confirmBtn: '#confirm-modal-confirm-btn',
-    });
-
-    presetModal = new SavePresetModal('save-preset-modal-overlay', {
-        closeBtn: '#save-preset-close-btn',
-     //   cancelBtn: '#save-preset-cancel-btn',
-        confirmBtn: '#save-preset-confirm-btn',
-    });
-
-    smartPlaylistModal = new SmartPlaylistModal('smart-playlist-modal-overlay', {
-        closeBtn: '#smart-playlist-close-btn',
-     //   cancelBtn: '#smart-playlist-cancel-btn',
-        confirmBtn: '#smart-playlist-confirm-btn',
-    });
-
-    importPresetModal = new ImportPresetModal('import-preset-modal-overlay', {
-        closeBtn: '#import-preset-close-btn',
-      //  cancelBtn: '#import-preset-cancel-btn',
-        confirmBtn: '#import-preset-confirm-btn',
-    });
-
-    smartBuildModal = new SmartBuildModal('smart-build-modal-overlay', {
-        closeBtn: '#smart-build-close-btn',
-     //   cancelBtn: '#smart-build-cancel-btn',
-    });
-
-    [confirmModal, presetModal, smartPlaylistModal, importPresetModal, smartBuildModal].forEach(m => m.init());
+    confirmModal = new ConfirmationModal('confirm-modal-overlay');
+    presetModal = new SavePresetModal('save-preset-modal-overlay');
+    smartPlaylistModal = new SmartPlaylistModal('smart-playlist-modal-overlay');
+    importPresetModal = new ImportPresetModal('import-preset-modal-overlay');
+    smartBuildModal = new SmartBuildModal('smart-build-modal-overlay');
 }

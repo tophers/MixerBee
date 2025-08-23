@@ -26,7 +26,6 @@ from typing import Dict, List
 
 import requests
 
-# Use the new refactored app package
 import app as core
 
 
@@ -57,7 +56,6 @@ def mix(*,
             log.append(f"Acting on behalf of user id {tgt}")
 
     if delete:
-        # This legacy endpoint can delete playlists OR collections.
         core.delete_collection(playlist, tgt, hdr, log)
         core.delete_playlist(playlist, tgt, hdr, log)
         return {"status": "ok", "log": log,

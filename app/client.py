@@ -13,7 +13,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
 
-import app_state # Import the global state manager
+import app_state
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -50,7 +50,7 @@ SESSION.mount("https://", _adapter)
 # Ensure the session is closed when the application exits
 atexit.register(SESSION.close)
 
-# authentication helpers
+# Authentication helpers
 def authenticate(username: str, password: str, url: str, server_type: str) -> Tuple[str, str]:
     """
     Authenticates with Emby or Jellyfin and returns the User ID and Access Token.
@@ -62,18 +62,13 @@ def authenticate(username: str, password: str, url: str, server_type: str) -> Tu
     endpoint = f"{auth_url}/Users/AuthenticateByName"
     payload = {"Username": username, "Pw": password}
 
-    # Construct the client identification string
     auth_str = f'MediaBrowser Client="{CLIENT_NAME}", Device="{DEVICE_NAME}", DeviceId="{DEVICE_ID}", Version="{CLIENT_VERSION}"'
 
-    # THE CRITICAL FIX: The header NAME is different for Emby vs. Jellyfin.
     if server_type == 'jellyfin':
-        # Jellyfin's web client uses the standard "Authorization" header for identification.
         headers = {"Authorization": auth_str}
     else: # emby
-        # Emby uses the custom "X-Emby-Authorization" header.
         headers = {"X-Emby-Authorization": auth_str}
 
-    # Send the request as JSON, which we know works for both.
     r = SESSION.post(endpoint, json=payload, headers=headers, timeout=10)
 
     r.raise_for_status()
@@ -89,14 +84,12 @@ def auth_headers(token: str, user_id: str) -> Dict[str, str]:
         f'UserId="{user_id}", Token="{token}"'
     )
     
-    # Base headers that are common to both platforms
     headers = {
         "X-Emby-Token": token,
         "X-MediaBrowser-Token": token,
         "X-Emby-User-Id": user_id,
     }
 
-    # Add the correct primary authorization header based on the configured server type
     if app_state.SERVER_TYPE == 'jellyfin':
         headers['Authorization'] = auth_str
     else: # emby

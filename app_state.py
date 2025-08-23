@@ -9,23 +9,24 @@ from dotenv import load_dotenv
 
 import app as core
 
+# --- Path Resolution ---
+# THIS IS NOW THE SINGLE SOURCE OF TRUTH FOR CONFIGURATION PATHS
+IS_DOCKER = os.path.exists('/.dockerenv')
+if IS_DOCKER:
+    CONFIG_DIR = Path("/config")
+else:
+    # Assumes app_state.py is in the project root
+    CONFIG_DIR = Path(__file__).parent / "config"
+
+ENV_PATH = CONFIG_DIR / ".env"
+CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+
 # --- Global State Variables ---
 login_uid, token, HDR, is_configured = None, None, {}, False
 DEFAULT_USER_NAME, DEFAULT_UID = None, None
 GEMINI_API_KEY = None
 SERVER_TYPE = None
-
-# --- Path Resolution ---
-IS_DOCKER = os.path.exists('/.dockerenv')
-HERE = Path(__file__).parent
-
-if IS_DOCKER:
-    CONFIG_DIR = Path("/config")
-else:
-    CONFIG_DIR = HERE / "config"
-
-ENV_PATH = CONFIG_DIR / ".env"
-CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def load_and_authenticate():

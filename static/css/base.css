@@ -24,7 +24,7 @@
     --shadow-drag: 0 10px 30px rgba(255,255,255,0.2);
 
     font-family: system-ui, sans-serif;
-    
+
     /* Default color scheme for native form elements */
     color-scheme: dark;
 }
@@ -43,7 +43,6 @@ body[data-theme='light'] {
     --divider-color: #f1f3f5;
     --shadow: 0 2px 6px rgba(0,0,0,.1);
     --shadow-drag: 0 10px 30px rgba(0,0,0,0.2);
-    /* Set color scheme for light theme */
     color-scheme: light;
 }
 
@@ -68,8 +67,6 @@ body {
     min-height: 100vh;
 }
 
-
-/* Loading Spinner Overlay             */
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -102,7 +99,6 @@ body[data-theme='light'] #loading-overlay {
         transform: rotate(360deg);
     }
 }
-
 
 /* Utilities & Toast Notification      */
 .hidden {
@@ -191,16 +187,6 @@ body[data-theme='light'] #loading-overlay {
     margin-bottom: 0;
     padding: 0;
   }
-}
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-        transform: scale(0.95);
-    }
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
 }
 
 @keyframes fadeOut {

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 import scheduler
 import app_state
+import database # Import the new database module
 from routers import config, builder, library, quick_playlists, presets
 from routers import scheduler as scheduler_router
 
@@ -36,7 +37,8 @@ app.include_router(presets.router)
 # --- Startup and Shutdown ---
 @app.on_event("startup")
 def startup_event():
-    """Load config and start the scheduler on application startup."""
+    """Initialize DB, load config, and start the scheduler on application startup."""
+    database.init_db() # Initialize the database and run migrations
     app_state.load_and_authenticate()
     scheduler.scheduler_manager.start()
 

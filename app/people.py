@@ -16,18 +16,16 @@ def get_people(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     params = {
         "searchTerm": name,
         "Fields": "PrimaryImageTag",
-        "Limit": 20  # Limit to a reasonable number for autocomplete
+        "Limit": 20
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Persons", params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     items = r.json().get("Items", [])
 
-    # Format the response for the frontend
     formatted_people = [
         {
             "Id": p.get("Id"),
             "Name": p.get("Name"),
-            # The 'PrimaryImageTag' often contains the role, like 'Actor' or 'Director'
             "Role": p.get("PrimaryImageTag")
         }
         for p in items

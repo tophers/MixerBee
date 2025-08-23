@@ -15,8 +15,6 @@ def get_studios(name: str, user_id: str, hdr: Dict[str, str]) -> List[Dict[str, 
     """
     global _studio_cache
 
-    # Use a simple in-memory cache to avoid re-aggregating on every search.
-    # This will be cleared on app restart.
     if not _studio_cache:
         logging.info("Aggregating studio list for the first time...")
         params = {
@@ -43,12 +41,9 @@ def get_studios(name: str, user_id: str, hdr: Dict[str, str]) -> List[Dict[str, 
             return []
 
     if not name:
-        # Return a limited number if the search is empty
         return [{"Name": s} for s in sorted(list(_studio_cache))[:20]]
 
-    # Perform a case-insensitive "contains" search on the cached set
     search_name = name.lower()
     matching_studios = [s for s in _studio_cache if search_name in s.lower()]
     
-    # Return sorted results, limited for performance
     return [{"Name": s} for s in sorted(matching_studios)[:20]]

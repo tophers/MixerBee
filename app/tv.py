@@ -54,15 +54,12 @@ def episodes(sid: str, season: int, episode: int, count: int,
     # Filter out specials, which have a season number of 0
     all_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
 
-    # Find all episodes from the start point onwards
     start_eps = [ep for ep in all_eps
                  if ep.get("ParentIndexNumber", 0) > season
                  or (ep.get("ParentIndexNumber", 0) == season
                      and ep.get("IndexNumber", 0) >= episode)]
 
-    # If an end point is defined, filter by it. Otherwise, use the count.
     if end_season is not None and end_episode is not None:
-        # Range mode
         end_eps = [ep for ep in start_eps
                      if ep.get("ParentIndexNumber", 0) < end_season
                      or (ep.get("ParentIndexNumber", 0) == end_season
@@ -105,10 +102,8 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
     for ep in regular_eps:
         user_data = ep.get("UserData", {})
         if not user_data.get("Played"):
-            # Return the full episode object now
             return ep
             
-    # If no unwatched episodes, return the first episode of the series as a fallback
     if regular_eps:
         return regular_eps[0]
 

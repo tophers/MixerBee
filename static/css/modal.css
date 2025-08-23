@@ -26,7 +26,6 @@ body[data-theme='light'] .modal-overlay {
     box-shadow: 0 5px 20px rgba(0,0,0,0.5);
     width: 90%;
     max-width: 500px;
-    animation: fadeIn 0.3s ease-out;
 }
 
 .modal-header {
@@ -44,7 +43,8 @@ body[data-theme='light'] .modal-overlay {
     font-size: 1.4rem;
 }
 
-#modal-close-btn, #save-preset-close-btn, #smart-playlist-close-btn, #movie-marathon-close-btn, #import-preset-close-btn, #settings-close-btn {
+/* Replaced long list of IDs with a more generic class selector */
+.modal-header .icon-btn {
     font-size: 1.8rem;
     font-weight: 600;
 }

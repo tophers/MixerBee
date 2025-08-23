@@ -5,6 +5,8 @@ gen
 tools/
 schedules.json
 presets.json
+mixerbee.db
+*.migrated
 #I have my reasons
 tests/*
 

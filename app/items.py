@@ -33,7 +33,7 @@ def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[D
     params = {
         "UserId": user_id,
         "ParentId": item_id,
-        "Fields": "RunTimeTicks,ParentId,IndexNumber,ParentIndexNumber", # Add fields for more context
+        "Fields": "RunTimeTicks,ParentId,IndexNumber,ParentIndexNumber", 
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
@@ -45,7 +45,6 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     if not user_id: return []
     params = {
         "Recursive": "true",
-        # THE FIX: Ask for Playlist, BoxSet (Emby), and Collection (Jellyfin) types.
         "IncludeItemTypes": "Playlist,BoxSet,Collection",
         "Fields": "ChildCount,DateCreated",
     }
@@ -56,7 +55,6 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 
     for item in items:
         item["ItemCount"] = item.get("ChildCount", 0)
-        # THE FIX: Harmonize the display type for the frontend.
         item_type = item.get("Type")
         item["DisplayType"] = "Collection" if item_type in ["BoxSet", "Collection"] else "Playlist"
 
@@ -69,7 +67,7 @@ def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
         "IncludeItemTypes": "Playlist",
         "Recursive": "true",
         "Fields": "Id,Name",
-        "_": int(time.time() * 1000) # Cache-busting parameter
+        "_": int(time.time() * 1000)
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items",
                            params=params, headers=hdr, timeout=10)
@@ -80,7 +78,6 @@ def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dict[str, str]) -> bool:
     """Removes a single item from a playlist without deleting the item itself."""
     user_id = hdr.get("X-Emby-User-Id")
-    # First, get all items to find the PlaylistItemId, which is what Emby uses as the EntryId
     params = {"UserId": user_id, "Fields": "Id"}
     try:
         r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", params=params, headers=hdr, timeout=10)
@@ -95,9 +92,8 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
 
         if not playlist_item_id:
             logging.warning(f"Could not find item {item_id_to_remove} in playlist {playlist_id} to get its PlaylistItemId.")
-            return False  # Item wasn't in the playlist
+            return False
 
-        # Now, delete using the PlaylistItemId (called EntryIds by the API)
         delete_params = {"EntryIds": playlist_item_id}
         del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", params=delete_params, headers=hdr, timeout=10)
         del_resp.raise_for_status()
@@ -211,7 +207,6 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
         combined_items.sort(key=lambda x: x.get("DateCreated", ""), reverse=True)
         final_items = combined_items[:count]
 
-        # This now correctly handles items with 'Id' from movies/episodes
         item_ids = [item["Id"] for item in final_items]
 
         log.append(f"Creating playlist with the top {len(final_items)} most recently added items (using next-up for shows).")
@@ -477,7 +472,6 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
 def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all collections (BoxSets/Collections) for a user."""
     params = {
-        # THE FIX: Ask for both BoxSet (Emby) and Collection (Jellyfin).
         "IncludeItemTypes": "BoxSet,Collection",
         "Recursive": "true",
         "Fields": "Id,Name"
@@ -490,7 +484,6 @@ def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 
 def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a collection by its name, checking for both Emby and Jellyfin types."""
-    # THE FIX: The get_collections function now correctly fetches both types.
     targets = [c for c in get_collections(user_id, hdr)
                if c["Name"].strip().lower() == name.strip().lower()]
     if not targets:

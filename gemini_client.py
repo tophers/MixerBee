@@ -2,7 +2,6 @@ import google.generativeai as genai
 import json
 from typing import List, Dict
 
-# Updated schema with examples for both TV block modes.
 JSON_SCHEMA = """
 [
   {

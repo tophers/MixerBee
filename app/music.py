@@ -25,7 +25,6 @@ def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     }
     
     try:
-        # Increased timeout for potentially large libraries
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=60)
         r.raise_for_status()
         

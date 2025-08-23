@@ -56,12 +56,12 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);
         }
-        return res; // Return the full response object
+        return res;
     })
     .catch(err => {
         const errorMessage = err.log?.join(' • ') || err.detail || err.message || 'An unknown error occurred.';
         toast('Error: ' + errorMessage, false);
-        return { status: 'error', detail: errorMessage }; // Return a consistent error object
+        return { status: 'error', detail: errorMessage };
     })
     .finally(() => {
         if (loadingOverlay) loadingOverlay.style.display = 'none';

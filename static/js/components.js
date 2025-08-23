@@ -4,18 +4,15 @@ import { presetModal, confirmModal, importPresetModal } from './modals.js';
 
 export class PresetManager {
     constructor(storageKey, { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn }) {
-        // storageKey is no longer used but kept for compatibility with existing calls
         this.ui = { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn };
-        this.presets = {}; // Will be populated from the server
+        this.presets = {};
     }
 
-    // START: New method to control which save button is visible
     toggleSaveButtons() {
         const isPresetSelected = !!this.ui.loadSelect.value;
-        this.ui.updateBtn.style.display = isPresetSelected ? 'inline-flex' : 'none';
-        this.ui.saveAsBtn.style.display = isPresetSelected ? 'none' : 'inline-flex';
+        this.ui.updateBtn.classList.toggle('hidden', !isPresetSelected);
+        this.ui.saveAsBtn.classList.toggle('hidden', isPresetSelected);
     }
-    // END: New method
 
     async populateDropdown() {
         try {
@@ -31,23 +28,21 @@ export class PresetManager {
                 option.textContent = name;
                 this.ui.loadSelect.appendChild(option);
             }
-            // Restore selection if possible
             if (this.presets[currentVal]) {
                 this.ui.loadSelect.value = currentVal;
             } else {
                  this.ui.exportBtn.disabled = true;
             }
-            this.toggleSaveButtons(); // Update buttons after populating
+            this.toggleSaveButtons();
         } catch (error) {
             console.error('Error populating presets:', error);
             toast('Could not load presets from server.', false);
         }
     }
 
-    // START: New method to handle updating an existing preset
     async update(getUIDataFn) {
         const presetName = this.ui.loadSelect.value;
-        if (!presetName) return; // Should not happen if button is visible, but good practice
+        if (!presetName) return;
 
         const payload = {
             name: presetName,
@@ -55,43 +50,37 @@ export class PresetManager {
         };
         const res = await post('api/presets', payload, this.ui.updateBtn, 'POST');
         if (res.status === 'ok') {
-            // No need to re-populate dropdown, just update local cache
             this.presets[presetName] = payload.data;
             toast(`Preset "${presetName}" saved!`, true);
         }
     }
-    // END: New method
 
     async init(getUIDataFn, applyPresetFn) {
         await this.populateDropdown();
 
-        // Listener for the new "Save" (update) button
         this.ui.updateBtn.addEventListener('click', () => {
             this.update(getUIDataFn);
         });
 
-        // Updated listener for the "Save as..." button
-        this.ui.saveAsBtn.addEventListener('click', () => {
-            presetModal.show(
-                async (presetName) => {
-                    const payload = {
-                        name: presetName,
-                        data: getUIDataFn()
-                    };
-                    const res = await post('api/presets', payload, this.ui.saveAsBtn, 'POST');
-                    if (res.status === 'ok') {
-                        await this.populateDropdown();
-                        this.ui.loadSelect.value = presetName;
-                        this.ui.exportBtn.disabled = false;
-                        this.toggleSaveButtons();
-                    }
-                },
-                Object.keys(this.presets)
-            );
+        this.ui.saveAsBtn.addEventListener('click', async () => {
+            try {
+                const presetName = await presetModal.show(Object.keys(this.presets));
+                const payload = { name: presetName, data: getUIDataFn() };
+                const res = await post('api/presets', payload, this.ui.saveAsBtn, 'POST');
+                if (res.status === 'ok') {
+                    await this.populateDropdown();
+                    this.ui.loadSelect.value = presetName;
+                    this.ui.exportBtn.disabled = false;
+                    this.toggleSaveButtons();
+                }
+            } catch (err) {
+                console.log('Save preset cancelled.');
+            }
         });
 
-        this.ui.importBtn.addEventListener('click', () => {
-            importPresetModal.show(async (name, data) => {
+        this.ui.importBtn.addEventListener('click', async () => {
+            try {
+                const { name, data } = await importPresetModal.show();
                 const savePreset = async () => {
                     const payload = { name, data };
                     const res = await post('api/presets', payload, null, 'POST');
@@ -104,16 +93,22 @@ export class PresetManager {
                 };
 
                 if (this.presets[name]) {
-                    confirmModal.show({
-                        title: 'Overwrite Preset?',
-                        text: `A preset named "${name}" already exists. Do you want to overwrite it?`,
-                        confirmText: 'Overwrite',
-                        onConfirm: savePreset
-                    });
+                    try {
+                        await confirmModal.show({
+                            title: 'Overwrite Preset?',
+                            text: `A preset named "${name}" already exists. Do you want to overwrite it?`,
+                            confirmText: 'Overwrite',
+                        });
+                        await savePreset();
+                    } catch (err) {
+                        console.log('Overwrite cancelled.');
+                    }
                 } else {
                     await savePreset();
                 }
-            });
+            } catch (err) {
+                console.log('Import preset cancelled.');
+            }
         });
 
         this.ui.exportBtn.addEventListener('click', () => {
@@ -132,33 +127,34 @@ export class PresetManager {
             );
         });
 
-        this.ui.deleteBtn.addEventListener('click', () => {
+        this.ui.deleteBtn.addEventListener('click', async () => {
             const presetName = this.ui.loadSelect.value;
             if (!presetName) {
-                alert("Please select a preset to delete.");
+                toast("Please select a preset to delete.", false);
                 return;
             }
-
-            confirmModal.show({
-                title: 'Delete Preset?',
-                text: `Are you sure you want to delete the preset "${presetName}"? This cannot be undone.`,
-                confirmText: 'Delete',
-                onConfirm: async () => {
-                    const res = await post(`api/presets/${presetName}`, {}, this.ui.deleteBtn, 'DELETE');
-                    if (res.status === 'ok') {
-                        await this.populateDropdown();
-                        // This will implicitly deselect and disable the export/save buttons
-                    }
+            try {
+                await confirmModal.show({
+                    title: 'Delete Preset?',
+                    text: `Are you sure you want to delete the preset "${presetName}"? This cannot be undone.`,
+                    confirmText: 'Delete',
+                });
+                const res = await post(`api/presets/${presetName}`, {}, this.ui.deleteBtn, 'DELETE');
+                if (res.status === 'ok') {
+                    await this.populateDropdown();
+                    applyPresetFn([]);
                 }
-            });
+            } catch (err) {
+                console.log('Delete preset cancelled.');
+            }
         });
 
         this.ui.loadSelect.addEventListener('change', (event) => {
             const presetName = event.target.value;
             this.ui.exportBtn.disabled = !presetName;
-            this.toggleSaveButtons(); // Control visibility of save buttons
+            this.toggleSaveButtons();
             if (!presetName) {
-                applyPresetFn([]); // Clear blocks if no preset is selected
+                applyPresetFn([]);
                 return;
             };
             applyPresetFn(this.presets[presetName]);
@@ -166,168 +162,37 @@ export class PresetManager {
     }
 }
 
-export function createTvShowRow({ rowData, seriesData, userSelectElement, changeCallback }) {
+export function createTvShowRow({ rowData, rowIndex }) {
+    const template = document.getElementById('template-tv-show-row');
+    const rowElement = template.content.cloneNode(true).firstElementChild;
+    
+    rowElement.dataset.rowIndex = rowIndex;
 
-    const icon = (featherName, cls, title) => {
-    const btn = Object.assign(document.createElement('button'), { type: 'button', className: 'icon-btn ' + cls, title: title });
-    btn.innerHTML = `<i data-feather="${featherName}"></i>`;
-    return btn;
-};
-    const r = Object.assign(document.createElement('div'), { className: 'show-row tv-block-show-row' });
+    const showSelect = rowElement.querySelector('.tv-block-show-select');
+    const seasonInput = rowElement.querySelector('.tv-block-season');
+    const episodeInput = rowElement.querySelector('.tv-block-episode');
+    const previewDiv = rowElement.querySelector('.tv-block-preview');
+    const unwatchedCb = rowElement.querySelector('.first-unwatched-cb');
 
-    const handle = icon('move', 'drag-handle icon-btn', 'Drag to reorder');
-
-    const showSelectWrapper = document.createElement('div');
-    showSelectWrapper.className = 'show-select-wrapper';
-
-    const searchAndSelectGroup = document.createElement('div');
-    searchAndSelectGroup.className = 'search-and-select';
-
-    const searchInput = Object.assign(document.createElement('input'), {
-        type: 'search',
-        className: 'show-search-input',
-        placeholder: 'Filter shows...'
-    });
-
-    const sel = document.createElement('select');
-    sel.className = 'tv-block-show-select';
-    seriesData.forEach(s => {
+    appState.seriesData.forEach(s => {
         const option = document.createElement('option');
         option.value = s.name;
         option.textContent = s.name;
         option.dataset.id = s.id;
-        sel.appendChild(option);
+        showSelect.appendChild(option);
     });
 
-    searchAndSelectGroup.append(searchInput, sel);
-    const shuffleBtn = icon('shuffle', 'shuffle-show-btn', 'Pick Random Show');
-    showSelectWrapper.append(searchAndSelectGroup, shuffleBtn);
+    if (rowData?.name) showSelect.value = rowData.name;
+    seasonInput.value = rowData?.season ?? 1;
+    episodeInput.value = rowData?.episode ?? 1;
+    unwatchedCb.checked = rowData?.unwatched ?? false;
+    
+    previewDiv.textContent = '...'; 
 
-    const sInput = Object.assign(document.createElement('input'), { type: 'number', className: 'tv-block-season', value: rowData?.season ?? 1, min: 1 });
-    const eInput = Object.assign(document.createElement('input'), { type: 'number', className: 'tv-block-episode', value: rowData?.episode ?? 1, min: 1 });
-    const prev = Object.assign(document.createElement('div'), { className: 'tv-block-preview' });
+    const isUnwatched = unwatchedCb.checked;
+    seasonInput.disabled = isUnwatched;
+    episodeInput.disabled = isUnwatched;
+    rowElement.querySelector('.random-ep-btn').disabled = isUnwatched;
 
-    if (rowData?.name) {
-        sel.value = rowData.name;
-    }
-
-    const optionsDiv = document.createElement('div');
-    optionsDiv.className = 'tv-block-show-options';
-    const unwatchedLabel = document.createElement('label');
-    const unwatchedCb = Object.assign(document.createElement('input'), { type: 'checkbox', className: 'first-unwatched-cb' });
-    if (rowData?.unwatched) {
-        unwatchedCb.checked = true;
-    }
-    unwatchedLabel.append(unwatchedCb, ' Start from next unwatched');
-    optionsDiv.appendChild(unwatchedLabel);
-
-    const randomBtn = icon('shuffle', 'random-ep-btn', 'Pick Random Episode');
-    const delBtn = icon('x', 'delete-btn danger', 'Delete Row');
-
-    const controlsDiv = document.createElement('div');
-    controlsDiv.className = 'show-row-controls';
-    [randomBtn, delBtn].forEach(btn => controlsDiv.appendChild(btn));
-
-    const updatePreview = () => {
-        const selectedOption = sel.options[sel.selectedIndex];
-        if (!sel.value || !selectedOption) { prev.textContent = ''; return; }
-        const showId = selectedOption.dataset.id;
-        if (!showId) { prev.textContent = ''; return; }
-
-        prev.textContent = '...';
-        fetch(`api/episode_lookup?series_id=${showId}&season=${sInput.value}&episode=${eInput.value}`)
-            .then(r => r.ok ? r.json() : Promise.reject('Episode not found'))
-            .then(data => { prev.textContent = `→ ${data.name}`; })
-            .catch(err => { console.warn(err); prev.textContent = 'Episode not found'; });
-    };
-
-    searchInput.addEventListener('input', (e) => {
-        const searchTerm = e.target.value.toLowerCase();
-        let firstVisible = null;
-        Array.from(sel.options).forEach(opt => {
-            const showName = opt.textContent.toLowerCase();
-            const isVisible = showName.includes(searchTerm);
-            opt.style.display = isVisible ? '' : 'none';
-            if (isVisible && !firstVisible) firstVisible = opt;
-        });
-        sel.value = firstVisible ? firstVisible.value : '';
-        sel.dispatchEvent(new Event('input'));
-    });
-
-    shuffleBtn.addEventListener('click', () => {
-        const randomIndex = Math.floor(Math.random() * seriesData.length);
-        sel.value = seriesData[randomIndex].name;
-        unwatchedCb.checked = true;
-        unwatchedCb.dispatchEvent(new Event('change'));
-    });
-
-    unwatchedCb.addEventListener('change', async (event) => {
-        const isChecked = event.target.checked;
-        sInput.disabled = isChecked;
-        eInput.disabled = isChecked;
-        randomBtn.disabled = isChecked;
-        if (isChecked) {
-            prev.textContent = 'Finding...';
-            const selectedOption = sel.options[sel.selectedIndex];
-            if (!selectedOption) { prev.textContent = 'No show selected.'; return; }
-            const seriesId = selectedOption.dataset.id;
-            const userId = userSelectElement.value;
-            try {
-                const res = await fetch(`api/shows/${seriesId}/first_unwatched?user_id=${userId}`);
-                if (!res.ok) throw new Error('Failed to fetch');
-                const data = await res.json();
-                sInput.value = data.ParentIndexNumber ?? 1;
-                eInput.value = data.IndexNumber ?? 1;
-                updatePreview();
-            } catch (err) {
-                prev.textContent = 'Error finding episode';
-                console.error(err);
-            }
-        }
-        if (changeCallback) changeCallback();
-    });
-
-    randomBtn.addEventListener('click', async () => {
-        if (unwatchedCb.checked) return;
-        prev.textContent = 'Finding...';
-        const selectedOption = sel.options[sel.selectedIndex];
-        if (!selectedOption) { prev.textContent = 'No show selected.'; return; }
-        const seriesId = selectedOption.dataset.id;
-        const userId = userSelectElement.value;
-        try {
-            const res = await fetch(`api/shows/${seriesId}/random_unwatched?user_id=${userId}`);
-            if (!res.ok) throw new Error('Failed to fetch');
-            const data = await res.json();
-            sInput.value = data.season;
-            eInput.value = data.episode;
-            updatePreview();
-        } catch (err) {
-            prev.textContent = 'Error finding episode';
-            console.error(err);
-        }
-        if (changeCallback) changeCallback();
-    });
-
-    [sel, sInput, eInput].forEach(el => el.addEventListener('input', () => {
-        if(unwatchedCb.checked) unwatchedCb.checked = false;
-        sInput.disabled = false;
-        eInput.disabled = false;
-        randomBtn.disabled = false;
-        updatePreview();
-        if (changeCallback) changeCallback();
-    }));
-
-    delBtn.addEventListener('click', () => {
-        r.dispatchEvent(new CustomEvent('delete-row', { bubbles: true }));
-    });
-
-    r.append(handle, showSelectWrapper, sInput, eInput, controlsDiv, optionsDiv, prev);
-
-    if (unwatchedCb.checked) {
-        unwatchedCb.dispatchEvent(new Event('change'));
-    } else {
-        updatePreview();
-    }
-
-    return r;
+    return rowElement;
 }

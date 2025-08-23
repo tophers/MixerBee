@@ -215,7 +215,7 @@ fieldset > details > div { /* The content inside */
 }
 .dropdown-menu {
     position: absolute;
-    top: 100%; /* Position above the button */
+    bottom: 100%; /* Position above the button */
     left: 0;
     background-color: var(--panel);
     border: 1px solid var(--border-color);
@@ -259,10 +259,9 @@ fieldset > details > div { /* The content inside */
     border-radius: var(--radius);
     margin-bottom: 1.5rem;
     box-shadow: var(--shadow);
-    position: relative;
 }
 
-/* START: New styles for collapsible blocks */
+/* Styles for collapsible blocks */
 .mixed-block summary {
     list-style: none; /* Hide the default disclosure marker */
     cursor: pointer;
@@ -278,19 +277,18 @@ fieldset > details > div { /* The content inside */
 .mixed-block[open] .collapse-toggle-btn .feather {
     transform: rotate(180deg);
 }
-/* END: New styles for collapsible blocks */
 
 .mixed-block-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.5rem;
     background: var(--header-bg);
     padding: 0.6rem 1rem;
     border-bottom: 1px solid var(--border-color-subtle);
     border-radius: var(--radius) var(--radius) 0 0;
 }
 
-/* Add a rounded border to the bottom when the block is collapsed */
 .mixed-block:not([open]) > summary .mixed-block-header {
     border-bottom: none;
     border-radius: var(--radius);
@@ -301,18 +299,15 @@ fieldset > details > div { /* The content inside */
     font-family: 'Poppins', sans-serif;
     margin: 0;
     font-size: 1.1rem;
-    padding-left: 1.5rem;
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    flex-grow: 1; /* This is the only new line */
+    flex-grow: 1;
 }
 
 .mixed-block-header .drag-handle {
-    position: absolute;
-    top: 0.4rem;
-    left: 0.5rem;
     font-size: 1.4rem;
+    cursor: grab;
 }
 
 .mixed-block-controls {
@@ -390,7 +385,6 @@ fieldset > details > div { /* The content inside */
     padding: .8rem;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    margin-bottom: 0.8rem;
     gap: 0.8rem 0.5rem;
     grid-template-columns: auto 1fr 1fr;
     grid-template-areas:
@@ -472,9 +466,6 @@ fieldset > details > div { /* The content inside */
         flex-flow: row wrap;
         align-items: center;
         gap: var(--gap) .8rem;
-        grid-template-areas: none;
-        grid-template-columns: none;
-        grid-template-rows: none;
     }
     .tv-block-show-row > .drag-handle { order: 1; }
     .tv-block-show-row > .show-select-wrapper { order: 2; flex: 1 1 300px; }
@@ -490,12 +481,13 @@ fieldset > details > div { /* The content inside */
     background: var(--panel); /* Use a solid background */
     opacity: 0.9;
     box-shadow: var(--shadow-drag);
-    transform: rotate(.5deg); 
+    transform: rotate(.5deg);
     cursor: grabbing;
 }
 .sortable-chosen .drag-handle {
     cursor: grabbing;
 }
+
 /* Scheduler List */
 #schedules-list {
     list-style: none;
@@ -701,7 +693,7 @@ td:last-child {
     margin-top: 0.3rem;
     padding-left: 2rem;
 }
-/* -- Collapsible Section (e.g., in Scheduler) -- */
+/* -- Collapsible Section -- */
 .collapsible-section {
     border: 1px solid var(--border-color);
     border-radius: var(--radius);
@@ -720,10 +712,10 @@ td:last-child {
     justify-content: space-between;
     padding: 0.8rem 1.2rem;
     cursor: pointer;
-    list-style: none; /* Hide default marker */
+    list-style: none; 
 }
 .collapsible-section-header::-webkit-details-marker {
-    display: none; /* Hide default marker in WebKit */
+    display: none; 
 }
 
 .collapsible-section-header h3 {
@@ -787,7 +779,7 @@ td:last-child {
 
 .autocomplete-suggestions li {
     padding: 0.6rem 1rem;
-    cursor: default; /* Change cursor since the li itself is no longer clickable */
+    cursor: default; 
     border-bottom: 1px solid var(--divider-color);
     display: flex;
     justify-content: space-between;
@@ -861,7 +853,7 @@ body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-button
 }
 
 .token-genre {
-    /* States will be handled by data-attributes */
+    /* States will be handled by js */
 }
 
 .token[data-state="all"] {
@@ -925,7 +917,7 @@ body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-button
     border-radius: var(--radius);
     padding: 0.8rem;
     margin-bottom: 1rem;
-    min-height: 40px; /* Ensure drop zone is visible when empty */
+    min-height: 40px; 
 }
 
 .genre-zone-label {
@@ -937,7 +929,7 @@ body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-button
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-/* --- NEW Styles for Range Slider --- */
+/* --- Range Slider --- */
 .range-slider-wrapper {
     padding: 0.5rem 0;
 }
@@ -1025,30 +1017,25 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
 }
 .limit-by-wrapper {
     display: flex;
-    flex-direction: row; 
-    gap: .5rem; /* Reduced gap between Count and Duration groups */
-    align-items: center; 
+    flex-direction: row;
+    gap: 1rem;
+    align-items: center;
     padding-top: 0.5rem;
-    grid-column: span 2; 
     flex-wrap: wrap;
 }
 
-.limit-by-option {
+.limit-by-wrapper label {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* Tighter gap for radio and its label */
+    gap: 0.4rem;
     font-weight: 600;
-    cursor: pointer;
-}
-
-.limit-by-option label {
     cursor: pointer;
 }
 
 .limit-by-wrapper .input-group {
     display: flex;
     align-items: center;
-    gap: 0.5rem; /* Tighter gap for the input and its unit */
+    gap: 0.5rem;
 }
 
 .limit-by-wrapper .movie-block-limit-value {
