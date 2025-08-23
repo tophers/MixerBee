@@ -25,7 +25,6 @@ QUICK_PLAYLIST_MAP = {
 }
 LEGACY_TYPE_MAP = {"continue_watching": "next_up", "forgotten_favorites": "from_the_vault"}
 
-
 def run_playlist_job(**schedule_data) -> Dict:
     schedule_id, user_id, playlist_name, job_type = schedule_data.get("id"), schedule_data.get("user_id"), schedule_data.get("playlist_name"), schedule_data.get("job_type", "builder")
     log_messages = []
@@ -38,13 +37,12 @@ def run_playlist_job(**schedule_data) -> Dict:
     try:
         _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE)
         hdr = core.auth_headers(token, user_id=user_id)
-        config_data = schedule_data.get("config_data", {})
         if job_type == "builder":
-            blocks = config_data.get("blocks", [])
+            blocks = schedule_data.get("blocks", [])
             if not blocks: raise ValueError("Scheduled builder job has no blocks.")
             result = core.create_mixed_playlist(user_id=user_id, playlist_name=playlist_name, blocks=blocks, hdr=hdr)
         elif job_type == "quick_playlist":
-            quick_playlist_data = config_data.get("quick_playlist_data", {})
+            quick_playlist_data = schedule_data.get("quick_playlist_data", {})
             quick_playlist_type = quick_playlist_data.get("quick_playlist_type")
             func_to_call = QUICK_PLAYLIST_MAP.get(quick_playlist_type)
             if not func_to_call: raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
