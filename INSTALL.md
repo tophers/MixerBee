@@ -1,111 +1,96 @@
-# MixerBee 🐝
+# MixerBee – Installation Guide
 
-**MixerBee** is a self-hosted web app for building and managing smart playlists and collections on your [Emby](https://emby.media/) or [Jellyfin](https://jellyfin.org) server. It started as a basic CLI tool to interleave episodes from multiple shows, and has evolved into a fully-featured web-based scheduler and media playlist manager.
+## 🚀 Getting Started
 
-Mix episodes across shows, create themed movie blocks, blend music from your favorite artists, or schedule block-style programming to mimic a custom TV channel.
+MixerBee can be run in **two** ways:
+
+1. **Docker**
+2. **Custom Python environment**
+
+---
+### Docker
+
+Follow these steps for a containerized setup.
+
+1.  **Clone the Repository:** If you haven't already, clone this repository to your local machine.
+    ```sh
+    git clone https://github.com/tophers/mixerbee.git && cd mixerbee
+    ```
+
+2.  **Start the Container:** From the project's root directory, run:
+    ```sh
+    docker-compose up -d
+    ```
+    This will build the Docker image and start the MixerBee container.
+
+3.  **Configure the Application:**
+    * Open your web browser and navigate to `http://localhost:9000`.
+    * Click the cog **Open Settings** button.
+    * Enter your Emby credentials and save. The page will reload.
+    * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
+    * You will get an Init error on reload, restart the container _#todo: improve live reload of environment config_
+
+---
+Custom Python Environment 
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/tophers/mixerbee.git && cd mixerbee
+   ```
+
+2. **Create and activate a virtual environment**
+
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install Python dependencies**
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Create and edit the configuration**
+
+   ```bash
+   cp examples/mixerbee.env.example config/.env
+   vi config/.env
+   ```
+Edit the required variables. (You can also setup the .env in the UI settings cog, *requires a restart)
+
+5. **Run the web server** (or use the provided *systemd* service file)
+
+   ```bash
+   uvicorn web:app --host 0.0.0.0 --port 9000
+   ```
+
+   Access the UI at [http://localhost:9000](http://localhost:9000).
 
 ---
 
-## ✨ Features
+## Updating MixerBee
 
-* **Advanced Playlist & Collection Builder**:
+```bash
+# pull the latest code
+git pull
 
-  * **TV Blocks**: Mix episodes from multiple shows. Start from a specific episode or let MixerBee pick up where you left off.
-  * **Movie Blocks**: Filter your movie library by genre, year range, watched status, and more.
-  * **Music Blocks**: Add songs by artist/album, top tracks, or genre-based selections.
-  * **Create as Collection**: Generate static **Collections** inside your server instead of playlists.
+# Docker users
+docker compose build --pull && docker compose up -d
 
-* **AI Block Builder** (Optional):
-  Use natural language to build playlists (e.g. *"80s action movies and a few episodes of Star Trek"*). Requires a Google Gemini API key.
-
-* **Scheduler**:
-  Automate playlist or collection builds daily or weekly. Includes "Last Run" status to confirm success.
-
-* **Manager**:
-  View, sort, and delete all playlists/collections from a single dashboard.
-
-* **Auto Playlists**:
-
-  * **Video**: Pilot Sampler, Next Up, From the Vault, Movie Genre Roulette
-  * **Music**: Artist Spotlight, Album Roulette, Genre Sampler
-
-* **Modern UI**:
-  Responsive dark/light mode interface with collapsible sections.
-
-* **Preset System**:
-  Save and reuse block configurations. Shareable via export/import text codes.
+# Custom install
+pip install -r requirements.txt
+# then restart uvicorn or:  systemctl restart mixerbee
+```
 
 ---
 
-## 💻 Web Interface
+## Uninstalling / Cleaning Up
 
-Dark mode and light mode views of the core tabs:
-
-| Builder (Dark)                                         | Builder (Light)                                          |
-| ------------------------------------------------------ | -------------------------------------------------------- |
-| ![Builder Dark](screenshots/mixerbee-builder-dark.png) | ![Builder Light](screenshots/mixerbee-builder-light.png) |
-
-| Scheduler (Dark)                                           | Scheduler (Light)                                            |
-| ---------------------------------------------------------- | ------------------------------------------------------------ |
-| ![Scheduler Dark](screenshots/mixerbee-scheduler-dark.png) | ![Scheduler Light](screenshots/mixerbee-scheduler-light.png) |
-
-| Manager (Dark)                                         | Manager (Light)                                          |
-| ------------------------------------------------------ | -------------------------------------------------------- |
-| ![Manager Dark](screenshots/mixerbee-manager-dark.png) | ![Manager Light](screenshots/mixerbee-manager-light.png) |
+* **Docker:** `docker compose down -v` removes containers *and* volumes.
+* **Manual:** deactivate and delete the virtual‑env folder, then remove the project directory.
 
 ---
 
-## 🚀 Installation
-
-See [INSTALL.md](INSTALL.md) for full setup instructions.
-
-You can run MixerBee via:
-
-* [Docker Hub](https://hub.docker.com/r/trulytilted/mixerbee)
-* Manual Docker build
-* Custom Python environment
-
-To enable AI features, add your `GEMINI_API_KEY` to your `.env` file.
-
----
-
-## ⚙️ Usage
-
-After install, open [http://localhost:9000](http://localhost:9000) and start building.
-
-### Builder Tab
-
-* Add TV, Movie, or Music blocks
-* Name and build as Playlist or Collection
-* Save as preset for automation later
-
-### Scheduler Tab
-
-* Pick one or more saved presets or Auto Playlists
-* Choose frequency (Daily or Weekly)
-* Set the time and days
-* Let MixerBee rebuild the content on schedule automatically
-
-### Manager Tab
-
-* View all your playlists and collections
-* Search, sort, and delete items
-
----
-
-## ⚠️ Known Issues
-
-<details>
-<summary><strong>Initial environment setup via UI may require restart</strong></summary>
-<br>
-
-If the `.env` file is first created through the Web UI, you must restart the container or app for it to take effect. Until restarted, the app may behave unexpectedly.
-
-*\[#todo: improve live reload of environment config]*
-
-</details>
-
----
-
-Enjoy! 🐝
-
+Enjoy! 🍯🐝
