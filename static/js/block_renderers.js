@@ -95,9 +95,25 @@ export function renderTvBlock({ blockData, index }) {
     rangeContainer.classList.toggle('hidden', isCountMode);
 
     (blockData.shows || []).forEach((showData, rowIndex) => {
-        // FIX: This was the source of the ReferenceError. It should be `showData`.
         const newRow = createTvShowRow({ rowData: showData, rowIndex });
         showsContainer.appendChild(newRow);
+    });
+
+    new Sortable(showsContainer, {
+        animation: 150,
+        handle: '.drag-handle',
+        ghostClass: 'sortable-ghost',
+        onEnd: (evt) => {
+            if (evt.oldIndex === evt.newIndex) return;
+
+            const blockData = window.appState.builderState.blocks[index];
+            if (!blockData || !blockData.shows) return;
+
+            const [movedItem] = blockData.shows.splice(evt.oldIndex, 1);
+            blockData.shows.splice(evt.newIndex, 0, movedItem);
+
+            showsContainer.dispatchEvent(new CustomEvent('state-changed', { bubbles: true }));
+        }
     });
 
     return blockElement;
@@ -116,9 +132,9 @@ export function renderMovieBlock({ blockData, index }) {
     if (genreDetails) genreDetails.dataset.section = 'genres';
     if (personDetails) personDetails.dataset.section = 'people';
     if (otherDetails) otherDetails.dataset.section = 'other';
-    
+
     const filters = blockData.filters || {};
-    
+
     const previewCountContainer = blockElement.querySelector('.movie-block-preview-count');
     previewCountContainer.innerHTML = `<span class="preview-count-span">...</span>`;
 
@@ -153,7 +169,7 @@ export function renderMovieBlock({ blockData, index }) {
     (filters.exclude_people || []).forEach((p, i) => personTokenContainer.innerHTML += `<span class="token token-person" data-token-type="exclude_people" data-token-index="${i}" data-state="exclude"><span class="token-state" title="Click to cycle state">${personStateIcons.exclude}</span>${p.Name} (${p.Role || 'Person'})<button type="button" class="token-remove">×</button></span>`);
     (filters.studios || []).forEach((s, i) => personTokenContainer.innerHTML += `<span class="token token-studio" data-token-type="studios" data-token-index="${i}" data-state="include"><span class="token-state" title="Click to cycle state">${personStateIcons.include}</span>${s} (Studio)<button type="button" class="token-remove">×</button></span>`);
     (filters.exclude_studios || []).forEach((s, i) => personTokenContainer.innerHTML += `<span class="token token-studio" data-token-type="exclude_studios" data-token-index="${i}" data-state="exclude"><span class="token-state" title="Click to cycle state">${personStateIcons.exclude}</span>${s} (Studio)<button type="button" class="token-remove">×</button></span>`);
-    
+
     const setupToggleButton = (btn, stateConfig, state) => {
         const config = stateConfig[state];
         btn.dataset.state = state;
@@ -188,7 +204,7 @@ export function renderMovieBlock({ blockData, index }) {
         limitValueInput.value = filters.limit || 5;
         limitUnitSpan.innerHTML = 'movies';
     }
-    
+
     return blockElement;
 }
 
@@ -200,7 +216,7 @@ export function renderMusicBlock({ blockData, index }) {
 
     const musicData = blockData.music || {};
     const filters = musicData.filters || {};
-    
+
     const previewCountContainer = blockElement.querySelector('.music-block-preview-count');
     previewCountContainer.innerHTML = `<span class="preview-count-span">...</span>`;
 
@@ -223,7 +239,7 @@ export function renderMusicBlock({ blockData, index }) {
         artistSelect.value = musicData.artistId;
     }
     countInput.value = musicData.count || 10;
-    
+
     if (appState.musicGenreData?.length > 0) {
         appState.musicGenreData.forEach(g => {
             const label = document.createElement('label');
@@ -242,7 +258,7 @@ export function renderMusicBlock({ blockData, index }) {
     } else {
         genreGrid.innerHTML = '<p class="placeholder-text-small">No music genres found.</p>';
     }
-    
+
     if (musicData.artistId && musicData.albumId) {
         fetch(`api/music/artists/${musicData.artistId}/albums`).then(r => r.json()).then(albums => {
             albumSelect.innerHTML = '<option value="">-- Select Album --</option>';
@@ -250,7 +266,7 @@ export function renderMusicBlock({ blockData, index }) {
             albumSelect.value = musicData.albumId;
         });
     }
-    
+
     const mode = musicData.mode || 'album';
     artistContainer.classList.toggle('hidden', mode === 'genre');
     genreContainer.classList.toggle('hidden', mode !== 'genre');
