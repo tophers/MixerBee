@@ -24,7 +24,7 @@ def api_shows():
     if not app_state.is_configured: return []
     r = core.SESSION.get(
         f"{core.EMBY_URL}/Users/{app_state.login_uid}/Items",
-        params={"IncludeItemTypes": "Series", "Recursive": "true", "Limit": 1000},
+        params={"IncludeItemTypes": "Series", "Recursive": "true"},
         headers=app_state.HDR, timeout=10,
     )
     r.raise_for_status()
