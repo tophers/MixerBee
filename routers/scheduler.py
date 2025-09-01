@@ -1,3 +1,7 @@
+"""
+scheduler.py – APIRouter
+"""
+
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from apscheduler.triggers.cron import CronTrigger

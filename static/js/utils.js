@@ -1,8 +1,52 @@
 // static/js/utils.js
-export function toast(m, ok) {
-  const t = Object.assign(document.createElement('div'), { className: 'toast ' + (ok ? 'ok' : 'fail'), textContent: m });
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+
+export function toast(message, isSuccess, options = {}) {
+  const { actionUrl, actionText = 'View' } = options;
+  
+  document.querySelectorAll('.toast').forEach(t => t.remove());
+
+  const toastElement = document.createElement('div');
+  toastElement.className = `toast ${isSuccess ? 'ok' : 'fail'}`;
+
+  let contentHTML = `<div class="toast-message">${message}</div>`;
+
+  if (actionUrl) {
+    contentHTML += `
+      <div class="toast-actions">
+        <a href="${actionUrl}" target="_blank" class="toast-button">
+          <i data-feather="external-link"></i> ${actionText}
+        </a>
+      </div>
+    `;
+  }
+  
+  toastElement.innerHTML = contentHTML;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'toast-close-btn';
+  closeBtn.innerHTML = '&times;';
+  closeBtn.onclick = () => {
+    toastElement.style.animation = 'fadeOutUp 0.5s forwards';
+    toastElement.addEventListener('animationend', () => toastElement.remove());
+  };
+  toastElement.appendChild(closeBtn);
+
+  document.body.appendChild(toastElement);
+  
+  if (window.featherReplace) {
+    window.featherReplace();
+  }
+
+  if (!actionUrl) {
+    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 4.5s forwards';
+    setTimeout(() => {
+        if (toastElement.parentNode) {
+            toastElement.remove();
+        }
+    }, 5000);
+  } else {
+    toastElement.style.animation = 'fadeInDown 0.5s forwards';
+  }
 }
 
 export function debounce(func, wait) {
@@ -51,7 +95,12 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     .then(res => {
         if (res.status === 'ok') {
             const successMessage = res.log?.join(' • ') || 'Success!';
-            toast(successMessage, true);
+            const toastOptions = {};
+            if (res.newItemUrl) {
+                toastOptions.actionUrl = res.newItemUrl;
+                toastOptions.actionText = 'View on Server';
+            }
+            toast(successMessage, true, toastOptions);
         } else {
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);

@@ -1,3 +1,7 @@
+"""
+config.py – APIRouter
+"""
+
 import logging
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
@@ -29,7 +33,6 @@ def api_save_settings(req: models.SettingsRequest):
         env_content += f'GEMINI_API_KEY="{req.gemini_key}"\n'
 
     try:
-        # Test credentials before saving
         core.authenticate(req.emby_user, req.emby_pass, req.emby_url, req.server_type)
 
         with open(app_state.ENV_PATH, "w") as f:

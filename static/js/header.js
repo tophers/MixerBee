@@ -1,3 +1,5 @@
+// static/js/header.js
+
 window.addEventListener("DOMContentLoaded", () => {
   const overlay = document.getElementById("typewriter-overlay");
 
@@ -5,7 +7,7 @@ window.addEventListener("DOMContentLoaded", () => {
     if (overlay) {
       overlay.remove();
     }
-    return; // Stop execution if intro has been seen
+    return;
   }
 
   const text = "./mixerbee";

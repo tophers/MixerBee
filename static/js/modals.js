@@ -1,4 +1,5 @@
 // static/js/modals.js
+
 import { toast } from './utils.js';
 
 class BaseModal {
@@ -51,6 +52,44 @@ class BaseModal {
         if (isCancel) {
             this._rejectPromise(new Error('Modal cancelled by user.'));
         }
+    }
+}
+
+class PreviewModal extends BaseModal {
+    constructor(modalId) {
+        super(modalId);
+        this.titleEl = this.overlay.querySelector('#preview-modal-title');
+        this.bodyEl = this.overlay.querySelector('#preview-modal-body');
+    }
+
+    show(items) {
+        this.bodyEl.innerHTML = ''; // Clear previous content
+
+        if (!items || items.length === 0) {
+            this.bodyEl.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">No items were found for this configuration.</p>';
+        } else {
+            const list = document.createElement('ol');
+            list.className = 'preview-list';
+            items.forEach(item => {
+                const li = document.createElement('li');
+                const itemName = document.createElement('span');
+                itemName.className = 'item-name';
+                itemName.textContent = item.name;
+                li.appendChild(itemName);
+
+                if (item.context) {
+                    const itemContext = document.createElement('span');
+                    itemContext.className = 'item-context';
+                    itemContext.textContent = item.context;
+                    li.appendChild(itemContext);
+                }
+                list.appendChild(li);
+            });
+            this.bodyEl.appendChild(list);
+            this.titleEl.textContent = `Playlist Preview (${items.length} Items)`;
+        }
+
+        return super.show();
     }
 }
 
@@ -236,7 +275,7 @@ class SmartBuildModal extends BaseModal {
 }
 
 
-export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal;
+export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal;
 
 export function initModals() {
     confirmModal = new ConfirmationModal('confirm-modal-overlay');
@@ -244,4 +283,5 @@ export function initModals() {
     smartPlaylistModal = new SmartPlaylistModal('smart-playlist-modal-overlay');
     importPresetModal = new ImportPresetModal('import-preset-modal-overlay');
     smartBuildModal = new SmartBuildModal('smart-build-modal-overlay');
+    previewModal = new PreviewModal('preview-modal-overlay');
 }

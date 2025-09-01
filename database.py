@@ -1,18 +1,18 @@
-# database.py
+"""
+database.py – Manages database connections
+"""
 import os
 import json
 import logging
 import sqlite3
 from pathlib import Path
 
-# Import the single source of truth for paths
 from app_state import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "mixerbee.db"
 PRESETS_JSON_PATH = CONFIG_DIR / "presets.json"
 SCHEDULES_JSON_PATH = CONFIG_DIR / "schedules.json"
 
-# The .migrated files might exist from previous attempts
 PRESETS_MIGRATED_PATH = CONFIG_DIR / "presets.json.migrated"
 SCHEDULES_MIGRATED_PATH = CONFIG_DIR / "schedules.json.migrated"
 
@@ -49,7 +49,7 @@ def _migrate_presets(conn):
         conn.commit()
 
         final_migrated_name = str(PRESETS_JSON_PATH) + '.migrated'
-        if os.path.exists(final_migrated_name): # Clean up old .migrated if it exists
+        if os.path.exists(final_migrated_name):
              if source_path != final_migrated_name: os.remove(final_migrated_name)
         os.rename(source_path, final_migrated_name)
         logging.info(f"Successfully migrated {len(presets_data)} presets. Final migrated file is {final_migrated_name}.")

@@ -1,3 +1,6 @@
+"""
+gemini_client.py – Manages gemini connectivity
+"""
 import google.generativeai as genai
 import json
 from typing import List, Dict
@@ -63,7 +66,7 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
-    show_list = ", ".join(available_shows[:200]) # Limit to avoid excessive length
+    show_list = ", ".join(available_shows[:200])
     genre_list = ", ".join(available_genres)
 
     full_prompt = f"""

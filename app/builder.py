@@ -4,19 +4,19 @@ app/builder.py - Logic for building mixed playlists from blocks.
 
 import logging
 import random
-from itertools import islice
 from typing import Dict, List
+from itertools import zip_longest
 
 from .items import create_playlist, add_items_to_playlist_by_ids
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
-from .tv import (episodes, get_first_unwatched_episode, interleave, parse_show,
+from .tv import (episodes, get_first_unwatched_episode, parse_show,
                  series_id)
 
 
-def _generate_item_ids_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, str], log_messages: List[str]) -> List[str]:
-    """Internal helper to process blocks and return a list of item IDs."""
-    master_item_ids: List[str] = []
+def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, str], log_messages: List[str]) -> List[Dict]:
+    """Internal helper to process blocks and return a list of full item dictionaries."""
+    master_items_list: List[Dict] = []
     for i, block in enumerate(blocks, 1):
         block_type = block.get("type")
 
@@ -74,17 +74,16 @@ def _generate_item_ids_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[s
 
                 if groups:
                     if should_interleave:
-                        min_len = min(len(g) for g in groups) if groups else 0
-                        trimmed = [list(islice(g, min_len)) for g in groups]
-                        interleaved_ids = interleave(trimmed)
-                        master_item_ids.extend(interleaved_ids)
-                        log_messages.append(f"Block {i} (TV): Added {len(interleaved_ids)} interleaved episodes.")
+                        interleaved_items = []
+                        for bundle in zip_longest(*groups):
+                            interleaved_items.extend(ep for ep in bundle if ep is not None)
+                        master_items_list.extend(interleaved_items)
+                        log_messages.append(f"Block {i} (TV): Added {len(interleaved_items)} interleaved episodes.")
                     else:
                         total_added = 0
                         for episode_group in groups:
-                            gids = [ep["Id"] for ep in episode_group]
-                            master_item_ids.extend(gids)
-                            total_added += len(gids)
+                            master_items_list.extend(episode_group)
+                            total_added += len(episode_group)
                         log_messages.append(f"Block {i} (TV): Added {total_added} sequential episodes.")
             except Exception as e:
                 log_messages.append(f"Block {i} (TV): Failed with error - {e}")
@@ -92,9 +91,8 @@ def _generate_item_ids_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[s
         elif block_type == "movie":
             try:
                 found_movies = find_movies(user_id=user_id, filters=block.get("filters", {}), hdr=hdr)
-                movie_ids = [m["Id"] for m in found_movies]
-                master_item_ids.extend(movie_ids)
-                log_messages.append(f"Block {i} (Movie): Added {len(movie_ids)} movies.")
+                master_items_list.extend(found_movies)
+                log_messages.append(f"Block {i} (Movie): Added {len(found_movies)} movies.")
             except Exception as e:
                 log_messages.append(f"Block {i} (Movie): Failed with error - {e}")
 
@@ -124,35 +122,67 @@ def _generate_item_ids_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[s
                     songs = find_songs(user_id=user_id, filters=filters, hdr=hdr)
 
                 if songs:
-                    song_ids = [s["Id"] for s in songs]
-                    master_item_ids.extend(song_ids)
-                    log_messages.append(f"Block {i} (Music): Added {len(song_ids)} songs.")
+                    master_items_list.extend(songs)
+                    log_messages.append(f"Block {i} (Music): Added {len(songs)} songs.")
 
             except Exception as e:
                 log_messages.append(f"Block {i} (Music): Failed with error - {e}")
                 logging.error(f"Error processing music block: {e}", exc_info=True)
-    return master_item_ids
+    return master_items_list
+
+
+def format_items_for_preview(items: List[Dict]) -> List[Dict]:
+    """Formats a list of full item objects for the preview modal."""
+    formatted_list = []
+    for item in items:
+        item_type = item.get("Type")
+        name = item.get("Name", "Unknown")
+        context = ""
+
+        if item_type == "Episode":
+            s_num = item.get("ParentIndexNumber", 0)
+            e_num = item.get("IndexNumber", 0)
+            context = f"{item.get('SeriesName', 'Unknown Series')} S{s_num:02d}E{e_num:02d}"
+        elif item_type == "Movie":
+            year = item.get("ProductionYear")
+            if year:
+                name = f"{name} ({year})"
+        elif item_type == "Audio":
+            artist = ""
+            if item.get("ArtistItems"):
+                artist = ", ".join([a["Name"] for a in item["ArtistItems"]])
+            album = item.get("Album", "")
+            if artist and album:
+                context = f"{artist} — {album}"
+            elif artist:
+                context = artist
+        
+        formatted_list.append({"name": name, "context": context})
+
+    return formatted_list
 
 
 def create_mixed_playlist(user_id: str, playlist_name: str,
                           blocks: List[Dict], hdr: Dict[str, str]) -> Dict:
     """Builds a playlist from a list of TV, Movie, and/or Music blocks."""
     log_messages: List[str] = []
-    master_item_ids = _generate_item_ids_from_blocks(user_id, blocks, hdr, log_messages)
+    master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
+    master_item_ids = [item["Id"] for item in master_items]
 
     if not master_item_ids:
         log_messages.append("No items were found to add. Playlist not created.")
         return {"status": "error", "log": log_messages}
 
-    create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
-    return {"status": "ok", "log": log_messages}
+    new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
+    return {"status": "ok" if new_item_id else "error", "log": log_messages, "new_item_id": new_item_id}
 
 
 def add_items_to_playlist(user_id: str, playlist_id: str,
                           blocks: List[Dict], hdr: Dict[str, str]) -> Dict:
     """Builds a list of items from blocks and adds them to an existing playlist."""
     log_messages: List[str] = []
-    master_item_ids = _generate_item_ids_from_blocks(user_id, blocks, hdr, log_messages)
+    master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
+    master_item_ids = [item["Id"] for item in master_items]
 
     if not master_item_ids:
         log_messages.append("No items were found to add. No changes made.")

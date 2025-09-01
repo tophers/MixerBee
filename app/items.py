@@ -33,7 +33,7 @@ def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[D
     params = {
         "UserId": user_id,
         "ParentId": item_id,
-        "Fields": "RunTimeTicks,ParentId,IndexNumber,ParentIndexNumber", 
+        "Fields": "RunTimeTicks,ParentId,IndexNumber,ParentIndexNumber",
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
@@ -60,7 +60,6 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
 
     return items
 
-# Playlist Functions
 def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all playlists for a user."""
     params = {
@@ -154,11 +153,12 @@ def create_playlist(name: str, user_id: str, ids: List[str],
                                timeout=10)
     if resp.ok:
         log.append(f"Playlist '{name}' created successfully.")
+        return resp.json().get("Id")
     else:
         log.append(f"Failed to create playlist (HTTP {resp.status_code}):")
         log.append(resp.text)
+        return None
 
-# "Quick/Auto Playlist" / Smart Playlist Functions
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
     try:
@@ -210,8 +210,8 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
         item_ids = [item["Id"] for item in final_items]
 
         log.append(f"Creating playlist with the top {len(final_items)} most recently added items (using next-up for shows).")
-        create_playlist(name=playlist_name, user_id=user_id, ids=item_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=item_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -267,8 +267,8 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
 
         selected_pilots = random.sample(unwatched_pilots, num_to_sample)
         pilot_ids = [ep["Id"] for ep in selected_pilots]
-        create_playlist(name=playlist_name, user_id=user_id, ids=pilot_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=pilot_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An error occurred: {e}")
@@ -313,8 +313,8 @@ def create_continue_watching_playlist(user_id: str, playlist_name: str, count: i
             log.append("Found in-progress shows, but could not find any playable next episodes. Playlist not created.")
             return {"status": "ok", "log": log}
 
-        create_playlist(name=playlist_name, user_id=user_id, ids=next_episode_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=next_episode_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An error occurred: {e}")
@@ -363,8 +363,8 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
         movie_ids = [m["Id"] for m in selected_movies]
 
         log.append(f"Found {len(forgotten_movies)} forgotten favorites. Creating a playlist with {len(selected_movies)} of them.")
-        create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -390,8 +390,8 @@ def create_movie_marathon_playlist(user_id: str, playlist_name: str, genre: str,
 
         movie_ids = [m["Id"] for m in found_movies]
         log.append(f"Found {len(found_movies)} movies for your '{genre}' marathon.")
-        create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -411,8 +411,8 @@ def create_artist_spotlight_playlist(user_id: str, playlist_name: str, artist_id
 
         song_ids = [song["Id"] for song in top_songs]
         log.append(f"Found {len(top_songs)} top songs for your artist spotlight.")
-        create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -432,8 +432,8 @@ def create_album_playlist(user_id: str, playlist_name: str, album_id: str, hdr: 
 
         song_ids = [song["Id"] for song in album_songs]
         log.append(f"Found {len(album_songs)} songs for album playlist.")
-        create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -458,8 +458,8 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
 
         song_ids = [s["Id"] for s in found_songs]
         log.append(f"Found {len(found_songs)} songs for your '{genre}' genre sampler.")
-        create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
-        return {"status": "ok", "log": log}
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
 
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
@@ -468,7 +468,6 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
         log.append(f"An unexpected error occurred: {e}")
         return {"status": "error", "log": log}
 
-# Collection Functions
 def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all collections (BoxSets/Collections) for a user."""
     params = {
@@ -520,9 +519,10 @@ def create_movie_collection(user_id: str, collection_name: str, filters: Dict, h
 
         r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
-
+        
+        new_item_id = r.json().get("Id")
         log.append(f"Successfully created collection '{collection_name}' with {len(item_ids)} items.")
-        return {"status": "ok", "log": log}
+        return {"status": "ok", "log": log, "new_item_id": new_item_id}
 
     except Exception as e:
         error_message = f"Failed to create collection: {e}"

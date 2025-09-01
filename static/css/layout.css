@@ -1,6 +1,4 @@
 /* static/css/layout.css */
-/* Manages main page structure: containers, action-bar, tabs, etc. */
-
 .main-header-bar {
     display: flex;
     justify-content: center;

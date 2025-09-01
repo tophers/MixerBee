@@ -1,4 +1,5 @@
 // static/js/manager.js
+
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 
@@ -170,10 +171,10 @@ export function initManager() {
     contentsModalTitle = document.getElementById('contents-modal-title');
     contentsModalBody = document.getElementById('contents-modal-body');
     const contentsModalCloseBtn = contentsModalOverlay.querySelector('.js-modal-close');
-    const contentsModalOkBtn = contentsModalOverlay.querySelector('#contents-modal-ok-btn');
+    const contentsModalFooterCloseBtn = contentsModalOverlay.querySelector('.js-modal-cancel');
 
     searchInput.addEventListener('input', renderTable);
     tableHeader.addEventListener('click', handleSort);
     contentsModalCloseBtn.addEventListener('click', hideContentsModal);
-    contentsModalOkBtn.addEventListener('click', hideContentsModal);
+    contentsModalFooterCloseBtn.addEventListener('click', hideContentsModal);
 }

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 models.py   Pydantic models for the MixerBee API.
 """
@@ -25,6 +24,10 @@ class MixedPlaylistRequest(BaseModel):
     playlist_name: str
     blocks: Optional[List[dict]] = None
     create_as_collection: bool = False
+
+class BuilderPreviewRequest(BaseModel):
+    user_id: str
+    blocks: List[Dict]
 
 class AddItemsRequest(BaseModel):
     user_id: str

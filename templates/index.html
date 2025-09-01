@@ -238,6 +238,7 @@
                 <select id="existing-playlist-select" class="hidden">
                 </select>
             </div>
+            <button id="preview-playlist-btn" type="button" class="secondary">Preview</button>
             <button id="generate-mixed-playlist-btn">Build</button>
             <label class="action-bar-checkbox-label">
                 <input type="checkbox" id="create-as-collection-cb">
@@ -276,7 +277,10 @@
                     </label>
                     <label class="control-item">
                         <span>Gemini API Key (Optional)</span>
-                        <input type="password" id="settings-gemini-input" placeholder="Google Gemini API Key">
+                        <div class="input-with-button">
+                            <input type="password" id="settings-gemini-input" placeholder="Google Gemini API Key">
+                            <button id="settings-gemini-remove-btn" type="button" class="secondary small" title="Remove Key on Save">Remove</button>
+                        </div>
                     </label>
                 </div>
             </div>
@@ -381,7 +385,22 @@
             <div class="modal-body" id="contents-modal-body">
             </div>
             <div class="modal-footer">
-                <button id="contents-modal-ok-btn" type="button">OK</button>
+                <button class="js-modal-cancel" type="button">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="preview-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2 id="preview-modal-title">Playlist Preview</h2>
+                <button class="icon-btn js-modal-close">×</button>
+            </div>
+            <div class="modal-body" id="preview-modal-body">
+                 <!-- Preview content will be inserted here -->
+            </div>
+            <div class="modal-footer">
+                <button class="js-modal-cancel" type="button">Close</button>
             </div>
         </div>
     </div>

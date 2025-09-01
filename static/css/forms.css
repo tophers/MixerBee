@@ -1,6 +1,4 @@
 /* static/css/forms.css */
-/* Default styles for all form elements: inputs, selects, buttons, etc. */
-
 select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
     background: var(--input-bg);
     color: var(--text);
@@ -110,7 +108,6 @@ button .feather.chevron {
     font-size: 1.05rem;
     font-family: inherit;
     transition: all 0.2s ease-in-out;
-    /* Add padding to the right to make space for the clear button */
     padding-right: 2.5rem;
     width: 100%;
     resize: none;
@@ -225,4 +222,20 @@ button.secondary {
 button.secondary:hover {
     border-color: var(--accent);
     color: var(--accent);
+}
+
+.input-with-button {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.input-with-button input {
+    flex-grow: 1;
+}
+
+.input-with-button button.small {
+    padding: .35rem .7rem;
+    font-size: .9rem;
+    flex-shrink: 0;
 }

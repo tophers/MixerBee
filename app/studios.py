@@ -1,6 +1,7 @@
 """
 app/studios.py - Studio-related functions.
 """
+
 import logging
 from typing import Dict, List
 

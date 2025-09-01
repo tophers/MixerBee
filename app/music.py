@@ -1,6 +1,7 @@
 """
 app/music.py - All music-related logic.
 """
+
 import random
 import logging
 from typing import Dict, List, Optional
@@ -9,27 +10,26 @@ import requests
 
 from . import client
 
-# Music helpers
 def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """
     Fetches all music genres for a user by aggregating them from all audio items.
-    This is more reliable than the /Genres endpoint for some user/permission configurations.
+    /Genres endpoint for some user/permission configuration didn't work.
     """
     logging.info(f"Aggregating music genres for user {user_id}. This may take a moment for large libraries...")
-    
+
     params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "Fields": "Genres",
         "UserId": user_id
     }
-    
+
     try:
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=60)
         r.raise_for_status()
-        
+
         all_songs = r.json().get("Items", [])
-        
+
         if not all_songs:
             logging.info(f"No audio items found for user {user_id}. Returning empty genre list.")
             return []
@@ -41,7 +41,6 @@ def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
 
         logging.info(f"Found {len(unique_genres)} unique music genres for user {user_id}.")
 
-        # Convert the set of strings to the list of dicts the frontend expects
         genre_list = [{"Name": name, "Id": name} for name in sorted(list(unique_genres))]
         return genre_list
 
@@ -110,7 +109,7 @@ def get_songs_by_album(album_id: str, hdr: Dict[str, str]) -> List[Dict[str, str
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "ParentId": album_id,
-        "Fields": "Id,Name,IndexNumber,ParentIndexNumber",
+        "Fields": "Id,Name,IndexNumber,ParentIndexNumber,ArtistItems,Album",
         "SortBy": "ParentIndexNumber,IndexNumber",
         "UserId": user_id
     }
@@ -125,7 +124,7 @@ def get_songs_by_artist(artist_id: str, hdr: Dict[str, str], sort: str = "PlayCo
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "ArtistIds": artist_id,
-        "Fields": "Id,Name,PlayCount",
+        "Fields": "Id,Name,PlayCount,ArtistItems,Album",
         "UserId": user_id,
         "SortBy": "Random" if sort == "Random" else "SortName",
     }
@@ -148,14 +147,13 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "UserId": user_id,
-        "Fields": "Genres,UserData,PlayCount"
+        "Fields": "Genres,UserData,PlayCount,ArtistItems,Album"
     }
 
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
     r.raise_for_status()
     all_songs = r.json().get("Items", [])
 
-    # Genre filtering
     genres_to_search = filters.get("genres")
     if genres_to_search:
         genre_match_type = filters.get("genre_match", "any")
@@ -179,7 +177,6 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
 
     final_list = all_songs
 
-    # Sorting
     sort_by = filters.get("sort_by", "Random")
     if sort_by == "Random":
         random.shuffle(final_list)
@@ -187,7 +184,6 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
         reverse = sort_by in ("PlayCount", "DateCreated")
         final_list.sort(key=lambda s: s.get(sort_by, 0 if sort_by == "PlayCount" else ""), reverse=reverse)
 
-    # Limiting
     limit = filters.get("limit")
     if limit is not None:
         return final_list[:int(limit)]

@@ -11,10 +11,10 @@ from fastapi.staticfiles import StaticFiles
 
 import scheduler
 import app_state
-import database # Import the new database module
+import database
+from app.cache import refresh_cache 
 from routers import config, builder, library, quick_playlists, presets
 from routers import scheduler as scheduler_router
-
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 ROOT_PATH = "" if IS_DOCKER else "/mixerbee"
@@ -22,7 +22,6 @@ ROOT_PATH = "" if IS_DOCKER else "/mixerbee"
 app = FastAPI(title="MixerBee API", root_path=ROOT_PATH)
 HERE = Path(__file__).parent
 
-# Mount static files
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
 # Include all the API routers
@@ -37,19 +36,22 @@ app.include_router(presets.router)
 # --- Startup and Shutdown ---
 @app.on_event("startup")
 def startup_event():
-    """Initialize DB, load config, and start the scheduler on application startup."""
-    database.init_db() # Initialize the database and run migrations
+    database.init_db()
     app_state.load_and_authenticate()
+    # Perform the initial, blocking cache population before starting the scheduler.
+    # This ensures the cache is ready before any requests can be served.
+    if app_state.is_configured:
+        auth_details = {
+            "token": app_state.token,
+            "login_uid": app_state.login_uid
+        }
+        refresh_cache(auth_details)
     scheduler.scheduler_manager.start()
 
 @app.on_event("shutdown")
 def shutdown_event():
-    """Shutdown the scheduler gracefully."""
     scheduler.scheduler_manager.scheduler.shutdown()
 
-
-# --- Main HTML Endpoint ---
 @app.get("/", response_class=HTMLResponse)
 def index():
-    """Serves the main index.html file."""
     return (HERE / "templates" / "index.html").read_text()

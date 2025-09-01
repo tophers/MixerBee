@@ -1,18 +1,17 @@
 // static/js/builder.js
+
 import { post, debounce, toast } from './utils.js';
-import { confirmModal, smartPlaylistModal, smartBuildModal } from './modals.js';
+import { confirmModal, smartPlaylistModal, smartBuildModal, previewModal } from './modals.js';
 import { PresetManager } from './components.js';
 import { renderTvBlock, renderMovieBlock, renderMusicBlock, updateAllBlockPreviews } from './block_renderers.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
 const AUTOSAVE_KEY = 'mixerbee_autosave';
 
-// The builderState object is the single source of truth for the entire builder UI.
 let builderState = {
     blocks: []
 };
 
-// The main render function. It rebuilds the UI from the state.
 function renderBuilder() {
     const blocksContainer = document.getElementById('mixed-playlist-blocks');
     const placeholder = blocksContainer.querySelector('.placeholder-text');
@@ -111,7 +110,7 @@ async function handleFetchThenShowModal({ button, type, fetchEndpoint, modalConf
     }
 }
 
-export function initBuilderPane(userSelectElement) {
+export function initBuilderPane(userSelectElement, restoreDecision) {
     window.appState.builderState = builderState;
 
     const blocksContainer = document.getElementById('mixed-playlist-blocks');
@@ -119,6 +118,7 @@ export function initBuilderPane(userSelectElement) {
     const aiPromptInput = document.getElementById('ai-prompt-input');
     const generateWithAiBtn = document.getElementById('generate-with-ai-btn');
     const generateBtn = document.getElementById('generate-mixed-playlist-btn');
+    const previewBtn = document.getElementById('preview-playlist-btn');
     const collectionCb = document.getElementById('create-as-collection-cb');
     const addBlockBtn = document.getElementById('add-block-btn');
     const addBlockMenu = document.getElementById('add-block-menu');
@@ -182,7 +182,7 @@ export function initBuilderPane(userSelectElement) {
             aiGeneratorContainer.classList.add('hidden');
         }
     }
-    
+
     collectionCb.addEventListener('change', () => {
         generateBtn.textContent = collectionCb.checked ? 'Build Collection' : 'Build';
         buildModeSelect.disabled = collectionCb.checked;
@@ -243,10 +243,10 @@ export function initBuilderPane(userSelectElement) {
                 unwatched: false
             };
             newBlockData = { type: 'tv', shows: [defaultShowObject], mode: 'count', count: 1, interleave: true };
-        } 
+        }
         else if (blockType === 'movie') {
             newBlockData = { type: 'movie', filters: { watched_status: 'unplayed', sort_by: 'Random', parent_ids: appState.libraryData.map(l => l.Id) } };
-        } 
+        }
         else if (blockType === 'music') {
             newBlockData = { type: 'music', music: { mode: 'album' } };
         }
@@ -274,7 +274,7 @@ export function initBuilderPane(userSelectElement) {
         const blockData = builderState.blocks[blockIndex];
 
         let shouldReRender = true;
-        
+
         if (target.matches('.token-input')) { shouldReRender = false; }
         else if (target.matches('.tv-block-show-select, .tv-block-season, .tv-block-episode, .first-unwatched-cb')) {
             const rowIndex = parseInt(target.closest('.show-row').dataset.rowIndex, 10);
@@ -316,7 +316,7 @@ export function initBuilderPane(userSelectElement) {
 
         if (shouldReRender) renderBuilder();
     }, 400));
-    
+
     blocksContainer.addEventListener('click', async (event) => {
         const target = event.target;
         const button = target.closest('button, .token-state, .filter-toggle-btn, li, .first-unwatched-cb');
@@ -330,7 +330,7 @@ export function initBuilderPane(userSelectElement) {
 
         const blockData = builderState.blocks[blockIndex];
         let shouldReRender = true;
-        
+
         if(button.matches('.autocomplete-suggestions li')) {
             const input = button.closest('.token-field-wrapper').querySelector('.token-input');
             const itemType = button.dataset.itemType;
@@ -405,7 +405,7 @@ export function initBuilderPane(userSelectElement) {
             const tokenType = tokenEl.dataset.tokenType;
             const tokenIndex = parseInt(tokenEl.dataset.tokenIndex, 10);
             const token = blockData.filters[tokenType][tokenIndex];
-            
+
             if(tokenEl.matches('.token-genre')) {
                 const cycle = {'any': 'all', 'all': 'exclude', 'exclude': 'any'};
                 const currentType = tokenEl.dataset.state;
@@ -422,6 +422,36 @@ export function initBuilderPane(userSelectElement) {
         } else { shouldReRender = false; }
 
         if (shouldReRender) renderBuilder();
+    });
+
+    previewBtn.addEventListener('click', async (event) => {
+        if (builderState.blocks.length === 0) return toast('Please add at least one block to preview.', false);
+
+        const loadingOverlay = document.getElementById('loading-overlay');
+        try {
+            loadingOverlay.classList.remove('hidden');
+            previewBtn.disabled = true;
+
+            const response = await fetch('api/builder/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userSelectElement.value, blocks: builderState.blocks })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || `Server returned status ${response.status}`);
+            }
+
+            const items = await response.json();
+            previewModal.show(items).catch(() => {});
+
+        } catch (error) {
+            toast(`Error generating preview: ${error.message}`, false);
+        } finally {
+            loadingOverlay.classList.add('hidden');
+            previewBtn.disabled = false;
+        }
     });
 
     generateBtn.addEventListener('click', async (event) => {
@@ -522,41 +552,30 @@ export function initBuilderPane(userSelectElement) {
             }
         } catch (error) { console.error("Error fetching autocomplete:", error); }
     }, 300));
-    
+
     blocksContainer.addEventListener('focusout', (e) => {
         if(e.target.matches('.token-input')) {
             setTimeout(() => e.target.nextElementSibling.innerHTML = '', 150);
         }
     });
 
-    // FIX: Re-introduce the restore function definition
-    async function restoreAutosavedState() {
+    checkAiConfig();
+    populatePlaylistsDropdown();
+
+    if (restoreDecision === 'restore') {
         const savedData = localStorage.getItem(AUTOSAVE_KEY);
         if (savedData) {
             try {
-                const blocks = JSON.parse(savedData);
-                if (Array.isArray(blocks) && blocks.length > 0) {
-                    await confirmModal.show({
-                        title: 'Restore Previous Session?',
-                        text: 'We found some unsaved blocks from your last session. Would you like to restore them?',
-                        confirmText: 'Restore',
-                    });
-                    applyDataToUI(blocks);
-                }
+                const savedState = JSON.parse(savedData);
+                applyDataToUI(savedState.blocks);
             } catch (e) {
-                if (e.message.includes('Modal cancelled')) {
-                    // If user says no, clear the storage so they aren't asked again.
-                    localStorage.removeItem(AUTOSAVE_KEY);
-                } else {
-                    console.error("Could not parse or restore autosaved data.", e);
-                    localStorage.removeItem(AUTOSAVE_KEY);
-                }
+                console.error("Failed to apply restored state.", e);
+                localStorage.removeItem(AUTOSAVE_KEY);
             }
         }
+    } else {
+        localStorage.removeItem(AUTOSAVE_KEY);
     }
 
-    checkAiConfig();
-    populatePlaylistsDropdown();
-    restoreAutosavedState(); // This call now works because the function is defined above.
     renderBuilder();
 }

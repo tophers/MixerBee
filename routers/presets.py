@@ -1,9 +1,13 @@
+"""
+presets.py – APIRouter
+"""
+
 import logging
 from typing import Dict, List
 from fastapi import APIRouter, HTTPException, status, Body
 
 import preset_manager as pm
-from models import MixedPlaylistRequest # We can reuse this for the body structure
+from models import MixedPlaylistRequest 
 
 router = APIRouter()
 
@@ -34,5 +38,4 @@ def api_delete_preset(preset_name: str):
     if success:
         return {"status": "ok", "log": [f"Preset '{preset_name}' deleted."]}
     
-    # Returning a 200 even if not found is idempotent and fine for a DELETE
     return {"status": "ok", "log": [f"Preset '{preset_name}' not found or already deleted."]}

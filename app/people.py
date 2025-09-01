@@ -1,6 +1,7 @@
 """
 app/people.py - Person-related functions (actors, directors, etc.).
 """
+
 from typing import Dict, List
 
 from . import client

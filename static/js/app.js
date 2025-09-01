@@ -1,6 +1,7 @@
 // static/js/app.js
+
 import { post, toast } from './utils.js';
-import { initModals } from './modals.js';
+import { initModals, confirmModal } from './modals.js';
 import { initBuilderPane } from './builder.js';
 import { initSchedulerPane, loadSchedulerData } from './scheduler.js';
 import { initManager, loadManagerData } from './manager.js';
@@ -14,7 +15,7 @@ window.appState = {
     builderState: { blocks: [] },
 };
 
-const CACHE_KEY = 'mixerbee_api_cache';
+const AUTOSAVE_KEY = 'mixerbee_autosave';
 
 function initSettingsModal() {
     const settingsBtn = document.getElementById('settings-btn');
@@ -29,18 +30,52 @@ function initSettingsModal() {
     const userInput = document.getElementById('settings-user-input');
     const passInput = document.getElementById('settings-pass-input');
     const geminiInput = document.getElementById('settings-gemini-input');
+    const geminiRemoveBtn = document.getElementById('settings-gemini-remove-btn');
+
     const showModal = () => settingsModal.classList.remove('hidden');
     const hideModal = () => settingsModal.classList.add('hidden');
+
     settingsBtn.addEventListener('click', showModal);
     if (notConfiguredBtn) { notConfiguredBtn.addEventListener('click', showModal); }
     closeBtn.addEventListener('click', hideModal);
     if(cancelBtn) { cancelBtn.addEventListener('click', hideModal); }
+
+    geminiRemoveBtn.addEventListener('click', () => {
+        geminiInput.value = '';
+        toast('Gemini API key has been cleared. Click Save to finalize.', true);
+    });
+
     testBtn.addEventListener('click', (event) => { post('api/settings/test', {}, event).then(res => { toast(res.log.join(' '), res.status === 'ok'); }); });
     saveBtn.addEventListener('click', (event) => {
         const payload = { server_type: serverTypeSelect.value, emby_url: urlInput.value.trim(), emby_user: userInput.value.trim(), emby_pass: passInput.value, gemini_key: geminiInput.value.trim() };
-        if (!payload.emby_url || !payload.emby_user || !payload.emby_pass) { toast('URL, Username, and Password are required.', false); return; }
-        post('api/settings', payload, event).then(res => { if (res.status === 'ok') { hideModal(); sessionStorage.removeItem(CACHE_KEY); toast(res.log.join(' '), true); setTimeout(() => window.location.reload(), 1500); } });
+        if (!payload.emby_url || !payload.emby_user) { toast('URL and Username are required.', false); return; }
+        post('api/settings', payload, event).then(res => { if (res.status === 'ok') { hideModal(); sessionStorage.removeItem('mixerbee_api_cache'); toast("Settings saved successfully! Page will now reload.", true, { actionText: "Reload Now", actionUrl: "javascript:window.location.reload();" }); } });
     });
+}
+
+async function handleEarlyRestorePrompt() {
+    const savedData = localStorage.getItem(AUTOSAVE_KEY);
+    if (!savedData) return 'none';
+
+    try {
+        const savedState = JSON.parse(savedData);
+        const blocks = savedState.blocks;
+        if (Array.isArray(blocks) && blocks.length > 0) {
+            await confirmModal.show({
+                title: 'Restore Previous Session?',
+                text: 'We found some unsaved blocks from your last session. Would you like to restore them?',
+                confirmText: 'Restore',
+            });
+            return 'restore';
+        }
+    } catch (e) {
+        if (e.message.includes('Modal cancelled')) {
+             return 'cancel';
+        }
+        console.error("Could not parse or prompt for autosaved data.", e);
+        localStorage.removeItem(AUTOSAVE_KEY);
+    }
+    return 'none';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -107,8 +142,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return r.json();
     });
 
-    // FIX: This function is now async to handle the await below
-    const initializeBaseUI = async (defUser) => {
+    const initializeBaseUI = (defUser, restoreDecision) => {
         activeUserDisplay.textContent = defUser.name;
         userSel.innerHTML = '';
         const userOption = document.createElement('option');
@@ -117,13 +151,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         userSel.appendChild(userOption);
         userSel.value = defUser.id;
         saveGlobalState();
-        // FIX: We now await the builder initialization to ensure restore logic finishes.
-        await initBuilderPane(userSel);
+        initBuilderPane(userSel, restoreDecision);
     };
 
     initModals();
     initSettingsModal();
     applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
+
+    const restorePromise = handleEarlyRestorePrompt();
 
     document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
     document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
@@ -137,28 +172,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
         const config = await apiFetch('api/config_status');
-        if (!config.is_configured) throw new Error("Application is not configured.");
-        const defUser = await apiFetch('api/default_user');
+        if (!config.is_configured) {
+             throw new Error("Application is not configured.");
+        }
+
+        const restoreDecision = await restorePromise;
 
         notConfiguredWarning.classList.add('hidden');
         mainContent.classList.remove('hidden');
 
-        const [seriesData, movieGenreData, libraryData, artistData, musicGenreData] = await Promise.all([
-            apiFetch('api/shows'),
-            apiFetch('api/movie_genres'),
-            apiFetch('api/movie_libraries'),
-            apiFetch('api/music/artists'),
-            apiFetch('api/music/genres'),
+        const [defUser, libraryData] = await Promise.all([
+            apiFetch('api/default_user'),
+            apiFetch('api/library_data')
         ]);
-
-        Object.assign(window.appState, { seriesData, movieGenreData, libraryData, artistData, musicGenreData });
         
-        // FIX: This call is now awaited.
-        await initializeBaseUI(defUser);
+        Object.assign(window.appState, libraryData);
+
+        initializeBaseUI(defUser, restoreDecision);
 
         switchTab('mixed');
 
     } catch (err) {
+        restorePromise.catch(() => {});
         console.error("Initialization Error:", err.message);
         toast('Initialization error. Check settings or server status.', false);
         notConfiguredWarning.classList.remove('hidden');

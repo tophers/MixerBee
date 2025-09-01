@@ -1,15 +1,15 @@
-#!/usr/bin/env python
+"""
+presets_manager.py – Manages presets.
+"""
 import json
 import logging
 from typing import Dict, List, Any
 
-import database # Use the new database module
+import database
 
 class PresetManager:
-    """Handles loading and saving of presets to a SQLite database."""
 
     def get_all_presets(self) -> Dict[str, Any]:
-        """Returns a dictionary of all presets from the database."""
         presets = {}
         try:
             conn = database.get_db_connection()
@@ -24,7 +24,6 @@ class PresetManager:
             return {}
 
     def save_preset(self, preset_name: str, preset_data: List[Dict]) -> bool:
-        """Saves a single preset to the database."""
         if not preset_name or preset_name == "__autosave__":
             logging.warning(f"PRESET_MGR: Invalid preset name '{preset_name}' provided for saving.")
             return False
@@ -44,7 +43,6 @@ class PresetManager:
             return False
 
     def delete_preset(self, preset_name: str) -> bool:
-        """Deletes a single preset from the database."""
         try:
             conn = database.get_db_connection()
             cursor = conn.cursor()

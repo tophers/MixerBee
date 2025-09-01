@@ -1,6 +1,7 @@
 """
 app/client.py - Handles configuration, session management, and authentication.
 """
+
 import os
 import sys
 import json
@@ -26,31 +27,39 @@ else:
 ENV_PATH = CONFIG_DIR / ".env"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-# --- Load Environment Early ---
 load_dotenv(ENV_PATH)
 
-# --- Global Config Variables ---
 EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
 EMBY_USER = os.environ.get("EMBY_USER")
 EMBY_PASS = os.environ.get("EMBY_PASS")
 
-# Static client identifiers.
 CLIENT_NAME = "MixerBee"
 CLIENT_VERSION = "1.0.0"
 DEVICE_ID = "MixerBeePy"
 DEVICE_NAME = "MixerBee"
 
-# requests session with retries
 SESSION = requests.Session()
 _retry = Retry(total=3, backoff_factor=0.3, status_forcelist=(502, 503, 504))
 _adapter = HTTPAdapter(max_retries=_retry)
 SESSION.mount("http://", _adapter)
 SESSION.mount("https://", _adapter)
 
-# Ensure the session is closed when the application exits
 atexit.register(SESSION.close)
 
-# Authentication helpers
+def test_connection(hdr: Dict[str, str]) -> Tuple[bool, int]:
+    """
+    Makes a lightweight, authenticated call to the server to check if the token is valid.
+    Returns (isValid: bool, statusCode: int).
+    """
+    if not EMBY_URL:
+        return False, 0
+    try:
+        r = SESSION.get(f"{EMBY_URL}/System/Info", headers=hdr, timeout=5)
+        return r.status_code == 200, r.status_code
+    except requests.RequestException:
+        return False, 500 
+
+
 def authenticate(username: str, password: str, url: str, server_type: str) -> Tuple[str, str]:
     """
     Authenticates with Emby or Jellyfin and returns the User ID and Access Token.
@@ -83,7 +92,7 @@ def auth_headers(token: str, user_id: str) -> Dict[str, str]:
         f'DeviceId="{DEVICE_ID}", Version="{CLIENT_VERSION}", '
         f'UserId="{user_id}", Token="{token}"'
     )
-    
+
     headers = {
         "X-Emby-Token": token,
         "X-MediaBrowser-Token": token,

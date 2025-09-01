@@ -1,6 +1,4 @@
 /* static/css/components.css */
-/* Styles for specific, reusable components like TV/Movie blocks, schedules, presets. */
-
 /* Shared Components */
 .filter-group {
     border: 1px solid var(--border-color);
@@ -85,7 +83,7 @@ fieldset > details > summary::before {
 fieldset > details[open] > summary::before {
     transform: rotate(90deg);
 }
-fieldset > details > div { /* The content inside */
+fieldset > details > div { 
     padding-top: 1rem;
 }
 
@@ -215,7 +213,7 @@ fieldset > details > div { /* The content inside */
 }
 .dropdown-menu {
     position: absolute;
-    bottom: 100%; /* Position above the button */
+ /*   bottom: 100%;  Position above the button */
     left: 0;
     background-color: var(--panel);
     border: 1px solid var(--border-color);
@@ -263,11 +261,11 @@ fieldset > details > div { /* The content inside */
 
 /* Styles for collapsible blocks */
 .mixed-block summary {
-    list-style: none; /* Hide the default disclosure marker */
+    list-style: none;
     cursor: pointer;
 }
 .mixed-block summary::-webkit-details-marker {
-    display: none; /* Hide the default disclosure marker in WebKit */
+    display: none; 
 }
 
 .mixed-block .collapse-toggle-btn .feather {
@@ -1046,6 +1044,6 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
 .limit-by-wrapper .limit-unit {
     display: inline-flex;
     align-items: center;
-    height: 40px; /* Match the approximate height of the input */
+    height: 40px; 
     padding: 0 0.2rem;
 }

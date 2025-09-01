@@ -1,4 +1,5 @@
 // Filename: static/js/scheduler.js
+
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';

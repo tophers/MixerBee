@@ -1,4 +1,6 @@
-#!/usr/bin/env python
+"""
+scheduler.py – Manages schedules for MixerBee
+"""
 import json
 import logging
 import uuid
@@ -11,6 +13,7 @@ from apscheduler.jobstores.base import JobLookupError
 
 import app as core
 import app.items as items_api
+from app.cache import refresh_cache 
 import app_state
 import database
 
@@ -37,6 +40,7 @@ def run_playlist_job(**schedule_data) -> Dict:
     try:
         _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE)
         hdr = core.auth_headers(token, user_id=user_id)
+
         if job_type == "builder":
             blocks = schedule_data.get("blocks", [])
             if not blocks: raise ValueError("Scheduled builder job has no blocks.")
@@ -48,6 +52,7 @@ def run_playlist_job(**schedule_data) -> Dict:
             if not func_to_call: raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
             options = quick_playlist_data.get("options", {})
             result = func_to_call(user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options)
+
         final_log, final_status = result.get("log", ["No log messages."]), result.get("status", "error")
         logging.info(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
     except Exception as e:
@@ -127,12 +132,28 @@ class Scheduler:
         return {"status": "ok", "log": [f"Job '{schedule_id}' triggered and completed."]}
 
     def start(self):
+        # Add a recurring job to refresh the cache every N minutes, based on the .env file.
+        self.scheduler.add_job(
+            func=refresh_cache,
+            trigger='interval',
+            minutes=app_state.CACHE_REFRESH_MINUTES, # Use the variable from app_state
+            id='cache_refresh_job',
+            name='Refresh Library Data Cache',
+            replace_existing=True
+        )
+
+        # Load and start existing playlist schedule jobs
         self.schedules = self._load_schedules()
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:
                 self.scheduler.add_job(func=scheduled_job_wrapper, trigger=CronTrigger.from_crontab(schedule_data['crontab']), kwargs=schedule_data, id=schedule_id, name=schedule_data.get('playlist_name', 'Unnamed Schedule'), replace_existing=True)
+        
         self.scheduler.start()
-        logging.info(f"Scheduler started with {len(self.schedules)} DB-based job definition(s).")
+        
+        job_count = len(self.schedules)
+        total_jobs = len(self.scheduler.get_jobs())
+        logging.info(f"Scheduler started with {job_count} user schedule(s) and {total_jobs - job_count} system job(s).")
+
 
     def add_schedule(self, schedule_data: Dict) -> str:
         schedule_id = str(uuid.uuid4())

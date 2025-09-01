@@ -1,12 +1,7 @@
 """
 app/__init__.py - Public interface for the MixerBee core logic.
-
-This file imports key functions from the submodules to make them
-easily accessible from a single namespace. For example, other parts of the
-application can do `import app as core` and then call `core.find_movies()`.
 """
 
-# From client.py - Session and authentication
 from .client import (
     SESSION,
     EMBY_URL,
@@ -16,14 +11,13 @@ from .client import (
     auth_headers
 )
 
-# From users.py
 from .users import (
     all_users,
     user_id_by_name
 )
 
-# From tv.py
 from .tv import (
+    get_all_series,
     search_series,
     get_specific_episode,
     get_first_unwatched_episode,
@@ -34,24 +28,20 @@ from .tv import (
     interleave  # For legacy CLI
 )
 
-# From movies.py
 from .movies import (
     get_movie_libraries,
     get_movie_genres,
     find_movies
 )
 
-# From people.py
 from .people import (
     get_people
 )
 
-# From studios.py
 from .studios import (
     get_studios
 )
 
-# From music.py
 from .music import (
     get_music_genres,
     get_music_artists,
@@ -63,7 +53,6 @@ from .music import (
     find_songs
 )
 
-# From items.py
 from .items import (
     get_playlists,
     delete_playlist,
@@ -85,8 +74,9 @@ from .items import (
     create_music_genre_playlist
 )
 
-# From builder.py
 from .builder import (
     create_mixed_playlist,
-    add_items_to_playlist
+    add_items_to_playlist,
+    generate_items_from_blocks,
+    format_items_for_preview
 )

@@ -1,6 +1,4 @@
 /* static/css/modal.css */
-/* Styles for all modal windows: overlay, header, body, footer, etc. */
-
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -113,4 +111,32 @@ body[data-theme='light'] .modal-overlay {
 }
 #confirm-modal-confirm-btn.danger:hover {
     background-color: #7c1a1a;
+}
+
+.preview-list {
+    list-style-type: decimal;
+    padding-left: 1.5rem;
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.preview-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--divider-color);
+    line-height: 1.4;
+}
+
+.preview-list li:last-child {
+    border-bottom: none;
+}
+
+.preview-list .item-name {
+    font-weight: 600;
+    display: block;
+}
+
+.preview-list .item-context {
+    font-size: 0.85em;
+    color: var(--text-subtle);
+    padding-left: 0.2rem;
 }
