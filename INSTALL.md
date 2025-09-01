@@ -1,6 +1,5 @@
 # MixerBee – Installation Guide
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/trulytilted/mixerbee)](https://hub.docker.com/r/trulytilted/mixerbee)
 [![GitHub Actions](https://github.com/tophers/mixerbee/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/tophers/mixerbee/actions)
 
 ## 🚀 Getting Started
