@@ -1,5 +1,8 @@
 # MixerBee – Installation Guide
 
+[![Docker Pulls](https://img.shields.io/docker/pulls/trulytilted/mixerbee)](https://hub.docker.com/r/trulytilted/mixerbee)
+[![GitHub Actions](https://github.com/tophers/mixerbee/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/tophers/mixerbee/actions)
+
 ## 🚀 Getting Started
 
 MixerBee can be run in **two** ways:
@@ -8,30 +11,54 @@ MixerBee can be run in **two** ways:
 2. **Custom Python environment**
 
 ---
+
 ### Docker
 
-Follow these steps for a containerized setup.
+You can either **pull the prebuilt image from Docker Hub** or **build locally** with Docker Compose.
 
-1.  **Clone the Repository:** If you haven't already, clone this repository to your local machine.
-    ```sh
-    git clone https://github.com/tophers/mixerbee.git && cd mixerbee
-    ```
+#### Option A – Use the official Docker Hub image
 
-2.  **Start the Container:** From the project's root directory, run:
-    ```sh
-    docker-compose up -d
-    ```
-    This will build the Docker image and start the MixerBee container.
+1. **Pull and run the image**
 
-3.  **Configure the Application:**
-    * Open your web browser and navigate to `http://localhost:9000`.
-    * Click the cog **Open Settings** button.
-    * Enter your Emby credentials and save. The page will reload.
-    * Your settings are now permanently saved in the `./mixerbee_config/.env` file on your host machine.
-    * You will get an Init error on reload, restart the container _#todo: improve live reload of environment config_
+   ```sh
+   docker run -d \
+     --name mixerbee \
+     -p 9000:9000 \
+     -v $(pwd)/mixerbee_config:/app/config \
+     trulytilted/mixerbee:latest
+   ```
+
+   This will start MixerBee on port **9000** and persist your config in the `./mixerbee_config` directory.
+
+2. **Configure the application**
+
+   * Open your browser at [http://localhost:9000](http://localhost:9000).
+   * Click the cog **Open Settings** button.
+   * Enter your Emby credentials and save.
+   * The settings are saved in `./mixerbee_config/.env`.
+   * You may see an init error; restart the container to load new settings.
+
+#### Option B – Build locally with Docker Compose
+
+1. **Clone the Repository**
+
+   ```sh
+   git clone https://github.com/tophers/mixerbee.git && cd mixerbee
+   ```
+
+2. **Start the Container**
+
+   ```sh
+   docker compose up -d
+   ```
+
+   This builds the image locally and starts MixerBee.
+
+3. **Configure the Application:** Same as Option A above.
 
 ---
-Custom Python Environment 
+
+### Custom Python Environment
 
 1. **Clone the repository**
 
@@ -58,7 +85,8 @@ Custom Python Environment
    cp examples/mixerbee.env.example config/.env
    vi config/.env
    ```
-Edit the required variables. (You can also setup the .env in the UI settings cog, *requires a restart)
+
+   Edit the required variables. (You can also set up the `.env` in the UI settings cog, *requires restart*)
 
 5. **Run the web server** (or use the provided *systemd* service file)
 
@@ -76,7 +104,12 @@ Edit the required variables. (You can also setup the .env in the UI settings cog
 # pull the latest code
 git pull
 
-# Docker users
+# Docker Hub users
+docker pull trulytilted/mixerbee:latest
+docker stop mixerbee && docker rm mixerbee
+docker run -d -p 9000:9000 -v $(pwd)/mixerbee_config:/app/config trulytilted/mixerbee:latest
+
+# Docker Compose users
 docker compose build --pull && docker compose up -d
 
 # Custom install
@@ -88,8 +121,12 @@ pip install -r requirements.txt
 
 ## Uninstalling / Cleaning Up
 
-* **Docker:** `docker compose down -v` removes containers *and* volumes.
-* **Manual:** deactivate and delete the virtual‑env folder, then remove the project directory.
+* **Docker:**
+  `docker compose down -v` removes containers *and* volumes.
+  If you used `docker run`, just `docker rm -f mixerbee`.
+
+* **Manual:**
+  deactivate and delete the virtual-env folder, then remove the project directory.
 
 ---
 
