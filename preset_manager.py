@@ -1,6 +1,7 @@
 """
 presets_manager.py – Manages presets.
 """
+
 import json
 import logging
 from typing import Dict, List, Any
@@ -48,7 +49,7 @@ class PresetManager:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM presets WHERE name = ?", (preset_name,))
             conn.commit()
-            success = cursor.rowcount > 0 # Check if a row was actually deleted
+            success = cursor.rowcount > 0
             conn.close()
             return success
         except Exception as e:

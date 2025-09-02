@@ -1,6 +1,7 @@
 """
 scheduler.py – Manages schedules for MixerBee
 """
+
 import json
 import logging
 import uuid
@@ -132,17 +133,15 @@ class Scheduler:
         return {"status": "ok", "log": [f"Job '{schedule_id}' triggered and completed."]}
 
     def start(self):
-        # Add a recurring job to refresh the cache every N minutes, based on the .env file.
         self.scheduler.add_job(
             func=refresh_cache,
             trigger='interval',
-            minutes=app_state.CACHE_REFRESH_MINUTES, # Use the variable from app_state
+            minutes=app_state.CACHE_REFRESH_MINUTES,
             id='cache_refresh_job',
             name='Refresh Library Data Cache',
             replace_existing=True
         )
 
-        # Load and start existing playlist schedule jobs
         self.schedules = self._load_schedules()
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:

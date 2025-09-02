@@ -6,13 +6,11 @@
     position: relative;
     margin: 1.3rem 1rem;
 }
-
 .main-header-bar h2 {
     margin: 0;
     text-align: center;
     flex-grow: 1;
 }
-
 .header-user-display {
     position: absolute;
     right: 1rem;
@@ -22,24 +20,20 @@
     align-items: center;
     gap: 0.75rem;
 }
-
 .header-user-display .feather-user {
     width: 20px;
     height: 20px;
     color: var(--text-subtle);
 }
-
 #active-user-display {
     font-size: 0.9em;
     font-weight: 600;
     color: var(--text);
 }
-
 .header-user-display .theme-switcher {
     display: flex;
     align-items: center;
 }
-
 .header-user-display .theme-switcher::before {
     content: '';
     width: 1px;
@@ -47,11 +41,9 @@
     background: var(--border-color);
     margin-right: .25rem;
 }
-
 #settings-btn {
     font-size: 1.5rem;
 }
-
 .container {
     max-width: 680px;
     margin: auto;
@@ -60,7 +52,6 @@
     flex-direction: column;
     gap: 1rem;
 }
-
 #action-bar {
     position: sticky;
     bottom: 0;
@@ -72,10 +63,8 @@
     padding: .8rem 1rem;
     z-index: 10;
     margin-top: auto;
-    /* Allow height to adjust for wrapped content on mobile */
     height: auto; 
 }
-
 .action-bar-content {
     width: 100%;
     max-width: 680px;
@@ -84,19 +73,16 @@
     gap: 1rem;
     padding: 0 1rem;
 }
-
 .build-options-container {
     display: flex;
     gap: 0.5rem;
     flex-grow: 1;
     justify-content: flex-start;
 }
-
 .action-bar-content button,
 .action-bar-content .action-bar-checkbox-label {
     flex-shrink: 0;
 }
-
 .action-bar-checkbox-label {
     display: flex;
     align-items: center;
@@ -107,14 +93,12 @@
     padding: 0 .5rem;
     margin-left: auto;
 }
-
 .tab-switcher {
     display: flex;
     justify-content: center;
     margin-bottom: 1.5rem;
     border-bottom: 1px solid var(--border-color);
 }
-
 .tab-btn {
     font-family: 'Poppins', sans-serif;
     background: none;
@@ -129,26 +113,21 @@
     border-bottom: 3px solid transparent;
     transform: translateY(1px);
 }
-
 .tab-btn:hover {
     opacity: 1;
     background: rgba(255,255,255,0.05);
 }
-
 body[data-theme='light'] .tab-btn:hover {
     background: rgba(0,0,0,0.05);
 }
-
 .tab-btn.active {
     opacity: 1;
     color: var(--accent);
     border-bottom-color: var(--accent);
 }
-
 .tab-pane {
     padding-bottom: 2rem;
 }
-
 #scheduler-pane h3, #manager-pane h3 {
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
@@ -156,7 +135,6 @@ body[data-theme='light'] .tab-btn:hover {
     font-size: 1.4rem;
     margin-bottom: 1rem;
 }
-
 .warning-box {
     border: 1px solid #e6a800;
     background-color: rgba(230, 168, 0, 0.1);

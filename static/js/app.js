@@ -2,9 +2,10 @@
 
 import { post, toast } from './utils.js';
 import { initModals, confirmModal } from './modals.js';
-import { initBuilderPane } from './builder.js';
+import { initBuilderPane, renderBuilder } from './builder.js';
 import { initSchedulerPane, loadSchedulerData } from './scheduler.js';
 import { initManager, loadManagerData } from './manager.js';
+import { applyDataToUI, restoreSessionFromAutosave, clearAutosave } from './builderState.js';
 
 window.appState = {
     seriesData: [],
@@ -12,7 +13,6 @@ window.appState = {
     libraryData: [],
     artistData: [],
     musicGenreData: [],
-    builderState: { blocks: [] },
 };
 
 const AUTOSAVE_KEY = 'mixerbee_autosave';
@@ -170,7 +170,10 @@ async function initializeApp() {
         initSettingsModal();
         applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
 
-        const restorePromise = handleEarlyRestorePrompt();
+        const restoreDecision = await handleEarlyRestorePrompt();
+
+        // This is the main page load spinner, show it now.
+        if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
         document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
         document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
@@ -188,8 +191,6 @@ async function initializeApp() {
                  throw new Error("Application is not configured.");
             }
 
-            const restoreDecision = await restorePromise;
-
             notConfiguredWarning.classList.add('hidden');
             mainContent.classList.remove('hidden');
 
@@ -205,7 +206,6 @@ async function initializeApp() {
             switchTab('mixed');
 
         } catch (err) {
-            restorePromise.catch(() => {});
             console.error("Initialization Error:", err.message);
             toast('Initialization error. Check settings or server status.', false);
             notConfiguredWarning.classList.remove('hidden');
@@ -213,7 +213,7 @@ async function initializeApp() {
             if (typeof window.featherReplace === 'function') window.featherReplace();
         }
     } finally {
-        loadingOverlay.classList.add('hidden');
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
 }
 

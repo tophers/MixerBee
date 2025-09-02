@@ -1,6 +1,7 @@
 """
 gemini_client.py – Manages gemini connectivity
 """
+
 import google.generativeai as genai
 import json
 from typing import List, Dict

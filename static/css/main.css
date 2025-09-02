@@ -2,6 +2,9 @@
 @import url('base.css');
 @import url('layout.css');
 @import url('forms.css');
-@import url('components.css');
+@import url('_shared.css');
+@import url('builder.css');
+@import url('scheduler.css');
+@import url('manager.css');
 @import url('modal.css');
 @import url('mobile.css');

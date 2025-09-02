@@ -56,7 +56,7 @@ export class PresetManager {
         }
     }
 
-    async init(getUIDataFn, applyPresetFn) {
+    async init(getUIDataFn, applyPresetFn, renderBuilder) {
         await this.populateDropdown();
 
         this.ui.updateBtn.addEventListener('click', () => {
@@ -88,7 +88,8 @@ export class PresetManager {
                     if (res.status === 'ok') {
                         await this.populateDropdown();
                         this.ui.loadSelect.value = name;
-                        applyPresetFn(data);
+                        await applyPresetFn(data);
+                        renderBuilder();
                         toast(`Preset "${name}" imported successfully!`, true);
                     }
                 };
@@ -143,30 +144,30 @@ export class PresetManager {
                 const res = await post(`api/presets/${presetName}`, {}, this.ui.deleteBtn, 'DELETE');
                 if (res.status === 'ok') {
                     await this.populateDropdown();
-                    applyPresetFn([]);
+                    await applyPresetFn([]);
+                    renderBuilder();
                 }
             } catch (err) {
                 console.log('Delete preset cancelled.');
             }
         });
 
-        this.ui.loadSelect.addEventListener('change', (event) => {
+        this.ui.loadSelect.addEventListener('change', async (event) => {
             const presetName = event.target.value;
             this.ui.exportBtn.disabled = !presetName;
             this.toggleSaveButtons();
-            if (!presetName) {
-                applyPresetFn([]);
-                return;
-            };
-            applyPresetFn(this.presets[presetName]);
+            
+            const dataToApply = presetName ? this.presets[presetName] : [];
+            await applyPresetFn(dataToApply);
+            renderBuilder();
         });
-    }
+      }
 }
 
 export function createTvShowRow({ rowData, rowIndex }) {
     const template = document.getElementById('template-tv-show-row');
     const rowElement = template.content.cloneNode(true).firstElementChild;
-    
+
     rowElement.dataset.rowIndex = rowIndex;
 
     const showSelect = rowElement.querySelector('.tv-block-show-select');
@@ -187,8 +188,8 @@ export function createTvShowRow({ rowData, rowIndex }) {
     seasonInput.value = rowData?.season ?? 1;
     episodeInput.value = rowData?.episode ?? 1;
     unwatchedCb.checked = rowData?.unwatched ?? false;
-    
-    previewDiv.textContent = '...'; 
+
+    previewDiv.textContent = '...';
 
     const isUnwatched = unwatchedCb.checked;
     seasonInput.disabled = isUnwatched;

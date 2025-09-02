@@ -1,6 +1,7 @@
 """
 app_state.py – Manages global configuration and runtime state.
 """
+
 import os
 import logging
 from pathlib import Path
@@ -8,7 +9,6 @@ from dotenv import load_dotenv
 
 import app as core
 
-# --- Path Resolution ---
 IS_DOCKER = os.path.exists('/.dockerenv')
 if IS_DOCKER:
     CONFIG_DIR = Path("/config")
@@ -18,7 +18,6 @@ else:
 ENV_PATH = CONFIG_DIR / ".env"
 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
-# --- Global State Variables ---
 login_uid, token, HDR, is_configured = None, None, {}, False
 DEFAULT_USER_NAME, DEFAULT_UID = None, None
 GEMINI_API_KEY = None

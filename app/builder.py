@@ -66,10 +66,10 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, 
                             end_season = int(end_season_str)
                             end_episode = int(end_episode_str)
 
-                    eps = episodes(sid, s, e, count, hdr, end_season=end_season, end_episode=end_episode)
+                    eps = episodes(sid, s, e, count, hdr, user_id=user_id, end_season=end_season, end_episode=end_episode)
 
                     if len(eps) < count and mode == 'count':
-                        log_messages.append(f"Block {i}: Only found {len(eps)}/{count} eps for '{show_name}'")
+                        log_messages.append(f"Block {i}: Only found {len(eps)}/{count} unwatched eps for '{show_name}'")
                     groups.append(eps)
 
                 if groups:
@@ -87,6 +87,7 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, 
                         log_messages.append(f"Block {i} (TV): Added {total_added} sequential episodes.")
             except Exception as e:
                 log_messages.append(f"Block {i} (TV): Failed with error - {e}")
+                logging.error(f"Error processing TV block {i}: {e}", exc_info=True)
 
         elif block_type == "movie":
             try:
@@ -95,6 +96,7 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, 
                 log_messages.append(f"Block {i} (Movie): Added {len(found_movies)} movies.")
             except Exception as e:
                 log_messages.append(f"Block {i} (Movie): Failed with error - {e}")
+                logging.error(f"Error processing Movie block {i}: {e}", exc_info=True)
 
         elif block_type == "music":
             try:
@@ -127,7 +129,7 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, 
 
             except Exception as e:
                 log_messages.append(f"Block {i} (Music): Failed with error - {e}")
-                logging.error(f"Error processing music block: {e}", exc_info=True)
+                logging.error(f"Error processing music block {i}: {e}", exc_info=True)
     return master_items_list
 
 
@@ -156,7 +158,7 @@ def format_items_for_preview(items: List[Dict]) -> List[Dict]:
                 context = f"{artist} — {album}"
             elif artist:
                 context = artist
-        
+
         formatted_list.append({"name": name, "context": context})
 
     return formatted_list

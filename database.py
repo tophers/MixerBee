@@ -1,6 +1,7 @@
 """
 database.py – Manages database connections
 """
+
 import os
 import json
 import logging

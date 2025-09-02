@@ -2,6 +2,7 @@
 
 import { debounce } from './utils.js';
 import { createTvShowRow } from './components.js';
+import { getBlocks } from './builderState.js';
 
 export function getTvBlockSummary(blockData) {
     const showCount = blockData.shows?.length || 0;
@@ -18,28 +19,41 @@ export async function updateAllBlockPreviews() {
     if (!userSelect.value) return;
 
     const previewPromises = [];
+    const blocks = getBlocks(); // Get state the new way
 
     document.querySelectorAll('.mixed-block[data-block-index]').forEach(blockEl => {
         const blockIndex = parseInt(blockEl.dataset.blockIndex, 10);
-        const blockData = window.appState.builderState.blocks[blockIndex];
+        const blockData = blocks[blockIndex]; // Use the new state variable
         if (!blockData) return;
 
         if (blockData.type === 'tv') {
             (blockData.shows || []).forEach((show, rowIndex) => {
-                const previewEl = blockEl.querySelector(`.show-row[data-row-index="${rowIndex}"] .tv-block-preview`);
+                const rowEl = blockEl.querySelector(`.show-row[data-row-index="${rowIndex}"]`);
+                const previewEl = rowEl.querySelector('.tv-block-preview');
                 const series = window.appState.seriesData.find(s => s.name === show.name);
-                if (previewEl && series && !show.unwatched) {
-                    previewEl.textContent = '...';
-                    const promise = fetch(`api/episode_lookup?series_id=${series.id}&season=${show.season}&episode=${show.episode}`)
+
+                if (!previewEl || !series) {
+                    if (previewEl) previewEl.textContent = '';
+                    return;
+                }
+
+                previewEl.textContent = '...';
+                let promise;
+
+                if (show.unwatched) {
+                    promise = fetch(`api/shows/${series.id}/first_unwatched?user_id=${userSelect.value}`)
+                        .then(r => r.ok ? r.json() : Promise.reject(''))
+                        .then(data => {
+                            previewEl.textContent = data.Name ? `→ ${data.Name}` : 'Next unwatched';
+                        })
+                        .catch(() => { previewEl.textContent = 'Next unwatched not found'; });
+                } else {
+                    promise = fetch(`api/episode_lookup?series_id=${series.id}&season=${show.season}&episode=${show.episode}`)
                         .then(r => r.ok ? r.json() : Promise.reject(''))
                         .then(data => { previewEl.textContent = `→ ${data.name}`; })
                         .catch(() => { previewEl.textContent = 'Episode not found'; });
-                    previewPromises.push(promise);
-                } else if (previewEl && show.unwatched) {
-                     previewEl.textContent = '→ Next unwatched';
-                } else if (previewEl) {
-                    previewEl.textContent = '';
                 }
+                previewPromises.push(promise);
             });
         }
 
@@ -106,8 +120,9 @@ export function renderTvBlock({ blockData, index }) {
         ghostClass: 'sortable-ghost',
         onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-
-            const blockData = window.appState.builderState.blocks[index];
+            
+            const blocks = getBlocks(); // Get state the new way
+            const blockData = blocks[index];
             if (!blockData || !blockData.shows) return;
 
             const [movedItem] = blockData.shows.splice(evt.oldIndex, 1);

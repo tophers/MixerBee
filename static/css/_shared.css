@@ -1,0 +1,111 @@
+/* static/css/_shared.css */
+.filter-group {
+    border: 1px solid var(--border-color);
+    padding: 1rem 1.2rem 1.5rem;
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+}
+.filter-group legend {
+    font-family: 'Poppins', sans-serif;
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 0 0.5rem;
+    margin-left: 0.5rem;
+    color: var(--accent);
+}
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+.filter-grid input, .filter-grid select {
+    width: 100%;
+    box-sizing: border-box;
+}
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+}
+.checkbox-grid label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+fieldset > details {
+    padding-top: 0.2rem;
+}
+fieldset > details > summary {
+    font-weight: 600;
+    color: var(--text-subtle);
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+    user-select: none;
+    padding: 0.2rem;
+}
+fieldset > details > summary:hover {
+    color: var(--text);
+}
+fieldset > details > summary::-webkit-details-marker {
+    display: none;
+}
+fieldset > details > summary::before {
+    content: '►';
+    margin-right: 0.6rem;
+    font-size: 0.8em;
+    transition: transform 0.2s ease-in-out;
+}
+fieldset > details[open] > summary::before {
+    transform: rotate(90deg);
+}
+fieldset > details > div {
+    padding-top: 1rem;
+}
+.collapsible-section {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    margin-bottom: 1.5rem;
+    background: var(--panel-alt);
+}
+.collapsible-section[open] {
+    background: transparent;
+    border-color: transparent;
+}
+.collapsible-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.8rem 1.2rem;
+    cursor: pointer;
+    list-style: none;
+}
+.collapsible-section-header::-webkit-details-marker {
+    display: none;
+}
+.collapsible-section-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+.collapsible-section-header .collapse-toggle-btn .feather {
+    transition: transform 0.2s ease-in-out;
+}
+.collapsible-section[open] > .collapsible-section-header .collapse-toggle-btn .feather {
+    transform: rotate(180deg);
+}
+.collapsible-section[open] > .collapsible-section-header {
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+}
+.collapsible-section-body {
+    padding: 0 1.2rem 1.2rem;
+}
+.collapsible-section:not([open]) > .collapsible-section-body {
+    display: none;
+}

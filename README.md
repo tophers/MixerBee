@@ -37,20 +37,6 @@ Mix episodes across shows, create themed movie blocks, blend music from your fav
 
 ---
 
-## ⚠️ Known Issues
-
-<details>
-<summary><strong>Initial environment setup via UI may require restart</strong></summary>
-<br>
-
-If the `.env` file is first created through the Web UI, you must restart the container or app for it to take effect. Until restarted, the app may behave unexpectedly.
-
-*\[#todo: improve live reload of environment config]*
-
-</details>
-
----
-
 ## 💻 Web Interface
 
 Dark mode and light mode views of the core tabs:

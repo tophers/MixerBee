@@ -10,20 +10,17 @@ select, input[type="number"], input[type="text"], input[type="search"], input[ty
     box-sizing: border-box;
     font-family: inherit;
 }
-
 select {
     width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-
 input[type="number"] {
     width: 100%;
     font-weight: 600;
     text-align: center;
 }
-
 .icon-btn {
     background: none;
     border: none;
@@ -35,12 +32,10 @@ input[type="number"] {
     opacity: .7;
     transition: .2s;
 }
-
 .icon-btn:hover {
     opacity: 1;
     color: var(--accent);
 }
-
 .drag-handle {
     cursor: grab;
     touch-action: none;
@@ -60,37 +55,30 @@ button {
     justify-content: center;
     gap: 0.5rem;
 }
-
 button:hover {
     background: var(--accent-dark);
 }
-
 .button-group {
     display: flex;
     gap: var(--gap);
     align-items: center;
 }
-
-/* Styling for Feather Icons */
 button .feather {
     stroke: var(--text-subtle);
     width: 1.1em;
     height: 1.1em;
     stroke-width: 2.5;
 }
-
 button .feather.chevron {
     width: 1em;
     height: 1em;
     stroke-width: 3;
 }
-
 .control-item {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
 }
-
 .control-item span {
     font-family: 'Poppins', sans-serif;
     font-size: 0.9rem;
@@ -98,7 +86,6 @@ button .feather.chevron {
     opacity: 0.8;
     padding-left: 0.2rem;
 }
-
 #ai-prompt-input {
     background: var(--input-bg);
     color: var(--text);
@@ -112,28 +99,22 @@ button .feather.chevron {
     width: 100%;
     resize: none;
 }
-
 #ai-prompt-input::placeholder {
     color: var(--text-placeholder);
     opacity: 0.8;
 }
-
 #ai-prompt-input:focus {
     outline: none;
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
 }
-
 body[data-theme='light'] #ai-prompt-input:focus {
      box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
 }
-
-/* Styles for clearable textarea */
 .textarea-wrapper {
     position: relative;
     width: 100%;
 }
-
 .textarea-wrapper .clear-btn {
     position: absolute;
     top: 50%;
@@ -142,17 +123,13 @@ body[data-theme='light'] #ai-prompt-input:focus {
     opacity: 0.6;
     z-index: 2;
 }
-
 .textarea-wrapper .clear-btn:hover {
     opacity: 1;
 }
-
 .textarea-wrapper .clear-btn .feather {
     width: 1.2rem;
     height: 1.2rem;
 }
-
-/* Theme Toggle Switch */
 .theme-toggle-label {
     position: relative;
     display: flex;
@@ -205,7 +182,6 @@ body[data-theme='light'] #ai-prompt-input:focus {
 .theme-switcher .feather-sun {
     color: var(--text-subtle);
 }
-
 body[data-theme="light"] .theme-switcher .feather-moon {
     color: var(--text-subtle);
 }
@@ -218,22 +194,18 @@ button.secondary {
     color: var(--text);
     transition: all 0.2s ease;
 }
-
 button.secondary:hover {
     border-color: var(--accent);
     color: var(--accent);
 }
-
 .input-with-button {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
-
 .input-with-button input {
     flex-grow: 1;
 }
-
 .input-with-button button.small {
     padding: .35rem .7rem;
     font-size: .9rem;

@@ -1,5 +1,4 @@
 /* static/css/base.css */
-/* Base Styles & Theme                 */
 html {
   box-sizing: border-box;
 }
@@ -29,7 +28,6 @@ html {
     font-family: system-ui, sans-serif;
     color-scheme: dark;
 }
-
 body[data-theme='light'] {
     --bg: #f4f4f8;
     --panel: #ffffff;
@@ -46,7 +44,6 @@ body[data-theme='light'] {
     --shadow-drag: 0 10px 30px rgba(0,0,0,0.2);
     color-scheme: light;
 }
-
 html, body {
     height: 100%;
     margin: 0;
@@ -54,20 +51,17 @@ html, body {
     color: var(--text);
     transition: background-color 0.2s, color 0.2s;
 }
-
 h2 {
     font-family: 'Poppins', sans-serif;
     font-weight: 600;
     text-align: center;
     margin: 1.3rem 0;
 }
-
 body {
     display: flex;
     flex-direction: column;
     min-height: 100vh;
 }
-
 #loading-overlay {
     position: fixed;
     top: 0;
@@ -81,11 +75,9 @@ body {
     justify-content: center;
     align-items: center;
 }
-
 body[data-theme='light'] #loading-overlay {
     background-color: rgba(244, 244, 248, 0.8);
 }
-
 .spinner {
     width: 60px;
     height: 60px;
@@ -94,18 +86,14 @@ body[data-theme='light'] #loading-overlay {
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
     to {
         transform: rotate(360deg);
     }
 }
-
-/* Utilities & Toast Notification      */
 .hidden {
     display: none !important;
 }
-
 .toast {
     position: fixed;
     left: 50%;
@@ -124,17 +112,14 @@ body[data-theme='light'] #loading-overlay {
     flex-direction: column;
     gap: 0.8rem;
 }
-
 .toast .toast-message {
     padding-right: 20px;
 }
-
 .toast .toast-actions {
     margin-top: 0.5rem;
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     padding-top: 0.8rem;
 }
-
 .toast a.toast-button {
     display: inline-flex;
     align-items: center;
@@ -147,11 +132,9 @@ body[data-theme='light'] #loading-overlay {
     font-weight: 700;
     transition: background-color 0.2s;
 }
-
 .toast a.toast-button:hover {
     background: rgba(255, 255, 255, 0.3);
 }
-
 .toast .toast-close-btn {
     position: absolute;
     top: 0.5rem;
@@ -168,11 +151,9 @@ body[data-theme='light'] #loading-overlay {
 .toast .toast-close-btn:hover {
     opacity: 1;
 }
-
 .toast.ok {
     background: var(--success);
 }
-
 .toast.fail {
     background: var(--danger);
 }
@@ -181,7 +162,6 @@ body[data-theme='light'] #loading-overlay {
   width: 100%;
   padding: 0.5rem 1rem;
 }
-
 .typewriter-header {
   font-family: monospace;
   font-size: 2rem;
@@ -193,18 +173,15 @@ body[data-theme='light'] #loading-overlay {
   transition: color 1.5s ease, background-color 1.5s ease;
   margin: 0;
 }
-
 #typed-text::after {
   content: "_";
   animation: blink 1s steps(2, start) infinite;
   color: inherit;
 }
-
 .typing-done {
   background-color: transparent;
   color: inherit;
 }
-
 #typed-text.cursor-done::after {
   content: "";
   animation: none;
@@ -238,7 +215,6 @@ body[data-theme='light'] #loading-overlay {
     padding: 0;
   }
 }
-
 @keyframes fadeInDown {
     from {
         opacity: 0;
@@ -249,7 +225,6 @@ body[data-theme='light'] #loading-overlay {
         transform: translate(-50%, 0);
     }
 }
-
 @keyframes fadeOutUp {
     from {
         opacity: 1;
@@ -273,7 +248,6 @@ body[data-theme='light'] #loading-overlay {
     align-items: center;
     transition: opacity 1s ease-in-out;
 }
-
 #typewriter-overlay.fade-out-overlay {
     opacity: 0;
     pointer-events: none;

@@ -52,30 +52,48 @@ def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
 
 
 def episodes(sid: str, season: int, episode: int, count: int,
-             hdr: Dict[str, str], end_season: Optional[int] = None,
+             hdr: Dict[str, str], user_id: str, end_season: Optional[int] = None,
              end_episode: Optional[int] = None) -> List[Dict]:
-    """Gets a list of episodes for a series, either by count or within a specified S/E range."""
+    """
+    Gets a list of UNWATCHED episodes for a series, either by count or within a specified S/E range.
+    """
+    params = {
+        "userId": user_id,
+        "Fields": "UserData,ParentIndexNumber,IndexNumber"
+    }
     r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{sid}/Episodes",
-                           headers=hdr, timeout=10)
+                           params=params, headers=hdr, timeout=10)
+    r.raise_for_status()
     all_eps = sorted(r.json()["Items"],
                    key=lambda x: (x.get("ParentIndexNumber", 0),
                                   x.get("IndexNumber", 0)))
 
+    # Filter out specials (season 0)
     all_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
 
+    # Find all episodes chronologically after the starting point
     start_eps = [ep for ep in all_eps
                  if ep.get("ParentIndexNumber", 0) > season
                  or (ep.get("ParentIndexNumber", 0) == season
                      and ep.get("IndexNumber", 0) >= episode)]
 
     if end_season is not None and end_episode is not None:
-        end_eps = [ep for ep in start_eps
-                     if ep.get("ParentIndexNumber", 0) < end_season
-                     or (ep.get("ParentIndexNumber", 0) == end_season
-                         and ep.get("IndexNumber", 0) <= end_episode)]
-        return end_eps
+        # Range Mode: find all episodes within the range...
+        ranged_eps = [ep for ep in start_eps
+                      if ep.get("ParentIndexNumber", 0) < end_season
+                      or (ep.get("ParentIndexNumber", 0) == end_season
+                          and ep.get("IndexNumber", 0) <= end_episode)]
+        # ...then filter that list for only unwatched episodes.
+        return [ep for ep in ranged_eps if not ep.get("UserData", {}).get("Played", False)]
     else:
-        return list(islice(start_eps, count))
+        # Count Mode: iterate from the start and collect the next 'count' unwatched episodes.
+        unwatched_eps = []
+        for ep in start_eps:
+            if not ep.get("UserData", {}).get("Played", False):
+                unwatched_eps.append(ep)
+            if len(unwatched_eps) >= count:
+                break
+        return unwatched_eps
 
 
 def get_specific_episode(series_id: str, season: int,
@@ -99,7 +117,7 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
     """Finds the first unwatched episode for a series for a given user."""
     params = {
         "userId": user_id,
-        "Fields": "UserData,ParentIndexNumber,IndexNumber,DateCreated"
+        "Fields": "Name,UserData,ParentIndexNumber,IndexNumber,DateCreated"
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                            params=params, headers=hdr, timeout=15)

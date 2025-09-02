@@ -1,5 +1,4 @@
 // static/js/definitions.js
-// This array is the source for all "Smart Build" playlist types.
 
 export const SMART_BUILD_TYPES = [
     {

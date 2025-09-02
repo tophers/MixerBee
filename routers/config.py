@@ -37,7 +37,6 @@ def api_config_status():
 @router.post("/api/settings")
 def api_save_settings(req: models.SettingsRequest):
     """Saves connection details and hot-swaps the active configuration."""
-    # Check if the app was unconfigured *before* we try to save.
     was_unconfigured = not app_state.is_configured
 
     env_content = (
@@ -50,14 +49,11 @@ def api_save_settings(req: models.SettingsRequest):
         env_content += f'GEMINI_API_KEY="{req.gemini_key}"\n'
 
     try:
-        # First, test if the new credentials are valid before saving.
         core.authenticate(req.emby_user, req.emby_pass, req.emby_url, req.server_type)
 
         with open(app_state.ENV_PATH, "w") as f:
             f.write(env_content)
 
-        # If this was the first time being configured, trigger a restart.
-        # This is done in a background thread to allow the HTTP response to be sent first.
         if was_unconfigured:
             restart_thread = threading.Thread(target=_trigger_restart, daemon=True)
             restart_thread.start()
@@ -81,7 +77,6 @@ def api_test_settings():
             content={"status": "error", "log": ["Application is not configured."]}
         )
     try:
-        # Pass the currently configured server type to the test
         core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE)
         return {"status": "ok", "log": [f"{app_state.SERVER_TYPE.capitalize()} connection test successful!"]}
     except Exception as e:
