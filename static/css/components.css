@@ -83,7 +83,7 @@ fieldset > details > summary::before {
 fieldset > details[open] > summary::before {
     transform: rotate(90deg);
 }
-fieldset > details > div { 
+fieldset > details > div {
     padding-top: 1rem;
 }
 
@@ -265,7 +265,7 @@ fieldset > details > div {
     cursor: pointer;
 }
 .mixed-block summary::-webkit-details-marker {
-    display: none; 
+    display: none;
 }
 
 .mixed-block .collapse-toggle-btn .feather {
@@ -710,10 +710,10 @@ td:last-child {
     justify-content: space-between;
     padding: 0.8rem 1.2rem;
     cursor: pointer;
-    list-style: none; 
+    list-style: none;
 }
 .collapsible-section-header::-webkit-details-marker {
-    display: none; 
+    display: none;
 }
 
 .collapsible-section-header h3 {
@@ -777,7 +777,7 @@ td:last-child {
 
 .autocomplete-suggestions li {
     padding: 0.6rem 1rem;
-    cursor: default; 
+    cursor: default;
     border-bottom: 1px solid var(--divider-color);
     display: flex;
     justify-content: space-between;
@@ -915,7 +915,7 @@ body[data-theme='light'] .autocomplete-suggestions li.selected .genre-add-button
     border-radius: var(--radius);
     padding: 0.8rem;
     margin-bottom: 1rem;
-    min-height: 40px; 
+    min-height: 40px;
 }
 
 .genre-zone-label {
@@ -1044,6 +1044,6 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
 .limit-by-wrapper .limit-unit {
     display: inline-flex;
     align-items: center;
-    height: 40px; 
+    height: 40px;
     padding: 0 0.2rem;
 }

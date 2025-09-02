@@ -72,6 +72,8 @@
     padding: .8rem 1rem;
     z-index: 10;
     margin-top: auto;
+    /* Allow height to adjust for wrapped content on mobile */
+    height: auto; 
 }
 
 .action-bar-content {

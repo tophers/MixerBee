@@ -1,5 +1,11 @@
 /* static/css/base.css */
 /* Base Styles & Theme                 */
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
 :root {
     --bg: #121212;
     --panel: #1e1e1e;

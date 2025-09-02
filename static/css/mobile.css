@@ -1,0 +1,122 @@
+/* static/css/mobile.css */
+
+/* Apply these styles only on screens 680px wide or less */
+@media (max-width: 680px) {
+
+    /* --- Base Elements & Typography --- */
+
+    html {
+        font-size: 15px; /* Adjust base font for better scaling on mobile */
+    }
+
+    body {
+        -webkit-text-size-adjust: 100%; /* Prevent font scaling on iOS */
+    }
+
+    /* Increase padding on interactive elements for better touch targets */
+    button, select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
+        padding: .6rem .75rem;
+        font-size: 1.1rem;
+    }
+
+    .modal-window {
+        padding: 0.8rem 1rem;
+    }
+
+
+    /* --- Layout Adjustments --- */
+
+    .container, .action-bar-content {
+        padding-left: 0.8rem;
+        padding-right: 0.8rem;
+    }
+
+    .header-user-display {
+        gap: 0.4rem;
+    }
+
+    .header-user-display .theme-switcher::before {
+        margin-right: 0;
+    }
+
+    #active-user-display {
+        display: none; /* Hide username on very narrow screens to save space */
+    }
+
+
+    /* --- Component Stacking & Refinements --- */
+
+    /* Make preset controls stack vertically */
+    .preset-controls {
+        flex-direction: column;
+        align-items: stretch; /* Make children take full width */
+        gap: 0.8rem;
+    }
+
+    /* THIS IS THE FIX: Reset flex properties on children for vertical stacking */
+    .preset-controls > .control-item,
+    .preset-controls > .preset-buttons {
+        flex: initial; /* Resets flex-grow to 0 */
+    }
+
+    .preset-controls .button-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .preset-controls .button-group button {
+        width: 100%;
+        text-align: center;
+    }
+
+    /* Make the main action bar wrap elements and prioritize build button */
+    .action-bar-content {
+        flex-wrap: wrap;
+        gap: 0.8rem;
+    }
+
+    .action-bar-content .build-options-container {
+        flex-basis: 100%; /* Take full width on the first row */
+        order: 1;
+        gap: 0.8rem;
+    }
+    
+    .action-bar-content .build-options-container > select {
+        flex-grow: 1;
+    }
+
+    #generate-mixed-playlist-btn {
+        flex-grow: 1;
+        order: 2;
+        padding: 0.7rem 1rem; /* Make it bigger */
+    }
+
+    #preview-playlist-btn {
+        order: 3;
+    }
+
+    .action-bar-checkbox-label {
+        flex-basis: 100%;
+        order: 4;
+        justify-content: center;
+        margin-left: 0;
+        padding: 0.5rem 0 0 0;
+        border-top: 1px solid var(--border-color);
+    }
+    
+    /* Make TV show row inputs larger */
+    .tv-block-show-row > .tv-block-season,
+    .tv-block-show-row > .tv-block-episode {
+        padding: .6rem .3rem;
+        font-size: 1.1rem;
+    }
+
+    /* Adjust table for better mobile viewing */
+    table {
+        font-size: 0.9rem;
+    }
+    
+    th, td {
+        padding: 0.6rem 0.5rem;
+    }
+}
