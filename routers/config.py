@@ -3,6 +3,10 @@ config.py – APIRouter
 """
 
 import logging
+import os
+import sys
+import threading
+import time
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
@@ -11,6 +15,16 @@ import models
 import app_state
 
 router = APIRouter()
+
+def _trigger_restart(delay: int = 2):
+    """
+    Waits for a delay then replaces the current process with a new one,
+    effectively restarting the application.
+    """
+    time.sleep(delay)
+    logging.warning("RESTART: Triggering application restart after initial configuration.")
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 
 @router.get("/api/config_status")
 def api_config_status():
@@ -23,6 +37,9 @@ def api_config_status():
 @router.post("/api/settings")
 def api_save_settings(req: models.SettingsRequest):
     """Saves connection details and hot-swaps the active configuration."""
+    # Check if the app was unconfigured *before* we try to save.
+    was_unconfigured = not app_state.is_configured
+
     env_content = (
         f'SERVER_TYPE="{req.server_type}"\n'
         f'EMBY_URL="{req.emby_url}"\n'
@@ -33,12 +50,17 @@ def api_save_settings(req: models.SettingsRequest):
         env_content += f'GEMINI_API_KEY="{req.gemini_key}"\n'
 
     try:
+        # First, test if the new credentials are valid before saving.
         core.authenticate(req.emby_user, req.emby_pass, req.emby_url, req.server_type)
 
         with open(app_state.ENV_PATH, "w") as f:
             f.write(env_content)
 
-        app_state.load_and_authenticate()
+        # If this was the first time being configured, trigger a restart.
+        # This is done in a background thread to allow the HTTP response to be sent first.
+        if was_unconfigured:
+            restart_thread = threading.Thread(target=_trigger_restart, daemon=True)
+            restart_thread.start()
 
         return {
             "status": "ok",

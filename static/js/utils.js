@@ -1,8 +1,8 @@
 // static/js/utils.js
 
 export function toast(message, isSuccess, options = {}) {
-  const { actionUrl, actionText = 'View' } = options;
-  
+  const { actionCallback, actionText = 'View' } = options;
+
   document.querySelectorAll('.toast').forEach(t => t.remove());
 
   const toastElement = document.createElement('div');
@@ -10,17 +10,26 @@ export function toast(message, isSuccess, options = {}) {
 
   let contentHTML = `<div class="toast-message">${message}</div>`;
 
-  if (actionUrl) {
+  if (actionCallback) {
     contentHTML += `
       <div class="toast-actions">
-        <a href="${actionUrl}" target="_blank" class="toast-button">
+        <button type="button" class="toast-button">
           <i data-feather="external-link"></i> ${actionText}
-        </a>
+        </button>
       </div>
     `;
   }
-  
+
   toastElement.innerHTML = contentHTML;
+
+  if (actionCallback) {
+    toastElement.querySelector('.toast-button').addEventListener('click', () => {
+      actionCallback();
+      // Optionally close the toast when the action is taken
+      toastElement.style.animation = 'fadeOutUp 0.5s forwards';
+      toastElement.addEventListener('animationend', () => toastElement.remove());
+    });
+  }
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'toast-close-btn';
@@ -32,12 +41,13 @@ export function toast(message, isSuccess, options = {}) {
   toastElement.appendChild(closeBtn);
 
   document.body.appendChild(toastElement);
-  
+
   if (window.featherReplace) {
     window.featherReplace();
   }
 
-  if (!actionUrl) {
+  // If there's a callback, don't auto-hide. Let the user decide.
+  if (!actionCallback) {
     toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 4.5s forwards';
     setTimeout(() => {
         if (toastElement.parentNode) {
@@ -97,8 +107,8 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
             const successMessage = res.log?.join(' • ') || 'Success!';
             const toastOptions = {};
             if (res.newItemUrl) {
-                toastOptions.actionUrl = res.newItemUrl;
                 toastOptions.actionText = 'View on Server';
+                toastOptions.actionCallback = () => window.open(res.newItemUrl, '_blank');
             }
             toast(successMessage, true, toastOptions);
         } else {

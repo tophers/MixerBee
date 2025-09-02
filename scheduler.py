@@ -13,7 +13,7 @@ from apscheduler.jobstores.base import JobLookupError
 
 import app as core
 import app.items as items_api
-from app.cache import refresh_cache 
+from app.cache import refresh_cache
 import app_state
 import database
 
@@ -147,9 +147,10 @@ class Scheduler:
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:
                 self.scheduler.add_job(func=scheduled_job_wrapper, trigger=CronTrigger.from_crontab(schedule_data['crontab']), kwargs=schedule_data, id=schedule_id, name=schedule_data.get('playlist_name', 'Unnamed Schedule'), replace_existing=True)
-        
-        self.scheduler.start()
-        
+
+        if not self.scheduler.running:
+            self.scheduler.start()
+
         job_count = len(self.schedules)
         total_jobs = len(self.scheduler.get_jobs())
         logging.info(f"Scheduler started with {job_count} user schedule(s) and {total_jobs - job_count} system job(s).")

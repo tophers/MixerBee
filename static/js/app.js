@@ -46,10 +46,20 @@ function initSettingsModal() {
     });
 
     testBtn.addEventListener('click', (event) => { post('api/settings/test', {}, event).then(res => { toast(res.log.join(' '), res.status === 'ok'); }); });
+
     saveBtn.addEventListener('click', (event) => {
         const payload = { server_type: serverTypeSelect.value, emby_url: urlInput.value.trim(), emby_user: userInput.value.trim(), emby_pass: passInput.value, gemini_key: geminiInput.value.trim() };
         if (!payload.emby_url || !payload.emby_user) { toast('URL and Username are required.', false); return; }
-        post('api/settings', payload, event).then(res => { if (res.status === 'ok') { hideModal(); sessionStorage.removeItem('mixerbee_api_cache'); toast("Settings saved successfully! Page will now reload.", true, { actionText: "Reload Now", actionUrl: "javascript:window.location.reload();" }); } });
+
+        post('api/settings', payload, event).then(res => {
+            if (res.status === 'ok') {
+                hideModal();
+                sessionStorage.setItem('isReloading', 'true');
+                toast("Settings saved! Server is restarting. The page will reload automatically...", true);
+                // Give the toast time to appear before reloading.
+                setTimeout(() => window.location.reload(), 500);
+            }
+        });
     });
 }
 
@@ -78,126 +88,158 @@ async function handleEarlyRestorePrompt() {
     return 'none';
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    let isSchedulerInitialized = false;
-    let isManagerInitialized = false;
-
-    const userSel = document.getElementById('user-select');
-    const themeToggle = document.getElementById('theme-toggle-cb');
-    const body = document.body;
-    const activeUserDisplay = document.getElementById('active-user-display');
-    const mainContent = document.getElementById('main-content-area');
-    const notConfiguredWarning = document.getElementById('not-configured-warning');
-    const mainActionBar = document.getElementById('action-bar');
-    const allPanes = document.querySelectorAll('.tab-pane');
-    const allTabBtns = document.querySelectorAll('.tab-btn');
-
-    const applyTheme = (theme) => {
-        body.dataset.theme = theme;
-        localStorage.setItem('mixerbeeTheme', theme);
-        themeToggle.checked = (theme === 'light');
-        if (typeof window.featherReplace === 'function') window.featherReplace();
-    };
-
-    const saveGlobalState = () => {
-        if (!userSel.value) return;
-        localStorage.setItem('mixerbeeGlobalState', JSON.stringify({ userId: userSel.value }));
-    };
-
-    const switchTab = (activeTab) => {
-        const activeBtn = document.getElementById(`${activeTab}-tab-btn`);
-        const activePane = document.getElementById(`${activeTab}-pane`);
-
-        if (activeTab === 'scheduler' && !isSchedulerInitialized) {
-            initSchedulerPane();
-            isSchedulerInitialized = true;
-        } else if (activeTab === 'manager' && !isManagerInitialized) {
-            initManager();
-            isManagerInitialized = true;
-        }
-        allTabBtns.forEach(b => b.classList.remove('active'));
-        allPanes.forEach(p => {
-            p.classList.remove('active');
-            p.classList.add('hidden');
-        });
-        if (activeBtn) activeBtn.classList.add('active');
-        if (activePane) {
-            activePane.classList.add('active');
-            activePane.classList.remove('hidden');
-        }
-
-        mainActionBar.classList.toggle('hidden', activeTab !== 'mixed');
-
-        if (activeTab === 'scheduler') {
-            loadSchedulerData();
-        } else if (activeTab === 'manager') {
-            loadManagerData();
-        }
-
-        if (typeof window.featherReplace === 'function') window.featherReplace();
-    };
-
-    const apiFetch = (url) => fetch(url).then(r => {
-        if (!r.ok) throw new Error(`API call to ${url} failed with status ${r.status}`);
-        return r.json();
-    });
-
-    const initializeBaseUI = (defUser, restoreDecision) => {
-        activeUserDisplay.textContent = defUser.name;
-        userSel.innerHTML = '';
-        const userOption = document.createElement('option');
-        userOption.value = defUser.id;
-        userOption.textContent = defUser.name;
-        userSel.appendChild(userOption);
-        userSel.value = defUser.id;
-        saveGlobalState();
-        initBuilderPane(userSel, restoreDecision);
-    };
-
-    initModals();
-    initSettingsModal();
-    applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
-
-    const restorePromise = handleEarlyRestorePrompt();
-
-    document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
-    document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
-    document.getElementById('manager-tab-btn').addEventListener('click', () => switchTab('manager'));
-    themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
-    userSel.addEventListener('input', () => {
-        saveGlobalState();
-        if (document.getElementById('manager-tab-btn').classList.contains('active')) loadManagerData();
-        if (document.getElementById('scheduler-tab-btn').classList.contains('active')) loadSchedulerData();
-    });
-
+async function initializeApp() {
+    const loadingOverlay = document.getElementById('loading-overlay');
     try {
-        const config = await apiFetch('api/config_status');
-        if (!config.is_configured) {
-             throw new Error("Application is not configured.");
+        let isSchedulerInitialized = false;
+        let isManagerInitialized = false;
+
+        const userSel = document.getElementById('user-select');
+        const themeToggle = document.getElementById('theme-toggle-cb');
+        const body = document.body;
+        const activeUserDisplay = document.getElementById('active-user-display');
+        const mainContent = document.getElementById('main-content-area');
+        const notConfiguredWarning = document.getElementById('not-configured-warning');
+        const mainActionBar = document.getElementById('action-bar');
+        const allPanes = document.querySelectorAll('.tab-pane');
+        const allTabBtns = document.querySelectorAll('.tab-btn');
+
+        const applyTheme = (theme) => {
+            body.dataset.theme = theme;
+            localStorage.setItem('mixerbeeTheme', theme);
+            themeToggle.checked = (theme === 'light');
+            if (typeof window.featherReplace === 'function') window.featherReplace();
+        };
+
+        const saveGlobalState = () => {
+            if (!userSel.value) return;
+            localStorage.setItem('mixerbeeGlobalState', JSON.stringify({ userId: userSel.value }));
+        };
+
+        const switchTab = (activeTab) => {
+            const activeBtn = document.getElementById(`${activeTab}-tab-btn`);
+            const activePane = document.getElementById(`${activeTab}-pane`);
+
+            if (activeTab === 'scheduler' && !isSchedulerInitialized) {
+                initSchedulerPane();
+                isSchedulerInitialized = true;
+            } else if (activeTab === 'manager' && !isManagerInitialized) {
+                initManager();
+                isManagerInitialized = true;
+            }
+            allTabBtns.forEach(b => b.classList.remove('active'));
+            allPanes.forEach(p => {
+                p.classList.remove('active');
+                p.classList.add('hidden');
+            });
+            if (activeBtn) activeBtn.classList.add('active');
+            if (activePane) {
+                activePane.classList.add('active');
+                activePane.classList.remove('hidden');
+            }
+
+            mainActionBar.classList.toggle('hidden', activeTab !== 'mixed');
+
+            if (activeTab === 'scheduler') {
+                loadSchedulerData();
+            } else if (activeTab === 'manager') {
+                loadManagerData();
+            }
+
+            if (typeof window.featherReplace === 'function') window.featherReplace();
+        };
+
+        const apiFetch = (url) => fetch(url).then(r => {
+            if (!r.ok) throw new Error(`API call to ${url} failed with status ${r.status}`);
+            return r.json();
+        });
+
+        const initializeBaseUI = (defUser, restoreDecision) => {
+            activeUserDisplay.textContent = defUser.name;
+            userSel.innerHTML = '';
+            const userOption = document.createElement('option');
+            userOption.value = defUser.id;
+            userOption.textContent = defUser.name;
+            userSel.appendChild(userOption);
+            userSel.value = defUser.id;
+            saveGlobalState();
+            initBuilderPane(userSel, restoreDecision);
+        };
+
+        initModals();
+        initSettingsModal();
+        applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
+
+        const restorePromise = handleEarlyRestorePrompt();
+
+        document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
+        document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
+        document.getElementById('manager-tab-btn').addEventListener('click', () => switchTab('manager'));
+        themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
+        userSel.addEventListener('input', () => {
+            saveGlobalState();
+            if (document.getElementById('manager-tab-btn').classList.contains('active')) loadManagerData();
+            if (document.getElementById('scheduler-tab-btn').classList.contains('active')) loadSchedulerData();
+        });
+
+        try {
+            const config = await apiFetch('api/config_status');
+            if (!config.is_configured) {
+                 throw new Error("Application is not configured.");
+            }
+
+            const restoreDecision = await restorePromise;
+
+            notConfiguredWarning.classList.add('hidden');
+            mainContent.classList.remove('hidden');
+
+            const [defUser, libraryData] = await Promise.all([
+                apiFetch('api/default_user'),
+                apiFetch('api/library_data')
+            ]);
+
+            Object.assign(window.appState, libraryData);
+
+            initializeBaseUI(defUser, restoreDecision);
+
+            switchTab('mixed');
+
+        } catch (err) {
+            restorePromise.catch(() => {});
+            console.error("Initialization Error:", err.message);
+            toast('Initialization error. Check settings or server status.', false);
+            notConfiguredWarning.classList.remove('hidden');
+            mainContent.classList.add('hidden');
+            if (typeof window.featherReplace === 'function') window.featherReplace();
         }
+    } finally {
+        loadingOverlay.classList.add('hidden');
+    }
+}
 
-        const restoreDecision = await restorePromise;
 
-        notConfiguredWarning.classList.add('hidden');
-        mainContent.classList.remove('hidden');
+document.addEventListener('DOMContentLoaded', () => {
+    if (sessionStorage.getItem('isReloading') === 'true') {
+        const loadingOverlay = document.getElementById('loading-overlay');
+        loadingOverlay.classList.remove('hidden');
+        toast("Connecting to server after restart...", true);
 
-        const [defUser, libraryData] = await Promise.all([
-            apiFetch('api/default_user'),
-            apiFetch('api/library_data')
-        ]);
-        
-        Object.assign(window.appState, libraryData);
-
-        initializeBaseUI(defUser, restoreDecision);
-
-        switchTab('mixed');
-
-    } catch (err) {
-        restorePromise.catch(() => {});
-        console.error("Initialization Error:", err.message);
-        toast('Initialization error. Check settings or server status.', false);
-        notConfiguredWarning.classList.remove('hidden');
-        mainContent.classList.add('hidden');
-        if (typeof window.featherReplace === 'function') window.featherReplace();
+        const pollForServerReady = () => {
+            const intervalId = setInterval(() => {
+                fetch('api/config_status')
+                    .then(response => {
+                        if (response.ok) {
+                            clearInterval(intervalId);
+                            sessionStorage.removeItem('isReloading');
+                            setTimeout(initializeApp, 250);
+                        }
+                    })
+                    .catch(() => {
+                    });
+            }, 1500);
+        };
+        pollForServerReady();
+    } else {
+        initializeApp();
     }
 });
