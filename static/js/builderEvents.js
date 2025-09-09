@@ -30,7 +30,6 @@ async function updateRowToNextUnwatched(showData, userSelectElement, renderBuild
 };
 
 export function attachBuilderEventListeners(container, userSelectElement, renderBuilder) {
-    // --- DEBOUNCED INPUT EVENT LISTENER ---
     container.addEventListener('input', debounce(async (event) => {
         const target = event.target;
         const blockEl = target.closest('.mixed-block');
@@ -43,7 +42,19 @@ export function attachBuilderEventListeners(container, userSelectElement, render
 
         let shouldReRender = true;
 
-        if (target.matches('.token-input')) { shouldReRender = false; }
+        if (target.matches('.show-search-input, .artist-search-input')) {
+            shouldReRender = false;
+            const searchTerm = target.value.toLowerCase();
+            const select = target.nextElementSibling; 
+            if (select && select.tagName === 'SELECT') {
+                for (const option of select.options) {
+                    if (option.value === "") continue;
+                    const optionText = option.textContent.toLowerCase();
+                    option.style.display = optionText.includes(searchTerm) ? '' : 'none';
+                }
+            }
+        }
+        else if (target.matches('.token-input')) { shouldReRender = false; }
         else if (target.matches('.tv-block-show-select')) {
             const rowEl = target.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
@@ -94,7 +105,6 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         if (shouldReRender) renderBuilder();
     }, 400));
 
-    // --- CLICK EVENT LISTENER (DELEGATED) ---
     container.addEventListener('click', async (event) => {
         const target = event.target;
         const button = target.closest('button, .token-state, .filter-toggle-btn, li, .first-unwatched-cb');
@@ -202,7 +212,6 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         if (shouldReRender) renderBuilder();
     });
 
-    // --- AUTOCOMPLETE EVENT LISTENERS ---
     container.addEventListener('input', debounce(async (e) => {
         const input = e.target;
         if (!input.matches('.token-input')) return;
