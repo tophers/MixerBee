@@ -19,11 +19,11 @@ export async function updateAllBlockPreviews() {
     if (!userSelect.value) return;
 
     const previewPromises = [];
-    const blocks = getBlocks(); // Get state the new way
+    const blocks = getBlocks();
 
     document.querySelectorAll('.mixed-block[data-block-index]').forEach(blockEl => {
         const blockIndex = parseInt(blockEl.dataset.blockIndex, 10);
-        const blockData = blocks[blockIndex]; // Use the new state variable
+        const blockData = blocks[blockIndex];
         if (!blockData) return;
 
         if (blockData.type === 'tv') {
@@ -120,8 +120,8 @@ export function renderTvBlock({ blockData, index }) {
         ghostClass: 'sortable-ghost',
         onEnd: (evt) => {
             if (evt.oldIndex === evt.newIndex) return;
-            
-            const blocks = getBlocks(); // Get state the new way
+
+            const blocks = getBlocks();
             const blockData = blocks[index];
             if (!blockData || !blockData.shows) return;
 
@@ -215,10 +215,12 @@ export function renderMovieBlock({ blockData, index }) {
         durationRadio.checked = true;
         limitValueInput.value = Math.round(filters.duration_minutes / 60) || 3;
         limitUnitSpan.innerHTML = `<select class="movie-block-limit-duration-units"><option value="60">Hours</option><option value="1">Minutes</option></select>`;
+        filters.limit = null;
     } else {
         countRadio.checked = true;
         limitValueInput.value = filters.limit || 5;
         limitUnitSpan.innerHTML = 'movies';
+        filters.duration_minutes = null;
     }
 
     return blockElement;

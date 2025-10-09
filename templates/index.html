@@ -107,7 +107,7 @@
 
         <div id="scheduler-pane" class="tab-pane hidden">
             <div class="container">
-                <details class="collapsible-section" open>
+              <details class="collapsible-section" open>
                     <summary class="collapsible-section-header">
                         <h3><i data-feather="plus-circle"></i> Create a New Schedule</h3>
                         <span class="icon-btn collapse-toggle-btn">
@@ -176,12 +176,12 @@
                                 <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
                             </div>
                         </fieldset>
-                        <div class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
-                            <button id="create-schedule-btn" class="secondary">Create Schedule</button>
+                        <div id="scheduler-actions" class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
+                            <button id="cancel-edit-schedule-btn" type="button" class="secondary hidden">Cancel</button>
+                            <button id="create-schedule-btn">Create Schedule</button>
                         </div>
                     </div>
                 </details>
-
                 <details id="schedules-list-container" class="collapsible-section hidden" open>
                     <summary class="collapsible-section-header">
                         <h3><i data-feather="list"></i> Active Schedules <span id="schedule-count"></span></h3>

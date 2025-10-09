@@ -6,7 +6,11 @@ import { SMART_BUILD_TYPES } from './definitions.js';
 
 let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSourceSelect,
     frequencySelect, scheduleTimeInput, daysContainer, daysCheckboxes,
-    builderOptionsContainer, quickOptionsContainer, presetSelect, quickTypeSelect, quickCountInput;
+    builderOptionsContainer, quickOptionsContainer, presetSelect, quickTypeSelect, quickCountInput,
+    cancelEditBtn, schedulerPane;
+
+let editingScheduleId = null;
+let schedulesData = [];
 
 const schedulableQuickPlaylists = SMART_BUILD_TYPES.filter(t => t.schedulable);
 const quickPlaylistFriendlyNames = schedulableQuickPlaylists.reduce((acc, curr) => {
@@ -25,6 +29,8 @@ function populateQuickPlaylistDropdown() {
 }
 
 function syncPlaylistName() {
+  if (editingScheduleId) return; // Don't auto-change name when editing
+
   const sourceType = scheduleSourceSelect.value;
 
   if (sourceType === 'builder') {
@@ -78,6 +84,62 @@ async function populatePresetDropdown() {
   }
 }
 
+function resetCreateForm() {
+    editingScheduleId = null;
+    const form = document.querySelector('#scheduler-pane .collapsible-section-body');
+    form.querySelectorAll('input[type="text"], input[type="number"], input[type="time"]').forEach(input => {
+        if(input.id === 'schedule-quick-count-input') input.value = '10';
+        else if(input.id === 'schedule-time-input') input.value = '19:00';
+        else input.value = 'Scheduled';
+    });
+    form.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
+    daysCheckboxes.forEach(cb => cb.checked = false);
+    toggleSourceOptions();
+    toggleDaysOfWeek();
+
+    createBtn.textContent = 'Create Schedule';
+    cancelEditBtn.classList.add('hidden');
+}
+
+function populateFormForEdit(schedule) {
+    schedulePlaylistNameInput.value = schedule.playlist_name;
+    scheduleSourceSelect.value = schedule.job_type;
+    toggleSourceOptions(); // Update visibility based on source type
+
+    if (schedule.job_type === 'builder') {
+        presetSelect.value = schedule.preset_name;
+    } else if (schedule.job_type === 'quick_playlist') {
+        quickTypeSelect.value = schedule.quick_playlist_data.quick_playlist_type;
+        quickCountInput.value = schedule.quick_playlist_data.options.count;
+    }
+
+    const details = schedule.schedule_details;
+    frequencySelect.value = details.frequency;
+    toggleDaysOfWeek(); // Update visibility based on frequency
+    scheduleTimeInput.value = details.time;
+    daysCheckboxes.forEach(cb => {
+        cb.checked = (details.days_of_week || []).includes(parseInt(cb.value));
+    });
+}
+
+function enterEditMode(scheduleId) {
+    const scheduleToEdit = schedulesData.find(s => s.id === scheduleId);
+    if (!scheduleToEdit) {
+        toast('Could not find schedule data to edit.', false);
+        return;
+    }
+
+    editingScheduleId = scheduleId;
+    populateFormForEdit(scheduleToEdit);
+
+    createBtn.textContent = 'Update Schedule';
+    cancelEditBtn.classList.remove('hidden');
+
+    const createSection = schedulerPane.querySelector('.collapsible-section');
+    createSection.open = true;
+    createSection.scrollIntoView({ behavior: 'smooth' });
+}
+
 export async function loadSchedulerData() {
     const scheduleCountSpan = document.getElementById('schedule-count');
     const scheduleListContainer = document.getElementById('schedules-list-container');
@@ -86,6 +148,7 @@ export async function loadSchedulerData() {
         const response = await fetch('api/schedules');
         if (!response.ok) throw new Error('Failed to fetch schedules');
         const schedules = await response.json();
+        schedulesData = schedules; // Cache data for editing
         scheduleCountSpan.textContent = `(${schedules.length})`;
         scheduleListContainer.classList.toggle('hidden', schedules.length === 0);
         schedulesListEl.innerHTML = '';
@@ -161,6 +224,13 @@ function renderSchedule(schedule, parentList) {
         <div class="schedule-button-container">
           <button
             type="button"
+            class="icon-btn edit-schedule-btn"
+            title="Edit Schedule"
+            data-id="${schedule.id}">
+            <i data-feather="edit-2"></i>
+          </button>
+          <button
+            type="button"
             class="icon-btn run-now-btn"
             title="Run Schedule Now"
             data-id="${schedule.id}">
@@ -178,6 +248,10 @@ function renderSchedule(schedule, parentList) {
     </fieldset>
   `;
   parentList.appendChild(listItem);
+
+  listItem
+    .querySelector('.edit-schedule-btn')
+    .addEventListener('click', () => enterEditMode(schedule.id));
 
   listItem
     .querySelector('.run-now-btn')
@@ -213,7 +287,7 @@ function renderSchedule(schedule, parentList) {
     });
 }
 
-async function handleCreateSchedule(event) {
+async function handleScheduleFormSubmit(event) {
     const sourceType = scheduleSourceSelect.value;
     const userId = userSelect.value;
     const frequency = frequencySelect.value;
@@ -238,13 +312,23 @@ async function handleCreateSchedule(event) {
         requestBody.quick_playlist_data = { quick_playlist_type: quickType, options: { count: count } };
         requestBody.preset_name = quickPlaylistFriendlyNames[quickType] || 'Auto Playlist';
     }
-    post('api/schedules', requestBody, event.currentTarget).then(res => { if (res.status === 'ok') { loadSchedulerData(); scheduleSourceSelect.value = 'builder'; toggleSourceOptions(); } });
+
+    const method = editingScheduleId ? 'PUT' : 'POST';
+    const endpoint = editingScheduleId ? `api/schedules/${editingScheduleId}` : 'api/schedules';
+
+    post(endpoint, requestBody, event.currentTarget, method).then(res => {
+        if (res.status === 'ok') {
+            loadSchedulerData();
+            resetCreateForm();
+        }
+    });
 }
 
 export function initSchedulerPane() {
-    const schedulerPane = document.getElementById('scheduler-pane');
+    schedulerPane = document.getElementById('scheduler-pane');
     userSelect = document.getElementById('user-select');
     createBtn = schedulerPane.querySelector('#create-schedule-btn');
+    cancelEditBtn = schedulerPane.querySelector('#cancel-edit-schedule-btn');
     schedulePlaylistNameInput = schedulerPane.querySelector('#schedule-playlist-name');
     scheduleSourceSelect = schedulerPane.querySelector('#schedule-source-select');
     frequencySelect = schedulerPane.querySelector('#schedule-frequency');
@@ -259,7 +343,8 @@ export function initSchedulerPane() {
 
     populatePresetDropdown();
     populateQuickPlaylistDropdown();
-    createBtn.addEventListener('click', handleCreateSchedule);
+    createBtn.addEventListener('click', handleScheduleFormSubmit);
+    cancelEditBtn.addEventListener('click', resetCreateForm);
     scheduleSourceSelect.addEventListener('change', toggleSourceOptions);
     frequencySelect.addEventListener('change', toggleDaysOfWeek);
     quickTypeSelect.addEventListener('change', syncPlaylistName);

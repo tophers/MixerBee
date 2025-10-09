@@ -48,6 +48,35 @@ def api_create_schedule(req: models.ScheduleRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid schedule format: {e}")
 
+@router.put("/api/schedules/{schedule_id}")
+def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
+    if not app_state.is_configured:
+        raise HTTPException(status_code=400, detail="Not configured")
+    try:
+        hour, minute = req.schedule_details.time.split(':')
+
+        if req.schedule_details.frequency == "weekly":
+            if not req.schedule_details.days_of_week:
+                raise ValueError("days_of_week must be provided for weekly frequency.")
+            days = ",".join(map(str, req.schedule_details.days_of_week))
+            crontab = f"{minute} {hour} * * {days}"
+        else:  # Daily
+            crontab = f"{minute} {hour} * * *"
+
+        CronTrigger.from_crontab(crontab)
+
+        schedule_data_to_save = req.dict(exclude_none=True)
+        schedule_data_to_save['crontab'] = crontab
+
+        success = scheduler.scheduler_manager.update_schedule(schedule_id, schedule_data_to_save)
+        if not success:
+            raise HTTPException(status_code=404, detail="Schedule not found or update failed.")
+
+        return {"status": "ok", "log": ["Schedule updated successfully."]}
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid schedule format: {e}")
+
 @router.post("/api/schedules/{schedule_id}/run")
 def api_run_schedule_now(schedule_id: str):
     if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")

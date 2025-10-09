@@ -171,6 +171,58 @@ class Scheduler:
         self.scheduler.add_job(func=scheduled_job_wrapper, trigger=CronTrigger.from_crontab(schedule_data['crontab']), kwargs=schedule_data, id=schedule_id, name=schedule_data.get('playlist_name', 'Unnamed Schedule'))
         return schedule_id
 
+    def update_schedule(self, schedule_id: str, schedule_data: Dict) -> bool:
+        if schedule_id not in self.schedules:
+            logging.warning(f"SCHEDULER: Attempted to update non-existent schedule {schedule_id}")
+            return False
+        try:
+            conn = database.get_db_connection()
+            config_payload = {
+                "preset_name": schedule_data.get("preset_name"),
+                "blocks": schedule_data.get("blocks"),
+                "quick_playlist_data": schedule_data.get("quick_playlist_data"),
+                "schedule_details": schedule_data.get("schedule_details")
+            }
+            conn.execute(
+                """
+                UPDATE schedules
+                SET playlist_name = ?, user_id = ?, job_type = ?, crontab = ?, config_data = ?
+                WHERE id = ?
+                """,
+                (
+                    schedule_data.get("playlist_name"),
+                    schedule_data.get("user_id"),
+                    schedule_data.get("job_type"),
+                    schedule_data.get("crontab"),
+                    json.dumps(config_payload),
+                    schedule_id
+                )
+            )
+            conn.commit()
+            conn.close()
+
+            schedule_data['id'] = schedule_id
+            self.scheduler.add_job(
+                func=scheduled_job_wrapper,
+                trigger=CronTrigger.from_crontab(schedule_data['crontab']),
+                kwargs=schedule_data,
+                id=schedule_id,
+                name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
+                replace_existing=True
+            )
+
+            last_run_data = self.schedules[schedule_id].get('last_run')
+            self.schedules[schedule_id] = schedule_data
+            if last_run_data:
+                self.schedules[schedule_id]['last_run'] = last_run_data
+
+            logging.info(f"SCHEDULER: Successfully updated schedule {schedule_id}.")
+            return True
+
+        except Exception as e:
+            logging.error(f"SCHEDULER: Failed to update schedule {schedule_id}: {e}", exc_info=True)
+            return False
+
     def remove_schedule(self, schedule_id: str):
         if schedule_id in self.schedules:
             try:
