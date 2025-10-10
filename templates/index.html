@@ -449,20 +449,19 @@
                 </div>
                 <div class="block-options-footer">
                     <div class="block-options-grid">
-                        <label>Mode:
+                        <label class="control-item">
                             <select class="tv-block-mode-select">
                                 <option value="count">By Episode Count</option>
                                 <option value="range">By End Episode</option>
                             </select>
                         </label>
-                        <div class="tv-block-count-container">
-                            <label>Episodes per show:
-                                <input type="number" class="tv-block-count" value="3" min="1">
-                            </label>
-                        </div>
+                        <label class="control-item tv-block-count-container">
+                            <span>Count</span>
+                            <input type="number" class="tv-block-count" value="3" min="1">
+                        </label>
                         <div class="tv-block-range-container hidden">
-                            <label>End S: <input type="number" class="tv-block-end-season" value="1" min="1"></label>
-                            <label>End E: <input type="number" class="tv-block-end-episode" value="1" min="1"></label>
+                            <label class="control-item"><span>S</span><input type="number" class="tv-block-end-season" value="1" min="1"></label>
+                            <label class="control-item"><span>E</span><input type="number" class="tv-block-end-episode" value="1" min="1"></label>
                         </div>
                         <label class="interleave-label">
                             <input type="checkbox" class="tv-block-interleave" checked> Interleave
@@ -472,8 +471,7 @@
             </div>
         </details>
     </template>
-
-    <template id="template-tv-show-row">
+     <template id="template-tv-show-row">
         <div class="show-row tv-block-show-row">
             <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
             <div class="show-select-wrapper">

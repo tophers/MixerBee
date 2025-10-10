@@ -70,7 +70,6 @@ const hydratePresetData = async (blocksData, userSelectElement) => {
 };
 
 export const applyDataToUI = async (blocksData = [], userSelectElement) => {
-    console.log("[STATE] applyDataToUI called with:", blocksData);
     const loadingOverlay = document.getElementById('loading-overlay');
     if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
@@ -84,19 +83,14 @@ export const applyDataToUI = async (blocksData = [], userSelectElement) => {
             }
         });
         
-        console.log("[STATE] Hydrating data...");
         await hydratePresetData(blocksData, userSelectElement);
-        console.log("[STATE] Hydration complete.");
 
         setBlocks(blocksData);
-        console.log("[STATE] Internal state has been set to new blocks:", getBlocks());
 
     } catch (e) {
-        console.error("Error applying preset data:", e);
         toast("Could not apply preset data.", false);
     } finally {
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
-        console.log("[STATE] applyDataToUI finished.");
     }
 };
 
@@ -107,7 +101,6 @@ export function restoreSessionFromAutosave() {
             const savedState = JSON.parse(savedData);
             return savedState.blocks;
         } catch (e) {
-            console.error("Failed to parse restored state.", e);
             localStorage.removeItem(AUTOSAVE_KEY);
         }
     }

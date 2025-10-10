@@ -214,6 +214,77 @@
     padding-top: 1rem;
     border-top: 1px solid var(--border-color);
 }
+/* static/css/builder.css */
+
+.block-options-footer .block-options-grid {
+    display: flex;
+    align-items: center; /* This is key to vertically align all items */
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.block-options-footer .control-item {
+    flex-direction: row; /* Override default column direction for control-items here */
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.block-options-footer .control-item span {
+    padding-left: 0; /* Remove default padding */
+    opacity: 1;
+    font-size: 1em;
+    font-family: inherit;
+    font-weight: normal;
+    color: var(--text-subtle); /* Make the label text less prominent */
+}
+
+.block-options-footer .tv-block-range-container {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.block-options-footer .tv-block-count,
+.block-options-footer .tv-block-end-season,
+.block-options-footer .tv-block-end-episode {
+    width: 60px; /* Make number inputs smaller */
+}
+
+.block-options-footer .interleave-label {
+    margin-left: auto; /* Pushes the checkbox to the far right */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+.block-options-grid {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    width: 100%;
+}
+
+.block-options-grid > label,
+.block-options-grid > div > label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.block-options-grid .tv-block-range-container {
+    display: flex;
+    gap: 1rem;
+}
+
+.block-options-grid .tv-block-count input,
+.block-options-grid .tv-block-end-season,
+.block-options-grid .tv-block-end-episode {
+    width: 70px;
+}
+
+.block-options-grid .interleave-label {
+    margin-left: auto;
+}
 .interleave-label {
     display: flex;
     align-items: center;
