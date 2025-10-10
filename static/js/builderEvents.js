@@ -28,7 +28,6 @@ async function updateRowToNextUnwatched(showData, userSelectElement, renderBuild
         renderBuilder();
     }
 };
-
 export function attachBuilderEventListeners(container, userSelectElement, renderBuilder) {
     container.addEventListener('input', debounce(async (event) => {
         const target = event.target;
@@ -45,7 +44,7 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         if (target.matches('.show-search-input, .artist-search-input')) {
             shouldReRender = false;
             const searchTerm = target.value.toLowerCase();
-            const select = target.nextElementSibling; 
+            const select = target.nextElementSibling;
             if (select && select.tagName === 'SELECT') {
                 for (const option of select.options) {
                     if (option.value === "") continue;
@@ -149,7 +148,25 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             blockData.shows.push(defaultShowObject);
             await updateRowToNextUnwatched(defaultShowObject, userSelectElement, renderBuilder);
             return;
-        } else if (button.matches('.show-row .delete-btn')) {
+        } 
+        else if (button.matches('.shuffle-show-btn')) {
+            const allShows = window.appState.seriesData;
+            if (!allShows || allShows.length === 0) {
+                toast('No TV shows available to select from.', false);
+                return;
+            }
+            const randomShow = allShows[Math.floor(Math.random() * allShows.length)];
+            const rowEl = button.closest('.show-row');
+            const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
+            const showData = blockData.shows[rowIndex];
+
+            showData.name = randomShow.name;
+            showData.unwatched = true; 
+
+            await updateRowToNextUnwatched(showData, userSelectElement, renderBuilder);
+            return; 
+        }
+        else if (button.matches('.show-row .delete-btn')) {
             const rowIndex = parseInt(button.closest('.show-row').dataset.rowIndex, 10);
             if (blockData.shows.length > 1) blockData.shows.splice(rowIndex, 1);
         } else if (button.matches('.first-unwatched-cb')) {
@@ -217,7 +234,6 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         if (!input.matches('.token-input')) return;
         const suggestionsEl = input.nextElementSibling;
         const searchTerm = input.value.trim();
-        suggestionsEl.innerHTML = '';
         if (searchTerm.length < 2) return;
         try {
             let suggestions = [];
