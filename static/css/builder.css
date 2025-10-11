@@ -251,7 +251,6 @@
 }
 
 .block-options-footer .interleave-label {
-    margin-left: auto; /* Pushes the checkbox to the far right */
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -282,9 +281,6 @@
     width: 70px;
 }
 
-.block-options-grid .interleave-label {
-    margin-left: auto;
-}
 .interleave-label {
     display: flex;
     align-items: center;
