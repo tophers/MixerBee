@@ -8,7 +8,6 @@ presets.json
 mixerbee.db
 *.migrated
 #I have my reasons
-tests/*
 
 # Python
 __pycache__/

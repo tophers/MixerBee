@@ -8,3 +8,7 @@ fastapi>=0.111,<1
 uvicorn[standard]>=0.29,<1
 
 google-generativeai
+
+# testing
+pytest>=8.0,<9
+httpx>=0.27,<1
