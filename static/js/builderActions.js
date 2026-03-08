@@ -3,7 +3,7 @@
 import { post, toast } from './utils.js';
 import { confirmModal, smartPlaylistModal, smartBuildModal, previewModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
-import { getBlocks, pushBlock, setBlocks } from './builderState.js';
+import { getBlocks, pushBlock, setBlocks, appState } from './builderState.js';
 
 async function showQuickBuildModal({ button, type, title, description, defaultName, showCount = true, defaultCount = 10, extraParams = {} }) {
     const userSelect = document.getElementById('user-select');

@@ -5,15 +5,7 @@ import { initModals, confirmModal } from './modals.js';
 import { initBuilderPane, renderBuilder } from './builder.js';
 import { initSchedulerPane, loadSchedulerData } from './scheduler.js';
 import { initManager, loadManagerData } from './manager.js';
-import { applyDataToUI, restoreSessionFromAutosave, clearAutosave } from './builderState.js';
-
-window.appState = {
-    seriesData: [],
-    movieGenreData: [],
-    libraryData: [],
-    artistData: [],
-    musicGenreData: [],
-};
+import { applyDataToUI, restoreSessionFromAutosave, clearAutosave, appState } from './builderState.js';
 
 const AUTOSAVE_KEY = 'mixerbee_autosave';
 
@@ -149,10 +141,18 @@ async function initializeApp() {
             if (typeof window.featherReplace === 'function') window.featherReplace();
         };
 
-        const apiFetch = (url) => fetch(url).then(r => {
-            if (!r.ok) throw new Error(`API call to ${url} failed with status ${r.status}`);
-            return r.json();
-        });
+        // UPDATED: Added cache busting to prevent stale config status
+        const apiFetch = (url) => {
+            const separator = url.includes('?') ? '&' : '?';
+            const cacheBuster = `_cb=${new Date().getTime()}`;
+            return fetch(`${url}${separator}${cacheBuster}`, {
+                cache: 'no-store',
+                headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+            }).then(r => {
+                if (!r.ok) throw new Error(`API call to ${url} failed with status ${r.status}`);
+                return r.json();
+            });
+        };
 
         const initializeBaseUI = (defUser, restoreDecision) => {
             activeUserDisplay.textContent = defUser.name;
@@ -199,7 +199,7 @@ async function initializeApp() {
                 apiFetch('api/library_data')
             ]);
 
-            Object.assign(window.appState, libraryData);
+            Object.assign(appState, libraryData);
 
             initializeBaseUI(defUser, restoreDecision);
 
@@ -216,7 +216,6 @@ async function initializeApp() {
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', () => {
     if (sessionStorage.getItem('isReloading') === 'true') {

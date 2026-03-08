@@ -2,6 +2,7 @@
 
 import { post, toast } from './utils.js';
 import { presetModal, confirmModal, importPresetModal } from './modals.js';
+import { appState } from './builderState.js';
 
 export class PresetManager {
     constructor(storageKey, { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn }) {

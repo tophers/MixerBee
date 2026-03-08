@@ -2,7 +2,7 @@
 
 import { PresetManager } from './components.js';
 import { renderTvBlock, renderMovieBlock, renderMusicBlock, updateAllBlockPreviews } from './block_renderers.js';
-import { getBuilderState, getBlocks, setBlocks, saveBuilderState, applyDataToUI, spliceBlock, restoreSessionFromAutosave, clearAutosave } from './builderState.js';
+import { getBuilderState, getBlocks, setBlocks, saveBuilderState, applyDataToUI, spliceBlock, restoreSessionFromAutosave, clearAutosave, appState } from './builderState.js';
 import { initBuilderActions } from './builderActions.js';
 import { attachBuilderEventListeners } from './builderEvents.js';
 
@@ -154,7 +154,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
         let newBlockData;
         
         if (blockType === 'tv') {
-            const defaultShowObject = { name: window.appState.seriesData[0]?.name || '', season: 1, episode: 1, unwatched: true };
+            const defaultShowObject = { name: appState.seriesData[0]?.name || '', season: 1, episode: 1, unwatched: true };
             newBlockData = { type: 'tv', shows: [defaultShowObject], mode: 'count', count: 3, interleave: true };
         } else if (blockType === 'movie') {
             newBlockData = { type: 'movie', filters: { watched_status: 'unplayed', sort_by: 'Random', parent_ids: appState.libraryData.map(l => l.Id) } };

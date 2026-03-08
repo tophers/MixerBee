@@ -2,6 +2,14 @@
 
 import { toast } from './utils.js';
 
+export const appState = {
+    seriesData: [],
+    movieGenreData: [],
+    libraryData: [],
+    artistData: [],
+    musicGenreData: [],
+};
+
 const AUTOSAVE_KEY = 'mixerbee_autosave';
 
 let builderState = {
@@ -50,7 +58,7 @@ const hydratePresetData = async (blocksData, userSelectElement) => {
         if (block.type === 'tv') {
             block.shows.forEach(show => {
                 if (show.unwatched) {
-                    const series = window.appState.seriesData.find(s => s.name === show.name);
+                    const series = appState.seriesData.find(s => s.name === show.name);
                     if (series) {
                         const promise = fetch(`api/shows/${series.id}/first_unwatched?user_id=${userSelectElement.value}`)
                             .then(response => response.ok ? response.json() : null)

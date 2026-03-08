@@ -1,7 +1,8 @@
 // static/js/builderEvents.js
 
 import { debounce, toast } from './utils.js';
-import { getBlocks, spliceBlock, pushBlock } from './builderState.js';
+import { getBlocks, spliceBlock, appState, saveBuilderState } from './builderState.js';
+import { updateAllBlockPreviews } from './block_renderers.js';
 
 async function updateRowToNextUnwatched(showData, userSelectElement, renderBuilder) {
     const seriesId = appState.seriesData.find(s => s.name === showData.name)?.id;
@@ -10,10 +11,13 @@ async function updateRowToNextUnwatched(showData, userSelectElement, renderBuild
         renderBuilder();
         return;
     }
+
     const loadingOverlay = document.getElementById('loading-overlay');
+
     try {
         loadingOverlay.style.display = 'flex';
         const response = await fetch(`api/shows/${seriesId}/first_unwatched?user_id=${userSelectElement.value}`);
+
         if (response.ok) {
             const ep = await response.json();
             showData.season = ep.ParentIndexNumber;
@@ -27,7 +31,8 @@ async function updateRowToNextUnwatched(showData, userSelectElement, renderBuild
         loadingOverlay.style.display = 'none';
         renderBuilder();
     }
-};
+}
+
 export function attachBuilderEventListeners(container, userSelectElement, renderBuilder) {
     container.addEventListener('input', debounce(async (event) => {
         const target = event.target;
@@ -37,24 +42,27 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         const blockIndex = parseInt(blockEl.dataset.blockIndex, 10);
         const blocks = getBlocks();
         if (isNaN(blockIndex) || !blocks[blockIndex]) return;
-        const blockData = blocks[blockIndex];
 
+        const blockData = blocks[blockIndex];
         let shouldReRender = true;
 
         if (target.matches('.show-search-input, .artist-search-input')) {
             shouldReRender = false;
             const searchTerm = target.value.toLowerCase();
             const select = target.nextElementSibling;
+
             if (select && select.tagName === 'SELECT') {
                 for (const option of select.options) {
-                    if (option.value === "") continue;
+                    if (option.value === '') continue;
                     const optionText = option.textContent.toLowerCase();
                     option.style.display = optionText.includes(searchTerm) ? '' : 'none';
                 }
             }
-        }
-        else if (target.matches('.token-input')) { shouldReRender = false; }
-        else if (target.matches('.tv-block-show-select')) {
+
+        } else if (target.matches('.token-input')) {
+            shouldReRender = false;
+
+        } else if (target.matches('.tv-block-show-select')) {
             const rowEl = target.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
             const showData = blockData.shows[rowIndex];
@@ -63,45 +71,118 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             showData.unwatched = true;
             await updateRowToNextUnwatched(showData, userSelectElement, renderBuilder);
             return;
-        }
-        else if (target.matches('.tv-block-season')) {
+
+        } else if (target.matches('.tv-block-season')) {
             const rowEl = target.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
             blockData.shows[rowIndex].season = target.value;
-        }
-        else if (target.matches('.tv-block-episode')) {
+            shouldReRender = false;
+
+        } else if (target.matches('.tv-block-episode')) {
             const rowEl = target.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
             blockData.shows[rowIndex].episode = target.value;
+            shouldReRender = false;
+
         } else if (target.matches('.tv-block-mode-select, .tv-block-count, .tv-block-end-season, .tv-block-end-episode, .tv-block-interleave')) {
-            if (target.matches('.tv-block-mode-select')) blockData.mode = target.value;
-            else if (target.matches('.tv-block-count')) blockData.count = target.value;
-            else if (target.matches('.tv-block-end-season')) blockData.end_season = target.value;
-            else if (target.matches('.tv-block-end-episode')) blockData.end_episode = target.value;
-            else if (target.matches('.tv-block-interleave')) blockData.interleave = target.checked;
+            if (target.matches('.tv-block-mode-select')) {
+                blockData.mode = target.value;
+            } else if (target.matches('.tv-block-count')) {
+                blockData.count = target.value;
+                shouldReRender = false;
+            } else if (target.matches('.tv-block-end-season')) {
+                blockData.end_season = target.value;
+                shouldReRender = false;
+            } else if (target.matches('.tv-block-end-episode')) {
+                blockData.end_episode = target.value;
+                shouldReRender = false;
+            } else if (target.matches('.tv-block-interleave')) {
+                blockData.interleave = target.checked;
+                shouldReRender = false;
+            }
+
         } else if (target.matches('.movie-block-library-cb')) {
             blockData.filters.parent_ids = [...blockEl.querySelectorAll('.movie-block-library-cb:checked')].map(cb => cb.value);
+            shouldReRender = false;
+
         } else if (target.matches('.movie-block-year-from, .movie-block-year-to')) {
             blockData.filters.year_from = blockEl.querySelector('.movie-block-year-from').value;
             blockData.filters.year_to = blockEl.querySelector('.movie-block-year-to').value;
+            shouldReRender = false;
+
         } else if (target.matches('input[name^="limit-mode-"]')) {
             if (target.checked) {
                 blockData.filters.limit = target.value === 'count' ? 5 : null;
                 blockData.filters.duration_minutes = target.value === 'duration' ? 180 : null;
             }
+
         } else if (target.matches('.movie-block-limit-value, .movie-block-limit-duration-units')) {
-            const limitModeRadio = blockEl.querySelector(`input[name^="limit-mode-"]:checked`);
+            const limitModeRadio = blockEl.querySelector('input[name^="limit-mode-"]:checked');
+
             if (limitModeRadio && limitModeRadio.value === 'count') {
                 blockData.filters.limit = parseInt(blockEl.querySelector('.movie-block-limit-value').value, 10);
-            } else if(limitModeRadio && limitModeRadio.value === 'duration') {
+            } else if (limitModeRadio && limitModeRadio.value === 'duration') {
                 const units = parseInt(blockEl.querySelector('.movie-block-limit-duration-units')?.value || '60', 10);
                 blockData.filters.duration_minutes = parseInt(blockEl.querySelector('.movie-block-limit-value').value, 10) * units;
             }
+
+            shouldReRender = false;
+
+        } else if (target.matches('.music-block-mode')) {
+            if (!blockData.music) blockData.music = {};
+            blockData.music.mode = target.value;
+            shouldReRender = true;
+
+        } else if (target.matches('.music-block-artist')) {
+            if (!blockData.music) blockData.music = {};
+            blockData.music.artistId = target.value;
+            blockData.music.albumId = '';
+            shouldReRender = true;
+
+        } else if (target.matches('.music-block-album')) {
+            if (!blockData.music) blockData.music = {};
+            blockData.music.albumId = target.value;
+            shouldReRender = false;
+
+        } else if (target.matches('.music-block-count')) {
+            if (!blockData.music) blockData.music = {};
+            blockData.music.count = parseInt(target.value, 10) || 1;
+            shouldReRender = false;
+
+        } else if (target.matches('.music-block-genre-cb')) {
+            if (!blockData.music) blockData.music = {};
+            if (!blockData.music.filters) blockData.music.filters = {};
+            blockData.music.filters.genres = [...blockEl.querySelectorAll('.music-block-genre-cb:checked')].map(cb => cb.value);
+            shouldReRender = false;
+
+        } else if (target.matches('input[name^="music-block-genre-match-"]')) {
+            if (!blockData.music) blockData.music = {};
+            if (!blockData.music.filters) blockData.music.filters = {};
+            blockData.music.filters.genre_match = target.value;
+            shouldReRender = false;
+
+        } else if (target.matches('.music-block-sort-by')) {
+            if (!blockData.music) blockData.music = {};
+            if (!blockData.music.filters) blockData.music.filters = {};
+            blockData.music.filters.sort_by = target.value;
+            shouldReRender = false;
+
+        } else if (target.matches('.music-block-limit')) {
+            if (!blockData.music) blockData.music = {};
+            if (!blockData.music.filters) blockData.music.filters = {};
+            blockData.music.filters.limit = parseInt(target.value, 10) || 10;
+            shouldReRender = false;
+
         } else {
             shouldReRender = false;
         }
 
-        if (shouldReRender) renderBuilder();
+        if (shouldReRender) {
+            renderBuilder();
+        } else {
+            updateAllBlockPreviews();
+            saveBuilderState();
+        }
     }, 400));
 
     container.addEventListener('click', async (event) => {
@@ -119,10 +200,11 @@ export function attachBuilderEventListeners(container, userSelectElement, render
         const blockData = blocks[blockIndex];
         let shouldReRender = true;
 
-        if(button.matches('.autocomplete-suggestions li')) {
+        if (button.matches('.autocomplete-suggestions li')) {
             const input = button.closest('.token-field-wrapper').querySelector('.token-input');
             const itemType = button.dataset.itemType;
             const itemData = JSON.parse(button.dataset.itemData);
+
             if (itemType === 'genre') {
                 if (!blockData.filters.genres_any) blockData.filters.genres_any = [];
                 blockData.filters.genres_any.push(itemData.Name);
@@ -133,42 +215,54 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                 if (!blockData.filters.studios) blockData.filters.studios = [];
                 blockData.filters.studios.push(itemData.Name);
             }
-            input.value = ''; input.focus(); button.parentElement.innerHTML = '';
+
+            input.value = '';
+            input.focus();
+            button.parentElement.innerHTML = '';
+
         } else if (button.matches('.delete-block-btn')) {
             spliceBlock(blockIndex, 1);
+
         } else if (button.matches('.duplicate-block-btn')) {
             const newBlock = JSON.parse(JSON.stringify(blockData));
             spliceBlock(blockIndex + 1, 0, newBlock);
+
         } else if (button.matches('.add-show-row-btn')) {
             if (!blockData.shows) blockData.shows = [];
+
             const defaultShowObject = {
-                name: window.appState.seriesData[0]?.name || '',
-                season: 1, episode: 1, unwatched: true
+                name: appState.seriesData[0]?.name || '',
+                season: 1,
+                episode: 1,
+                unwatched: true
             };
+
             blockData.shows.push(defaultShowObject);
             await updateRowToNextUnwatched(defaultShowObject, userSelectElement, renderBuilder);
             return;
-        } 
-        else if (button.matches('.shuffle-show-btn')) {
-            const allShows = window.appState.seriesData;
+
+        } else if (button.matches('.shuffle-show-btn')) {
+            const allShows = appState.seriesData;
             if (!allShows || allShows.length === 0) {
                 toast('No TV shows available to select from.', false);
                 return;
             }
+
             const randomShow = allShows[Math.floor(Math.random() * allShows.length)];
             const rowEl = button.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
             const showData = blockData.shows[rowIndex];
 
             showData.name = randomShow.name;
-            showData.unwatched = true; 
+            showData.unwatched = true;
 
             await updateRowToNextUnwatched(showData, userSelectElement, renderBuilder);
-            return; 
-        }
-        else if (button.matches('.show-row .delete-btn')) {
+            return;
+
+        } else if (button.matches('.show-row .delete-btn')) {
             const rowIndex = parseInt(button.closest('.show-row').dataset.rowIndex, 10);
             if (blockData.shows.length > 1) blockData.shows.splice(rowIndex, 1);
+
         } else if (button.matches('.first-unwatched-cb')) {
             const rowEl = button.closest('.show-row');
             const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
@@ -181,64 +275,97 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                 renderBuilder();
             }
             return;
+
         } else if (button.matches('.random-ep-btn')) {
-            shouldReRender = false;
             const rowIndex = parseInt(button.closest('.show-row').dataset.rowIndex, 10);
             const seriesId = appState.seriesData.find(s => s.name === blockData.shows[rowIndex].name)?.id;
-            if (!seriesId) { toast('Select a show first.', false); return; }
-            const ep = await (await fetch(`api/shows/${seriesId}/random_unwatched?user_id=${userSelectElement.value}`)).json();
+
+            if (!seriesId) {
+                toast('Select a show first.', false);
+                return;
+            }
+
+            const response = await fetch(`api/shows/${seriesId}/random_unwatched?user_id=${userSelectElement.value}`);
+            const ep = await response.json();
+
             if (ep) {
                 blockData.shows[rowIndex].season = ep.season;
                 blockData.shows[rowIndex].episode = ep.episode;
                 renderBuilder();
             }
+            return; // <-- ADDED: Prevents the double-execution of save/preview at the bottom of the listener
+
         } else if (button.matches('.filter-toggle-btn.movie-block-watched')) {
-             const cycle = { 'all': 'unplayed', 'unplayed': 'played', 'played': 'all' };
-             blockData.filters.watched_status = cycle[blockData.filters.watched_status];
+            const cycle = { all: 'unplayed', unplayed: 'played', played: 'all' };
+            blockData.filters.watched_status = cycle[blockData.filters.watched_status];
+
         } else if (button.matches('.filter-toggle-btn.movie-block-sort-by')) {
-             const cycle = { 'Random': 'PremiereDate', 'PremiereDate': 'DateCreated', 'DateCreated': 'SortName', 'SortName': 'Random' };
-             blockData.filters.sort_by = cycle[blockData.filters.sort_by];
+            const cycle = { Random: 'PremiereDate', PremiereDate: 'DateCreated', DateCreated: 'SortName', SortName: 'Random' };
+            blockData.filters.sort_by = cycle[blockData.filters.sort_by];
+
         } else if (button.matches('.token-remove')) {
             const tokenEl = button.closest('.token');
             const tokenType = tokenEl.dataset.tokenType;
             const tokenIndex = parseInt(tokenEl.dataset.tokenIndex, 10);
-            if(blockData.filters[tokenType]?.[tokenIndex] !== undefined) {
+
+            if (blockData.filters[tokenType]?.[tokenIndex] !== undefined) {
                 blockData.filters[tokenType].splice(tokenIndex, 1);
             }
-        } else if(button.matches('.token-state')) {
+
+        } else if (button.matches('.token-state')) {
             const tokenEl = button.closest('.token');
             const tokenType = tokenEl.dataset.tokenType;
             const tokenIndex = parseInt(tokenEl.dataset.tokenIndex, 10);
             const token = blockData.filters[tokenType][tokenIndex];
 
-            if(tokenEl.matches('.token-genre')) {
-                const cycle = {'any': 'all', 'all': 'exclude', 'exclude': 'any'};
+            if (tokenEl.matches('.token-genre')) {
+                const cycle = { any: 'all', all: 'exclude', exclude: 'any' };
                 const currentType = tokenEl.dataset.state;
                 const newTypeKey = `genres_${cycle[currentType]}`;
+
                 blockData.filters[tokenType].splice(tokenIndex, 1);
                 if (!blockData.filters[newTypeKey]) blockData.filters[newTypeKey] = [];
                 blockData.filters[newTypeKey].push(token);
             } else {
-                const newTypeKey = tokenType === 'people' ? 'exclude_people' : tokenType === 'exclude_people' ? 'people' : tokenType === 'studios' ? 'exclude_studios' : 'studios';
+                const newTypeKey =
+                    tokenType === 'people' ? 'exclude_people' :
+                    tokenType === 'exclude_people' ? 'people' :
+                    tokenType === 'studios' ? 'exclude_studios' :
+                    'studios';
+
                 blockData.filters[tokenType].splice(tokenIndex, 1);
                 if (!blockData.filters[newTypeKey]) blockData.filters[newTypeKey] = [];
                 blockData.filters[newTypeKey].push(token);
             }
-        } else { shouldReRender = false; }
 
-        if (shouldReRender) renderBuilder();
+        } else {
+            shouldReRender = false;
+        }
+
+        if (shouldReRender) {
+            renderBuilder();
+        } else {
+            updateAllBlockPreviews();
+            saveBuilderState();
+        }
     });
 
     container.addEventListener('input', debounce(async (e) => {
         const input = e.target;
         if (!input.matches('.token-input')) return;
+
         const suggestionsEl = input.nextElementSibling;
         const searchTerm = input.value.trim();
+
+        suggestionsEl.innerHTML = '';
+
         if (searchTerm.length < 2) return;
+
         try {
             let suggestions = [];
+
             if (input.matches('.movie-block-genre-input')) {
-                suggestions = appState.movieGenreData
+                suggestions = (appState.movieGenreData || [])
                     .filter(g => g.Name.toLowerCase().includes(searchTerm.toLowerCase()))
                     .map(g => ({ type: 'genre', data: g, text: g.Name }));
             } else if (input.matches('.movie-block-person-input')) {
@@ -246,11 +373,23 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                     fetch(`api/people?name=${encodeURIComponent(searchTerm)}`).then(res => res.json()),
                     fetch(`api/studios?name=${encodeURIComponent(searchTerm)}`).then(res => res.json())
                 ]);
-                people.forEach(p => suggestions.push({type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})`}));
-                studios.forEach(s => suggestions.push({type: 'studio', data: s, text: `${s.Name} (Studio)`}));
+
+                people.forEach(p => suggestions.push({
+                    type: 'person',
+                    data: p,
+                    text: `${p.Name} (${p.Role || 'Person'})`
+                }));
+
+                studios.forEach(s => suggestions.push({
+                    type: 'studio',
+                    data: s,
+                    text: `${s.Name} (Studio)`
+                }));
             }
+
             if (suggestions.length > 0) {
                 const ul = document.createElement('ul');
+
                 suggestions.forEach(item => {
                     const li = document.createElement('li');
                     li.dataset.itemType = item.type;
@@ -258,14 +397,19 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                     li.textContent = item.text;
                     ul.appendChild(li);
                 });
+
                 suggestionsEl.appendChild(ul);
             }
-        } catch (error) { console.error("Error fetching autocomplete:", error); }
+        } catch (error) {
+            console.error('Error fetching autocomplete:', error);
+        }
     }, 300));
 
     container.addEventListener('focusout', (e) => {
-        if(e.target.matches('.token-input')) {
-            setTimeout(() => e.target.nextElementSibling.innerHTML = '', 150);
+        if (e.target.matches('.token-input')) {
+            setTimeout(() => {
+                e.target.nextElementSibling.innerHTML = '';
+            }, 150);
         }
     });
 }

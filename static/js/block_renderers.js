@@ -2,7 +2,7 @@
 
 import { debounce } from './utils.js';
 import { createTvShowRow } from './components.js';
-import { getBlocks } from './builderState.js';
+import { getBlocks, appState } from './builderState.js';
 
 export function getTvBlockSummary(blockData) {
     const showCount = blockData.shows?.length || 0;
@@ -30,7 +30,7 @@ export async function updateAllBlockPreviews() {
             (blockData.shows || []).forEach((show, rowIndex) => {
                 const rowEl = blockEl.querySelector(`.show-row[data-row-index="${rowIndex}"]`);
                 const previewEl = rowEl.querySelector('.tv-block-preview');
-                const series = window.appState.seriesData.find(s => s.name === show.name);
+                const series = appState.seriesData.find(s => s.name === show.name);
 
                 if (!previewEl || !series) {
                     if (previewEl) previewEl.textContent = '';
@@ -256,7 +256,24 @@ export function renderMusicBlock({ blockData, index }) {
     if (musicData.artistId) {
         artistSelect.value = musicData.artistId;
     }
-    countInput.value = musicData.count || 10;
+    
+    albumSelect.innerHTML = '<option value="">-- Select Album --</option>';
+    if (musicData.artistId) {
+        fetch(`api/music/artists/${musicData.artistId}/albums`)
+            .then(r => r.json())
+            .then(albums => {
+                albumSelect.innerHTML = '<option value="">-- Select Album --</option>';
+                albums.forEach(album => albumSelect.add(new Option(album.Name, album.Id)));
+                if (musicData.albumId) {
+                    albumSelect.value = musicData.albumId;
+                }
+            })
+        .catch(() => {
+            albumSelect.innerHTML = '<option value="">-- Could not load albums --</option>';
+        });
+}
+
+countInput.value = musicData.count || 10;
 
     if (appState.musicGenreData?.length > 0) {
         appState.musicGenreData.forEach(g => {
@@ -277,13 +294,11 @@ export function renderMusicBlock({ blockData, index }) {
         genreGrid.innerHTML = '<p class="placeholder-text-small">No music genres found.</p>';
     }
 
-    if (musicData.artistId && musicData.albumId) {
-        fetch(`api/music/artists/${musicData.artistId}/albums`).then(r => r.json()).then(albums => {
-            albumSelect.innerHTML = '<option value="">-- Select Album --</option>';
-            albums.forEach(album => albumSelect.add(new Option(album.Name, album.Id)));
-            albumSelect.value = musicData.albumId;
-        });
-    }
+    const genreSortSelect = blockElement.querySelector('.music-block-sort-by');
+    const genreLimitInput = blockElement.querySelector('.music-block-limit');
+    
+    genreSortSelect.value = filters.sort_by || 'Random';
+    genreLimitInput.value = filters.limit || 25;
 
     const mode = musicData.mode || 'album';
     artistContainer.classList.toggle('hidden', mode === 'genre');
