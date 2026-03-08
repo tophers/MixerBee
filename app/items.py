@@ -377,7 +377,7 @@ def create_movie_marathon_playlist(user_id: str, playlist_name: str, genre: str,
     """Creates a playlist of random, unwatched movies from a specific genre."""
     try:
         filters = {
-            "genres": [genre] if genre else [],
+            "genres_any": [genre] if genre else [],
             "watched_status": "unplayed",
             "sort_by": "Random",
             "limit": count
