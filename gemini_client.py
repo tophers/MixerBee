@@ -65,7 +65,9 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
         raise ValueError("Gemini API key is not configured.")
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    
+    # Use the stable flash model rather than the experimental '-latest' alias
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
     show_list = ", ".join(available_shows[:200])
     genre_list = ", ".join(available_genres)
@@ -73,7 +75,6 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     full_prompt = f"""
     You are an expert at creating Emby playlist blocks from user requests.
     Your response MUST be a valid JSON array of objects that strictly adheres to the following schema.
-    Do not include any other text, explanations, or markdown formatting in your response.
 
     JSON Schema:
     {JSON_SCHEMA}
@@ -95,9 +96,15 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     """
 
     try:
-        response = model.generate_content(full_prompt)
-        cleaned_response = response.text.strip().replace("```json", "").replace("```", "")
-        parsed_json = json.loads(cleaned_response)
+        # Enforce Native JSON Mode so the API never returns Markdown backticks
+        response = model.generate_content(
+            full_prompt,
+            generation_config=genai.GenerationConfig(
+                response_mime_type="application/json"
+            )
+        )
+        
+        parsed_json = json.loads(response.text)
 
         if isinstance(parsed_json, list):
             return parsed_json
@@ -106,4 +113,4 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
 
     except Exception as e:
         print(f"Error calling Gemini API or parsing response: {e}")
-        raise ConnectionError(f"Failed to get a valid response from the AI: {e}")
+        raise ConnectionError(f"Failed to get a valid response from the AI. Check your API key and quota. Error: {e}")
