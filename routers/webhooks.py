@@ -34,7 +34,6 @@ def trigger_relevant_schedules(user_id: str = None):
 
     logging.info(f"WEBHOOK: Finished live update. {triggered_count} schedule(s) refreshed.")
 
-
 @router.post("/api/webhook")
 async def handle_media_webhook(request: Request, background_tasks: BackgroundTasks):
     """
@@ -47,11 +46,16 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
     try:
         payload: Dict[str, Any] = await request.json()
     except Exception:
-        payload = {}
+        # Fast-fail on empty or malformed requests (e.g., from network scanners)
+        return {"status": "ignored", "reason": "Empty or invalid JSON payload"}
 
     # Emby Webhook Plugin usually sends the event type in "Event"
     event_type = payload.get("Event", "")
     event_type_lower = event_type.lower()
+    
+    # Fast-fail if there's no event type at all
+    if not event_type_lower:
+        return {"status": "ignored", "reason": "No Event type provided in payload"}
     
     # Extract User ID if it's a user-specific event (like PlaybackStop)
     user_id = None
@@ -60,8 +64,6 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
     elif "UserId" in payload:
         user_id = payload.get("UserId")
 
-    # We use lowercase keywords to safely catch both Emby and Jellyfin event names
-    # e.g. "stop" catches "playback.stop" (Emby) and "PlaybackStop" (Jellyfin)
     relevant_keywords = [
         "stop",       # Playback Stop
         "played",     # Mark Played / Mark Unplayed
@@ -72,8 +74,8 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
         "deleted"     # Media Removed (Emby: library.deleted)
     ]
 
-    # If the payload matches a keyword, or is empty (a test ping), we process it
-    if not event_type_lower or any(keyword in event_type_lower for keyword in relevant_keywords):
+    # ONLY process if the event type contains a relevant keyword
+    if any(keyword in event_type_lower for keyword in relevant_keywords):
         logging.info(f"WEBHOOK: Received relevant event '{event_type}'. Queuing background refresh.")
         
         # Add the rebuild process to FastAPI's background queue
