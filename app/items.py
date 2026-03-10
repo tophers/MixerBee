@@ -103,8 +103,29 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         return False
 
 
-def delete_playlist(name: str, user_id: str, hdr: Dict[str, str],
-                    log: List[str]):
+def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) -> bool:
+    """Removes all items from an existing playlist without deleting the playlist itself."""
+    try:
+        # Get current items to find their PlaylistItemIds
+        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
+                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+        
+        entry_ids = [item.get("PlaylistItemId") for item in items if item.get("PlaylistItemId")]
+        
+        if entry_ids:
+            delete_params = {"EntryIds": ",".join(entry_ids)}
+            del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
+                                             params=delete_params, headers=hdr, timeout=10)
+            del_resp.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        logging.error(f"Failed to clear items from playlist {playlist_id}: {e}", exc_info=True)
+        return False
+
+
+def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a playlist by its name."""
     targets = [pl for pl in get_playlists(user_id, hdr)
                if pl.get("Name") and pl.get("Name").strip().lower() == name.strip().lower()]
@@ -142,22 +163,36 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
         return False
 
 
-def create_playlist(name: str, user_id: str, ids: List[str],
-                    hdr: Dict[str, str], log: List[str]):
-    """Creates a new playlist, deleting any existing one with the same name."""
-    delete_playlist(name, user_id, hdr, log)
-    resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists",
-                               headers=hdr,
-                               params={"Name": name, "UserId": user_id,
-                                       "Ids": ",".join(ids)},
-                               timeout=10)
-    if resp.ok:
-        log.append(f"Playlist '{name}' created successfully.")
-        return resp.json().get("Id")
+def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
+    """Creates a new playlist, or updates an existing one in-place to preserve its ID."""
+    existing_playlists = get_playlists(user_id, hdr)
+    target_playlist = next((p for p in existing_playlists if p.get("Name", "").strip().lower() == name.strip().lower()), None)
+
+    if target_playlist:
+        playlist_id = target_playlist["Id"]
+        log.append(f"Playlist '{name}' already exists. Updating in-place (ID preserved).")
+        
+        # Clear the old items
+        if clear_playlist_items(playlist_id, user_id, hdr):
+            # Add the new items
+            add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
+            return playlist_id
+        else:
+            log.append("Failed to clear existing playlist items.")
+            return None
     else:
-        log.append(f"Failed to create playlist (HTTP {resp.status_code}):")
-        log.append(resp.text)
-        return None
+        # Create a brand new playlist if it doesn't exist
+        resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists",
+                                   headers=hdr,
+                                   params={"Name": name, "UserId": user_id, "Ids": ",".join(ids)},
+                                   timeout=10)
+        if resp.ok:
+            log.append(f"Playlist '{name}' created successfully.")
+            return resp.json().get("Id")
+        else:
+            log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
+            return None
+
 
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
@@ -519,7 +554,7 @@ def create_movie_collection(user_id: str, collection_name: str, filters: Dict, h
 
         r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
-        
+
         new_item_id = r.json().get("Id")
         log.append(f"Successfully created collection '{collection_name}' with {len(item_ids)} items.")
         return {"status": "ok", "log": log, "new_item_id": new_item_id}
