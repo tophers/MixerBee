@@ -15,6 +15,7 @@ import database
 from app.cache import refresh_cache 
 from routers import config, builder, library, quick_playlists, presets
 from routers import scheduler as scheduler_router
+from routers import webhooks
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 ROOT_PATH = "" if IS_DOCKER else "/mixerbee"
@@ -30,6 +31,7 @@ app.include_router(library.router)
 app.include_router(quick_playlists.router)
 app.include_router(scheduler_router.router)
 app.include_router(presets.router)
+app.include_router(webhooks.router)
 
 @app.on_event("startup")
 def startup_event():
