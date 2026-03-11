@@ -208,6 +208,7 @@ def clear_playlist_items(
 
     return True
 
+
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
     """Appends a list of item IDs to an existing playlist using safe chunks. Fails fast on network errors to prevent duplicates."""
     if not item_ids:
@@ -234,6 +235,7 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
 
     log.append(f"Successfully added {total_added} items to the playlist.")
     return True
+
 
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
@@ -300,6 +302,7 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
         else:
             log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
             return None
+
 
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
