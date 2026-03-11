@@ -102,28 +102,30 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         logging.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         return False
 
-
 def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) -> bool:
-    """Removes all items from an existing playlist without deleting the playlist itself."""
+    """Removes all items from an existing playlist."""
     try:
-        # Get current items to find their PlaylistItemIds
-        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
+        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
                                params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
         r.raise_for_status()
         items = r.json().get("Items", [])
-        
+
         entry_ids = [item.get("PlaylistItemId") for item in items if item.get("PlaylistItemId")]
-        
+
         if entry_ids:
-            delete_params = {"EntryIds": ",".join(entry_ids)}
-            del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
-                                             params=delete_params, headers=hdr, timeout=10)
-            del_resp.raise_for_status()
+            chunk_size = 50
+            for i in range(0, len(entry_ids), chunk_size):
+                chunk = entry_ids[i:i + chunk_size]
+                delete_params = {"EntryIds": ",".join(chunk)}
+                del_resp = client.SESSION.delete(
+                    f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                    params=delete_params, headers=hdr, timeout=10
+                )
+                del_resp.raise_for_status()
         return True
     except requests.RequestException as e:
         logging.error(f"Failed to clear items from playlist {playlist_id}: {e}", exc_info=True)
         return False
-
 
 def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a playlist by its name."""
