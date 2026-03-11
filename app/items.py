@@ -236,7 +236,6 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
     log.append(f"Successfully added {total_added} items to the playlist.")
     return True
 
-
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
@@ -264,9 +263,15 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             else:
                 log.append("Addition phase failed. Rolling back to original playlist state...")
                 
-                clear_playlist_items(playlist_id, user_id, hdr, [])
+                clear_success = clear_playlist_items(playlist_id, user_id, hdr, [])
                 
-                _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
+                if clear_success:
+                    _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
+                else:
+                    msg = "CRITICAL: Could not wipe partial additions during rollback. Aborting restore to prevent a corrupted/mixed playlist."
+                    logging.error(msg)
+                    log.append(msg)
+                    
                 return None
         else:
             log.append("Failed to clear existing playlist items. Update aborted.")
