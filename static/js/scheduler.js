@@ -262,7 +262,7 @@ function renderSchedule(schedule, parentList) {
         event.currentTarget,
         'POST'
       );
-      if (res.status === 'ok') loadSchedulerData();
+      loadSchedulerData();
     });
 
   listItem
