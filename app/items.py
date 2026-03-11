@@ -236,7 +236,6 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
     log.append(f"Successfully added {total_added} items to the playlist.")
     return True
 
-
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
@@ -256,23 +255,23 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             return None
 
         if clear_playlist_items(playlist_id, user_id, hdr, log):
-            
+
             success = add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
-            
+
             if success:
                 return playlist_id
             else:
                 log.append("Addition phase failed. Rolling back to original playlist state...")
-                
+
                 clear_success = clear_playlist_items(playlist_id, user_id, hdr, log, restore_on_failure=False)
-                
+
                 if clear_success:
                     _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
                 else:
                     msg = "CRITICAL: Could not wipe partial additions during rollback. Aborting restore to prevent a corrupted/mixed playlist."
                     logging.error(msg)
                     log.append(msg)
-                    
+
                 return None
         else:
             log.append("Failed to clear existing playlist items. Update aborted.")
@@ -285,24 +284,27 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)}, 
             timeout=10
         )
-        
+
         if resp.ok:
             new_id = resp.json().get("Id")
             log.append(f"Playlist '{name}' created successfully.")
-            
+
             if len(ids) > 50:
                 success = add_items_to_playlist_by_ids(new_id, ids[50:], user_id, hdr, log)
-                
+
                 if not success:
                     log.append("Failed to append all items. Rolling back by deleting incomplete playlist.")
-                    delete_item_by_id(new_id, hdr)
+                    delete_success = delete_item_by_id(new_id, hdr)
+                    if not delete_success:
+                        msg = f"CRITICAL: Failed to delete incomplete playlist (ID: {new_id}) during rollback. Orphaned playlist remains on server."
+                        logging.error(msg)
+                        log.append(msg)
                     return None
-                    
+
             return new_id
         else:
             log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
             return None
-
 
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
