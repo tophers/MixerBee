@@ -65,8 +65,8 @@ def episodes(sid: str, season: int, episode: int, count: int,
                            params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     all_eps = sorted(r.json()["Items"],
-                   key=lambda x: (x.get("ParentIndexNumber", 0),
-                                  x.get("IndexNumber", 0)))
+                   key=lambda x: (x.get("ParentIndexNumber") or 0,
+                                  x.get("IndexNumber") or 0))
 
     # Filter out specials (season 0)
     all_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
@@ -123,8 +123,8 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
                            params=params, headers=hdr, timeout=15)
     r.raise_for_status()
     all_eps = sorted(r.json().get("Items", []),
-                     key=lambda x: (x.get("ParentIndexNumber", 0),
-                                    x.get("IndexNumber", 0)))
+                     key=lambda x: (x.get("ParentIndexNumber") or 0,
+                                    x.get("IndexNumber") or 0))
     regular_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
     for ep in regular_eps:
         user_data = ep.get("UserData", {})
