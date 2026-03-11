@@ -107,14 +107,14 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
             console.error("Failed to fetch user playlists:", err);
         }
     };
-    
+
     initBuilderActions(userSelectElement, async (data) => {
         await applyPresetFn(data);
         renderBuilder();
     }, renderBuilder);
-    
+
     attachBuilderEventListeners(blocksContainer, userSelectElement, renderBuilder);
-    
+
     new Sortable(blocksContainer, {
         animation: 150, handle: '.drag-handle', ghostClass: 'sortable-ghost',
         onEnd: (evt) => {
@@ -135,7 +135,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
             populatePlaylistsDropdown();
         }
     });
-    
+
     collectionCb.addEventListener('change', () => {
         generateBtn.textContent = collectionCb.checked ? 'Build Collection' : 'Build';
         buildModeSelect.disabled = collectionCb.checked;
@@ -152,7 +152,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
         if (!target) return;
         const blockType = target.dataset.blockType;
         let newBlockData;
-        
+
         if (blockType === 'tv') {
             const defaultShowObject = { name: appState.seriesData[0]?.name || '', season: 1, episode: 1, unwatched: true };
             newBlockData = { type: 'tv', shows: [defaultShowObject], mode: 'count', count: 3, interleave: true };
@@ -166,6 +166,14 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
             const currentBlocks = getBlocks();
             setBlocks([...currentBlocks, newBlockData]);
             renderBuilder();
+            
+            // QoL Fix: Auto-scroll to the newly added block
+            setTimeout(() => {
+                const renderedBlocks = blocksContainer.querySelectorAll('.mixed-block');
+                if (renderedBlocks.length > 0) {
+                    renderedBlocks[renderedBlocks.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 50);
         }
         addBlockMenu.classList.add('hidden');
     });
