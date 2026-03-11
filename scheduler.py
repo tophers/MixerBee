@@ -127,18 +127,22 @@ class Scheduler:
 
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         if not (schedule_data := self.schedules.get(schedule_id)): return None
+        
         result = run_playlist_job(**schedule_data)
+        
+        final_status = result.get("status", "error")
+        final_log = result.get("log", ["An unknown error occurred during job execution."])
+        
         last_run_info = {
             "timestamp": datetime.now().isoformat(), 
-            "status": result.get("status", "error"), 
-            "log": result.get("log", ["An unknown error occurred."])
+            "status": final_status, 
+            "log": final_log
         }
         self._update_schedule_last_run(schedule_id, last_run_info)
         
-        # Return the actual status and log instead of a hardcoded success message
         return {
-            "status": result.get("status", "error"),
-            "log": result.get("log", [f"Job '{schedule_id}' triggered and completed."])
+            "status": final_status,
+            "log": final_log
         }
 
     def start(self):
