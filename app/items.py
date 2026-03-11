@@ -103,29 +103,51 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         return False
 
 def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) -> bool:
-    """Removes all items from an existing playlist."""
-    try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
-                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
-        r.raise_for_status()
-        items = r.json().get("Items", [])
+    """Removes all items from an existing playlist in chunks, with retries for partial failures."""
+    max_attempts = 3
+    
+    for attempt in range(max_attempts):
+        try:
+            r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                                   params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+            r.raise_for_status()
+            items = r.json().get("Items", [])
 
-        entry_ids = [item.get("PlaylistItemId") for item in items if item.get("PlaylistItemId")]
+            entry_ids = [item.get("PlaylistItemId") for item in items if item.get("PlaylistItemId")]
 
-        if entry_ids:
+            if not entry_ids:
+                return True
+
             chunk_size = 50
             for i in range(0, len(entry_ids), chunk_size):
                 chunk = entry_ids[i:i + chunk_size]
-                delete_params = {"EntryIds": ",".join(chunk)}
-                del_resp = client.SESSION.delete(
-                    f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
-                    params=delete_params, headers=hdr, timeout=10
-                )
-                del_resp.raise_for_status()
-        return True
-    except requests.RequestException as e:
-        logging.error(f"Failed to clear items from playlist {playlist_id}: {e}", exc_info=True)
-        return False
+                try:
+                    delete_params = {"EntryIds": ",".join(chunk)}
+                    del_resp = client.SESSION.delete(
+                        f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                        params=delete_params, headers=hdr, timeout=10
+                    )
+                    del_resp.raise_for_status()
+                except requests.RequestException as e:
+                    logging.warning(f"Failed to delete chunk of items from playlist {playlist_id} (Attempt {attempt + 1}): {e}")
+                    continue  # Keep trying the next chunk
+                    
+            time.sleep(1)
+
+        except requests.RequestException as e:
+            logging.warning(f"Failed to fetch items for playlist {playlist_id} on attempt {attempt + 1}: {e}")
+            time.sleep(2)
+            
+    try:
+        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+        if r.ok and not r.json().get("Items", []):
+            return True
+    except requests.RequestException:
+        pass
+        
+    logging.error(f"Failed to completely clear playlist {playlist_id} after {max_attempts} attempts.")
+    return False
 
 def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a playlist by its name."""
