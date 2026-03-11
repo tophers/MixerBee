@@ -208,43 +208,32 @@ def clear_playlist_items(
 
     return True
 
-
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
-    """Appends a list of item IDs to an existing playlist using safe chunks. Aborts on first failure."""
+    """Appends a list of item IDs to an existing playlist using safe chunks. Fails fast on network errors to prevent duplicates."""
     if not item_ids:
         log.append("No new items to add.")
         return True
 
     chunk_size = 50
-    max_attempts = 3
     total_added = 0
 
     for i in range(0, len(item_ids), chunk_size):
         chunk = item_ids[i:i + chunk_size]
         params = {"UserId": user_id, "Ids": ",".join(chunk)}
         
-        chunk_success = False
-        for attempt in range(max_attempts):
-            try:
-                resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
-                                         params=params, headers=hdr, timeout=15)
-                resp.raise_for_status()
-                chunk_success = True
-                total_added += len(chunk)
-                break
-            except requests.RequestException as e:
-                logging.warning(f"Failed to add chunk (Attempt {attempt + 1}/{max_attempts}): {e}")
-                time.sleep(1)
-        
-        if not chunk_success:
-            error_msg = f"Failed to add a chunk of items after {max_attempts} attempts. Aborting further additions."
+        try:
+            resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                                     params=params, headers=hdr, timeout=15)
+            resp.raise_for_status()
+            total_added += len(chunk)
+        except requests.RequestException as e:
+            error_msg = f"Failed to add a chunk of items ({e}). Aborting to prevent duplicates."
             log.append(error_msg)
             logging.error(error_msg)
             return False
 
     log.append(f"Successfully added {total_added} items to the playlist.")
     return True
-
 
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
