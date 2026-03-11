@@ -102,6 +102,20 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         logging.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         return False
 
+def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
+    """Deletes a playlist by its name."""
+    targets = [pl for pl in get_playlists(user_id, hdr)
+               if pl.get("Name") and pl.get("Name").strip().lower() == name.strip().lower()]
+    if not targets:
+        return
+    for pl in targets:
+        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{pl['Id']}",
+                                     headers=hdr, timeout=10)
+        if resp.status_code in (200, 204):
+            log.append(f"Deleted existing playlist '{name}'.")
+        else:
+            log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
+
 def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]):
     """Helper to restore items in chunks during a rollback."""
     chunk_size = 50
@@ -128,10 +142,18 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
         logging.info(msg)
         log.append(msg)
 
-def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
+
+def clear_playlist_items(
+    playlist_id: str, 
+    user_id: str, 
+    hdr: Dict[str, str], 
+    log: List[str], 
+    restore_on_failure: bool = True
+) -> bool:
     """
     Removes all items from an existing playlist in safe chunks.
-    If a chunk permanently fails, it restores the already-deleted items and returns False.
+    If a chunk permanently fails, it optionally restores the already-deleted items
+    and returns False.
     """
     try:
         r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
@@ -180,25 +202,12 @@ def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str], lo
             logging.error(error_msg)
             log.append(error_msg)
             
-            if successfully_removed_media_ids:
+            if restore_on_failure and successfully_removed_media_ids:
                 _restore_items(playlist_id, successfully_removed_media_ids, user_id, hdr, log)
             return False
 
     return True
 
-def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
-    """Deletes a playlist by its name."""
-    targets = [pl for pl in get_playlists(user_id, hdr)
-               if pl.get("Name") and pl.get("Name").strip().lower() == name.strip().lower()]
-    if not targets:
-        return
-    for pl in targets:
-        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{pl['Id']}",
-                                     headers=hdr, timeout=10)
-        if resp.status_code in (200, 204):
-            log.append(f"Deleted existing playlist '{name}'.")
-        else:
-            log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
 
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
     """Appends a list of item IDs to an existing playlist using safe chunks. Aborts on first failure."""
@@ -236,6 +245,7 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
     log.append(f"Successfully added {total_added} items to the playlist.")
     return True
 
+
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
@@ -263,7 +273,7 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             else:
                 log.append("Addition phase failed. Rolling back to original playlist state...")
                 
-                clear_success = clear_playlist_items(playlist_id, user_id, hdr, [])
+                clear_success = clear_playlist_items(playlist_id, user_id, hdr, log, restore_on_failure=False)
                 
                 if clear_success:
                     _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
