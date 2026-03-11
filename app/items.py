@@ -251,22 +251,32 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
         log.append(f"Playlist '{name}' already exists. Updating in-place (ID preserved).")
 
         if clear_playlist_items(playlist_id, user_id, hdr, log):
-            add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
-            return playlist_id
+            success = add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
+            return playlist_id if success else None
         else:
             log.append("Failed to clear existing playlist items. Update aborted to prevent data loss.")
             return None
     else:
+        first_chunk = ids[:50] if ids else []
         resp = client.SESSION.post(
             f"{client.EMBY_URL}/Playlists",
             headers=hdr,
-            params={"Name": name, "UserId": user_id, "MediaType": "Video"}, 
+            params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)}, 
             timeout=10
         )
+        
         if resp.ok:
             new_id = resp.json().get("Id")
             log.append(f"Playlist '{name}' created successfully.")
-            add_items_to_playlist_by_ids(new_id, ids, user_id, hdr, log)
+            
+            if len(ids) > 50:
+                success = add_items_to_playlist_by_ids(new_id, ids[50:], user_id, hdr, log)
+                
+                if not success:
+                    log.append("Failed to append all items. Rolling back by deleting incomplete playlist.")
+                    delete_item_by_id(new_id, hdr)
+                    return None
+                    
             return new_id
         else:
             log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
@@ -333,7 +343,6 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
         log.append(f"An unexpected error occurred: {e}")
         logging.error("Error in create_recently_added_playlist", exc_info=True)
         return {"status": "error", "log": log}
-
 
 def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of unwatched pilot episodes."""
