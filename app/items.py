@@ -201,14 +201,13 @@ def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]
             log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
 
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
-    """Appends a list of item IDs to an existing playlist using safe chunks."""
+    """Appends a list of item IDs to an existing playlist using safe chunks. Aborts on first failure."""
     if not item_ids:
         log.append("No new items to add.")
         return True
 
     chunk_size = 50
     max_attempts = 3
-    all_success = True
     total_added = 0
 
     for i in range(0, len(item_ids), chunk_size):
@@ -229,20 +228,17 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
                 time.sleep(1)
         
         if not chunk_success:
-            all_success = False
-            error_msg = f"Failed to add a chunk of {len(chunk)} items after {max_attempts} attempts."
+            error_msg = f"Failed to add a chunk of items after {max_attempts} attempts. Aborting further additions."
             log.append(error_msg)
             logging.error(error_msg)
+            return False
 
-    if all_success:
-        log.append(f"Successfully added {total_added} items to the playlist.")
-        return True
-    else:
-        log.append(f"Partially added {total_added} items. Some chunks failed.")
-        return False
+    log.append(f"Successfully added {total_added} items to the playlist.")
+    return True
+
 
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
-    """Creates a new playlist, or updates an existing one in-place to preserve its ID."""
+    """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
     target_playlist = next((p for p in existing_playlists if p.get("Name", "").strip().lower() == name.strip().lower()), None)
 
@@ -250,11 +246,30 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
         playlist_id = target_playlist["Id"]
         log.append(f"Playlist '{name}' already exists. Updating in-place (ID preserved).")
 
+        try:
+            r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                                   params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+            r.raise_for_status()
+            old_media_ids = [item.get("Id") for item in r.json().get("Items", []) if item.get("Id")]
+        except requests.RequestException as e:
+            log.append("Failed to backup existing playlist items. Update aborted to prevent data loss.")
+            return None
+
         if clear_playlist_items(playlist_id, user_id, hdr, log):
+            
             success = add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
-            return playlist_id if success else None
+            
+            if success:
+                return playlist_id
+            else:
+                log.append("Addition phase failed. Rolling back to original playlist state...")
+                
+                clear_playlist_items(playlist_id, user_id, hdr, [])
+                
+                _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
+                return None
         else:
-            log.append("Failed to clear existing playlist items. Update aborted to prevent data loss.")
+            log.append("Failed to clear existing playlist items. Update aborted.")
             return None
     else:
         first_chunk = ids[:50] if ids else []
