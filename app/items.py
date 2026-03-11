@@ -103,7 +103,7 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         return False
 
 def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) -> bool:
-    """Removes all items from an existing playlist in chunks, with retries for partial failures."""
+    """Removes all items from an existing playlist with retries for failures."""
     max_attempts = 3
     
     for attempt in range(max_attempts):
@@ -119,6 +119,8 @@ def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) ->
                 return True
 
             chunk_size = 50
+            all_chunks_successful = True
+            
             for i in range(0, len(entry_ids), chunk_size):
                 chunk = entry_ids[i:i + chunk_size]
                 try:
@@ -130,7 +132,10 @@ def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) ->
                     del_resp.raise_for_status()
                 except requests.RequestException as e:
                     logging.warning(f"Failed to delete chunk of items from playlist {playlist_id} (Attempt {attempt + 1}): {e}")
-                    continue  # Keep trying the next chunk
+                    all_chunks_successful = False
+            
+            if all_chunks_successful:
+                return True
                     
             time.sleep(1)
 
@@ -138,14 +143,6 @@ def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) ->
             logging.warning(f"Failed to fetch items for playlist {playlist_id} on attempt {attempt + 1}: {e}")
             time.sleep(2)
             
-    try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
-                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
-        if r.ok and not r.json().get("Items", []):
-            return True
-    except requests.RequestException:
-        pass
-        
     logging.error(f"Failed to completely clear playlist {playlist_id} after {max_attempts} attempts.")
     return False
 
