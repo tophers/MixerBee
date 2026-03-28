@@ -4,6 +4,8 @@ To enable **Live Synchronization**, MixerBee can listen for events from your Emb
 
 > **IMPORTANT:** Webhook triggers only apply to items configured in the **Scheduler** tab. MixerBee uses the logic defined in your active schedules to perform the refresh. "One-off" builds created manually in the Builder tab are not affected by webhooks.
 
+> **Note:** This should work on JellyFin as well using the Webhooks plugin -- I don't have an instance to provide screenshots or exact entries but the gist is the same.
+> 
 ---
 
 ## Prerequisites
@@ -15,7 +17,7 @@ To enable **Live Synchronization**, MixerBee can listen for events from your Emb
 
 ## Setup Instructions
 
-### 1. Install the Webhooks Plugin
+### 1. Install the Webhooks Plugin (Requires Emby Premium)
 1. Open your Emby dashboard.
 2. Navigate to **Advanced** > **Plugins**.
 3. Go to the **Catalog** tab.
