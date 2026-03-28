@@ -49,7 +49,7 @@ MixerBee is designed to run as a background service. It can be deployed via **Do
 
 1. **Clone and Enter Directory**
    ```bash
-   git clone [https://github.com/tophers/mixerbee.git](https://github.com/tophers/mixerbee.git) && cd mixerbee
+   git clone https://github.com/tophers/mixerbee.git && cd mixerbee
    ```
 
 2. **Setup Virtual Environment**
