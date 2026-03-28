@@ -11,12 +11,13 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
-from routers.dependencies import get_current_auth_headers
+
 import app as core
 import app.items as items_api
 from app.cache import refresh_cache
 import app_state
 import database
+from routers.dependencies import get_current_auth_headers
 
 logging.basicConfig()
 logging.getLogger('apscheduler').setLevel(logging.INFO)
@@ -36,6 +37,7 @@ def run_playlist_job(**schedule_data) -> Dict:
         msg = f"SCHEDULER: Job '{schedule_id}' is missing required data. Aborting."
         logging.error(msg)
         return {"status": "error", "log": [msg]}
+    
     print(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
     result = {}
     try:
@@ -76,15 +78,13 @@ class Scheduler:
     def _update_schedule_last_run(self, schedule_id: str, last_run_info: Dict):
         """Safely updates the last_run status in both the DB and in-memory cache."""
         try:
-            conn = database.get_db_connection()
-            last_run_json = json.dumps(last_run_info)
-            conn.execute("UPDATE schedules SET last_run = ? WHERE id = ?", (last_run_json, schedule_id))
-            conn.commit()
-            conn.close()
+            with database.get_db_connection() as conn:
+                last_run_json = json.dumps(last_run_info)
+                conn.execute("UPDATE schedules SET last_run = ? WHERE id = ?", (last_run_json, schedule_id))
+                conn.commit()
 
             if schedule_id in self.schedules:
                 self.schedules[schedule_id]['last_run'] = last_run_info
-                logging.info(f"Updated in-memory last_run for schedule {schedule_id}")
 
         except Exception as e:
             logging.error(f"SCHEDULER: Error updating last run status for {schedule_id} in DB: {e}", exc_info=True)
@@ -92,9 +92,9 @@ class Scheduler:
     def _load_schedules(self) -> Dict[str, Dict]:
         schedules = {}
         try:
-            conn = database.get_db_connection()
-            rows = conn.execute("SELECT id, playlist_name, user_id, job_type, crontab, config_data, last_run FROM schedules").fetchall()
-            conn.close()
+            with database.get_db_connection() as conn:
+                rows = conn.execute("SELECT id, playlist_name, user_id, job_type, crontab, config_data, last_run FROM schedules").fetchall()
+            
             for row in rows:
                 schedule_data = dict(row)
                 config_data = json.loads(row['config_data']) if row['config_data'] else {}
@@ -102,6 +102,7 @@ class Scheduler:
                 schedule_data.update(config_data)
                 schedule_data['config_data'], schedule_data['last_run'] = config_data, last_run
                 schedules[row['id']] = schedule_data
+            
             for schedule_id, data in schedules.items():
                 if data.get("job_type") == "quick_playlist":
                     qpd = data.get("quick_playlist_data", {})
@@ -117,29 +118,33 @@ class Scheduler:
 
     def _update_schedule_config_in_db(self, schedule_id, schedule_data):
         try:
-            conn = database.get_db_connection()
-            config_payload = {"preset_name": schedule_data.get("preset_name"), "blocks": schedule_data.get("blocks"), "quick_playlist_data": schedule_data.get("quick_playlist_data"), "schedule_details": schedule_data.get("schedule_details")}
-            conn.execute("UPDATE schedules SET config_data = ? WHERE id = ?", (json.dumps(config_payload), schedule_id))
-            conn.commit()
-            conn.close()
+            with database.get_db_connection() as conn:
+                config_payload = {
+                    "preset_name": schedule_data.get("preset_name"), 
+                    "blocks": schedule_data.get("blocks"), 
+                    "quick_playlist_data": schedule_data.get("quick_playlist_data"), 
+                    "schedule_details": schedule_data.get("schedule_details")
+                }
+                conn.execute("UPDATE schedules SET config_data = ? WHERE id = ?", (json.dumps(config_payload), schedule_id))
+                conn.commit()
         except Exception as e:
             logging.error(f"Failed to update schedule config in DB for {schedule_id}: {e}", exc_info=True)
 
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         if not (schedule_data := self.schedules.get(schedule_id)): return None
-        
+
         result = run_playlist_job(**schedule_data)
-        
+
         final_status = result.get("status", "error")
         final_log = result.get("log", ["An unknown error occurred during job execution."])
-        
+
         last_run_info = {
-            "timestamp": datetime.now().isoformat(), 
-            "status": final_status, 
+            "timestamp": datetime.now().isoformat(),
+            "status": final_status,
             "log": final_log
         }
         self._update_schedule_last_run(schedule_id, last_run_info)
-        
+
         return {
             "status": final_status,
             "log": final_log
@@ -158,7 +163,14 @@ class Scheduler:
         self.schedules = self._load_schedules()
         for schedule_id, schedule_data in self.schedules.items():
             if 'crontab' in schedule_data:
-                self.scheduler.add_job(func=scheduled_job_wrapper, trigger=CronTrigger.from_crontab(schedule_data['crontab']), kwargs=schedule_data, id=schedule_id, name=schedule_data.get('playlist_name', 'Unnamed Schedule'), replace_existing=True)
+                self.scheduler.add_job(
+                    func=scheduled_job_wrapper, 
+                    trigger=CronTrigger.from_crontab(schedule_data['crontab']), 
+                    kwargs=schedule_data, 
+                    id=schedule_id, 
+                    name=schedule_data.get('playlist_name', 'Unnamed Schedule'), 
+                    replace_existing=True
+                )
 
         if not self.scheduler.running:
             self.scheduler.start()
@@ -172,16 +184,30 @@ class Scheduler:
         schedule_id = str(uuid.uuid4())
         schedule_data['id'] = schedule_id
         try:
-            conn = database.get_db_connection()
-            config_payload = {"preset_name": schedule_data.get("preset_name"), "blocks": schedule_data.get("blocks"), "quick_playlist_data": schedule_data.get("quick_playlist_data"), "schedule_details": schedule_data.get("schedule_details")}
-            conn.execute("INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data) VALUES (?, ?, ?, ?, ?, ?)", (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab"), json.dumps(config_payload)))
-            conn.commit()
-            conn.close()
+            with database.get_db_connection() as conn:
+                config_payload = {
+                    "preset_name": schedule_data.get("preset_name"), 
+                    "blocks": schedule_data.get("blocks"), 
+                    "quick_playlist_data": schedule_data.get("quick_playlist_data"), 
+                    "schedule_details": schedule_data.get("schedule_details")
+                }
+                conn.execute(
+                    "INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data) VALUES (?, ?, ?, ?, ?, ?)", 
+                    (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab"), json.dumps(config_payload))
+                )
+                conn.commit()
         except Exception as e:
             logging.error(f"Failed to save schedule {schedule_id} to database: {e}", exc_info=True)
             return None
+
         self.schedules[schedule_id] = schedule_data
-        self.scheduler.add_job(func=scheduled_job_wrapper, trigger=CronTrigger.from_crontab(schedule_data['crontab']), kwargs=schedule_data, id=schedule_id, name=schedule_data.get('playlist_name', 'Unnamed Schedule'))
+        self.scheduler.add_job(
+            func=scheduled_job_wrapper, 
+            trigger=CronTrigger.from_crontab(schedule_data['crontab']), 
+            kwargs=schedule_data, 
+            id=schedule_id, 
+            name=schedule_data.get('playlist_name', 'Unnamed Schedule')
+        )
         return schedule_id
 
     def update_schedule(self, schedule_id: str, schedule_data: Dict) -> bool:
@@ -189,30 +215,29 @@ class Scheduler:
             logging.warning(f"SCHEDULER: Attempted to update non-existent schedule {schedule_id}")
             return False
         try:
-            conn = database.get_db_connection()
-            config_payload = {
-                "preset_name": schedule_data.get("preset_name"),
-                "blocks": schedule_data.get("blocks"),
-                "quick_playlist_data": schedule_data.get("quick_playlist_data"),
-                "schedule_details": schedule_data.get("schedule_details")
-            }
-            conn.execute(
-                """
-                UPDATE schedules
-                SET playlist_name = ?, user_id = ?, job_type = ?, crontab = ?, config_data = ?
-                WHERE id = ?
-                """,
-                (
-                    schedule_data.get("playlist_name"),
-                    schedule_data.get("user_id"),
-                    schedule_data.get("job_type"),
-                    schedule_data.get("crontab"),
-                    json.dumps(config_payload),
-                    schedule_id
+            with database.get_db_connection() as conn:
+                config_payload = {
+                    "preset_name": schedule_data.get("preset_name"),
+                    "blocks": schedule_data.get("blocks"),
+                    "quick_playlist_data": schedule_data.get("quick_playlist_data"),
+                    "schedule_details": schedule_data.get("schedule_details")
+                }
+                conn.execute(
+                    """
+                    UPDATE schedules
+                    SET playlist_name = ?, user_id = ?, job_type = ?, crontab = ?, config_data = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        schedule_data.get("playlist_name"),
+                        schedule_data.get("user_id"),
+                        schedule_data.get("job_type"),
+                        schedule_data.get("crontab"),
+                        json.dumps(config_payload),
+                        schedule_id
+                    )
                 )
-            )
-            conn.commit()
-            conn.close()
+                conn.commit()
 
             schedule_data['id'] = schedule_id
             self.scheduler.add_job(
@@ -229,7 +254,6 @@ class Scheduler:
             if last_run_data:
                 self.schedules[schedule_id]['last_run'] = last_run_data
 
-            logging.info(f"SCHEDULER: Successfully updated schedule {schedule_id}.")
             return True
 
         except Exception as e:
@@ -244,10 +268,9 @@ class Scheduler:
                 logging.warning(f"SCHEDULER: Job {schedule_id} not found, removing from storage anyway.")
             del self.schedules[schedule_id]
             try:
-                conn = database.get_db_connection()
-                conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
-                conn.commit()
-                conn.close()
+                with database.get_db_connection() as conn:
+                    conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
+                    conn.commit()
             except Exception as e:
                  logging.error(f"Failed to delete schedule {schedule_id} from database: {e}", exc_info=True)
 

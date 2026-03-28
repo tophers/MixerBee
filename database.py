@@ -7,6 +7,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
+from contextlib import contextmanager
 
 from app_state import CONFIG_DIR
 
@@ -18,11 +19,15 @@ PRESETS_MIGRATED_PATH = CONFIG_DIR / "presets.json.migrated"
 SCHEDULES_MIGRATED_PATH = CONFIG_DIR / "schedules.json.migrated"
 
 
+@contextmanager
 def get_db_connection():
-    """Returns a new database connection object."""
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    """Yields a database connection and guarantees it is closed afterward."""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 def _migrate_presets(conn):
     """Migrates data from presets.json to the database."""
@@ -50,10 +55,12 @@ def _migrate_presets(conn):
         conn.commit()
 
         final_migrated_name = str(PRESETS_JSON_PATH) + '.migrated'
-        if os.path.exists(final_migrated_name):
-             if source_path != final_migrated_name: os.remove(final_migrated_name)
-        os.rename(source_path, final_migrated_name)
-        logging.info(f"Successfully migrated {len(presets_data)} presets. Final migrated file is {final_migrated_name}.")
+        if source_path.exists() and str(source_path) != final_migrated_name:
+            if os.path.exists(final_migrated_name):
+                os.remove(final_migrated_name)
+            os.rename(source_path, final_migrated_name)
+            
+        logging.info(f"Successfully migrated {len(presets_data)} presets.")
 
     except Exception as e:
         logging.error(f"Error migrating presets data: {e}", exc_info=True)
@@ -83,7 +90,7 @@ def _migrate_schedules(conn):
             }
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO schedules 
+                INSERT OR REPLACE INTO schedules
                 (id, playlist_name, user_id, job_type, crontab, config_data, last_run)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
@@ -94,44 +101,45 @@ def _migrate_schedules(conn):
                 )
             )
         conn.commit()
-        
+
         final_migrated_name = str(SCHEDULES_JSON_PATH) + '.migrated'
-        if os.path.exists(final_migrated_name):
-             if source_path != final_migrated_name: os.remove(final_migrated_name)
-        os.rename(source_path, final_migrated_name)
-        logging.info(f"Successfully migrated {len(schedules_data)} schedules. Final migrated file is {final_migrated_name}.")
-        
+        if source_path.exists() and str(source_path) != final_migrated_name:
+            if os.path.exists(final_migrated_name):
+                os.remove(final_migrated_name)
+            os.rename(source_path, final_migrated_name)
+
+        logging.info(f"Successfully migrated {len(schedules_data)} schedules.")
+
     except Exception as e:
         logging.error(f"Error migrating schedules data: {e}", exc_info=True)
 
 
 def init_db():
     """Initializes the database, creating tables and running migrations if needed."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS presets (
-            name TEXT PRIMARY KEY,
-            data TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS schedules (
-            id TEXT PRIMARY KEY,
-            playlist_name TEXT NOT NULL,
-            user_id TEXT NOT NULL,
-            job_type TEXT NOT NULL,
-            crontab TEXT NOT NULL,
-            config_data TEXT,
-            last_run TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS presets (
+                name TEXT PRIMARY KEY,
+                data TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS schedules (
+                id TEXT PRIMARY KEY,
+                playlist_name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                job_type TEXT NOT NULL,
+                crontab TEXT NOT NULL,
+                config_data TEXT,
+                last_run TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
 
-    _migrate_presets(conn)
-    _migrate_schedules(conn)
-
-    conn.close()
+        _migrate_presets(conn)
+        _migrate_schedules(conn)
+    
