@@ -1,45 +1,37 @@
 # MixerBee 🐝
 
-**MixerBee** is a self-hosted web app for building and managing smart playlists and collections on your [Emby](https://emby.media/) or [Jellyfin](https://jellyfin.org) server. It started as a basic CLI tool to interleave episodes from multiple shows, and has evolved into a fully-featured web-based scheduler and media playlist manager.
+**MixerBee** is a self-hosted web app for building and managing smart playlists and collections on your [Emby](https://emby.media/) or [Jellyfin](https://jellyfin.org) server. 
 
-Mix episodes across shows, create themed movie blocks, blend music from your favorite artists, or schedule block-style programming to mimic a custom TV channel.
+MixerBee allows you to interleave episodes across multiple shows, create themed movie blocks with complex filters, and automate your media management with a robust scheduling engine. Whether you want to mimic the feel of a custom TV channel or keep a "Next Up" playlist perfectly synced across devices, MixerBee is built to handle it.
 
 ---
 
-## ✨ Features
+## Features
 
 * **Advanced Playlist & Collection Builder**:
+  * **TV Blocks**: Interleave episodes from multiple shows. Start from a specific point or automatically pick up from the next unwatched episode.
+  * **Movie Blocks**: Filter by genre, year range, studio, cast, and watched status.
+  * **Music Blocks**: Blend tracks by artist, album, popularity, or genre.
+  * **Static Collections**: Optionally generate native server **Collections** (BoxSets) instead of playlists.
 
-  * **TV Blocks**: Mix episodes from multiple shows. Start from a specific episode or let MixerBee pick up where you left off.
-  * **Movie Blocks**: Filter your movie library by genre, year range, watched status, and more.
-  * **Music Blocks**: Add songs by artist/album, top tracks, or genre-based selections.
-  * **Create as Collection**: Generate static **Collections** inside your server instead of playlists.
+* **Live Synchronization (Webhooks)**:
+  MixerBee can listen for server events. Mark a show as watched or add new media, and MixerBee will automatically trigger a debounced rebuild of your relevant playlists within seconds.
+
+* **Hardened Stability**:
+  Engineered for long-term uptime with a "self-healing" auth system, database connection pooling, and transaction-safe playlist rollbacks to prevent data loss during network blips.
 
 * **AI Block Builder** (Optional):
-  Use natural language to build playlists (e.g. *"80s action movies and a few episodes of Star Trek"*). Requires a Google Gemini API key.
-
+  Use natural language prompts to build complex mixes (e.g. *"A block of 90s thriller movies followed by two random episodes of The X-Files"*). Requires a Google Gemini API key.
+  
 * **Scheduler**:
-  Automate playlist or collection builds daily or weekly. Includes "Last Run" status to confirm success.
+  Automate your builds on a daily or weekly cadence with a full "Last Run" log for every job.
 
 * **Manager**:
-  View, sort, and delete all playlists/collections from a single dashboard.
-
-* **Auto Playlists**:
-
-  * **Video**: Pilot Sampler, Next Up, From the Vault, Movie Genre Roulette
-  * **Music**: Artist Spotlight, Album Roulette, Genre Sampler
-
-* **Modern UI**:
-  Responsive dark/light mode interface with collapsible sections.
-
-* **Preset System**:
-  Save and reuse block configurations. Shareable via export/import text codes.
+  A unified dashboard to view, sort, search, and delete all playlists and collections on your server.
 
 ---
 
-## 💻 Web Interface
-
-Dark mode and light mode views of the core tabs:
+## Web Interface
 
 | Builder (Dark)                                         | Builder (Light)                                          |
 | ------------------------------------------------------ | -------------------------------------------------------- |
@@ -55,43 +47,38 @@ Dark mode and light mode views of the core tabs:
 
 ---
 
-## 🚀 Installation
+## Installation
 
 See [INSTALL.md](INSTALL.md) for full setup instructions.
 
-You can run MixerBee via:
+### Requirements
+* **Docker**: Recommended for most users.
+* **Python**: v3.14.3+ (if running on bare metal).
+* **Media Server**: Emby or Jellyfin with administrative access.
 
+### Quick Start
+MixerBee is available via:
 * [Docker Hub](https://hub.docker.com/r/trulytilted/mixerbee)
-* Manual Docker build
-* Custom Python environment
-
-To enable AI features, add your `GEMINI_API_KEY` to your `.env` file.
+* Manual Docker Build (`docker-compose up --build`)
+* Local Python Venv
 
 ---
 
-## ⚙️ Usage
+## Usage
 
-After install, open [http://localhost:9000](http://localhost:9000) and start building.
+### 1. Configure Webhooks (Optional but Recommended)
+To enable real-time playlist updates, add MixerBee's webhook URL to your Emby/Jellyfin Webhook plugin:
+`http://your-ip:9000/api/webhook`
 
-### Builder Tab
+### 2. Build Your Mix
+Use the **Builder Tab** to stack TV, Movie, or Music blocks. You can save these configurations as **Presets** for easy reuse.
 
-* Add TV, Movie, or Music blocks
-* Name and build as Playlist or Collection
-* Save as preset for automation later
+### 3. Automate
+In the **Scheduler Tab**, link your Presets to a time and frequency. MixerBee will ensure your playlists stay fresh without you ever having to open the app again.
 
-### Scheduler Tab
-
-* Pick one or more saved presets or Auto Playlists
-* Choose frequency (Daily or Weekly)
-* Set the time and days
-* Let MixerBee rebuild the content on schedule automatically
-
-### Manager Tab
-
-* View all your playlists and collections
-* Search, sort, and delete items
+### 4. Manage
+Use the **Manager Tab** to clean up old playlists or view the contents of your collections without leaving the MixerBee interface.
 
 ---
 
-Enjoy! 🐝
-
+Enjoy!
