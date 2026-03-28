@@ -2,9 +2,10 @@
 gemini_client.py – Manages gemini connectivity
 """
 
-import google.generativeai as genai
 import json
 from typing import List, Dict
+from google import genai
+from google.genai import types
 
 JSON_SCHEMA = """
 [
@@ -64,10 +65,8 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     if not api_key:
         raise ValueError("Gemini API key is not configured.")
 
-    genai.configure(api_key=api_key)
-    
-    # Use the stable flash model rather than the experimental '-latest' alias
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Initialize the new GenAI client
+    client = genai.Client(api_key=api_key)
 
     show_list = ", ".join(available_shows[:200])
     genre_list = ", ".join(available_genres)
@@ -96,14 +95,15 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     """
 
     try:
-        # Enforce Native JSON Mode so the API never returns Markdown backticks
-        response = model.generate_content(
-            full_prompt,
-            generation_config=genai.GenerationConfig(
+        # Enforce Native JSON Mode using the new types config
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
                 response_mime_type="application/json"
             )
         )
-        
+
         parsed_json = json.loads(response.text)
 
         if isinstance(parsed_json, list):

@@ -7,4 +7,4 @@ apscheduler>=3.10,<4
 fastapi>=0.111,<1
 uvicorn[standard]>=0.29,<1
 
-google-generativeai>=0.7.2
+google-genai
