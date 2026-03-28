@@ -3,7 +3,8 @@ routers/webhooks.py – APIRouter for handling live events from Emby/Jellyfin
 """
 
 import logging
-from fastapi import APIRouter, BackgroundTasks, Request
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Request
 from typing import Dict, Any
 
 import app_state
@@ -23,7 +24,6 @@ def trigger_relevant_schedules(user_id: str = None):
     triggered_count = 0
 
     for sched in schedules:
-        # If the webhook gave us a specific user, only update their stuff to save resources.
         if user_id is None or sched.get("user_id") == user_id:
             try:
                 logging.info(f"WEBHOOK: Triggering live update for schedule '{sched.get('playlist_name')}'")
@@ -35,33 +35,27 @@ def trigger_relevant_schedules(user_id: str = None):
     logging.info(f"WEBHOOK: Finished live update. {triggered_count} schedule(s) refreshed.")
 
 @router.post("/api/webhook")
-async def handle_media_webhook(request: Request, background_tasks: BackgroundTasks):
+async def handle_media_webhook(request: Request):
     """
     Receives JSON payloads from the Emby/Jellyfin Webhook plugin.
-    Returns 200 immediately and processes the updates in the background.
+    Returns 200 immediately and processes the updates via a debounced background job.
     """
-    # Attempt to self-heal if currently unconfigured
     if not app_state.is_configured:
         app_state.load_and_authenticate()
-        # If it still fails, then we bail out
         if not app_state.is_configured:
             return {"status": "ignored", "reason": "App not configured"}
 
     try:
         payload: Dict[str, Any] = await request.json()
     except Exception:
-        # Fast-fail on empty or malformed requests (e.g., from network scanners)
         return {"status": "ignored", "reason": "Empty or invalid JSON payload"}
 
-    # Emby Webhook Plugin usually sends the event type in "Event"
     event_type = payload.get("Event", "")
     event_type_lower = event_type.lower()
 
-    # Fast-fail if there's no event type at all
     if not event_type_lower:
         return {"status": "ignored", "reason": "No Event type provided in payload"}
 
-    # Extract User ID if it's a user-specific event (like PlaybackStop)
     user_id = None
     if "User" in payload and isinstance(payload["User"], dict):
         user_id = payload["User"].get("Id")
@@ -78,13 +72,23 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
         "deleted"     # Media Removed (Emby: library.deleted)
     ]
 
-    # ONLY process if the event type contains a relevant keyword
     if any(keyword in event_type_lower for keyword in relevant_keywords):
-        logging.info(f"WEBHOOK: Received relevant event '{event_type}'. Queuing background refresh.")
+        
+        run_time = datetime.now() + timedelta(seconds=10)
+        job_id = f"webhook_debounce_{user_id}"
 
-        # Add the rebuild process to FastAPI's background queue
-        background_tasks.add_task(trigger_relevant_schedules, user_id)
+        logging.info(f"WEBHOOK: Received '{event_type}'. Scheduling/Delaying rebuild for 10 seconds.")
 
-        return {"status": "accepted", "message": "Playlist rebuild queued."}
+        scheduler_manager.scheduler.add_job(
+            func=trigger_relevant_schedules,
+            trigger='date',
+            run_date=run_time,
+            args=[user_id],
+            id=job_id,
+            name=f"Debounced Webhook Update for {user_id}",
+            replace_existing=True 
+        )
+
+        return {"status": "accepted", "message": f"Playlist rebuild queued for {run_time.strftime('%H:%M:%S')}."}
 
     return {"status": "ignored", "reason": f"Event '{event_type}' does not require playlist updates."}
