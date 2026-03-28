@@ -40,8 +40,12 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
     Receives JSON payloads from the Emby/Jellyfin Webhook plugin.
     Returns 200 immediately and processes the updates in the background.
     """
+    # Attempt to self-heal if currently unconfigured
     if not app_state.is_configured:
-        return {"status": "ignored", "reason": "App not configured"}
+        app_state.load_and_authenticate()
+        # If it still fails, then we bail out
+        if not app_state.is_configured:
+            return {"status": "ignored", "reason": "App not configured"}
 
     try:
         payload: Dict[str, Any] = await request.json()
@@ -52,11 +56,11 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
     # Emby Webhook Plugin usually sends the event type in "Event"
     event_type = payload.get("Event", "")
     event_type_lower = event_type.lower()
-    
+
     # Fast-fail if there's no event type at all
     if not event_type_lower:
         return {"status": "ignored", "reason": "No Event type provided in payload"}
-    
+
     # Extract User ID if it's a user-specific event (like PlaybackStop)
     user_id = None
     if "User" in payload and isinstance(payload["User"], dict):
@@ -77,10 +81,10 @@ async def handle_media_webhook(request: Request, background_tasks: BackgroundTas
     # ONLY process if the event type contains a relevant keyword
     if any(keyword in event_type_lower for keyword in relevant_keywords):
         logging.info(f"WEBHOOK: Received relevant event '{event_type}'. Queuing background refresh.")
-        
+
         # Add the rebuild process to FastAPI's background queue
         background_tasks.add_task(trigger_relevant_schedules, user_id)
-        
+
         return {"status": "accepted", "message": "Playlist rebuild queued."}
 
     return {"status": "ignored", "reason": f"Event '{event_type}' does not require playlist updates."}

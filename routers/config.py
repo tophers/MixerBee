@@ -25,9 +25,11 @@ def _trigger_restart(delay: int = 2):
     logging.warning("RESTART: Triggering application restart after initial configuration.")
     os.execv(sys.executable, [sys.executable] + sys.argv)
 
-
 @router.get("/api/config_status")
 def api_config_status():
+    if not app_state.is_configured:
+        app_state.load_and_authenticate()
+        
     return {
         "is_configured": app_state.is_configured,
         "is_ai_configured": bool(app_state.GEMINI_API_KEY),

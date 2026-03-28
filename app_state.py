@@ -25,8 +25,8 @@ SERVER_TYPE = None
 SERVER_ID = None
 CACHE_REFRESH_MINUTES = 15
 
-def load_and_authenticate():
-    """Loads config from .env and authenticates, setting global state."""
+def load_and_authenticate() -> bool:
+    """Loads config from .env and authenticates, setting global state. Returns True if successful."""
     global login_uid, token, HDR, is_configured, DEFAULT_USER_NAME, DEFAULT_UID, GEMINI_API_KEY, SERVER_TYPE, SERVER_ID, CACHE_REFRESH_MINUTES
 
     load_dotenv(ENV_PATH, override=True)
@@ -46,7 +46,6 @@ def load_and_authenticate():
         logging.warning("Invalid CACHE_REFRESH_MINUTES value. Falling back to default of 15 minutes.")
         CACHE_REFRESH_MINUTES = 15
 
-
     try:
         if not all([core.EMBY_URL, core.EMBY_USER, core.EMBY_PASS]):
             raise ValueError("Missing required Emby/Jellyfin credentials in environment.")
@@ -63,11 +62,13 @@ def load_and_authenticate():
 
         is_configured = True
         logging.info(f"Successfully loaded configuration and authenticated with {SERVER_TYPE.capitalize()}. Server ID: {SERVER_ID}")
-        logging.info(f"Library data cache refresh interval set to {CACHE_REFRESH_MINUTES} minutes.") 
+        logging.info(f"Library data cache refresh interval set to {CACHE_REFRESH_MINUTES} minutes.")
+        return True
 
     except Exception as e:
         login_uid, token, HDR, is_configured = None, None, {}, False
         DEFAULT_USER_NAME, DEFAULT_UID = None, None
         SERVER_TYPE = None
         SERVER_ID = None
-        logging.warning(f"Initial configuration load failed: {e}")
+        logging.warning(f"Configuration load or authentication failed: {e}")
+        return False

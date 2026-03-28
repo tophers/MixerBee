@@ -102,29 +102,6 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         logging.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         return False
 
-
-def clear_playlist_items(playlist_id: str, user_id: str, hdr: Dict[str, str]) -> bool:
-    """Removes all items from an existing playlist without deleting the playlist itself."""
-    try:
-        # Get current items to find their PlaylistItemIds
-        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
-                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
-        r.raise_for_status()
-        items = r.json().get("Items", [])
-        
-        entry_ids = [item.get("PlaylistItemId") for item in items if item.get("PlaylistItemId")]
-        
-        if entry_ids:
-            delete_params = {"EntryIds": ",".join(entry_ids)}
-            del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", 
-                                             params=delete_params, headers=hdr, timeout=10)
-            del_resp.raise_for_status()
-        return True
-    except requests.RequestException as e:
-        logging.error(f"Failed to clear items from playlist {playlist_id}: {e}", exc_info=True)
-        return False
-
-
 def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a playlist by its name."""
     targets = [pl for pl in get_playlists(user_id, hdr)
@@ -139,60 +116,195 @@ def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]
         else:
             log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
 
+def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]):
+    """Helper to restore items in chunks during a rollback."""
+    chunk_size = 50
+    failed_restores = 0
+    for i in range(0, len(media_ids), chunk_size):
+        chunk = media_ids[i:i + chunk_size]
+        params = {"UserId": user_id, "Ids": ",".join(chunk)}
+        try:
+            resp = client.SESSION.post(
+                f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                params=params, headers=hdr, timeout=15
+            )
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            logging.error(f"Rollback chunk failed: {e}")
+            failed_restores += len(chunk)
+    
+    if failed_restores > 0:
+        msg = f"Rollback incomplete: {failed_restores} items could not be restored."
+        logging.error(msg)
+        log.append(msg)
+    else:
+        msg = "Rollback successful. Original items were restored to the playlist."
+        logging.info(msg)
+        log.append(msg)
+
+
+def clear_playlist_items(
+    playlist_id: str, 
+    user_id: str, 
+    hdr: Dict[str, str], 
+    log: List[str], 
+    restore_on_failure: bool = True
+) -> bool:
+    """
+    Removes all items from an existing playlist in safe chunks.
+    If a chunk permanently fails, it optionally restores the already-deleted items
+    and returns False.
+    """
+    try:
+        r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                               params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+    except requests.RequestException as e:
+        msg = f"Failed to fetch items for playlist {playlist_id}: {e}"
+        logging.error(msg, exc_info=True)
+        log.append(msg)
+        return False
+
+    playlist_entries = [{"media_id": item.get("Id"), "entry_id": item.get("PlaylistItemId")} 
+                        for item in items if item.get("PlaylistItemId")]
+
+    if not playlist_entries:
+        return True
+
+    successfully_removed_media_ids = []
+    chunk_size = 50
+    max_attempts = 3
+
+    for i in range(0, len(playlist_entries), chunk_size):
+        chunk = playlist_entries[i:i + chunk_size]
+        entry_ids = [c["entry_id"] for c in chunk]
+        media_ids = [c["media_id"] for c in chunk]
+        
+        chunk_success = False
+        for attempt in range(max_attempts):
+            try:
+                delete_params = {"EntryIds": ",".join(entry_ids)}
+                del_resp = client.SESSION.delete(
+                    f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                    params=delete_params, headers=hdr, timeout=10
+                )
+                del_resp.raise_for_status()
+                chunk_success = True
+                successfully_removed_media_ids.extend(media_ids)
+                break
+            except requests.RequestException as e:
+                logging.warning(f"Failed to delete chunk (Attempt {attempt + 1}/{max_attempts}): {e}")
+                time.sleep(1)
+
+        if not chunk_success:
+            error_msg = "Failed to clear playlist completely. Initiating rollback to restore removed items..."
+            logging.error(error_msg)
+            log.append(error_msg)
+            
+            if restore_on_failure and successfully_removed_media_ids:
+                _restore_items(playlist_id, successfully_removed_media_ids, user_id, hdr, log)
+            return False
+
+    return True
+
 
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
-    """Appends a list of item IDs to an existing playlist."""
+    """Appends a list of item IDs to an existing playlist using safe chunks. Fails fast on network errors to prevent duplicates."""
     if not item_ids:
         log.append("No new items to add.")
         return True
 
-    params = {
-        "UserId": user_id,
-        "Ids": ",".join(item_ids)
-    }
-    try:
-        resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
-                                 params=params, headers=hdr, timeout=15)
-        resp.raise_for_status()
-        log.append(f"Successfully added {len(item_ids)} items to the playlist.")
-        return True
-    except requests.RequestException as e:
-        error_msg = f"Failed to add items to playlist {playlist_id}: {e}"
-        log.append(error_msg)
-        logging.error(error_msg, exc_info=True)
-        return False
+    chunk_size = 50
+    total_added = 0
 
+    for i in range(0, len(item_ids), chunk_size):
+        chunk = item_ids[i:i + chunk_size]
+        params = {"UserId": user_id, "Ids": ",".join(chunk)}
+        
+        try:
+            resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                                     params=params, headers=hdr, timeout=15)
+            resp.raise_for_status()
+            total_added += len(chunk)
+        except requests.RequestException as e:
+            error_msg = f"Failed to add a chunk of items ({e}). Aborting to prevent duplicates."
+            log.append(error_msg)
+            logging.error(error_msg)
+            return False
+
+    log.append(f"Successfully added {total_added} items to the playlist.")
+    return True
 
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
-    """Creates a new playlist, or updates an existing one in-place to preserve its ID."""
+    """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
     target_playlist = next((p for p in existing_playlists if p.get("Name", "").strip().lower() == name.strip().lower()), None)
 
     if target_playlist:
         playlist_id = target_playlist["Id"]
         log.append(f"Playlist '{name}' already exists. Updating in-place (ID preserved).")
-        
-        # Clear the old items
-        if clear_playlist_items(playlist_id, user_id, hdr):
-            # Add the new items
-            add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
-            return playlist_id
+
+        try:
+            r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
+                                   params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
+            r.raise_for_status()
+            old_media_ids = [item.get("Id") for item in r.json().get("Items", []) if item.get("Id")]
+        except requests.RequestException as e:
+            log.append("Failed to backup existing playlist items. Update aborted to prevent data loss.")
+            return None
+
+        if clear_playlist_items(playlist_id, user_id, hdr, log):
+
+            success = add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
+
+            if success:
+                return playlist_id
+            else:
+                log.append("Addition phase failed. Rolling back to original playlist state...")
+
+                clear_success = clear_playlist_items(playlist_id, user_id, hdr, log, restore_on_failure=False)
+
+                if clear_success:
+                    _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
+                else:
+                    msg = "CRITICAL: Could not wipe partial additions during rollback. Aborting restore to prevent a corrupted/mixed playlist."
+                    logging.error(msg)
+                    log.append(msg)
+
+                return None
         else:
-            log.append("Failed to clear existing playlist items.")
+            log.append("Failed to clear existing playlist items. Update aborted.")
             return None
     else:
-        # Create a brand new playlist if it doesn't exist
-        resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists",
-                                   headers=hdr,
-                                   params={"Name": name, "UserId": user_id, "Ids": ",".join(ids)},
-                                   timeout=10)
+        first_chunk = ids[:50] if ids else []
+        resp = client.SESSION.post(
+            f"{client.EMBY_URL}/Playlists",
+            headers=hdr,
+            params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)}, 
+            timeout=10
+        )
+
         if resp.ok:
+            new_id = resp.json().get("Id")
             log.append(f"Playlist '{name}' created successfully.")
-            return resp.json().get("Id")
+
+            if len(ids) > 50:
+                success = add_items_to_playlist_by_ids(new_id, ids[50:], user_id, hdr, log)
+
+                if not success:
+                    log.append("Failed to append all items. Rolling back by deleting incomplete playlist.")
+                    delete_success = delete_item_by_id(new_id, hdr)
+                    if not delete_success:
+                        msg = f"CRITICAL: Failed to delete incomplete playlist (ID: {new_id}) during rollback. Orphaned playlist remains on server."
+                        logging.error(msg)
+                        log.append(msg)
+                    return None
+
+            return new_id
         else:
             log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
             return None
-
 
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
@@ -255,7 +367,6 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
         log.append(f"An unexpected error occurred: {e}")
         logging.error("Error in create_recently_added_playlist", exc_info=True)
         return {"status": "error", "log": log}
-
 
 def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
     """Creates a playlist of unwatched pilot episodes."""
