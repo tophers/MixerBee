@@ -11,7 +11,7 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
-
+from routers.dependencies import get_current_auth_headers
 import app as core
 import app.items as items_api
 from app.cache import refresh_cache
@@ -39,8 +39,8 @@ def run_playlist_job(**schedule_data) -> Dict:
     print(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
     result = {}
     try:
-        _, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, app_state.SERVER_TYPE)
-        hdr = core.auth_headers(token, user_id=user_id)
+        auth_data = get_current_auth_headers()
+        hdr = core.auth_headers(auth_data["token"], user_id=user_id)
 
         if job_type == "builder":
             blocks = schedule_data.get("blocks", [])
