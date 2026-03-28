@@ -15,7 +15,7 @@ MixerBee allows you to interleave episodes across multiple shows, create themed 
   * **Static Collections**: Optionally generate native server **Collections** (BoxSets) instead of playlists.
 
 * **Live Synchronization (Webhooks)**:
-  MixerBee can listen for server events. Mark a show as watched or add new media, and MixerBee will automatically trigger a debounced rebuild of your relevant playlists within seconds.
+  MixerBee can listen for server events. Mark a show as watched or add new media, and MixerBee will automatically trigger a debounced rebuild of your relevant playlists within seconds. See [WEBHOOKS_EMBY.md](WEBHOOKS_EMBY.md)
 
 * **Hardened Stability**:
   Engineered for long-term uptime with a "self-healing" auth system, database connection pooling, and transaction-safe playlist rollbacks to prevent data loss during network blips.
