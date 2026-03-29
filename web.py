@@ -17,8 +17,11 @@ from routers import config, builder, library, quick_playlists, presets
 from routers import scheduler as scheduler_router
 from routers import webhooks
 
-IS_DOCKER = os.path.exists('/.dockerenv')
-ROOT_PATH = "" if IS_DOCKER else "/mixerbee"
+IS_CONTAINER = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+
+ROOT_PATH = os.getenv("MIXERBEE_ROOT_PATH")
+if ROOT_PATH is None:
+    ROOT_PATH = "" if IS_CONTAINER else "/mixerbee"
 
 app = FastAPI(title="MixerBee API", root_path=ROOT_PATH)
 HERE = Path(__file__).parent
