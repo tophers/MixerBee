@@ -72,9 +72,10 @@ class Block(BaseModel):
     shows: Optional[List[Show]] = None
     mode: Optional[str] = Field(default="count", description="'count' or 'range'")
     count: Optional[int] = 5
+    end_season: Optional[int] = Field(default=None, description="The ending season number if mode is 'range'")
+    end_episode: Optional[int] = Field(default=None, description="The ending episode number if mode is 'range'")
     interleave: Optional[bool] = True
     filters: Optional[Filters] = None
-
 
 # --- Core Generation Logic ---
 
