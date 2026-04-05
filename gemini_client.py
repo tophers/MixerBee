@@ -2,10 +2,9 @@
 gemini_client.py
 """
 
-import json
 import random
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
@@ -25,8 +24,8 @@ def _get_best_model(client: genai.Client) -> str:
             if any(pm in m for m in available_models):
                 _BEST_MODEL = pm
                 return _BEST_MODEL
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning(f"Could not fetch model list: {e}. Falling back to default.")
 
     _BEST_MODEL = "gemini-2.0-flash"
     return _BEST_MODEL
@@ -56,7 +55,7 @@ class Show(BaseModel):
     unwatched: bool = False
 
 class Block(BaseModel):
-    type: str
+    type: Literal["tv", "movie", "music"]
     shows: Optional[List[Show]] = None
     mode: Optional[str] = "count"
     count: Optional[int] = 5
@@ -105,21 +104,28 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
             )
         )
 
-        parsed_json = json.loads(response.text)
+        if not response.parsed:
+            raise ValueError("AI returned an empty response or failed to parse the schema.")
 
-        valid_blocks = [
-            block for block in parsed_json
-            if (block.get("type", "").lower() == "tv" and block.get("shows")) or
-               (block.get("type", "").lower() == "movie" and block.get("filters"))
-        ]
+        valid_blocks = []
+        
+        for block_obj in response.parsed:
+            block = block_obj.model_dump(exclude_none=True)
+            
+            if (block.get("type") == "tv" and block.get("shows")) or \
+               (block.get("type") == "movie" and block.get("filters")) or \
+               (block.get("type") == "music"):
+                valid_blocks.append(block)
 
         if not valid_blocks:
             raise ValueError("AI generated blocks, but none contained valid shows or filters.")
 
         return valid_blocks, model_name
 
-    except json.JSONDecodeError:
-        raise ConnectionError("The AI returned an invalid data format. Please try your request again.")
-
+    except ValueError as ve:
+        logging.error(f"Validation Error: {ve}")
+        raise
+        
     except Exception as e:
+        logging.error(f"Gemini API Communication Error: {e}", exc_info=True)
         raise ConnectionError(f"Failed to process the request with the AI. Error: {str(e)}")
