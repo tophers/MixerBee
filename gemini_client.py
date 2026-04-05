@@ -55,7 +55,7 @@ class Show(BaseModel):
     unwatched: bool = False
 
 class Block(BaseModel):
-    type: Literal["tv", "movie", "music"]
+    type: Literal["tv", "movie"]
     shows: Optional[List[Show]] = None
     mode: Optional[str] = "count"
     count: Optional[int] = 5
@@ -114,7 +114,6 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
             
             if (block.get("type") == "tv" and block.get("shows")) or \
                (block.get("type") == "movie" and block.get("filters")) or \
-               (block.get("type") == "music"):
                 valid_blocks.append(block)
 
         if not valid_blocks:
