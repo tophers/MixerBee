@@ -1,5 +1,5 @@
 """
-gemini_client.py – Manages gemini connectivity
+gemini_client.py – Manages Gemini API connectivity and prompt translation.
 """
 
 import json
@@ -10,31 +10,18 @@ from google.genai import types
 JSON_SCHEMA = """
 [
   {
-    "type": "tv",
+    "type": "tv", 
     "shows": [
       {
-        "name": "Name of the TV Show",
-        "season": 1,
-        "episode": 1,
+        "name": "Name of the TV Show (Must exactly match one from the available list)",
+        "season": 1, 
+        "episode": 1, 
         "unwatched": false
       }
     ],
-    "mode": "count",
-    "count": 5,
-    "interleave": true
-  },
-  {
-    "type": "tv",
-    "shows": [
-      {
-        "name": "Another Show",
-        "season": 2,
-        "episode": 1
-      }
-    ],
-    "mode": "range",
-    "end_season": 3,
-    "end_episode": 12
+    "mode": "count", 
+    "count": 5, 
+    "interleave": true 
   },
   {
     "type": "movie",
@@ -65,7 +52,6 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
     if not api_key:
         raise ValueError("Gemini API key is not configured.")
 
-    # Initialize the new GenAI client
     client = genai.Client(api_key=api_key)
 
     show_list = ", ".join(available_shows[:200])
@@ -73,44 +59,56 @@ def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List
 
     full_prompt = f"""
     You are an expert at creating Emby playlist blocks from user requests.
-    Your response MUST be a valid JSON array of objects that strictly adheres to the following schema.
+    Your response MUST be a valid JSON array of objects that strictly adheres to the provided schema.
 
-    JSON Schema:
-    {JSON_SCHEMA}
-
-    Instructions:
-    - For TV shows, if the user specifies a range (e.g., "season 1 to 3", "through episode 5"), use "mode": "range" and provide "end_season" and "end_episode".
-    - Otherwise, for a specific number of episodes, use "mode": "count".
-    - For Movie genres, use 'genres_any' for genres to include, 'genres_all' to require all specified genres, and 'genres_exclude' to ban genres.
-    - For People, put their name in the 'people' or 'exclude_people' array as an object: {{"Name": "Person Name"}}.
-    - For Studios, put the name in the 'studios' or 'exclude_studios' array as a string.
-
-    Here is some context about the user's library:
-    - Available TV shows include (but are not limited to): {show_list}
+    ### CRITICAL RULES:
+    1. EXACT COUNTS: You must include exactly the number of different shows requested. Do not invent shows not on the list.
+    2. INTERLEAVING: If the user asks for "A block" of multiple shows, return ONLY ONE JSON object in the array. List all requested shows inside the "shows" list of that single object, and set "interleave": true.
+    3. NO BLANKS: Do NOT return empty or blank TV blocks to pad the array. Every object MUST have at least one show or filter.
+    4. RANDOMIZATION: If the user asks for "random episodes," do not default to Season 1, Episode 1. Instead, pick a random Season (between 1 and 4) and a random Episode (between 1 and 10).
+    
+    ### CONTEXT:
+    - Available TV shows include: {show_list}
     - Available movie genres are: {genre_list}
 
-    Now, based on the following user request, generate the JSON output.
+    ### SCHEMA TEMPLATE:
+    {JSON_SCHEMA}
+
+    Now, generate the JSON output based strictly on the user request below.
 
     User Request: "{prompt}"
     """
 
     try:
-        # Enforce Native JSON Mode using the new types config
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash-lite',
             contents=full_prompt,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                temperature=0.2  # Low temperature forces strict adherence to rules
             )
         )
 
         parsed_json = json.loads(response.text)
 
         if isinstance(parsed_json, list):
-            return parsed_json
+            valid_blocks = [
+                block for block in parsed_json 
+                if (block.get("type") == "tv" and block.get("shows")) or 
+                   (block.get("type") == "movie" and block.get("filters"))
+            ]
+            
+            if not valid_blocks:
+                raise ValueError("AI generated blocks, but none contained valid shows or filters.")
+                
+            return valid_blocks
         else:
-            raise ValueError("AI did not return a valid list of blocks.")
+            raise ValueError("AI did not return a valid JSON array.")
 
+    except json.JSONDecodeError as e:
+        print(f"JSON Parsing Error: {e}")
+        raise ConnectionError("The AI returned an invalid data format. Please try your request again.")
+        
     except Exception as e:
-        print(f"Error calling Gemini API or parsing response: {e}")
-        raise ConnectionError(f"Failed to get a valid response from the AI. Check your API key and quota. Error: {e}")
+        print(f"Gemini API Error: {e}")
+        raise ConnectionError(f"Failed to process the request with the AI. Error: {e}")
