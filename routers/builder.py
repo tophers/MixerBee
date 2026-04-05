@@ -17,7 +17,6 @@ from .dependencies import get_current_auth_headers
 router = APIRouter()
 
 def _get_random_movie_block() -> Dict:
-    """Constructs a randomized movie block."""
     cached_data = get_library_data()
     all_genres = cached_data.get("movieGenreData", [])
     all_libraries = cached_data.get("libraryData", [])
@@ -41,7 +40,6 @@ def _get_random_movie_block() -> Dict:
     return {"type": "movie", "filters": filters}
 
 def _get_random_tv_block() -> Dict:
-    """Constructs a randomized TV block."""
     cached_data = get_library_data()
     all_series = cached_data.get("seriesData", [])
     if not all_series:
@@ -64,7 +62,6 @@ def _get_random_tv_block() -> Dict:
     }
 
 def _get_random_music_block() -> Dict:
-    """Constructs a randomized music block."""
     cached_data = get_library_data()
     all_artists = cached_data.get("artistData", [])
     all_genres = cached_data.get("musicGenreData", [])
@@ -96,7 +93,6 @@ def _get_random_music_block() -> Dict:
     return {"type": "music", "music": music_data}
 
 def _construct_item_url(item_id: str) -> str:
-    """Helper to construct the correct Emby/Jellyfin URL for an item."""
     if not item_id:
         return None
     base_url = core.EMBY_URL.rstrip("/")
@@ -108,11 +104,8 @@ def _construct_item_url(item_id: str) -> str:
             url += f"&serverId={app_state.SERVER_ID}"
         return url
 
-# --- API Endpoints ---
 @router.get("/api/builder/random_block", response_model=Dict)
 def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
-    """Generates a single, randomized block for the 'Surprise Me' feature."""
-
     block_generators = {
         "movie": _get_random_movie_block,
         "tv": _get_random_tv_block,
@@ -134,7 +127,6 @@ def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
 
     return random_block
 
-
 @router.post("/api/create_from_text")
 def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     if not app_state.GEMINI_API_KEY:
@@ -143,7 +135,8 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
     try:
         available_shows = [s['Name'] for s in core.search_series("", auth_deps["hdr"])]
         available_genres = [g['Name'] for g in core.get_movie_genres(auth_deps["login_uid"], auth_deps["hdr"])]
-        blocks = gemini_client.generate_blocks_from_prompt(
+        
+        blocks, model_used = gemini_client.generate_blocks_from_prompt(
             prompt=req.prompt,
             api_key=app_state.GEMINI_API_KEY,
             available_shows=available_shows,
@@ -164,7 +157,12 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
                                     resolved_people.append(found_people[0])
                         filters[person_key] = resolved_people
 
-        return {"status": "ok", "blocks": blocks}
+        return {
+            "status": "ok", 
+            "blocks": blocks, 
+            "model_used": model_used,
+            "log": [f"Successfully generated using {model_used}"]
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

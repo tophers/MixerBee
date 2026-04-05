@@ -1,116 +1,125 @@
 """
-gemini_client.py – Manages gemini connectivity
+gemini_client.py
 """
 
 import json
-from typing import List, Dict
+import random
+import logging
+from typing import List, Dict, Optional
+from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
-JSON_SCHEMA = """
-[
-  {
-    "type": "tv",
-    "shows": [
-      {
-        "name": "Name of the TV Show",
-        "season": 1,
-        "episode": 1,
-        "unwatched": false
-      }
-    ],
-    "mode": "count",
-    "count": 5,
-    "interleave": true
-  },
-  {
-    "type": "tv",
-    "shows": [
-      {
-        "name": "Another Show",
-        "season": 2,
-        "episode": 1
-      }
-    ],
-    "mode": "range",
-    "end_season": 3,
-    "end_episode": 12
-  },
-  {
-    "type": "movie",
-    "filters": {
-      "genres_any": ["Action"],
-      "genres_all": [],
-      "genres_exclude": ["Comedy"],
-      "people": [{"Name": "Tom Hanks"}],
-      "exclude_people": [],
-      "studios": ["A24"],
-      "exclude_studios": [],
-      "watched_status": "unplayed",
-      "year_from": 1980,
-      "year_to": 1989,
-      "sort_by": "Random",
-      "limit": 5,
-      "duration_minutes": null
-    }
-  }
-]
-"""
+_BEST_MODEL = None
 
-def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List[str], available_genres: List[str]) -> List[Dict]:
-    """
-    Takes a user's text prompt and uses the Gemini API to translate it
-    into a structured list of playlist blocks.
-    """
+def _get_best_model(client: genai.Client) -> str:
+    global _BEST_MODEL
+    if _BEST_MODEL:
+        return _BEST_MODEL
+
+    preferred_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
+    
+    try:
+        available_models = [m.name for m in client.models.list()]
+        for pm in preferred_models:
+            if any(pm in m for m in available_models):
+                _BEST_MODEL = pm
+                return _BEST_MODEL
+    except Exception:
+        pass
+
+    _BEST_MODEL = "gemini-2.0-flash"
+    return _BEST_MODEL
+
+class Person(BaseModel):
+    Name: str
+
+class Filters(BaseModel):
+    genres_any: Optional[List[str]] = Field(default_factory=list)
+    genres_all: Optional[List[str]] = Field(default_factory=list)
+    genres_exclude: Optional[List[str]] = Field(default_factory=list)
+    people: Optional[List[Person]] = Field(default_factory=list)
+    exclude_people: Optional[List[Person]] = Field(default_factory=list)
+    studios: Optional[List[str]] = Field(default_factory=list)
+    exclude_studios: Optional[List[str]] = Field(default_factory=list)
+    watched_status: Optional[str] = "unplayed"
+    year_from: Optional[int] = None
+    year_to: Optional[int] = None
+    sort_by: Optional[str] = "Random"
+    limit: Optional[int] = 5
+    duration_minutes: Optional[int] = None
+
+class Show(BaseModel):
+    name: str
+    season: int = 1
+    episode: int = 1
+    unwatched: bool = False
+
+class Block(BaseModel):
+    type: str
+    shows: Optional[List[Show]] = None
+    mode: Optional[str] = "count"
+    count: Optional[int] = 5
+    end_season: Optional[int] = None
+    end_episode: Optional[int] = None
+    interleave: Optional[bool] = True
+    filters: Optional[Filters] = None
+
+def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List[str], available_genres: List[str]) -> tuple[List[Dict], str]:
     if not api_key:
         raise ValueError("Gemini API key is not configured.")
 
-    # Initialize the new GenAI client
     client = genai.Client(api_key=api_key)
+    model_name = _get_best_model(client)
 
-    show_list = ", ".join(available_shows[:200])
+    sample_size = min(250, len(available_shows))
+    sampled_shows = random.sample(available_shows, sample_size) if available_shows else []
+
+    show_list = ", ".join(sampled_shows)
     genre_list = ", ".join(available_genres)
 
     full_prompt = f"""
-    You are an expert at creating Emby playlist blocks from user requests.
-    Your response MUST be a valid JSON array of objects that strictly adheres to the following schema.
+    You are an expert at creating Emby/Jellyfin playlist blocks from user requests.
+    Your response MUST strictly adhere to the requested JSON schema.
 
-    JSON Schema:
-    {JSON_SCHEMA}
+    1. TV SHOW SELECTION: Pick shows from the 'Available TV shows' list that best fit the request. If you cannot find perfect matches, pick the closest alternatives from the list. NEVER leave the 'shows' array empty for a TV block.
+    2. MOVIE SELECTION: For movie requests, map the requested genre to the closest match in the 'Available movie genres' list and put it in `filters.genres_any`. If a specific number of movies is requested, set `filters.limit` to that number. NEVER leave the `filters` object empty for a movie block.
+    3. INTERLEAVING: If the user asks for a block of multiple shows, return ONLY ONE object in the array with 'interleave' set to true, listing all shows inside the 'shows' list.
+    4. NO BLANKS: Every block MUST have at least one show or filter.
+    5. RANDOMIZATION: Pick a random Season (1-4) and random Episode (1-10) for shows if not specified.
 
-    Instructions:
-    - For TV shows, if the user specifies a range (e.g., "season 1 to 3", "through episode 5"), use "mode": "range" and provide "end_season" and "end_episode".
-    - Otherwise, for a specific number of episodes, use "mode": "count".
-    - For Movie genres, use 'genres_any' for genres to include, 'genres_all' to require all specified genres, and 'genres_exclude' to ban genres.
-    - For People, put their name in the 'people' or 'exclude_people' array as an object: {{"Name": "Person Name"}}.
-    - For Studios, put the name in the 'studios' or 'exclude_studios' array as a string.
-
-    Here is some context about the user's library:
-    - Available TV shows include (but are not limited to): {show_list}
-    - Available movie genres are: {genre_list}
-
-    Now, based on the following user request, generate the JSON output.
+    Available TV shows: {show_list}
+    Available movie genres: {genre_list}
 
     User Request: "{prompt}"
     """
 
     try:
-        # Enforce Native JSON Mode using the new types config
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model=model_name,
             contents=full_prompt,
             config=types.GenerateContentConfig(
-                response_mime_type="application/json"
+                response_mime_type="application/json",
+                response_schema=list[Block],
+                temperature=0.4
             )
         )
 
         parsed_json = json.loads(response.text)
 
-        if isinstance(parsed_json, list):
-            return parsed_json
-        else:
-            raise ValueError("AI did not return a valid list of blocks.")
+        valid_blocks = [
+            block for block in parsed_json
+            if (block.get("type", "").lower() == "tv" and block.get("shows")) or
+               (block.get("type", "").lower() == "movie" and block.get("filters"))
+        ]
+
+        if not valid_blocks:
+            raise ValueError("AI generated blocks, but none contained valid shows or filters.")
+
+        return valid_blocks, model_name
+
+    except json.JSONDecodeError:
+        raise ConnectionError("The AI returned an invalid data format. Please try your request again.")
 
     except Exception as e:
-        print(f"Error calling Gemini API or parsing response: {e}")
-        raise ConnectionError(f"Failed to get a valid response from the AI. Check your API key and quota. Error: {e}")
+        raise ConnectionError(f"Failed to process the request with the AI. Error: {str(e)}")
