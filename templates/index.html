@@ -80,7 +80,8 @@
                             <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville"></textarea>
                             <button type="button" id="ai-prompt-clear-btn" class="icon-btn clear-btn hidden" title="Clear text"><i data-feather="x-circle"></i></button>
                         </div>
-                        <div class="button-group" style="justify-content: flex-end;">
+                        <div class="button-group" style="justify-content: flex-end; align-items: center;">
+                            <span id="ai-model-indicator" style="font-size: 0.85rem; color: var(--text-subtle); margin-right: auto; padding-left: 0.5rem;"></span>
                             <button id="generate-with-ai-btn" type="button" class="secondary">Generate with AI</button>
                         </div>
                     </details>
@@ -398,8 +399,7 @@
                 <button class="icon-btn js-modal-close">×</button>
             </div>
             <div class="modal-body" id="preview-modal-body">
-                 <!-- Preview content will be inserted here -->
-            </div>
+                 </div>
             <div class="modal-footer">
                 <button class="js-modal-cancel" type="button">Close</button>
             </div>
@@ -425,7 +425,6 @@
         <div class="spinner"></div>
     </div>
 
-    <!-- ========= COMPONENT TEMPLATES ========= -->
     <template id="template-tv-block">
         <details class="mixed-block" data-type="tv" open>
             <summary>
@@ -442,7 +441,6 @@
             </summary>
             <div class="mixed-block-body">
                 <div class="tv-block-shows">
-                    <!-- TV Show Rows will be inserted here -->
                 </div>
                 <div class="button-group">
                     <button type="button" class="secondary add-show-row-btn"><i data-feather="plus"></i> Add Show</button>
@@ -477,7 +475,7 @@
             <div class="show-select-wrapper">
                 <div class="search-and-select">
                     <input type="search" class="show-search-input" placeholder="Filter shows...">
-                    <select class="tv-block-show-select"><!-- Options will be populated by JS --></select>
+                    <select class="tv-block-show-select"></select>
                 </div>
                 <button type="button" class="icon-btn shuffle-show-btn" title="Pick Random Show"><i data-feather="shuffle"></i></button>
             </div>
@@ -632,7 +630,6 @@
             </div>
         </details>
     </template>
-    <!-- ========= END COMPONENT TEMPLATES ========= -->
 
     <script src="static/vendor/Sortable.min.js"></script>
     <script src="static/vendor/feather.min.js"></script>

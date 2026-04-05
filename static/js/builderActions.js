@@ -90,7 +90,6 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
     const existingPlaylistSelect = document.getElementById('existing-playlist-select');
     const aiPromptClearBtn = document.getElementById('ai-prompt-clear-btn');
 
-    // --- AI Generator ---
     aiPromptInput.addEventListener('input', () => aiPromptClearBtn.classList.toggle('hidden', !aiPromptInput.value));
     aiPromptClearBtn.addEventListener('click', () => {
         aiPromptInput.value = '';
@@ -104,13 +103,19 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
             const response = await post('api/create_from_text', { prompt }, generateWithAiBtn);
             if (response.status === 'ok') {
                 applyDataToUI(response.blocks, userSelectElement, renderBuilder);
+                
+                if (response.model_used) {
+                    const indicator = document.getElementById('ai-model-indicator');
+                    if (indicator) {
+                        indicator.innerHTML = `<i data-feather="cpu" style="width: 14px; height: 14px;"></i> ${response.model_used}`;
+                        if (window.featherReplace) window.featherReplace();
+                    }
+                }
             }
         } catch (e) {
-            // post() handles its own errors
         }
     });
 
-    // --- Surprise Me ---
     surpriseMeBtn.addEventListener('click', async (event) => {
         surpriseMeBtn.disabled = true;
         try {
@@ -121,7 +126,7 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
             }
             const newBlock = await response.json();
             pushBlock(newBlock);
-            renderBuilder(); // We need to re-render after pushing
+            renderBuilder();
             toast("A surprise block was added!", true);
         } catch (error) {
             toast(`Error: ${error.message}`, false);
@@ -130,15 +135,13 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
         }
     });
 
-    // --- Clear All ---
     document.getElementById('clear-all-blocks-btn').addEventListener('click', async () => {
         try {
             await confirmModal.show({ title: 'Clear All Blocks?', text: 'Are you sure?', confirmText: 'Clear All' });
             applyDataToUI([], userSelectElement, renderBuilder);
-        } catch (err) { /* Cancelled */ }
+        } catch (err) { }
     });
 
-    // --- Preview Button ---
     previewBtn.addEventListener('click', async (event) => {
         const blocks = getBlocks();
         if (blocks.length === 0) return toast('Please add at least one block to preview.', false);
@@ -147,10 +150,9 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
             if(response.status === 'ok' && Array.isArray(response.data)) {
                  previewModal.show(response.data).catch(() => {});
             }
-        } catch(e) { /* post handles errors */ }
+        } catch(e) { }
     });
 
-    // --- Build / Generate Button ---
     generateBtn.addEventListener('click', async (event) => {
         const blocks = getBlocks();
         if (blocks.length === 0) return toast('Please add at least one block.', false);
@@ -171,11 +173,10 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
                     defaultName: createAsCollection ? 'My Movie Collection' : 'My Mix',
                 });
                 post('api/create_mixed_playlist', { user_id: userSelectElement.value, playlist_name: playlistName, blocks: blocks, create_as_collection: createAsCollection }, event);
-            } catch (err) { /* Cancelled */ }
+            } catch (err) { }
         }
     });
 
-    // --- Smart Build / Auto Playlists ---
     smartBuildBtn.addEventListener('click', async (event) => {
         try {
             const type = await smartBuildModal.show(SMART_BUILD_TYPES);
