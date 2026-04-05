@@ -4,7 +4,8 @@ builder.py – APIRouter
 
 import logging
 import random
-from typing import Dict, List
+import difflib
+from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 
 import app as core
@@ -15,6 +16,26 @@ from app.cache import get_library_data
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
+
+def _fuzzy_find(target_name: str, dict_list: List[Dict], key: str = "Name", cutoff: float = 0.7) -> Optional[Dict]:
+    """
+    Helper to find an exact match first, then gracefully fall back to a fuzzy match.
+    Prevents block failures if the AI hallucinates minor typos (e.g. "The Beatles" vs "Beatles").
+    """
+    if not target_name or not dict_list:
+        return None
+        
+    for item in dict_list:
+        if item.get(key, "").lower() == target_name.lower():
+            return item
+            
+    all_names = [item.get(key, "") for item in dict_list if item.get(key)]
+    matches = difflib.get_close_matches(target_name, all_names, n=1, cutoff=cutoff)
+    if matches:
+        best_match = matches[0]
+        return next((item for item in dict_list if item.get(key) == best_match), None)
+        
+    return None
 
 def _get_random_movie_block() -> Dict:
     cached_data = get_library_data()
@@ -133,37 +154,59 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
 
     try:
-        available_shows = [s['Name'] for s in core.search_series("", auth_deps["hdr"])]
-        available_genres = [g['Name'] for g in core.get_movie_genres(auth_deps["login_uid"], auth_deps["hdr"])]
+        cached_data = get_library_data()
         
+        available_shows = [s['name'] for s in cached_data.get("seriesData", [])]
+        available_genres = [g['Name'] for g in cached_data.get("movieGenreData", [])]
+        available_music_genres = [g['Name'] for g in cached_data.get("musicGenreData", [])]
+        available_artists = [a['Name'] for a in cached_data.get("artistData", [])]
+
         blocks, model_used = gemini_client.generate_blocks_from_prompt(
             prompt=req.prompt,
             api_key=app_state.GEMINI_API_KEY,
             available_shows=available_shows,
-            available_genres=available_genres
+            available_genres=available_genres,
+            available_music_genres=available_music_genres,
+            available_artists=available_artists
         )
 
         for block in blocks:
-            if block.get("type") == "movie":
-                filters = block.get("filters", {})
+            if block.get("type") == "tv" and "shows" in block:
+                for show in block["shows"]:
+                    if show_name := show.get("name"):
+                        matched_series = _fuzzy_find(show_name, cached_data.get("seriesData", []), key="name")
+                        if matched_series:
+                            show["name"] = matched_series["name"]
 
+            elif block.get("type") == "movie" and "filters" in block:
+                filters = block["filters"]
                 for person_key in ["people", "exclude_people"]:
                     if person_key in filters and filters[person_key]:
                         resolved_people = []
                         for person_info in filters[person_key]:
-                            if person_info.get("Name"):
-                                found_people = core.get_people(person_info["Name"], auth_deps["hdr"])
+                            if name := person_info.get("Name"):
+                                found_people = core.get_people(name, auth_deps["hdr"])
                                 if found_people:
                                     resolved_people.append(found_people[0])
                         filters[person_key] = resolved_people
 
+            elif block.get("type") == "music" and "music" in block:
+                music_cfg = block["music"]
+                if artist_name := music_cfg.get("artist_name"):
+                    matching_artist = _fuzzy_find(artist_name, cached_data.get("artistData", []), key="Name")
+                    if matching_artist:
+                        music_cfg["artistId"] = matching_artist["Id"]
+                        
+                music_cfg.pop("artist_name", None)
+
         return {
-            "status": "ok", 
-            "blocks": blocks, 
+            "status": "ok",
+            "blocks": blocks,
             "model_used": model_used,
             "log": [f"Successfully generated using {model_used}"]
         }
     except Exception as e:
+        logging.error("Failed to generate from text", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/movies/preview_count")

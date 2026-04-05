@@ -2,6 +2,8 @@
 gemini_client.py
 """
 
+import os
+import time
 import random
 import logging
 from typing import List, Dict, Optional, Literal
@@ -9,26 +11,12 @@ from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 
-_BEST_MODEL = None
-
-def _get_best_model(client: genai.Client) -> str:
-    global _BEST_MODEL
-    if _BEST_MODEL:
-        return _BEST_MODEL
-
-    preferred_models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
-    
-    try:
-        available_models = [m.name for m in client.models.list()]
-        for pm in preferred_models:
-            if any(pm in m for m in available_models):
-                _BEST_MODEL = pm
-                return _BEST_MODEL
-    except Exception as e:
-        logging.warning(f"Could not fetch model list: {e}. Falling back to default.")
-
-    _BEST_MODEL = "gemini-2.0-flash"
-    return _BEST_MODEL
+def _get_best_model() -> str:
+    """
+    Defaults to the current standard model to ensure zero latency on startup.
+    Advanced users can override this by manually adding GEMINI_MODEL to their .env file.
+    """
+    return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 class Person(BaseModel):
     Name: str
@@ -54,6 +42,12 @@ class Show(BaseModel):
     episode: int = 1
     unwatched: bool = False
 
+class MusicOptions(BaseModel):
+    mode: Literal["album", "artist_top", "artist_random", "genre"]
+    artist_name: Optional[str] = Field(None, description="Name of the artist if mode is artist_top or artist_random")
+    count: Optional[int] = 10
+    filters: Optional[Filters] = None
+
 class Block(BaseModel):
     type: Literal["tv", "movie", "music"]
     shows: Optional[List[Show]] = None
@@ -63,69 +57,80 @@ class Block(BaseModel):
     end_episode: Optional[int] = None
     interleave: Optional[bool] = True
     filters: Optional[Filters] = None
+    music: Optional[MusicOptions] = None
 
-def generate_blocks_from_prompt(prompt: str, api_key: str, available_shows: List[str], available_genres: List[str]) -> tuple[List[Dict], str]:
+def generate_blocks_from_prompt(
+    prompt: str, 
+    api_key: str, 
+    available_shows: List[str], 
+    available_genres: List[str],
+    available_music_genres: List[str],
+    available_artists: List[str],
+    max_retries: int = 3
+) -> tuple[List[Dict], str]:
+    
     if not api_key:
         raise ValueError("Gemini API key is not configured.")
 
     client = genai.Client(api_key=api_key)
-    model_name = _get_best_model(client)
+    model_name = _get_best_model()
 
-    sample_size = min(250, len(available_shows))
-    sampled_shows = random.sample(available_shows, sample_size) if available_shows else []
+    # Safely sample context limits to prevent massive token bloat
+    sampled_shows = random.sample(available_shows, min(250, len(available_shows))) if available_shows else []
+    sampled_artists = random.sample(available_artists, min(200, len(available_artists))) if available_artists else []
 
-    show_list = ", ".join(sampled_shows)
-    genre_list = ", ".join(available_genres)
-
-    full_prompt = f"""
+    system_rules = """
     You are an expert at creating Emby/Jellyfin playlist blocks from user requests.
     Your response MUST strictly adhere to the requested JSON schema.
 
-    1. TV SHOW SELECTION: Pick shows from the 'Available TV shows' list that best fit the request. If you cannot find perfect matches, pick the closest alternatives from the list. NEVER leave the 'shows' array empty for a TV block.
-    2. MOVIE SELECTION: For movie requests, map the requested genre to the closest match in the 'Available movie genres' list and put it in `filters.genres_any`. If a specific number of movies is requested, set `filters.limit` to that number. NEVER leave the `filters` object empty for a movie block.
-    3. INTERLEAVING: If the user asks for a block of multiple shows, return ONLY ONE object in the array with 'interleave' set to true, listing all shows inside the 'shows' list.
-    4. NO BLANKS: Every block MUST have at least one show or filter.
-    5. RANDOMIZATION: Pick a random Season (1-4) and random Episode (1-10) for shows if not specified.
+    1. TV SHOW SELECTION: Pick shows from the provided 'Available TV shows' list that best fit the request. NEVER leave the 'shows' array empty for a TV block.
+    2. MOVIE SELECTION: Map requested movie genres to 'Available movie genres' in `filters.genres_any`. NEVER leave the `filters` object empty for a movie block.
+    3. MUSIC SELECTION: For music requests, set the `music` object. Map requested music genres to 'Available music genres' inside `music.filters.genres_any` (setting mode to 'genre'). If requesting an artist, set `music.mode` to 'artist_top' or 'artist_random' and provide the EXACT `music.artist_name` from 'Available artists'.
+    4. INTERLEAVING: If the user asks for a block of multiple TV shows, return ONLY ONE object in the array with 'interleave' set to true, listing all shows inside the 'shows' list.
+    5. NO BLANKS: Every block MUST have at least one show, movie filter, or music configuration.
+    6. RANDOMIZATION: Pick a random Season (1-4) and random Episode (1-10) for shows if not specified.
+    """
 
-    Available TV shows: {show_list}
-    Available movie genres: {genre_list}
+    user_context = f"""
+    Available TV shows: {", ".join(sampled_shows)}
+    Available movie genres: {", ".join(available_genres)}
+    Available music genres: {", ".join(available_music_genres)}
+    Available artists: {", ".join(sampled_artists)}
 
     User Request: "{prompt}"
     """
 
-    try:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=list[Block],
-                temperature=0.4
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=user_context,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_rules,
+                    response_mime_type="application/json",
+                    response_schema=list[Block],
+                    temperature=0.4
+                )
             )
-        )
 
-        if not response.parsed:
-            raise ValueError("AI returned an empty response or failed to parse the schema.")
+            if not response.parsed:
+                raise ValueError("AI returned an empty response or failed to parse the schema.")
 
-        valid_blocks = []
-        
-        for block_obj in response.parsed:
-            block = block_obj.model_dump(exclude_none=True)
-            
-            if (block.get("type") == "tv" and block.get("shows")) or \
-               (block.get("type") == "movie" and block.get("filters")) or \
-               (block.get("type") == "music"):
-                valid_blocks.append(block)
+            valid_blocks = [
+                b.model_dump(exclude_none=True) for b in response.parsed
+                if (b.type == "tv" and b.shows) or 
+                   (b.type == "movie" and b.filters) or 
+                   (b.type == "music" and b.music)
+            ]
 
-        if not valid_blocks:
-            raise ValueError("AI generated blocks, but none contained valid shows or filters.")
+            if not valid_blocks:
+                raise ValueError("AI generated blocks, but none contained valid configuration data.")
 
-        return valid_blocks, model_name
+            return valid_blocks, model_name
 
-    except ValueError as ve:
-        logging.error(f"Validation Error: {ve}")
-        raise
-        
-    except Exception as e:
-        logging.error(f"Gemini API Communication Error: {e}", exc_info=True)
-        raise ConnectionError(f"Failed to process the request with the AI. Error: {str(e)}")
+        except Exception as e:
+            logging.warning(f"Gemini API attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                logging.error("Max retries reached for Gemini API.", exc_info=True)
+                raise ConnectionError(f"Failed to process the request with the AI after {max_retries} attempts.")
+            time.sleep(2 ** attempt) # Exponential backoff: 1s, 2s, 4s
