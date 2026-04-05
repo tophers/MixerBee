@@ -25,10 +25,12 @@ def _fuzzy_find(target_name: str, dict_list: List[Dict], key: str = "Name", cuto
     if not target_name or not dict_list:
         return None
         
+    # 1. Try Exact Case-Insensitive Match
     for item in dict_list:
         if item.get(key, "").lower() == target_name.lower():
             return item
             
+    # 2. Fallback to Fuzzy Match
     all_names = [item.get(key, "") for item in dict_list if item.get(key)]
     matches = difflib.get_close_matches(target_name, all_names, n=1, cutoff=cutoff)
     if matches:
@@ -154,6 +156,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
 
     try:
+        # Optimization: Fetch context from the background-refreshed cache instead of making live API calls.
         cached_data = get_library_data()
         
         available_shows = [s['name'] for s in cached_data.get("seriesData", [])]
@@ -170,6 +173,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
             available_artists=available_artists
         )
 
+        # Post-processing: Resolve names to backend IDs safely with Fuzzy Matching
         for block in blocks:
             if block.get("type") == "tv" and "shows" in block:
                 for show in block["shows"]:
@@ -187,11 +191,22 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
                             if name := person_info.get("Name"):
                                 found_people = core.get_people(name, auth_deps["hdr"])
                                 if found_people:
+                                    # We don't fuzzy match people against the whole library to save time, 
+                                    # but we take the best top result from Emby's native search API.
                                     resolved_people.append(found_people[0])
                         filters[person_key] = resolved_people
 
             elif block.get("type") == "music" and "music" in block:
                 music_cfg = block["music"]
+                
+                # --- FIX: Map AI's 'genres_any' to the engine's 'genres' ---
+                if "filters" in music_cfg and "genres_any" in music_cfg["filters"]:
+                    if music_cfg["filters"]["genres_any"]:
+                        music_cfg["filters"]["genres"] = music_cfg["filters"].pop("genres_any")
+                    else:
+                        music_cfg["filters"].pop("genres_any", None)
+                # -----------------------------------------------------------
+
                 if artist_name := music_cfg.get("artist_name"):
                     matching_artist = _fuzzy_find(artist_name, cached_data.get("artistData", []), key="Name")
                     if matching_artist:
