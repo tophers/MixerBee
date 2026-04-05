@@ -63,7 +63,7 @@
     padding: .8rem 1rem;
     z-index: 10;
     margin-top: auto;
-    height: auto; 
+    height: auto;
 }
 .action-bar-content {
     width: 100%;
@@ -155,4 +155,22 @@ body[data-theme='light'] .tab-btn:hover {
 .warning-box p {
     color: var(--text-subtle);
     margin: 0.5rem 0 1.5rem 0;
+}
+
+/* Toast History Badge */
+#toast-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background-color: var(--danger);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: bold;
+    border-radius: 50%;
+    width: 15px;
+    height: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
 }

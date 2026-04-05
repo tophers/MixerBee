@@ -1,7 +1,7 @@
 // static/js/app.js
 
 import { post, toast } from './utils.js';
-import { initModals, confirmModal } from './modals.js';
+import { initModals, confirmModal, toastHistoryModal } from './modals.js';
 import { initBuilderPane, renderBuilder } from './builder.js';
 import { initSchedulerPane, loadSchedulerData } from './scheduler.js';
 import { initManager, loadManagerData } from './manager.js';
@@ -48,7 +48,6 @@ function initSettingsModal() {
                 hideModal();
                 sessionStorage.setItem('isReloading', 'true');
                 toast("Settings saved! Server is restarting. The page will reload automatically...", true);
-                // Give the toast time to appear before reloading.
                 setTimeout(() => window.location.reload(), 500);
             }
         });
@@ -141,7 +140,6 @@ async function initializeApp() {
             if (typeof window.featherReplace === 'function') window.featherReplace();
         };
 
-        // UPDATED: Added cache busting to prevent stale config status
         const apiFetch = (url) => {
             const separator = url.includes('?') ? '&' : '?';
             const cacheBuster = `_cb=${new Date().getTime()}`;
@@ -172,17 +170,40 @@ async function initializeApp() {
 
         const restoreDecision = await handleEarlyRestorePrompt();
 
-        // This is the main page load spinner, show it now.
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
         document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
         document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
         document.getElementById('manager-tab-btn').addEventListener('click', () => switchTab('manager'));
         themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
+        
         userSel.addEventListener('input', () => {
             saveGlobalState();
             if (document.getElementById('manager-tab-btn').classList.contains('active')) loadManagerData();
             if (document.getElementById('scheduler-tab-btn').classList.contains('active')) loadSchedulerData();
+        });
+
+        // TOAST HISTORY WIRING
+        const historyBtn = document.getElementById('toast-history-btn');
+        const toastBadge = document.getElementById('toast-badge');
+
+        historyBtn.addEventListener('click', () => {
+            toastHistoryModal.show();
+            toastBadge.classList.add('hidden');
+            toastBadge.textContent = '0';
+        });
+
+        document.addEventListener('toast-added', () => {
+            if (toastHistoryModal.overlay.classList.contains('hidden')) {
+                const currentCount = parseInt(toastBadge.textContent || '0', 10);
+                toastBadge.textContent = currentCount + 1;
+                toastBadge.classList.remove('hidden');
+            }
+        });
+
+        document.addEventListener('toast-cleared', () => {
+            toastBadge.classList.add('hidden');
+            toastBadge.textContent = '0';
         });
 
         try {

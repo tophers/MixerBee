@@ -18,6 +18,12 @@
         <div class="header-user-display">
             <i data-feather="user"></i>
             <span id="active-user-display"></span>
+            
+            <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;">
+                <i data-feather="bell"></i>
+                <span id="toast-badge" class="hidden">0</span>
+            </button>
+
             <div class="theme-switcher">
                 <label for="theme-toggle-cb" class="theme-toggle-label">
                     <i data-feather="moon"></i>
@@ -417,6 +423,22 @@
             </div>
             <div class="modal-footer">
                 <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="toast-history-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Notification History</h2>
+                <button class="icon-btn js-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <ul class="contents-list" id="toast-history-list" style="list-style: none; padding-left: 0;"></ul>
+            </div>
+            <div class="modal-footer">
+                <button id="clear-toast-history-btn" type="button" class="secondary mr-auto">Clear History</button>
+                <button class="js-modal-cancel" type="button">Close</button>
             </div>
         </div>
     </div>
