@@ -1,7 +1,15 @@
 // static/js/utils.js
 
+export const toastHistory = [];
+
 export function toast(message, isSuccess, options = {}) {
   const { actionCallback, actionText = 'View' } = options;
+
+  // Save to history (keep the last 50)
+  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  toastHistory.unshift({ message, isSuccess, timestamp });
+  if (toastHistory.length > 50) toastHistory.pop();
+  document.dispatchEvent(new CustomEvent('toast-added'));
 
   document.querySelectorAll('.toast').forEach(t => t.remove());
 
@@ -25,7 +33,6 @@ export function toast(message, isSuccess, options = {}) {
   if (actionCallback) {
     toastElement.querySelector('.toast-button').addEventListener('click', () => {
       actionCallback();
-      // Optionally close the toast when the action is taken
       toastElement.style.animation = 'fadeOutUp 0.5s forwards';
       toastElement.addEventListener('animationend', () => toastElement.remove());
     });
@@ -46,14 +53,14 @@ export function toast(message, isSuccess, options = {}) {
     window.featherReplace();
   }
 
-  // If there's a callback, don't auto-hide. Let the user decide.
+  // Extended 10s fadeout time added here
   if (!actionCallback) {
-    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 4.5s forwards';
+    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 9.5s forwards';
     setTimeout(() => {
         if (toastElement.parentNode) {
             toastElement.remove();
         }
-    }, 5000);
+    }, 10000); 
   } else {
     toastElement.style.animation = 'fadeInDown 0.5s forwards';
   }

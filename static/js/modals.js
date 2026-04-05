@@ -1,6 +1,6 @@
 // static/js/modals.js
 
-import { toast } from './utils.js';
+import { toast, toastHistory } from './utils.js';
 
 class BaseModal {
     constructor(modalId) {
@@ -63,7 +63,7 @@ class PreviewModal extends BaseModal {
     }
 
     show(items) {
-        this.bodyEl.innerHTML = ''; // Clear previous content
+        this.bodyEl.innerHTML = ''; 
 
         if (!items || items.length === 0) {
             this.bodyEl.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">No items were found for this configuration.</p>';
@@ -274,8 +274,48 @@ class SmartBuildModal extends BaseModal {
     }
 }
 
+class ToastHistoryModal extends BaseModal {
+    constructor(modalId) {
+        super(modalId);
+        this.listEl = this.overlay.querySelector('#toast-history-list');
+        this.clearBtn = this.overlay.querySelector('#clear-toast-history-btn');
 
-export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal;
+        this.clearBtn.addEventListener('click', () => {
+            toastHistory.length = 0;
+            this.renderList();
+            document.dispatchEvent(new CustomEvent('toast-cleared'));
+        });
+    }
+
+    renderList() {
+        this.listEl.innerHTML = '';
+        if (toastHistory.length === 0) {
+            this.listEl.innerHTML = '<li style="justify-content: center; color: var(--text-subtle); border-bottom: none;">No recent notifications.</li>';
+            return;
+        }
+
+        toastHistory.forEach(item => {
+            const li = document.createElement('li');
+            li.style.alignItems = 'flex-start';
+            const color = item.isSuccess ? 'var(--success)' : 'var(--danger)';
+            li.innerHTML = `
+                <span style="color: ${color}; margin-top: 2px;">●</span>
+                <div style="display: flex; flex-direction: column; flex-grow: 1;">
+                    <span style="font-size: 0.85rem; color: var(--text-subtle);">${item.timestamp}</span>
+                    <span style="line-height: 1.4;">${item.message}</span>
+                </div>
+            `;
+            this.listEl.appendChild(li);
+        });
+    }
+
+    show() {
+        this.renderList();
+        return super.show();
+    }
+}
+
+export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal, toastHistoryModal;
 
 export function initModals() {
     confirmModal = new ConfirmationModal('confirm-modal-overlay');
@@ -284,4 +324,5 @@ export function initModals() {
     importPresetModal = new ImportPresetModal('import-preset-modal-overlay');
     smartBuildModal = new SmartBuildModal('smart-build-modal-overlay');
     previewModal = new PreviewModal('preview-modal-overlay');
+    toastHistoryModal = new ToastHistoryModal('toast-history-modal-overlay');
 }
