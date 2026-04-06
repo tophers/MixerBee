@@ -9,3 +9,4 @@ uvicorn[standard]>=0.29,<1
 
 # AI
 google-genai>=0.3.0,<1
+chromadb[default]>=0.4.24

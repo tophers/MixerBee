@@ -53,7 +53,6 @@ export function toast(message, isSuccess, options = {}) {
     window.featherReplace();
   }
 
-  // Extended 10s fadeout time added here
   if (!actionCallback) {
     toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 9.5s forwards';
     setTimeout(() => {
@@ -94,7 +93,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     }
   }
 
-  if (loadingOverlay) loadingOverlay.style.display = 'flex';
+  if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
   return fetch(endpoint, {
     method: method,
@@ -130,7 +129,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
         return { status: 'error', detail: errorMessage };
     })
     .finally(() => {
-        if (loadingOverlay) loadingOverlay.style.display = 'none';
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
         if (clickedButton) clickedButton.disabled = false;
     });
 }

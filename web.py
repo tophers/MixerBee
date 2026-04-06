@@ -9,6 +9,9 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+import threading 
+from app.ai.vector_store import index_library_for_vibes
+
 import scheduler
 import app_state
 import database
@@ -26,8 +29,10 @@ if ROOT_PATH is None:
 app = FastAPI(title="MixerBee API", root_path=ROOT_PATH)
 HERE = Path(__file__).parent
 
+# Mount static files
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
+# Include Routers
 app.include_router(config.router)
 app.include_router(builder.router)
 app.include_router(library.router)
@@ -46,6 +51,14 @@ def startup_event():
             "login_uid": app_state.login_uid
         }
         refresh_cache(auth_details)
+        
+        if app_state.GEMINI_API_KEY:
+            threading.Thread(
+                target=index_library_for_vibes, 
+                args=(app_state.DEFAULT_UID, app_state.HDR),
+                daemon=True
+            ).start()
+            
     scheduler.scheduler_manager.start()
 
 @app.on_event("shutdown")

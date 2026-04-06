@@ -41,6 +41,9 @@ def find_movies(user_id: str, filters: Dict,
     if filters.get("parent_ids"):
         base_params["ParentId"] = ",".join(filters["parent_ids"])
 
+    if filters.get("ids"):
+        base_params["Ids"] = ",".join(filters["ids"])
+
     if filters.get("year_from"):
         base_params["MinPremiereDate"] = f"{filters['year_from']}-01-01"
     if filters.get("year_to"):

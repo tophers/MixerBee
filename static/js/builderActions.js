@@ -96,14 +96,20 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
         aiPromptClearBtn.classList.add('hidden');
         aiPromptInput.focus();
     });
+    
     generateWithAiBtn.addEventListener('click', async () => {
         const prompt = aiPromptInput.value;
         if (!prompt.trim()) return toast('Please enter a prompt for the AI.', false);
+        
+        const originalText = generateWithAiBtn.innerHTML;
+        // Swap text while the overlay is up
+        generateWithAiBtn.innerHTML = 'Thinking...';
+        
         try {
             const response = await post('api/create_from_text', { prompt }, generateWithAiBtn);
             if (response.status === 'ok') {
                 applyDataToUI(response.blocks, userSelectElement, renderBuilder);
-                
+
                 if (response.model_used) {
                     const indicator = document.getElementById('ai-model-indicator');
                     if (indicator) {
@@ -113,6 +119,9 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
                 }
             }
         } catch (e) {
+        } finally {
+            // Restore original text when done
+            generateWithAiBtn.innerHTML = originalText;
         }
     });
 

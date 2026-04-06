@@ -4,40 +4,17 @@ builder.py – APIRouter
 
 import logging
 import random
-import difflib
 from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
 
 import app as core
 import models
 import app_state
-import gemini_client
 from app.cache import get_library_data
+from app.ai import generate_smart_blocks
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
-
-def _fuzzy_find(target_name: str, dict_list: List[Dict], key: str = "Name", cutoff: float = 0.7) -> Optional[Dict]:
-    """
-    Helper to find an exact match first, then gracefully fall back to a fuzzy match.
-    Prevents block failures if the AI hallucinates minor typos (e.g. "The Beatles" vs "Beatles").
-    """
-    if not target_name or not dict_list:
-        return None
-        
-    # 1. Try Exact Case-Insensitive Match
-    for item in dict_list:
-        if item.get(key, "").lower() == target_name.lower():
-            return item
-            
-    # 2. Fallback to Fuzzy Match
-    all_names = [item.get(key, "") for item in dict_list if item.get(key)]
-    matches = difflib.get_close_matches(target_name, all_names, n=1, cutoff=cutoff)
-    if matches:
-        best_match = matches[0]
-        return next((item for item in dict_list if item.get(key) == best_match), None)
-        
-    return None
 
 def _get_random_movie_block() -> Dict:
     cached_data = get_library_data()
@@ -156,33 +133,13 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
 
     try:
-        # Optimization: Fetch context from the background-refreshed cache instead of making live API calls.
-        cached_data = get_library_data()
-        
-        available_shows = [s['name'] for s in cached_data.get("seriesData", [])]
-        available_genres = [g['Name'] for g in cached_data.get("movieGenreData", [])]
-        available_music_genres = [g['Name'] for g in cached_data.get("musicGenreData", [])]
-        available_artists = [a['Name'] for a in cached_data.get("artistData", [])]
+        # Hand off to the AI Module. It handles tools, context, and exact schema generation!
+        blocks, model_used = generate_smart_blocks(req.prompt)
 
-        blocks, model_used = gemini_client.generate_blocks_from_prompt(
-            prompt=req.prompt,
-            api_key=app_state.GEMINI_API_KEY,
-            available_shows=available_shows,
-            available_genres=available_genres,
-            available_music_genres=available_music_genres,
-            available_artists=available_artists
-        )
-
-        # Post-processing: Resolve names to backend IDs safely with Fuzzy Matching
+        # The only post-processing left in the router is fetching actor IDs directly from Emby 
+        # (since actors aren't cached locally, we didn't give the AI a tool for them to save time).
         for block in blocks:
-            if block.get("type") == "tv" and "shows" in block:
-                for show in block["shows"]:
-                    if show_name := show.get("name"):
-                        matched_series = _fuzzy_find(show_name, cached_data.get("seriesData", []), key="name")
-                        if matched_series:
-                            show["name"] = matched_series["name"]
-
-            elif block.get("type") == "movie" and "filters" in block:
+            if block.get("type") == "movie" and "filters" in block:
                 filters = block["filters"]
                 for person_key in ["people", "exclude_people"]:
                     if person_key in filters and filters[person_key]:
@@ -191,34 +148,14 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
                             if name := person_info.get("Name"):
                                 found_people = core.get_people(name, auth_deps["hdr"])
                                 if found_people:
-                                    # We don't fuzzy match people against the whole library to save time, 
-                                    # but we take the best top result from Emby's native search API.
                                     resolved_people.append(found_people[0])
                         filters[person_key] = resolved_people
-
-            elif block.get("type") == "music" and "music" in block:
-                music_cfg = block["music"]
-                
-                # --- FIX: Map AI's 'genres_any' to the engine's 'genres' ---
-                if "filters" in music_cfg and "genres_any" in music_cfg["filters"]:
-                    if music_cfg["filters"]["genres_any"]:
-                        music_cfg["filters"]["genres"] = music_cfg["filters"].pop("genres_any")
-                    else:
-                        music_cfg["filters"].pop("genres_any", None)
-                # -----------------------------------------------------------
-
-                if artist_name := music_cfg.get("artist_name"):
-                    matching_artist = _fuzzy_find(artist_name, cached_data.get("artistData", []), key="Name")
-                    if matching_artist:
-                        music_cfg["artistId"] = matching_artist["Id"]
-                        
-                music_cfg.pop("artist_name", None)
 
         return {
             "status": "ok",
             "blocks": blocks,
             "model_used": model_used,
-            "log": [f"Successfully generated using {model_used}"]
+            "log": [f"Successfully generated using {model_used} and function calling."]
         }
     except Exception as e:
         logging.error("Failed to generate from text", exc_info=True)

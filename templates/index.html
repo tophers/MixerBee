@@ -447,12 +447,12 @@
         <div class="spinner"></div>
     </div>
 
-    <template id="template-tv-block">
+<template id="template-tv-block">
         <details class="mixed-block" data-type="tv" open>
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
-                    <h3><i data-feather="tv"></i> TV Block</h3>
+                    <h3><i data-feather="tv"></i> <span class="block-title-text">TV Block</span></h3>
                     <div class="mixed-block-controls">
                         <span class="tv-block-preview-summary"></span>
                         <button type="button" class="icon-btn duplicate-block-btn" title="Duplicate Block"><i data-feather="copy"></i></button>
@@ -462,66 +462,47 @@
                 </div>
             </summary>
             <div class="mixed-block-body">
-                <div class="tv-block-shows">
-                </div>
-                <div class="button-group">
-                    <button type="button" class="secondary add-show-row-btn"><i data-feather="plus"></i> Add Show</button>
-                </div>
-                <div class="block-options-footer">
-                    <div class="block-options-grid">
-                        <label class="control-item">
-                            <select class="tv-block-mode-select">
-                                <option value="count">By Episode Count</option>
-                                <option value="range">By End Episode</option>
-                            </select>
-                        </label>
-                        <label class="control-item tv-block-count-container">
-                            <span>Count</span>
-                            <input type="number" class="tv-block-count" value="3" min="1">
-                        </label>
-                        <div class="tv-block-range-container hidden">
-                            <label class="control-item"><span>S</span><input type="number" class="tv-block-end-season" value="1" min="1"></label>
-                            <label class="control-item"><span>E</span><input type="number" class="tv-block-end-episode" value="1" min="1"></label>
-                        </div>
-                        <label class="interleave-label">
-                            <input type="checkbox" class="tv-block-interleave" checked> Interleave
-                        </label>
+                <div class="manual-controls">
+                    <div class="tv-block-shows"></div>
+                    <div class="button-group">
+                        <button type="button" class="secondary add-show-row-btn"><i data-feather="plus"></i> Add Show</button>
                     </div>
+                    <div class="block-options-footer">
+                        <div class="block-options-grid">
+                            <label class="control-item">
+                                <select class="tv-block-mode-select">
+                                    <option value="count">By Episode Count</option>
+                                    <option value="range">By End Episode</option>
+                                </select>
+                            </label>
+                            <label class="control-item tv-block-count-container">
+                                <span>Count</span>
+                                <input type="number" class="tv-block-count" value="3" min="1">
+                            </label>
+                            <div class="tv-block-range-container hidden">
+                                <label class="control-item"><span>S</span><input type="number" class="tv-block-end-season" value="1" min="1"></label>
+                                <label class="control-item"><span>E</span><input type="number" class="tv-block-end-episode" value="1" min="1"></label>
+                            </div>
+                            <label class="interleave-label">
+                                <input type="checkbox" class="tv-block-interleave" checked> Interleave
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-controls hidden">
+                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
+                    <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
                 </div>
             </div>
         </details>
     </template>
-     <template id="template-tv-show-row">
-        <div class="show-row tv-block-show-row">
-            <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
-            <div class="show-select-wrapper">
-                <div class="search-and-select">
-                    <input type="search" class="show-search-input" placeholder="Filter shows...">
-                    <select class="tv-block-show-select"></select>
-                </div>
-                <button type="button" class="icon-btn shuffle-show-btn" title="Pick Random Show"><i data-feather="shuffle"></i></button>
-            </div>
-            <input type="number" class="tv-block-season" value="1" min="1">
-            <input type="number" class="tv-block-episode" value="1" min="1">
-            <div class="show-row-controls">
-                <button type="button" class="icon-btn random-ep-btn" title="Pick Random Episode"><i data-feather="shuffle"></i></button>
-                <button type="button" class="icon-btn danger delete-btn" title="Delete Row"><i data-feather="x"></i></button>
-            </div>
-            <div class="tv-block-show-options">
-                <label>
-                    <input type="checkbox" class="first-unwatched-cb"> Start from next unwatched
-                </label>
-            </div>
-            <div class="tv-block-preview"></div>
-        </div>
-    </template>
-
     <template id="template-movie-block">
         <details class="mixed-block" data-type="movie" open>
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
-                    <h3><i data-feather="film"></i> Movie Block</h3>
+                    <h3><i data-feather="film"></i> <span class="block-title-text">Movie Block</span></h3>
                     <div class="mixed-block-controls">
                         <span class="movie-block-preview-count"></span>
                         <button type="button" class="icon-btn duplicate-block-btn" title="Duplicate Block"><i data-feather="copy"></i></button>
@@ -531,59 +512,66 @@
                 </div>
             </summary>
             <div class="mixed-block-body">
-                <fieldset class="filter-group">
-                    <legend>Libraries</legend>
-                    <div class="checkbox-grid movie-block-libraries"></div>
-                </fieldset>
-                <fieldset class="filter-group">
-                    <legend>Genres</legend>
-                    <details>
-                        <summary>Expand/Collapse Genre Filters</summary>
-                        <div class="token-field-wrapper">
-                            <input type="search" class="token-input movie-block-genre-input" placeholder="Search for a genre...">
-                            <div class="autocomplete-suggestions"></div>
-                        </div>
-                        <div class="token-container movie-block-genre-tokens"></div>
-                    </details>
-                </fieldset>
-                <fieldset class="filter-group">
-                    <legend>People & Studios</legend>
-                    <details>
-                        <summary>Expand/Collapse Filters</summary>
-                        <div class="token-field-wrapper">
-                            <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios...">
-                            <div class="autocomplete-suggestions"></div>
-                        </div>
-                        <div class="token-container movie-block-person-tokens"></div>
-                    </details>
-                </fieldset>
-                <fieldset class="filter-group">
-                    <legend>Other Filters</legend>
-                    <details>
-                        <summary>Expand/Collapse Other Filters</summary>
-                        <div class="movie-block-filter-grid">
-                            <button type="button" class="filter-toggle-btn movie-block-watched" data-state="all"></button>
-                            <button type="button" class="filter-toggle-btn movie-block-sort-by" data-state="Random"></button>
-                            <div class="range-slider-wrapper">
-                                <div class="range-slider-display">1920 - 2024</div>
-                                <div class="range-slider-container">
-                                    <div class="range-slider-track"></div>
-                                    <div class="range-slider-progress"></div>
-                                    <input type="range" class="movie-block-year-from" min="1920">
-                                    <input type="range" class="movie-block-year-to" min="1920">
+                <div class="manual-controls">
+                    <fieldset class="filter-group">
+                        <legend>Libraries</legend>
+                        <div class="checkbox-grid movie-block-libraries"></div>
+                    </fieldset>
+                    <fieldset class="filter-group">
+                        <legend>Genres</legend>
+                        <details>
+                            <summary>Expand/Collapse Genre Filters</summary>
+                            <div class="token-field-wrapper">
+                                <input type="search" class="token-input movie-block-genre-input" placeholder="Search for a genre...">
+                                <div class="autocomplete-suggestions"></div>
+                            </div>
+                            <div class="token-container movie-block-genre-tokens"></div>
+                        </details>
+                    </fieldset>
+                    <fieldset class="filter-group">
+                        <legend>People & Studios</legend>
+                        <details>
+                            <summary>Expand/Collapse Filters</summary>
+                            <div class="token-field-wrapper">
+                                <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios...">
+                                <div class="autocomplete-suggestions"></div>
+                            </div>
+                            <div class="token-container movie-block-person-tokens"></div>
+                        </details>
+                    </fieldset>
+                    <fieldset class="filter-group">
+                        <legend>Other Filters</legend>
+                        <details>
+                            <summary>Expand/Collapse Other Filters</summary>
+                            <div class="movie-block-filter-grid">
+                                <button type="button" class="filter-toggle-btn movie-block-watched" data-state="all"></button>
+                                <button type="button" class="filter-toggle-btn movie-block-sort-by" data-state="Random"></button>
+                                <div class="range-slider-wrapper">
+                                    <div class="range-slider-display">1920 - 2024</div>
+                                    <div class="range-slider-container">
+                                        <div class="range-slider-track"></div>
+                                        <div class="range-slider-progress"></div>
+                                        <input type="range" class="movie-block-year-from" min="1920">
+                                        <input type="range" class="movie-block-year-to" min="1920">
+                                    </div>
+                                </div>
+                                <div class="limit-by-wrapper">
+                                    <label><input type="radio" name="limit-mode" value="count">Count</label>
+                                    <label><input type="radio" name="limit-mode" value="duration">Duration</label>
+                                    <div class="input-group">
+                                        <input type="number" class="movie-block-limit-value" min="1">
+                                        <span class="limit-unit"></span>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="limit-by-wrapper">
-                                <label><input type="radio" name="limit-mode" value="count">Count</label>
-                                <label><input type="radio" name="limit-mode" value="duration">Duration</label>
-                                <div class="input-group">
-                                    <input type="number" class="movie-block-limit-value" min="1">
-                                    <span class="limit-unit"></span>
-                                </div>
-                            </div>
-                        </div>
-                    </details>
-                </fieldset>
+                        </details>
+                    </fieldset>
+                </div>
+                <div class="ai-controls hidden">
+                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
+                    <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
+                </div>
             </div>
         </details>
     </template>
@@ -593,7 +581,7 @@
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
-                    <h3><i data-feather="music"></i> Music Block</h3>
+                    <h3><i data-feather="music"></i> <span class="block-title-text">Music Block</span></h3>
                     <div class="mixed-block-controls">
                         <span class="music-block-preview-count"></span>
                         <span class="music-block-preview-summary"></span>
@@ -604,55 +592,61 @@
                 </div>
             </summary>
             <div class="mixed-block-body">
-                <label>Mode:
-                    <select class="music-block-mode">
-                        <option value="album">Add by Album</option>
-                        <option value="artist_top">Add by Artist (Top Tracks)</option>
-                        <option value="artist_random">Add by Artist (Random)</option>
-                        <option value="genre">Add by Genre</option>
-                    </select>
-                </label>
-                <div class="music-artist-container">
-                    <div class="music-block-filter-grid">
-                        <label>Artist:
-                            <input type="search" class="artist-search-input" placeholder="Filter artists...">
-                            <select class="music-block-artist"></select>
-                        </label>
-                        <label class="music-block-album-label">Album:
-                            <select class="music-block-album"></select>
-                        </label>
-                        <label class="music-block-count-label">Track Count:
-                            <input type="number" class="music-block-count" value="10" min="1">
-                        </label>
+                <div class="manual-controls">
+                    <label>Mode:
+                        <select class="music-block-mode">
+                            <option value="album">Add by Album</option>
+                            <option value="artist_top">Add by Artist (Top Tracks)</option>
+                            <option value="artist_random">Add by Artist (Random)</option>
+                            <option value="genre">Add by Genre</option>
+                        </select>
+                    </label>
+                    <div class="music-artist-container">
+                        <div class="music-block-filter-grid">
+                            <label>Artist:
+                                <input type="search" class="artist-search-input" placeholder="Filter artists...">
+                                <select class="music-block-artist"></select>
+                            </label>
+                            <label class="music-block-album-label">Album:
+                                <select class="music-block-album"></select>
+                            </label>
+                            <label class="music-block-count-label">Track Count:
+                                <input type="number" class="music-block-count" value="10" min="1">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="music-genre-container">
+                        <fieldset class="filter-group">
+                            <legend>Genres</legend>
+                            <details>
+                                <summary>Expand/Collapse Genre List</summary>
+                                <div class="checkbox-grid music-block-genre-grid"></div>
+                                <div class="genre-match-toggle"></div>
+                            </details>
+                        </fieldset>
+                        <div class="music-block-filter-grid">
+                            <label>Sort By:
+                                <select class="music-block-sort-by">
+                                    <option value="Random">Random</option>
+                                    <option value="PlayCount">Most Played</option>
+                                    <option value="DateCreated">Date Added</option>
+                                    <option value="Name">Name</option>
+                                </select>
+                            </label>
+                            <label>Limit:
+                                <input type="number" class="music-block-limit" value="25" min="1">
+                            </label>
+                        </div>
                     </div>
                 </div>
-                <div class="music-genre-container">
-                    <fieldset class="filter-group">
-                        <legend>Genres</legend>
-                        <details>
-                            <summary>Expand/Collapse Genre List</summary>
-                            <div class="checkbox-grid music-block-genre-grid"></div>
-                            <div class="genre-match-toggle"></div>
-                        </details>
-                    </fieldset>
-                    <div class="music-block-filter-grid">
-                        <label>Sort By:
-                            <select class="music-block-sort-by">
-                                <option value="Random">Random</option>
-                                <option value="PlayCount">Most Played</option>
-                                <option value="DateCreated">Date Added</option>
-                                <option value="Name">Name</option>
-                            </select>
-                        </label>
-                        <label>Limit:
-                            <input type="number" class="music-block-limit" value="25" min="1">
-                        </label>
-                    </div>
+                <div class="ai-controls hidden">
+                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
+                    <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
                 </div>
             </div>
         </details>
     </template>
-
     <script src="static/vendor/Sortable.min.js"></script>
     <script src="static/vendor/feather.min.js"></script>
     <script>
