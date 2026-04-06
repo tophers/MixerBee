@@ -1,12 +1,12 @@
 # Personal
 list
-ai
 gen
 tools/
 schedules.json
 presets.json
 mixerbee.db
 *.migrated
+config/chroma_db/*
 #I have my reasons
 tests/*
 
