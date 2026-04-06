@@ -580,3 +580,33 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
     height: 40px;
     padding: 0 0.2rem;
 }
+/* AI Curated Block Styles */
+.ai-badge {
+    background: linear-gradient(135deg, #7b1fa2, #2196f3);
+    color: white;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+
+.ai-badge .feather {
+    width: 12px;
+    height: 12px;
+    stroke-width: 3;
+}
+
+.ai-controls {
+    text-align: center;
+    padding: 2rem 1rem;
+    background: var(--input-bg);
+    border-radius: var(--radius);
+    border: 1px dashed var(--border-color);
+}

@@ -1,8 +1,9 @@
 // static/js/block_renderers.js
 
-import { debounce } from './utils.js';
+import { debounce, post } from './utils.js';
 import { createTvShowRow } from './components.js';
 import { getBlocks, appState } from './builderState.js';
+import { previewModal } from './modals.js';
 
 export function getTvBlockSummary(blockData) {
     const showCount = blockData.shows?.length || 0;
@@ -132,6 +133,7 @@ export function renderTvBlock({ blockData, index }) {
         }
     });
 
+    applyAiCuratedState(blockElement, blockData);
     return blockElement;
 }
 
@@ -223,6 +225,7 @@ export function renderMovieBlock({ blockData, index }) {
         filters.duration_minutes = null;
     }
 
+    applyAiCuratedState(blockElement, blockData);
     return blockElement;
 }
 
@@ -256,7 +259,7 @@ export function renderMusicBlock({ blockData, index }) {
     if (musicData.artistId) {
         artistSelect.value = musicData.artistId;
     }
-    
+
     albumSelect.innerHTML = '<option value="">-- Select Album --</option>';
     if (musicData.artistId) {
         fetch(`api/music/artists/${musicData.artistId}/albums`)
@@ -296,7 +299,7 @@ countInput.value = musicData.count || 10;
 
     const genreSortSelect = blockElement.querySelector('.music-block-sort-by');
     const genreLimitInput = blockElement.querySelector('.music-block-limit');
-    
+
     genreSortSelect.value = filters.sort_by || 'Random';
     genreLimitInput.value = filters.limit || 25;
 
@@ -306,5 +309,37 @@ countInput.value = musicData.count || 10;
     albumLabel.classList.toggle('hidden', mode !== 'album');
     countLabel.classList.toggle('hidden', !mode.startsWith('artist_'));
 
+    applyAiCuratedState(blockElement, blockData);
     return blockElement;
+}
+
+function applyAiCuratedState(blockElement, blockData) {
+    if (!blockData.is_ai_generated) return;
+
+    const titleText = blockElement.querySelector('.block-title-text');
+    const manualControls = blockElement.querySelector('.manual-controls');
+    const aiControls = blockElement.querySelector('.ai-controls');
+
+    if (titleText) {
+        titleText.innerHTML = `<span class="ai-badge"><i data-feather="sparkles"></i> AI</span> ${blockData.title || 'Curated Block'}`;
+    }
+
+    if (manualControls) manualControls.classList.add('hidden');
+    
+    if (aiControls) {
+        aiControls.classList.remove('hidden');
+        const previewBtn = aiControls.querySelector('.ai-preview-btn');
+        if (previewBtn) {
+            previewBtn.addEventListener('click', async (e) => {
+                const userSelect = document.getElementById('user-select');
+                try {
+                    // Send ONLY this single block to the preview endpoint
+                    const response = await post('api/builder/preview', { user_id: userSelect.value, blocks: [blockData] }, previewBtn);
+                    if(response.status === 'ok' && Array.isArray(response.data)) {
+                        previewModal.show(response.data).catch(() => {});
+                    }
+                } catch(err) { }
+            });
+        }
+    }
 }
