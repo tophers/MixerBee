@@ -2,7 +2,7 @@
 models.py - Pydantic models for the MixerBee API.
 """
 
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 class SettingsRequest(BaseModel):
@@ -14,25 +14,25 @@ class SettingsRequest(BaseModel):
 
 class MovieFinderRequest(BaseModel):
     user_id: str
-    filters: dict = {}
+    filters: Dict[str, Any] = Field(default_factory=dict)
 
 class MusicFinderRequest(BaseModel):
     user_id: str
-    filters: dict = {}
+    filters: Dict[str, Any] = Field(default_factory=dict)
 
 class MixedPlaylistRequest(BaseModel):
     user_id: str
     playlist_name: str
-    blocks: Optional[List[dict]] = None
+    blocks: Optional[List[Dict[str, Any]]] = None
     create_as_collection: bool = False
 
 class BuilderPreviewRequest(BaseModel):
     user_id: str
-    blocks: List[Dict]
+    blocks: List[Dict[str, Any]]
 
 class AddItemsRequest(BaseModel):
     user_id: str
-    blocks: List[Dict]
+    blocks: List[Dict[str, Any]]
 
 class ScheduleDetails(BaseModel):
     frequency: str
@@ -41,7 +41,7 @@ class ScheduleDetails(BaseModel):
 
 class QuickPlaylistScheduleData(BaseModel):
     quick_playlist_type: str
-    options: Optional[Dict] = None
+    options: Optional[Dict[str, Any]] = None
 
 class ScheduleRequest(BaseModel):
     job_type: str
@@ -49,7 +49,7 @@ class ScheduleRequest(BaseModel):
     user_id: str
     schedule_details: ScheduleDetails
     preset_name: Optional[str] = None
-    blocks: Optional[List[Dict]] = None
+    blocks: Optional[List[Dict[str, Any]]] = None
     quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
 
 class AiPromptRequest(BaseModel):
@@ -59,10 +59,10 @@ class QuickBuildRequest(BaseModel):
     user_id: str
     playlist_name: str
     quick_build_type: str
-    options: Dict = {}
+    options: Dict[str, Any] = Field(default_factory=dict)
 
 class MixRequest(BaseModel):
-    shows: List[str] = []
+    shows: List[str] = Field(default_factory=list)
     count: int = 5
     playlist: str = "MixerBee Playlist"
     delete: bool = False

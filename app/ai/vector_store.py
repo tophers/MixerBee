@@ -12,8 +12,6 @@ from app_state import CONFIG_DIR
 CHROMA_PATH = CONFIG_DIR / "chroma_db"
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
-# Because we don't specify an embedding function, ChromaDB automatically 
-# uses its highly optimized, built-in local model. Zero API limits.
 media_collection = chroma_client.get_or_create_collection(
     name="mixerbee_media"
 )
@@ -25,19 +23,40 @@ def index_library_for_vibes(user_id: str, hdr: dict):
     """Fetches metadata from Emby and embeds it completely locally."""
     logging.info("VIBE INDEXER: Starting local library vector indexing...")
     
-    params = {
-        "IncludeItemTypes": "Movie,Series",
-        "Recursive": "true",
-        "Fields": "Overview,Genres",
-        "UserId": user_id
-    }
+    all_items = []
+    start_index = 0
+    limit = 500
     
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
-        r.raise_for_status()
-        items = r.json().get("Items", [])
-        
-        if not items:
+        # --- PAGINATION LOOP ---
+        while True:
+            params = {
+                "IncludeItemTypes": "Movie,Series",
+                "Recursive": "true",
+                "Fields": "Overview,Genres",
+                "UserId": user_id,
+                "StartIndex": start_index,
+                "Limit": limit
+            }
+            
+            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
+            r.raise_for_status()
+            
+            data = r.json()
+            items = data.get("Items", [])
+            
+            if not items:
+                break
+                
+            all_items.extend(items)
+            
+            if len(items) < limit:
+                break
+                
+            start_index += limit
+            logging.info(f"VIBE INDEXER: Fetched {len(all_items)} items from server so far...")
+
+        if not all_items:
             logging.warning("VIBE INDEXER: No items found to index.")
             return
 
@@ -45,7 +64,7 @@ def index_library_for_vibes(user_id: str, hdr: dict):
         metadatas = []
         ids = []
         
-        for item in items:
+        for item in all_items:
             title = item.get("Name", "")
             overview = item.get("Overview", "")
             genres = ", ".join(item.get("Genres", []))
@@ -59,10 +78,10 @@ def index_library_for_vibes(user_id: str, hdr: dict):
             metadatas.append({"name": title, "type": item.get("Type")})
             ids.append(item["Id"])
 
-        # Because we run locally, there are NO rate limits. 
-        # We can slam 500 movies into the database at once.
         batch_size = 500
         total_items = len(ids)
+        
+        logging.info(f"VIBE INDEXER: Commencing vectorization of {total_items} total items...")
         
         for i in range(0, total_items, batch_size):
             media_collection.upsert(
@@ -77,6 +96,7 @@ def index_library_for_vibes(user_id: str, hdr: dict):
     except Exception as e:
         logging.error(f"VIBE INDEXER: Failed to index library: {e}", exc_info=True)
 
+
 def search_by_vibe(query: str) -> List[Dict[str, str]]:
     """
     TOOL: Searches the library locally by semantic meaning or 'vibe'.
@@ -85,7 +105,7 @@ def search_by_vibe(query: str) -> List[Dict[str, str]]:
     try:
         results = media_collection.query(
             query_texts=[query],
-            n_results=15
+            n_results=15 
         )
         
         if not results['ids'] or not results['ids'][0]:
