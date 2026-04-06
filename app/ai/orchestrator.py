@@ -1,7 +1,7 @@
 import os
 import logging
 from typing import List, Dict, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from google import genai
 from google.genai import types
 
@@ -14,6 +14,13 @@ class AIBlock(BaseModel):
     block_type: Literal["tv", "movie", "music"] = Field(
         description="Must be 'tv', 'movie', or 'music'"
     )
+
+    @field_validator('block_type', mode='before')
+    @classmethod
+    def lowercase_block_type(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
     
     ai_title: str = Field(
         default="Curated Mix",
@@ -59,6 +66,14 @@ class AIBlock(BaseModel):
         default="genre", 
         description="Must be 'album', 'artist_top', 'artist_random', or 'genre'. Default to 'genre'."
     )
+
+    @field_validator('music_mode', mode='before')
+    @classmethod
+    def lowercase_music_mode(cls, v):
+        if isinstance(v, str):
+            return v.lower()
+        return v
+
     music_artist_id: str = Field(
         default="", 
         description="The internal ID from the verify_artist tool. Empty string if not an artist request."
