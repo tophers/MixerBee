@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Literal
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
@@ -11,25 +11,66 @@ from .tools import AVAILABLE_TOOLS
 # 1. FLAT AI SCHEMA (Data Transfer Object)
 # ==========================================
 class AIBlock(BaseModel):
-    block_type: str = Field(description="Must be 'tv', 'movie', or 'music'")
+    block_type: Literal["tv", "movie", "music"] = Field(
+        description="Must be 'tv', 'movie', or 'music'"
+    )
     
-    ai_title: str = Field(description="A short, catchy title for this block. E.g., 'Spooky Vibes' or '80s Action'")
+    ai_title: str = Field(
+        default="Curated Mix",
+        description="A short, catchy title for this block. E.g., 'Spooky Vibes' or '80s Action'"
+    )
     
-    tv_shows: List[str] = Field(description="List of exact TV show names. Empty array if not a tv block.")
-    tv_count: int = Field(description="Number of episodes. Default to 3 if unspecified.")
+    tv_shows: List[str] = Field(
+        default=[], 
+        description="List of exact TV show names. Empty array if not a tv block."
+    )
+    tv_count: int = Field(
+        default=3, 
+        description="Number of episodes. Default to 3 if unspecified."
+    )
     
-    movie_genres: List[str] = Field(description="List of exact movie genres. Empty array if not a movie block.")
-    movie_limit: int = Field(description="Number of movies. Default to 5 if unspecified.")
-    movie_year_from: int = Field(description="Start year for movie release (e.g., 1980). 0 if unspecified.")
-    movie_year_to: int = Field(description="End year for movie release (e.g., 1989). 0 if unspecified.")
-    movie_people: List[str] = Field(description="List of actor or director names requested. Empty array if unspecified.")
+    movie_genres: List[str] = Field(
+        default=[], 
+        description="List of exact movie genres. Empty array if not a movie block."
+    )
+    movie_limit: int = Field(
+        default=5, 
+        description="Number of movies. Default to 5 if unspecified."
+    )
+    movie_year_from: int = Field(
+        default=0, 
+        description="Start year for movie release (e.g., 1980). 0 if unspecified."
+    )
+    movie_year_to: int = Field(
+        default=0, 
+        description="End year for movie release (e.g., 1989). 0 if unspecified."
+    )
+    movie_people: List[str] = Field(
+        default=[], 
+        description="List of actor or director names requested. Empty array if unspecified."
+    )
     
-    movie_ids: List[str] = Field(description="List of specific internal item IDs returned by the vibe search tool. Empty array if unspecified.")
+    movie_ids: List[str] = Field(
+        default=[], 
+        description="List of specific internal item IDs returned by the vibe search tool. Empty array if unspecified."
+    )
 
-    music_mode: str = Field(description="Must be 'album', 'artist_top', 'artist_random', or 'genre'. Default to 'genre'.")
-    music_artist_id: str = Field(description="The internal ID from the verify_artist tool. Empty string if not an artist request.")
-    music_genres: List[str] = Field(description="List of exact music genres. Empty array if not a genre request.")
-    music_count: int = Field(description="Number of tracks to fetch. Default to 15 if unspecified.")
+    music_mode: Literal["album", "artist_top", "artist_random", "genre"] = Field(
+        default="genre", 
+        description="Must be 'album', 'artist_top', 'artist_random', or 'genre'. Default to 'genre'."
+    )
+    music_artist_id: str = Field(
+        default="", 
+        description="The internal ID from the verify_artist tool. Empty string if not an artist request."
+    )
+    music_genres: List[str] = Field(
+        default=[], 
+        description="List of exact music genres. Empty array if not a genre request."
+    )
+    music_count: int = Field(
+        default=15, 
+        description="Number of tracks to fetch. Default to 15 if unspecified."
+    )
 
 def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict]:
     """Translates the flat AI schema into the complex nested schema the frontend needs."""
