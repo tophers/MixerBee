@@ -12,11 +12,10 @@ def get_people(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     Searches for people in the library by name.
 
     Returns a list of dictionaries, each containing the person's
-    Id, Name, and primary role (e.g., Actor, Director).
+    Id, Name, and primary role.
     """
     params = {
         "searchTerm": name,
-        "Fields": "PrimaryImageTag",
         "Limit": 20
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Persons", params=params, headers=hdr, timeout=10)
@@ -27,7 +26,7 @@ def get_people(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
         {
             "Id": p.get("Id"),
             "Name": p.get("Name"),
-            "Role": p.get("PrimaryImageTag")
+            "Role": "Person"
         }
         for p in items
     ]
