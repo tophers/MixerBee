@@ -54,7 +54,7 @@ class AIBlock(BaseModel):
     )
     movie_people: List[str] = Field(
         default=[],
-        description="List of actor or director names requested. Empty array if unspecified."
+        description="List of other people names requested (e.g., writers, producers) or general person search. Empty array if unspecified."
     )
     movie_directors: List[str] = Field(
         default=[],
