@@ -51,9 +51,21 @@ def find_movies(user_id: str, filters: Dict,
     
     people_filter = filters.get("people")
     if people_filter:
-        person_ids = [p.get("Id") for p in people_filter if p.get("Id")]
+        person_ids = []
+        person_types = set() 
+
+        for p in people_filter:
+            if p.get("Id"):
+                person_ids.append(p["Id"])
+            
+            role = p.get("Role", "")
+            if role and role.lower() not in ["person", "any", ""]:
+                person_types.add(role)
+
         if person_ids:
             base_params["PersonIds"] = ",".join(person_ids)
+        if person_types:
+            base_params["PersonTypes"] = ",".join(person_types)
 
     exclude_people_filter = filters.get("exclude_people")
     if exclude_people_filter:

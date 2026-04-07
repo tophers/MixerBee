@@ -210,6 +210,10 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                 blockData.filters.genres_any.push(itemData.Name);
             } else if (itemType === 'person') {
                 if (!blockData.filters.people) blockData.filters.people = [];
+                const roleSelect = button.closest('.filter-group').querySelector('.movie-block-person-role');
+                if (roleSelect && roleSelect.value !== 'Person') {
+                    itemData.Role = roleSelect.value;
+                }
                 blockData.filters.people.push(itemData);
             } else if (itemType === 'studio') {
                 if (!blockData.filters.studios) blockData.filters.studios = [];
