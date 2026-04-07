@@ -556,11 +556,20 @@
                         <legend>People & Studios</legend>
                         <details>
                             <summary>Expand/Collapse Filters</summary>
-                            <div class="token-field-wrapper">
-                                <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios...">
-                                <div class="autocomplete-suggestions"></div>
-                            </div>
-                            <div class="token-container movie-block-person-tokens"></div>
+                          <div class="input-with-button" style="margin-bottom: 0.5rem; align-items: flex-start;">
+                              <select class="movie-block-person-role" style="flex-shrink: 0; width: auto;">
+                                <option value="Person">Any Role</option>
+                                <option value="Actor">Actor</option>
+                                <option value="Director">Director</option>
+                                <option value="Writer">Writer</option>
+                                <option value="Producer">Producer</option>
+                              </select>
+                              <div class="token-field-wrapper" style="flex-grow: 1;">
+                                 <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios..." style="width: 100%;">
+                                 <div class="autocomplete-suggestions"></div>
+                             </div>
+                          </div>  
+                          <div class="token-container movie-block-person-tokens"></div>
                         </details>
                     </fieldset>
                     <fieldset class="filter-group">

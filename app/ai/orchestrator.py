@@ -21,49 +21,56 @@ class AIBlock(BaseModel):
         if isinstance(v, str):
             return v.lower()
         return v
-    
+
     ai_title: str = Field(
         default="Curated Mix",
         description="A short, catchy title for this block. E.g., 'Spooky Vibes' or '80s Action'"
     )
-    
+
     tv_shows: List[str] = Field(
-        default=[], 
+        default=[],
         description="List of exact TV show names. Empty array if not a tv block."
     )
     tv_count: int = Field(
-        default=3, 
+        default=3,
         description="Number of episodes. Default to 3 if unspecified."
     )
-    
+
     movie_genres: List[str] = Field(
-        default=[], 
+        default=[],
         description="List of exact movie genres. Empty array if not a movie block."
     )
     movie_limit: int = Field(
-        default=5, 
+        default=5,
         description="Number of movies. Default to 5 if unspecified."
     )
     movie_year_from: int = Field(
-        default=0, 
+        default=0,
         description="Start year for movie release (e.g., 1980). 0 if unspecified."
     )
     movie_year_to: int = Field(
-        default=0, 
+        default=0,
         description="End year for movie release (e.g., 1989). 0 if unspecified."
     )
     movie_people: List[str] = Field(
-        default=[], 
-        description="List of actor or director names requested. Empty array if unspecified."
+        default=[],
+        description="List of other people names requested (e.g., writers, producers) or general person search. Empty array if unspecified."
     )
-    
+    movie_directors: List[str] = Field(
+        default=[],
+        description="List of exact director names requested. Empty array if unspecified."
+    )
+    movie_actors: List[str] = Field(
+        default=[],
+        description="List of exact actor names requested. Empty array if unspecified."
+    )
     movie_ids: List[str] = Field(
-        default=[], 
+        default=[],
         description="List of specific internal item IDs returned by the vibe search tool. Empty array if unspecified."
     )
 
     music_mode: Literal["album", "artist_top", "artist_random", "genre"] = Field(
-        default="genre", 
+        default="genre",
         description="Must be 'album', 'artist_top', 'artist_random', or 'genre'. Default to 'genre'."
     )
 
@@ -75,73 +82,82 @@ class AIBlock(BaseModel):
         return v
 
     music_artist_id: str = Field(
-        default="", 
+        default="",
         description="The internal ID from the verify_artist tool. Empty string if not an artist request."
     )
     music_genres: List[str] = Field(
-        default=[], 
+        default=[],
         description="List of exact music genres. Empty array if not a genre request."
     )
     music_count: int = Field(
-        default=15, 
+        default=15,
         description="Number of tracks to fetch. Default to 15 if unspecified."
     )
 
 def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict]:
     """Translates the flat AI schema into the complex nested schema the frontend needs."""
     b_type = ai_block.block_type.lower()
-    
+
     if "tv" in b_type:
         shows = [{"name": name, "season": 1, "episode": 1, "unwatched": True} for name in ai_block.tv_shows]
-        if not shows: 
+        if not shows:
             return None
         return {
             "type": "tv",
             "title": ai_block.ai_title,
-            "is_ai_generated": True, # TV blocks with specific shows act as curated lists
+            "is_ai_generated": True,
             "mode": "count",
             "count": max(1, ai_block.tv_count),
             "interleave": True,
             "shows": shows
         }
-        
+
     elif "movie" in b_type:
-        if not ai_block.movie_genres and not ai_block.movie_people and not ai_block.movie_ids and ai_block.movie_year_from == 0: 
+        if not ai_block.movie_genres and not ai_block.movie_people and not ai_block.movie_ids and ai_block.movie_year_from == 0:
             return None
-            
+
         filters = {
             "watched_status": "unplayed",
             "sort_by": "Random",
             "limit": max(1, ai_block.movie_limit)
         }
-        
+
         is_ai_curated = False
-        
+
         if ai_block.movie_genres:
             filters["genres_any"] = ai_block.movie_genres
         if ai_block.movie_year_from > 0:
             filters["year_from"] = ai_block.movie_year_from
         if ai_block.movie_year_to > 0:
             filters["year_to"] = ai_block.movie_year_to
-        if ai_block.movie_people:
-            filters["people"] = [{"Name": name} for name in ai_block.movie_people]
             
+        if ai_block.movie_people:
+            filters["people"] = [{"Name": name, "Role": "Person"} for name in ai_block.movie_people]
+        else:
+            filters["people"] = []
+
+        if ai_block.movie_directors:
+            filters["people"].extend([{"Name": name, "Role": "Director"} for name in ai_block.movie_directors])
+            
+        if ai_block.movie_actors:
+            filters["people"].extend([{"Name": name, "Role": "Actor"} for name in ai_block.movie_actors])
+
         if ai_block.movie_ids:
             filters["ids"] = ai_block.movie_ids
-            is_ai_curated = True # Flag this to hide the manual UI dropdowns!
-            
+            is_ai_curated = True
+
         return {
             "type": "movie",
             "title": ai_block.ai_title,
-            "is_ai_generated": is_ai_curated, 
+            "is_ai_generated": is_ai_curated,
             "filters": filters
         }
-        
+
     elif "music" in b_type:
         return {
             "type": "music",
             "title": ai_block.ai_title,
-            "is_ai_generated": bool(ai_block.music_artist_id), # Curated if targeting a specific artist
+            "is_ai_generated": bool(ai_block.music_artist_id),
             "music": {
                 "mode": ai_block.music_mode,
                 "artistId": ai_block.music_artist_id,
@@ -173,12 +189,12 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     researcher_system = """
     You are a library research assistant. Analyze the user's prompt.
     Use your tools to find the EXACT names of any TV shows, music artists, or genres mentioned.
-    
+
     CRITICAL INSTRUCTION: If the user asks for a "vibe", "mood", "feeling", or ANY abstract concept (like "spooky", "mysterious", "cozy", "action-packed"), you ABSOLUTELY MUST call the `search_by_vibe` tool with that concept. Do not try to guess genres. Use the tool to get the specific internal IDs.
-    
+
     Summarize your findings clearly. E.g., 'The user wants the following movie IDs for a spooky vibe: ["123", "456", "789"].'
     """
-    
+
     logging.info(f"AI Phase 1: Researching items for prompt: '{prompt}'")
     chat = client.chats.create(
         model=model_name,
@@ -188,7 +204,7 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
             temperature=0.2
         )
     )
-    
+
     research_response = chat.send_message(prompt)
     verified_context = research_response.text
     logging.info(f"AI Phase 1 Context Gathered: {verified_context}")
@@ -197,7 +213,7 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     builder_system = """
     You are a JSON formatter for media playlists. You will receive a user's original request AND a verified context summary from a researcher.
     Your job is to translate this into the required JSON schema.
-    
+
     CRITICAL RULES:
     1. Use ONLY the exact names/IDs provided in the verified context summary.
     2. You must output a flat schema. For fields that DO NOT apply, output an empty string "", 0, or an empty array [].
@@ -205,9 +221,9 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     4. If the researcher provides specific Movie IDs, you MUST output them in the `movie_ids` array. Do not leave it empty if IDs are provided in the context.
     5. Always generate a fun, concise `ai_title` for the block based on the prompt.
     """
-    
+
     builder_prompt = f"User Request: {prompt}\n\nVerified Context: {verified_context}"
-    
+
     logging.info("AI Phase 2: Building strict JSON schema.")
     builder_response = client.models.generate_content(
         model=model_name,
