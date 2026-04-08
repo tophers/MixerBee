@@ -277,5 +277,10 @@ export function initSchedulerPane() {
     frequencySelect?.addEventListener('change', toggleDaysOfWeek);
     quickTypeSelect?.addEventListener('change', syncPlaylistName);
     presetSelect?.addEventListener('change', syncPlaylistName);
-    document.getElementById('save-preset-confirm-btn')?.addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
+    ['save-preset-confirm-btn', 'delete-preset-btn', 'import-preset-confirm-btn'].forEach(id => {
+        document.getElementById(id)?.addEventListener('click', () => {
+            console.log(`Global event ${id} detected: Refreshing Scheduler dropdown.`);
+            setTimeout(populatePresetDropdown, 250);
+        });
+    });
 }
