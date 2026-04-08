@@ -119,7 +119,7 @@ def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict]:
             return None
 
         filters = {
-            "watched_status": "unplayed",
+            "watched_status": "all",
             "sort_by": "Random",
             "limit": max(1, ai_block.movie_limit)
         }
