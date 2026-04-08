@@ -39,7 +39,7 @@ def find_movies(user_id: str, filters: Dict,
     }
 
     if filters.get("parent_ids"):
-        base_params["ParentId"] = ",".join(filters["parent_ids"])
+        base_params["ParentIds"] = ",".join(filters["parent_ids"])
 
     if filters.get("ids"):
         base_params["Ids"] = ",".join(filters["ids"])
