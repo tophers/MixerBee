@@ -3,6 +3,7 @@
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
+import { getSchedulerAutosave, setSchedulerAutosave } from './builderState.js';
 
 let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSourceSelect,
     frequencySelect, scheduleTimeInput, daysContainer, daysCheckboxes,
@@ -11,6 +12,7 @@ let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSou
 
 let editingScheduleId = null;
 let schedulesData = [];
+let isHydrating = true; // Start LOCKED to prevent defaults from overwriting autosave
 
 const schedulableQuickPlaylists = SMART_BUILD_TYPES.filter(t => t.schedulable);
 const quickPlaylistFriendlyNames = schedulableQuickPlaylists.reduce((acc, curr) => {
@@ -19,6 +21,7 @@ const quickPlaylistFriendlyNames = schedulableQuickPlaylists.reduce((acc, curr) 
 }, {});
 
 function populateQuickPlaylistDropdown() {
+  if (!quickTypeSelect) return;
   quickTypeSelect.innerHTML = '';
   schedulableQuickPlaylists.forEach(playlist => {
     const option = document.createElement('option');
@@ -29,38 +32,37 @@ function populateQuickPlaylistDropdown() {
 }
 
 function syncPlaylistName() {
-  if (editingScheduleId) return;
-
-  const sourceType = scheduleSourceSelect.value;
-
+  if (editingScheduleId || isHydrating) return;
+  const sourceType = scheduleSourceSelect?.value;
   if (sourceType === 'builder') {
-    const presetName = presetSelect.options[presetSelect.selectedIndex].text;
-    if (presetName && !presetName.startsWith('--')) {
+    const presetName = presetSelect?.options[presetSelect.selectedIndex]?.text;
+    if (presetName && !presetName.startsWith('--') && schedulePlaylistNameInput) {
       schedulePlaylistNameInput.value = presetName;
     }
   } else if (sourceType === 'quick_playlist') {
-    const selectedType = quickTypeSelect.options[quickTypeSelect.selectedIndex].text;
-    schedulePlaylistNameInput.value = `Scheduled: ${selectedType}`;
+    const selectedType = quickTypeSelect?.options[quickTypeSelect.selectedIndex]?.text;
+    if (selectedType && schedulePlaylistNameInput) {
+        schedulePlaylistNameInput.value = `Scheduled: ${selectedType}`;
+    }
   }
 }
 
 function toggleSourceOptions() {
-  const sourceType = scheduleSourceSelect.value;
-  builderOptionsContainer.classList.toggle('hidden', sourceType !== 'builder');
-  quickOptionsContainer.classList.toggle('hidden', sourceType !== 'quick_playlist');
+  const sourceType = scheduleSourceSelect?.value;
+  if (builderOptionsContainer) builderOptionsContainer.classList.toggle('hidden', sourceType !== 'builder');
+  if (quickOptionsContainer) quickOptionsContainer.classList.toggle('hidden', sourceType !== 'quick_playlist');
   syncPlaylistName();
 }
 
 function toggleDaysOfWeek() {
-  const isWeekly = frequencySelect.value === 'weekly';
-  daysContainer.classList.toggle('hidden', !isWeekly);
+  const isWeekly = frequencySelect?.value === 'weekly';
+  if (daysContainer) daysContainer.classList.toggle('hidden', !isWeekly);
 }
 
 async function getMixedPresets() {
   try {
     const response = await fetch('api/presets');
-    if (!response.ok) return {};
-    return await response.json();
+    return response.ok ? await response.json() : {};
   } catch (err) {
     console.error('Failed to fetch presets for scheduler.', err);
     return {};
@@ -68,9 +70,9 @@ async function getMixedPresets() {
 }
 
 async function populatePresetDropdown() {
+  if (!presetSelect) return;
   const presets = await getMixedPresets();
   const currentVal = presetSelect.value;
-
   presetSelect.innerHTML = '<option value="">-- Select a saved preset --</option>';
   for (const name in presets) {
     const option = document.createElement('option');
@@ -78,98 +80,83 @@ async function populatePresetDropdown() {
     option.textContent = name;
     presetSelect.appendChild(option);
   }
-
-  if (presets[currentVal]) {
-    presetSelect.value = currentVal;
-  }
+  if (presets[currentVal]) presetSelect.value = currentVal;
 }
 
 function resetCreateForm() {
     editingScheduleId = null;
+    isHydrating = true; // Lock while resetting
     const form = document.querySelector('#scheduler-pane .collapsible-section-body');
-    form.querySelectorAll('input[type="text"], input[type="number"], input[type="time"]').forEach(input => {
-        if(input.id === 'schedule-quick-count-input') input.value = '10';
-        else if(input.id === 'schedule-time-input') input.value = '19:00';
-        else input.value = 'Scheduled';
-    });
-    form.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
-    daysCheckboxes.forEach(cb => cb.checked = false);
-    scheduleCreateAsCollectionCb.checked = false;
+    if (form) {
+        form.querySelectorAll('input[type="text"], input[type="number"], input[type="time"]').forEach(input => {
+            if(input.id === 'schedule-quick-count-input') input.value = '10';
+            else if(input.id === 'schedule-time-input') input.value = '19:00';
+            else input.value = 'Scheduled';
+        });
+        form.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
+        if (daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = false);
+        if (scheduleCreateAsCollectionCb) scheduleCreateAsCollectionCb.checked = false;
+    }
     toggleSourceOptions();
     toggleDaysOfWeek();
-
-    createBtn.textContent = 'Create Schedule';
-    cancelEditBtn.classList.add('hidden');
+    if (createBtn) createBtn.textContent = 'Create Schedule';
+    if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
+    setSchedulerAutosave(null); 
+    isHydrating = false;
 }
 
 function populateFormForEdit(schedule) {
-    schedulePlaylistNameInput.value = schedule.playlist_name;
-    scheduleSourceSelect.value = schedule.job_type;
+    isHydrating = true;
+    if (schedulePlaylistNameInput) schedulePlaylistNameInput.value = schedule.playlist_name;
+    if (scheduleSourceSelect) scheduleSourceSelect.value = schedule.job_type;
     toggleSourceOptions();
-
     if (schedule.job_type === 'builder') {
-        presetSelect.value = schedule.preset_name;
-        scheduleCreateAsCollectionCb.checked = schedule.create_as_collection || false;
+        if (presetSelect) presetSelect.value = schedule.preset_name;
+        if (scheduleCreateAsCollectionCb) scheduleCreateAsCollectionCb.checked = schedule.create_as_collection || false;
     } else if (schedule.job_type === 'quick_playlist') {
-        quickTypeSelect.value = schedule.quick_playlist_data.quick_playlist_type;
-        quickCountInput.value = schedule.quick_playlist_data.options.count;
+        if (quickTypeSelect) quickTypeSelect.value = schedule.quick_playlist_data.quick_playlist_type;
+        if (quickCountInput) quickCountInput.value = schedule.quick_playlist_data.options.count;
     }
     const details = schedule.schedule_details;
-    frequencySelect.value = details.frequency;
+    if (frequencySelect) frequencySelect.value = details.frequency;
     toggleDaysOfWeek();
-    scheduleTimeInput.value = details.time;
-    daysCheckboxes.forEach(cb => {
-        cb.checked = (details.days_of_week || []).includes(parseInt(cb.value));
-    });
+    if (scheduleTimeInput) scheduleTimeInput.value = details.time;
+    if (daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = (details.days_of_week || []).includes(parseInt(cb.value)));
+    isHydrating = false;
 }
 
 function enterEditMode(scheduleId) {
     const scheduleToEdit = schedulesData.find(s => s.id === scheduleId);
-    if (!scheduleToEdit) {
-        toast('Could not find schedule data to edit.', false);
-        return;
-    }
-
+    if (!scheduleToEdit) return toast('Could not find schedule data to edit.', false);
     editingScheduleId = scheduleId;
     populateFormForEdit(scheduleToEdit);
-
-    createBtn.textContent = 'Update Schedule';
-    cancelEditBtn.classList.remove('hidden');
-
-    const createSection = schedulerPane.querySelector('.collapsible-section');
-    createSection.open = true;
-    createSection.scrollIntoView({ behavior: 'smooth' });
+    if (createBtn) createBtn.textContent = 'Update Schedule';
+    if (cancelEditBtn) cancelEditBtn.classList.remove('hidden');
+    const createSection = schedulerPane?.querySelector('.collapsible-section');
+    if (createSection) { createSection.open = true; createSection.scrollIntoView({ behavior: 'smooth' }); }
 }
 
 export async function loadSchedulerData() {
-    const scheduleCountSpan = document.getElementById('schedule-count');
-    const scheduleListContainer = document.getElementById('schedules-list-container');
     const schedulesListEl = document.getElementById('schedules-list');
+    if (!schedulesListEl) return;
     try {
-
         const response = await fetch('api/schedules');
-        if (!response.ok) throw new Error('Failed to fetch schedules');
-        const schedules = await response.json();
-        schedulesData = schedules;
-        scheduleCountSpan.textContent = `(${schedules.length})`;
-        scheduleListContainer.classList.toggle('hidden', schedules.length === 0);
-        schedulesListEl.innerHTML = '';
-        if (schedules.length === 0) {
-            schedulesListEl.innerHTML = '<li style="text-align: center; padding: 2rem; color: var(--text-subtle);">No schedules configured.</li>';
-            return;
-        }
-        schedules.forEach(schedule => renderSchedule(schedule, schedulesListEl));
+        schedulesData = response.ok ? await response.json() : [];
+        const countSpan = document.getElementById('schedule-count');
+        if (countSpan) countSpan.textContent = `(${schedulesData.length})`;
+        const container = document.getElementById('schedules-list-container');
+        if (container) container.classList.toggle('hidden', schedulesData.length === 0);
+        schedulesListEl.innerHTML = schedulesData.length === 0 ? '<li style="text-align: center; padding: 2rem; color: var(--text-subtle);">No schedules configured.</li>' : '';
+        schedulesData.forEach(schedule => renderSchedule(schedule, schedulesListEl));
         if (typeof feather !== 'undefined') feather.replace();
     } catch (err) {
         console.error("Error loading schedules:", err);
-        schedulesListEl.innerHTML = '<li>Error loading schedules.</li>';
     }
 }
 
 function renderSchedule(schedule, parentList) {
   let sourceText = 'unknown source';
   if (schedule.job_type === 'builder') {
-    // Tweak: Display whether it's building a Collection or Playlist
     const outputType = schedule.create_as_collection ? "Collection" : "Playlist";
     sourceText = `preset: <em>${schedule.preset_name || 'Unknown Preset'}</em> (${outputType})`;
   } else if (schedule.job_type === 'quick_playlist') {
@@ -177,161 +164,82 @@ function renderSchedule(schedule, parentList) {
     const friendly = quickPlaylistFriendlyNames[key] || 'Auto Playlist';
     sourceText = `Auto Playlist: <em>${friendly}</em>`;
   }
-
   const [hour, minute] = schedule.schedule_details.time.split(':');
-  const hourNum = parseInt(hour, 10);
-  const ampm = hourNum >= 12 ? 'PM' : 'AM';
-  const friendlyHour = ((hourNum + 11) % 12) + 1;
-  const friendlyTime = `${friendlyHour}:${minute} ${ampm}`;
-
-  let frequencyText = 'daily';
-  if (schedule.schedule_details.frequency === 'weekly') {
-    const dayMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const days = schedule.schedule_details.days_of_week || [];
-    const selectedDays = days.map(d => dayMap[d]).join(', ');
-    frequencyText = `every ${selectedDays}`;
-  }
+  const friendlyTime = `${((parseInt(hour, 10) + 11) % 12) + 1}:${minute} ${parseInt(hour, 10) >= 12 ? 'PM' : 'AM'}`;
+  let frequencyText = schedule.schedule_details.frequency === 'weekly' 
+    ? `every ${ (schedule.schedule_details.days_of_week || []).map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ') }` 
+    : 'daily';
 
   const listItem = document.createElement('li');
-  listItem.innerHTML = `
-    <fieldset class="filter-group" style="margin-bottom:1rem;">
-      <legend>${schedule.playlist_name}</legend>
-      <div class="schedule-item-content">
-        <p class="schedule-details-text">
-          <span style="
-            font-weight:bold;
-            font-style:normal;
-            font-size:1.2em;
-            color:var(--accent);
-            margin-right:0.5rem;">→
-          </span>
-          Builds ${frequencyText} at ${friendlyTime} from ${sourceText}
-        </p>
-        <div class="schedule-status-container">
-          ${
-            schedule.last_run
-              ? `
-            <span
-              class="last-run-status ${schedule.last_run.status === 'ok'
-                ? 'status-success'
-                : 'status-danger'}"
-              title="${(schedule.last_run.log || []).join('\n')}">
-              <i data-feather="${
-                schedule.last_run.status === 'ok' ? 'check-circle' : 'alert-circle'
-              }"></i>
-            </span>
-            <span>Last run: ${new Date(schedule.last_run.timestamp).toLocaleString()}</span>
-          `
-              : `<span style="font-style:italic;">Never run</span>`
-          }
-        </div>
-        <div class="schedule-button-container">
-          <button
-            type="button"
-            class="icon-btn edit-schedule-btn"
-            title="Edit Schedule"
-            data-id="${schedule.id}">
-            <i data-feather="edit-2"></i>
-          </button>
-          <button
-            type="button"
-            class="icon-btn run-now-btn"
-            title="Run Schedule Now"
-            data-id="${schedule.id}">
-            <i data-feather="play"></i>
-          </button>
-          <button
-            type="button"
-            class="icon-btn danger delete-schedule-btn"
-            title="Delete Schedule"
-            data-id="${schedule.id}">
-            <i data-feather="trash-2"></i>
-          </button>
-        </div>
-      </div>
-    </fieldset>
-  `;
+  listItem.innerHTML = `<fieldset class="filter-group" style="margin-bottom:1rem;"><legend>${schedule.playlist_name}</legend><div class="schedule-item-content"><p class="schedule-details-text"><span style="font-weight:bold;color:var(--accent);margin-right:0.5rem;">→</span>Builds ${frequencyText} at ${friendlyTime} from ${sourceText}</p><div class="schedule-status-container">${schedule.last_run ? `<span class="last-run-status ${schedule.last_run.status === 'ok' ? 'status-success' : 'status-danger'}" title="${(schedule.last_run.log || []).join('\n')}"><i data-feather="${schedule.last_run.status === 'ok' ? 'check-circle' : 'alert-circle'}"></i></span><span>Last run: ${new Date(schedule.last_run.timestamp).toLocaleString()}</span>` : `<span style="font-style:italic;">Never run</span>`}</div><div class="schedule-button-container"><button type="button" class="icon-btn edit-schedule-btn" title="Edit" data-id="${schedule.id}"><i data-feather="edit-2"></i></button><button type="button" class="icon-btn run-now-btn" title="Run Now" data-id="${schedule.id}"><i data-feather="play"></i></button><button type="button" class="icon-btn danger delete-schedule-btn" title="Delete" data-id="${schedule.id}"><i data-feather="trash-2"></i></button></div></div></fieldset>`;
   parentList.appendChild(listItem);
-
-  listItem
-    .querySelector('.edit-schedule-btn')
-    .addEventListener('click', () => enterEditMode(schedule.id));
-
-  listItem
-    .querySelector('.run-now-btn')
-    .addEventListener('click', async event => {
-      const res = await post(
-        `api/schedules/${schedule.id}/run`,
-        {},
-        event.currentTarget,
-        'POST'
-      );
-      loadSchedulerData();
-    });
-
-  listItem
-    .querySelector('.delete-schedule-btn')
-    .addEventListener('click', async event => {
-      try {
-        await confirmModal.show({
-          title: 'Delete Schedule?',
-          text: `Are you sure you want to delete the schedule for "${schedule.playlist_name}"?`,
-          confirmText: 'Delete',
-        });
-        const res = await post(
-          `api/schedules/${schedule.id}`,
-          {},
-          event.currentTarget,
-          'DELETE'
-        );
-        if (res.status === 'ok') loadSchedulerData();
-      } catch {
-        // Modal cancelled
-      }
-    });
+  listItem.querySelector('.edit-schedule-btn').addEventListener('click', () => enterEditMode(schedule.id));
+  listItem.querySelector('.run-now-btn').addEventListener('click', async e => { await post(`api/schedules/${schedule.id}/run`, {}, e.currentTarget, 'POST'); loadSchedulerData(); });
+  listItem.querySelector('.delete-schedule-btn').addEventListener('click', async e => {
+      try { await confirmModal.show({ title: 'Delete Schedule?', text: `Are you sure?`, confirmText: 'Delete' }); const res = await post(`api/schedules/${schedule.id}`, {}, e.currentTarget, 'DELETE'); if (res.status === 'ok') loadSchedulerData(); } catch {}
+  });
 }
 
 async function handleScheduleFormSubmit(event) {
-    const sourceType = scheduleSourceSelect.value;
-    const userId = userSelect.value;
-    const frequency = frequencySelect.value;
-    const selectedDays = [...daysCheckboxes].filter(cb => cb.checked).map(cb => parseInt(cb.value));
-    const playlistName = schedulePlaylistNameInput.value.trim();
-    const timeValue = scheduleTimeInput.value;
-    if (!playlistName || !timeValue || !userId) { toast('Please provide a playlist name and select a time.', false); return; }
-    if (frequency === 'weekly' && selectedDays.length === 0) { toast('Please select at least one day for a weekly schedule.', false); return; }
-    const requestBody = { playlist_name: playlistName, user_id: userId, job_type: sourceType, schedule_details: { frequency, time: timeValue, days_of_week: frequency === 'weekly' ? selectedDays : null } };
-    if (sourceType === 'builder') {
-        const presetName = presetSelect.value;
-        if (!presetName) { toast('Please select a Builder Preset to schedule.', false); return; }
+    const selectedDays = daysCheckboxes ? Array.from(daysCheckboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value)) : [];
+    const requestBody = { 
+        playlist_name: schedulePlaylistNameInput.value.trim(), 
+        user_id: userSelect.value, 
+        job_type: scheduleSourceSelect.value, 
+        schedule_details: { frequency: frequencySelect.value, time: scheduleTimeInput.value, days_of_week: frequencySelect.value === 'weekly' ? selectedDays : null } 
+    };
+    if (scheduleSourceSelect.value === 'builder') {
         const presets = await getMixedPresets();
-        const presetData = presets[presetName];
-        if (!presetData) { toast('Could not find data for the selected preset.', false); return; }
-        requestBody.preset_name = presetName;
-        requestBody.blocks = presetData;
-        requestBody.create_as_collection = scheduleCreateAsCollectionCb.checked;
-    } else if (sourceType === 'quick_playlist') {
-        const quickType = quickTypeSelect.value;
-        const count = parseInt(quickCountInput.value, 10);
-        if (!quickType || !count || count < 1) { toast('Please select an Auto Playlist type and enter a valid number of items.', false); return; }
-        requestBody.quick_playlist_data = { quick_playlist_type: quickType, options: { count: count } };
-        requestBody.preset_name = quickPlaylistFriendlyNames[quickType] || 'Auto Playlist';
+        requestBody.preset_name = presetSelect.value;
+        requestBody.blocks = presets[presetSelect.value];
+        requestBody.create_as_collection = scheduleCreateAsCollectionCb?.checked || false;
+    } else {
+        requestBody.quick_playlist_data = { quick_playlist_type: quickTypeSelect.value, options: { count: parseInt(quickCountInput.value, 10) } };
+        requestBody.preset_name = quickPlaylistFriendlyNames[quickTypeSelect.value] || 'Auto Playlist';
     }
-
     const method = editingScheduleId ? 'PUT' : 'POST';
     const endpoint = editingScheduleId ? `api/schedules/${editingScheduleId}` : 'api/schedules';
-
-    post(endpoint, requestBody, event.currentTarget, method).then(res => {
-        if (res.status === 'ok') {
-            loadSchedulerData();
-            resetCreateForm();
-        }
-    });
+    post(endpoint, requestBody, event.currentTarget, method).then(res => { if (res.status === 'ok') { loadSchedulerData(); resetCreateForm(); } });
 }
 
+function getSchedulerFormState() {
+    return {
+        playlistName: schedulePlaylistNameInput?.value || '',
+        source: scheduleSourceSelect?.value || '',
+        presetName: presetSelect?.value || '',
+        createAsCollection: scheduleCreateAsCollectionCb ? scheduleCreateAsCollectionCb.checked : false,
+        quickType: quickTypeSelect?.value || '',
+        quickCount: quickCountInput?.value || '',
+        frequency: frequencySelect?.value || '',
+        time: scheduleTimeInput?.value || '',
+        days: daysCheckboxes ? Array.from(daysCheckboxes).filter(cb => cb.checked).map(cb => cb.value) : []
+    };
+}
+
+function applySchedulerFormState(state) {
+    if (!state) return;
+    isHydrating = true;
+    try {
+        if (state.source) scheduleSourceSelect.value = state.source;
+        if (state.presetName) presetSelect.value = state.presetName;
+        if (state.createAsCollection !== undefined && scheduleCreateAsCollectionCb) scheduleCreateAsCollectionCb.checked = state.createAsCollection;
+        if (state.quickType) quickTypeSelect.value = state.quickType;
+        if (state.quickCount) quickCountInput.value = state.quickCount;
+        if (state.frequency) frequencySelect.value = state.frequency;
+        if (state.time) scheduleTimeInput.value = state.time;
+        if (state.days && daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = state.days.includes(cb.value));
+        toggleSourceOptions();
+        toggleDaysOfWeek();
+        if (state.playlistName) schedulePlaylistNameInput.value = state.playlistName;
+    } catch (e) { console.error("Restore failed:", e); }
+    // Lock is released in init function after all async work is done
+}
 
 export function initSchedulerPane() {
     schedulerPane = document.getElementById('scheduler-pane');
+    if (!schedulerPane) return;
+    isHydrating = true; // Lock everything immediately
+
     userSelect = document.getElementById('user-select');
     createBtn = schedulerPane.querySelector('#create-schedule-btn');
     cancelEditBtn = schedulerPane.querySelector('#cancel-edit-schedule-btn');
@@ -348,15 +256,26 @@ export function initSchedulerPane() {
     quickCountInput = schedulerPane.querySelector('#schedule-quick-count-input');
     scheduleCreateAsCollectionCb = schedulerPane.querySelector('#schedule-create-as-collection-cb');
 
-    populatePresetDropdown();
     populateQuickPlaylistDropdown();
-    createBtn.addEventListener('click', handleScheduleFormSubmit);
-    cancelEditBtn.addEventListener('click', resetCreateForm);
-    scheduleSourceSelect.addEventListener('change', toggleSourceOptions);
-    frequencySelect.addEventListener('change', toggleDaysOfWeek);
-    quickTypeSelect.addEventListener('change', syncPlaylistName);
-    presetSelect.addEventListener('change', syncPlaylistName);
-    document.getElementById('save-preset-confirm-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
-    document.getElementById('delete-preset-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
-    document.getElementById('import-preset-confirm-btn').addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
+    
+    populatePresetDropdown().then(() => {
+        const saved = getSchedulerAutosave();
+        if (saved) applySchedulerFormState(saved);
+        
+        // --- RELEASE THE LOCK LAST ---
+        isHydrating = false;
+
+        const body = schedulerPane.querySelector('.collapsible-section-body');
+        const triggerSave = () => { if (!editingScheduleId && !isHydrating) setSchedulerAutosave(getSchedulerFormState()); };
+        body?.addEventListener('input', triggerSave);
+        body?.addEventListener('change', triggerSave);
+    });
+
+    createBtn?.addEventListener('click', handleScheduleFormSubmit);
+    cancelEditBtn?.addEventListener('click', resetCreateForm);
+    scheduleSourceSelect?.addEventListener('change', toggleSourceOptions);
+    frequencySelect?.addEventListener('change', toggleDaysOfWeek);
+    quickTypeSelect?.addEventListener('change', syncPlaylistName);
+    presetSelect?.addEventListener('change', syncPlaylistName);
+    document.getElementById('save-preset-confirm-btn')?.addEventListener('click', () => setTimeout(populatePresetDropdown, 100));
 }

@@ -60,11 +60,16 @@ async function handleEarlyRestorePrompt() {
 
     try {
         const savedState = JSON.parse(savedData);
-        const blocks = savedState.blocks;
-        if (Array.isArray(blocks) && blocks.length > 0) {
+        const blocks = savedState.blocks || [];
+        const scheduler = savedState.scheduler || null;
+        
+        const hasBlocks = Array.isArray(blocks) && blocks.length > 0;
+        const hasScheduler = scheduler && Object.keys(scheduler).length > 0;
+
+        if (hasBlocks || hasScheduler) {
             await confirmModal.show({
                 title: 'Restore Previous Session?',
-                text: 'We found some unsaved blocks from your last session. Would you like to restore them?',
+                text: 'We found unsaved data from your last session. Would you like to restore it?',
                 confirmText: 'Restore',
             });
             return 'restore';
