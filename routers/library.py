@@ -178,3 +178,36 @@ def api_mix(req: models.MixRequest, auth_deps: dict = Depends(get_current_auth_h
         raise HTTPException(400, "This endpoint is for deletion only.")
     except Exception as e:
         raise HTTPException(400, str(e))
+
+@router.post("/api/convert_item")
+def api_convert_item(req: models.ConvertItemRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    action_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+    log = []
+
+    try:
+        children = core.get_item_children(req.user_id, req.item_id, action_hdr)
+        if not children:
+            raise HTTPException(status_code=400, detail="Source item is empty. Nothing to convert.")
+
+        item_ids = [child["Id"] for child in children]
+
+        new_id = None
+        if req.target_type.lower() == "collection":
+            new_id = core.create_collection_from_ids(req.user_id, req.new_name, item_ids, action_hdr, log)
+        else:
+            new_id = core.create_playlist(req.new_name, req.user_id, item_ids, action_hdr, log)
+
+        if not new_id:
+            raise HTTPException(status_code=500, detail="Failed to create the new converted item.")
+
+        if req.delete_original:
+            core.delete_item_by_id(req.item_id, action_hdr)
+            log.append("Original item deleted.")
+
+        return {"status": "ok", "log": log, "new_item_id": new_id}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error converting item {req.item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

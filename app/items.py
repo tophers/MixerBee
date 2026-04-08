@@ -676,3 +676,25 @@ def create_movie_collection(user_id: str, collection_name: str, filters: Dict, h
         if hasattr(e, 'response') and e.response is not None:
             logging.error(f"Response Body: {e.response.text}")
         return {"status": "error", "log": log}
+
+def create_collection_from_ids(user_id: str, collection_name: str, item_ids: List[str], hdr: Dict[str, str], log: List[str]) -> str:
+    """Creates a collection directly from a list of explicit item IDs."""
+    try:
+        params = {
+            "Name": collection_name,
+            "Ids": ",".join(item_ids),
+            "UserId": user_id,
+        }
+        request_headers = hdr.copy()
+        request_headers["Content-Type"] = "application/json"
+        
+        r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
+        r.raise_for_status()
+        
+        new_id = r.json().get("Id")
+        log.append(f"Successfully created collection '{collection_name}'.")
+        return new_id
+    except Exception as e:
+        log.append(f"Failed to create collection: {e}")
+        logging.error(f"Failed to create collection from IDs: {e}", exc_info=True)
+        return None
