@@ -155,7 +155,23 @@ export function renderMovieBlock({ blockData, index }) {
 
     const previewCountContainer = blockElement.querySelector('.movie-block-preview-count');
     previewCountContainer.innerHTML = `<span class="preview-count-span">...</span>`;
-
+    const activeFiltersSpan = blockElement.querySelector('.movie-block-active-filters');
+    if (activeFiltersSpan) {
+        const status = filters.watched_status || 'unplayed';
+        
+        if (status === 'unplayed') {
+            activeFiltersSpan.innerHTML = '<i data-feather="eye-off" style="width: 14px; height: 14px; vertical-align: text-bottom;"></i> Unplayed';
+            activeFiltersSpan.classList.remove('hidden');
+        } else if (status === 'played') {
+            activeFiltersSpan.innerHTML = '<i data-feather="check-circle" style="width: 14px; height: 14px; vertical-align: text-bottom;"></i> Played';
+            activeFiltersSpan.classList.remove('hidden');
+        } else if (status === 'all') {
+            activeFiltersSpan.innerHTML = '<i data-feather="check-circle" style="width: 14px; height: 14px; vertical-align: text-bottom;"></i> All';
+            activeFiltersSpan.classList.remove('hidden');
+        } else {
+            activeFiltersSpan.classList.add('hidden');
+        }
+    }
     const libraryGrid = blockElement.querySelector('.movie-block-libraries');
     const genreTokenContainer = blockElement.querySelector('.movie-block-genre-tokens');
     const personTokenContainer = blockElement.querySelector('.movie-block-person-tokens');

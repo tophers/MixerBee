@@ -157,7 +157,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
             const defaultShowObject = { name: appState.seriesData[0]?.name || '', season: 1, episode: 1, unwatched: true };
             newBlockData = { type: 'tv', shows: [defaultShowObject], mode: 'count', count: 3, interleave: true };
         } else if (blockType === 'movie') {
-            newBlockData = { type: 'movie', filters: { watched_status: 'unplayed', sort_by: 'Random', parent_ids: appState.libraryData.map(l => l.Id) } };
+            newBlockData = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: appState.libraryData.map(l => l.Id) } };
         } else if (blockType === 'music') {
             newBlockData = { type: 'music', music: { mode: 'album' } };
         }
