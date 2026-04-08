@@ -33,7 +33,8 @@ def api_config_status():
     return {
         "is_configured": app_state.is_configured,
         "is_ai_configured": bool(app_state.GEMINI_API_KEY),
-        "server_type": app_state.SERVER_TYPE
+        "server_type": app_state.SERVER_TYPE,
+        "version": core.CLIENT_VERSION
     }
 
 @router.post("/api/settings")
