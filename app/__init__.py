@@ -64,6 +64,7 @@ from .items import (
     delete_item_by_id,
     get_item_children,
     get_manageable_items,
+    create_collection_from_ids,
     create_recently_added_playlist,
     create_pilot_sampler_playlist,
     create_continue_watching_playlist,

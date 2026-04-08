@@ -1,7 +1,7 @@
 // static/js/manager.js
 
 import { post, toast } from './utils.js';
-import { confirmModal } from './modals.js';
+import { confirmModal, smartPlaylistModal } from './modals.js';
 
 let tableData = [];
 let sortColumn = 'Name';
@@ -102,6 +102,38 @@ function renderTable() {
         row.insertCell().textContent = item.ItemCount;
         row.insertCell().textContent = new Date(item.DateCreated).toLocaleDateString();
         const actionsCell = row.insertCell();
+        const convertBtn = document.createElement('button');
+        convertBtn.className = 'icon-btn';
+        convertBtn.innerHTML = '<i data-feather="refresh-cw"></i>';
+        
+        const isPlaylist = item.DisplayType === 'Playlist';
+        convertBtn.title = isPlaylist ? 'Convert to Collection' : 'Convert to Playlist';
+
+        convertBtn.onclick = async () => {
+            try {
+                const { playlistName } = await smartPlaylistModal.show({
+                    title: isPlaylist ? 'Convert to Collection' : 'Convert to Playlist',
+                    description: `Enter a name for the new ${isPlaylist ? 'Collection' : 'Playlist'}. The original will NOT be deleted.`,
+                    defaultName: `${item.Name} (${isPlaylist ? 'Collection' : 'Playlist'})`,
+                    countInput: false
+                });
+
+                const payload = {
+                    item_id: item.Id,
+                    user_id: userSelect.value,
+                    new_name: playlistName,
+                    target_type: isPlaylist ? 'Collection' : 'Playlist',
+                    delete_original: false
+                };
+
+                const res = await post('api/convert_item', payload, convertBtn);
+                if (res.status === 'ok') {
+                    loadManagerData();
+                }
+            } catch (err) {
+            }
+        };
+        actionsCell.appendChild(convertBtn);
         const deleteBtn = document.createElement('button');
         deleteBtn.className = 'icon-btn danger';
         deleteBtn.innerHTML = '<i data-feather="trash-2"></i>';

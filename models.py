@@ -76,3 +76,10 @@ class DeleteItemRequest(BaseModel):
 class RemoveFromPlaylistRequest(BaseModel):
     item_id_to_remove: str
     user_id: str
+
+class ConvertItemRequest(BaseModel):
+    item_id: str
+    user_id: str
+    new_name: str
+    target_type: str
+    delete_original: bool = False
