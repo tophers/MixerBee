@@ -7,7 +7,7 @@ import { SMART_BUILD_TYPES } from './definitions.js';
 let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSourceSelect,
     frequencySelect, scheduleTimeInput, daysContainer, daysCheckboxes,
     builderOptionsContainer, quickOptionsContainer, presetSelect, quickTypeSelect, quickCountInput,
-    cancelEditBtn, schedulerPane;
+    cancelEditBtn, schedulerPane, scheduleCreateAsCollectionCb;
 
 let editingScheduleId = null;
 let schedulesData = [];
@@ -29,7 +29,7 @@ function populateQuickPlaylistDropdown() {
 }
 
 function syncPlaylistName() {
-  if (editingScheduleId) return; 
+  if (editingScheduleId) return;
 
   const sourceType = scheduleSourceSelect.value;
 
@@ -94,6 +94,7 @@ function resetCreateForm() {
     });
     form.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
     daysCheckboxes.forEach(cb => cb.checked = false);
+    scheduleCreateAsCollectionCb.checked = false;
     toggleSourceOptions();
     toggleDaysOfWeek();
 
@@ -108,11 +109,11 @@ function populateFormForEdit(schedule) {
 
     if (schedule.job_type === 'builder') {
         presetSelect.value = schedule.preset_name;
+        scheduleCreateAsCollectionCb.checked = schedule.create_as_collection || false;
     } else if (schedule.job_type === 'quick_playlist') {
         quickTypeSelect.value = schedule.quick_playlist_data.quick_playlist_type;
         quickCountInput.value = schedule.quick_playlist_data.options.count;
     }
-
     const details = schedule.schedule_details;
     frequencySelect.value = details.frequency;
     toggleDaysOfWeek();
@@ -145,6 +146,7 @@ export async function loadSchedulerData() {
     const scheduleListContainer = document.getElementById('schedules-list-container');
     const schedulesListEl = document.getElementById('schedules-list');
     try {
+
         const response = await fetch('api/schedules');
         if (!response.ok) throw new Error('Failed to fetch schedules');
         const schedules = await response.json();
@@ -167,7 +169,9 @@ export async function loadSchedulerData() {
 function renderSchedule(schedule, parentList) {
   let sourceText = 'unknown source';
   if (schedule.job_type === 'builder') {
-    sourceText = `preset: <em>${schedule.preset_name || 'Unknown Preset'}</em>`;
+    // Tweak: Display whether it's building a Collection or Playlist
+    const outputType = schedule.create_as_collection ? "Collection" : "Playlist";
+    sourceText = `preset: <em>${schedule.preset_name || 'Unknown Preset'}</em> (${outputType})`;
   } else if (schedule.job_type === 'quick_playlist') {
     const key = schedule.quick_playlist_data?.quick_playlist_type;
     const friendly = quickPlaylistFriendlyNames[key] || 'Auto Playlist';
@@ -305,6 +309,7 @@ async function handleScheduleFormSubmit(event) {
         if (!presetData) { toast('Could not find data for the selected preset.', false); return; }
         requestBody.preset_name = presetName;
         requestBody.blocks = presetData;
+        requestBody.create_as_collection = scheduleCreateAsCollectionCb.checked;
     } else if (sourceType === 'quick_playlist') {
         const quickType = quickTypeSelect.value;
         const count = parseInt(quickCountInput.value, 10);
@@ -324,6 +329,7 @@ async function handleScheduleFormSubmit(event) {
     });
 }
 
+
 export function initSchedulerPane() {
     schedulerPane = document.getElementById('scheduler-pane');
     userSelect = document.getElementById('user-select');
@@ -340,6 +346,7 @@ export function initSchedulerPane() {
     presetSelect = schedulerPane.querySelector('#schedule-preset-select');
     quickTypeSelect = schedulerPane.querySelector('#schedule-quick-type-select');
     quickCountInput = schedulerPane.querySelector('#schedule-quick-count-input');
+    scheduleCreateAsCollectionCb = schedulerPane.querySelector('#schedule-create-as-collection-cb');
 
     populatePresetDropdown();
     populateQuickPlaylistDropdown();

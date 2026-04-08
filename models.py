@@ -37,7 +37,7 @@ class AddItemsRequest(BaseModel):
 class ScheduleDetails(BaseModel):
     frequency: str
     time: str
-    days_of_week: Optional[List[int]] = Field(None, ge=0, le=6)
+    days_of_week: Optional[List[int]] = None
 
 class QuickPlaylistScheduleData(BaseModel):
     quick_playlist_type: str
@@ -51,6 +51,7 @@ class ScheduleRequest(BaseModel):
     preset_name: Optional[str] = None
     blocks: Optional[List[Dict[str, Any]]] = None
     quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
+    create_as_collection: bool = False
 
 class AiPromptRequest(BaseModel):
     prompt: str
