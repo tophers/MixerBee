@@ -16,8 +16,6 @@ let builderState = {
     blocks: []
 };
 
-// --- State Accessors and Mutators ---
-
 export function getBuilderState() {
     return builderState;
 }
@@ -41,8 +39,6 @@ export function spliceBlock(index, deleteCount, newBlock) {
 export function pushBlock(newBlock) {
     builderState.blocks.push(newBlock);
 }
-
-// --- State Management Functions ---
 
 export const saveBuilderState = () => {
     if (builderState.blocks.length > 0) {

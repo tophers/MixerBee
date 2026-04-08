@@ -297,7 +297,7 @@ export function attachBuilderEventListeners(container, userSelectElement, render
                 blockData.shows[rowIndex].episode = ep.episode;
                 renderBuilder();
             }
-            return; // <-- ADDED: Prevents the double-execution of save/preview at the bottom of the listener
+            return;
 
         } else if (button.matches('.filter-toggle-btn.movie-block-watched')) {
             const cycle = { all: 'unplayed', unplayed: 'played', played: 'all' };

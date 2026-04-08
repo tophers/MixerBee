@@ -1,3 +1,8 @@
+"""
+app/ai/orchestrator.py - AI multi-agent RAG orchestrator 
+"""
+
+
 import os
 import logging
 from typing import List, Dict, Optional, Literal
@@ -7,9 +12,6 @@ from google.genai import types
 
 from .tools import AVAILABLE_TOOLS
 
-# ==========================================
-# 1. FLAT AI SCHEMA (Data Transfer Object)
-# ==========================================
 class AIBlock(BaseModel):
     block_type: Literal["tv", "movie", "music"] = Field(
         description="Must be 'tv', 'movie', or 'music'"
@@ -171,9 +173,6 @@ def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict]:
         }
     return None
 
-# ==========================================
-# 2. ORCHESTRATOR LOGIC
-# ==========================================
 def _get_best_model() -> str:
     return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
@@ -185,7 +184,6 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     client = genai.Client(api_key=api_key)
     model_name = _get_best_model()
 
-    # --- AGENT 1: THE RESEARCHER ---
     researcher_system = """
     You are a library research assistant. Analyze the user's prompt.
     Use your tools to find the EXACT names of any TV shows, music artists, or genres mentioned.
@@ -209,7 +207,6 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     verified_context = research_response.text
     logging.info(f"AI Phase 1 Context Gathered: {verified_context}")
 
-    # --- AGENT 2: THE BUILDER ---
     builder_system = """
     You are a JSON formatter for media playlists. You will receive a user's original request AND a verified context summary from a researcher.
     Your job is to translate this into the required JSON schema.

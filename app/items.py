@@ -15,7 +15,6 @@ from .movies import find_movies
 from .music import get_songs_by_artist, get_songs_by_album, find_songs
 from .tv import get_first_unwatched_episode, get_specific_episode
 
-# Generic Item Functions
 def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
     """Deletes a single Emby item by its ID. Returns True on success."""
     if not item_id:

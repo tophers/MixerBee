@@ -142,4 +142,3 @@ def init_db():
 
         _migrate_presets(conn)
         _migrate_schedules(conn)
-    

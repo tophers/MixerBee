@@ -5,7 +5,6 @@ export const toastHistory = [];
 export function toast(message, isSuccess, options = {}) {
   const { actionCallback, actionText = 'View' } = options;
 
-  // Save to history (keep the last 50)
   const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   toastHistory.unshift({ message, isSuccess, timestamp });
   if (toastHistory.length > 50) toastHistory.pop();

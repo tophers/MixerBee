@@ -183,7 +183,6 @@ async function initializeApp() {
             if (document.getElementById('scheduler-tab-btn').classList.contains('active')) loadSchedulerData();
         });
 
-        // TOAST HISTORY WIRING
         const historyBtn = document.getElementById('toast-history-btn');
         const toastBadge = document.getElementById('toast-badge');
 

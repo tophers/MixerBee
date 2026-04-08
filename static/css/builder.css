@@ -1,4 +1,5 @@
 /* static/css/builder.css */
+
 .genre-match-toggle {
     display: flex;
     gap: 1.5rem;
@@ -133,7 +134,6 @@
 .mixed-block summary::-webkit-details-marker {
     display: none;
 }
-
 .mixed-block .collapse-toggle-btn .feather {
     transition: transform 0.2s ease-in-out;
 }
@@ -214,42 +214,35 @@
     padding-top: 1rem;
     border-top: 1px solid var(--border-color);
 }
-/* static/css/builder.css */
-
 .block-options-footer .block-options-grid {
     display: flex;
-    align-items: center; /* This is key to vertically align all items */
+    align-items: center;
     flex-wrap: wrap;
     gap: 1rem;
 }
-
 .block-options-footer .control-item {
-    flex-direction: row; /* Override default column direction for control-items here */
+    flex-direction: row;
     align-items: center;
     gap: 0.5rem;
 }
-
 .block-options-footer .control-item span {
-    padding-left: 0; /* Remove default padding */
+    padding-left: 0;
     opacity: 1;
     font-size: 1em;
     font-family: inherit;
     font-weight: normal;
-    color: var(--text-subtle); /* Make the label text less prominent */
+    color: var(--text-subtle);
 }
-
 .block-options-footer .tv-block-range-container {
     display: flex;
     gap: 1rem;
     align-items: center;
 }
-
 .block-options-footer .tv-block-count,
 .block-options-footer .tv-block-end-season,
 .block-options-footer .tv-block-end-episode {
-    width: 60px; /* Make number inputs smaller */
+    width: 60px;
 }
-
 .block-options-footer .interleave-label {
     display: flex;
     align-items: center;
@@ -262,25 +255,21 @@
     gap: 1.2rem;
     width: 100%;
 }
-
 .block-options-grid > label,
 .block-options-grid > div > label {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
-
 .block-options-grid .tv-block-range-container {
     display: flex;
     gap: 1rem;
 }
-
 .block-options-grid .tv-block-count input,
 .block-options-grid .tv-block-end-season,
 .block-options-grid .tv-block-end-episode {
     width: 70px;
 }
-
 .interleave-label {
     display: flex;
     align-items: center;
@@ -377,7 +366,7 @@
     .tv-block-show-row > .tv-block-preview { order: 7; flex: 1 1 45%; margin: 0; text-align: right; font-size: .85rem; }
 }
 .sortable-ghost {
-    background: var(--panel); /* Use a solid background */
+    background: var(--panel);
     opacity: 0.9;
     box-shadow: var(--shadow-drag);
     transform: rotate(.5deg);
@@ -392,7 +381,7 @@
 .token-input {
     width: 100%;
     box-sizing: border-box;
-    padding-right: 2rem; /* Space for a potential spinner */
+    padding-right: 2rem;
 }
 .autocomplete-suggestions {
     position: absolute;
@@ -534,7 +523,7 @@ input[type=range]:active::-webkit-slider-thumb {
 input[type=range]::-moz-range-thumb {
     -moz-appearance: none;
     pointer-events: all;
-    width: 14px; /* Firefox requires smaller base for same visual */
+    width: 14px;
     height: 14px;
     background-color: var(--accent);
     border: 3px solid var(--panel);
@@ -580,7 +569,6 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
     height: 40px;
     padding: 0 0.2rem;
 }
-/* AI Curated Block Styles */
 .ai-badge {
     background: linear-gradient(135deg, #7b1fa2, #2196f3);
     color: white;
@@ -596,13 +584,11 @@ body[data-theme='light'] input[type=range]::-moz-range-thumb {
     margin-right: 0.5rem;
     vertical-align: middle;
 }
-
 .ai-badge .feather {
     width: 12px;
     height: 12px;
     stroke-width: 3;
 }
-
 .ai-controls {
     text-align: center;
     padding: 2rem 1rem;

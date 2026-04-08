@@ -47,21 +47,20 @@ def _fetch_all_data(auth_details: Dict[str, str]) -> Dict[str, Any]:
 
     except Exception as e:
         logging.error(f"CACHE: An error occurred during background refresh: {e}", exc_info=True)
-        return {} # Return empty dict on failure to avoid wiping cache with bad data
+        return {}
 
 def refresh_cache(auth_details: Dict[str, str] = None):
     """
     Public function to trigger a cache refresh. It's thread-safe.
     """
     if not auth_details:
-        # This is for the recurring job, which needs to get the live app_state
         from app_state import token, login_uid
         auth_details = {"token": token, "login_uid": login_uid}
 
     if _refresh_lock.acquire(blocking=False):
         try:
             new_data = _fetch_all_data(auth_details)
-            if new_data: # Only update if the fetch was successful
+            if new_data:
                 CACHE[_cache_key[0]] = new_data
         finally:
             _refresh_lock.release()

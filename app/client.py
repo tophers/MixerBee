@@ -75,7 +75,7 @@ def authenticate(username: str, password: str, url: str, server_type: str) -> Tu
 
     if server_type == 'jellyfin':
         headers = {"Authorization": auth_str}
-    else: # emby
+    else:
         headers = {"X-Emby-Authorization": auth_str}
 
     r = SESSION.post(endpoint, json=payload, headers=headers, timeout=10)
@@ -101,7 +101,7 @@ def auth_headers(token: str, user_id: str) -> Dict[str, str]:
 
     if app_state.SERVER_TYPE == 'jellyfin':
         headers['Authorization'] = auth_str
-    else: # emby
+    else:
         headers['X-Emby-Authorization'] = auth_str
 
     return headers

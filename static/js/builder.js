@@ -1,4 +1,4 @@
-// Filename: static/js/builder.js
+// static/js/builder.js
 
 import { PresetManager } from './components.js';
 import { renderTvBlock, renderMovieBlock, renderMusicBlock, updateAllBlockPreviews } from './block_renderers.js';
@@ -167,7 +167,6 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
             setBlocks([...currentBlocks, newBlockData]);
             renderBuilder();
             
-            // QoL Fix: Auto-scroll to the newly added block
             setTimeout(() => {
                 const renderedBlocks = blocksContainer.querySelectorAll('.mixed-block');
                 if (renderedBlocks.length > 0) {

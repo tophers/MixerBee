@@ -1,4 +1,5 @@
 /* static/css/forms.css */
+
 select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
     background: var(--input-bg);
     color: var(--text);

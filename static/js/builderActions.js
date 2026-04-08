@@ -102,7 +102,6 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
         if (!prompt.trim()) return toast('Please enter a prompt for the AI.', false);
         
         const originalText = generateWithAiBtn.innerHTML;
-        // Swap text while the overlay is up
         generateWithAiBtn.innerHTML = 'Thinking...';
         
         try {
@@ -120,7 +119,6 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
             }
         } catch (e) {
         } finally {
-            // Restore original text when done
             generateWithAiBtn.innerHTML = originalText;
         }
     });

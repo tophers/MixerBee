@@ -1,3 +1,7 @@
+"""
+app/ai/vector_store.py - Vector DB init and config 
+"""
+
 import logging
 from typing import List, Dict
 

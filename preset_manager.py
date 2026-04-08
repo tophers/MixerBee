@@ -52,5 +52,4 @@ class PresetManager:
             logging.error(f"PRESET_MGR: Error deleting preset '{preset_name}' from database: {e}", exc_info=True)
             return False
 
-
 preset_manager = PresetManager()

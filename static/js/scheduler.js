@@ -1,4 +1,4 @@
-// Filename: static/js/scheduler.js
+// static/js/scheduler.js
 
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
@@ -29,7 +29,7 @@ function populateQuickPlaylistDropdown() {
 }
 
 function syncPlaylistName() {
-  if (editingScheduleId) return; // Don't auto-change name when editing
+  if (editingScheduleId) return; 
 
   const sourceType = scheduleSourceSelect.value;
 
@@ -104,7 +104,7 @@ function resetCreateForm() {
 function populateFormForEdit(schedule) {
     schedulePlaylistNameInput.value = schedule.playlist_name;
     scheduleSourceSelect.value = schedule.job_type;
-    toggleSourceOptions(); // Update visibility based on source type
+    toggleSourceOptions();
 
     if (schedule.job_type === 'builder') {
         presetSelect.value = schedule.preset_name;
@@ -115,7 +115,7 @@ function populateFormForEdit(schedule) {
 
     const details = schedule.schedule_details;
     frequencySelect.value = details.frequency;
-    toggleDaysOfWeek(); // Update visibility based on frequency
+    toggleDaysOfWeek();
     scheduleTimeInput.value = details.time;
     daysCheckboxes.forEach(cb => {
         cb.checked = (details.days_of_week || []).includes(parseInt(cb.value));
@@ -148,7 +148,7 @@ export async function loadSchedulerData() {
         const response = await fetch('api/schedules');
         if (!response.ok) throw new Error('Failed to fetch schedules');
         const schedules = await response.json();
-        schedulesData = schedules; // Cache data for editing
+        schedulesData = schedules;
         scheduleCountSpan.textContent = `(${schedules.length})`;
         scheduleListContainer.classList.toggle('hidden', schedules.length === 0);
         schedulesListEl.innerHTML = '';

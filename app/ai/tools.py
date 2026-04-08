@@ -1,7 +1,11 @@
+"""
+app/ai/tools.py - Tools for AI playlist generation
+"""
+
 import difflib
 from typing import List, Dict
 from app.cache import get_library_data
-from .vector_store import search_by_vibe # <-- Import the new tool
+from .vector_store import search_by_vibe
 
 def get_valid_movie_genres() -> List[str]:
     """Returns a list of all valid movie genres available in the user's library."""
@@ -34,7 +38,6 @@ def verify_artist(query: str) -> List[Dict[str, str]]:
     matches = difflib.get_close_matches(query, names, n=3, cutoff=0.4)
     return [{"Name": a["Name"], "Id": a["Id"]} for a in artists if a["Name"] in matches]
 
-# Add search_by_vibe to the list!
 AVAILABLE_TOOLS = [
     get_valid_movie_genres, 
     get_valid_music_genres, 

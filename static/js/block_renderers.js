@@ -333,7 +333,6 @@ function applyAiCuratedState(blockElement, blockData) {
             previewBtn.addEventListener('click', async (e) => {
                 const userSelect = document.getElementById('user-select');
                 try {
-                    // Send ONLY this single block to the preview endpoint
                     const response = await post('api/builder/preview', { user_id: userSelect.value, blocks: [blockData] }, previewBtn);
                     if(response.status === 'ok' && Array.isArray(response.data)) {
                         previewModal.show(response.data).catch(() => {});
