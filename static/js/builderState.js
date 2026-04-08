@@ -13,19 +13,30 @@ export const appState = {
 const AUTOSAVE_KEY = 'mixerbee_autosave';
 
 let builderState = {
-    blocks: []
+    blocks: [],
+    scheduler: null
 };
 
-export function getBuilderState() {
-    return builderState;
+try {
+    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    if (saved) {
+        const parsed = JSON.parse(saved);
+        builderState.blocks = parsed.blocks || [];
+        builderState.scheduler = parsed.scheduler || null;
+    }
+} catch(e) {}
+
+export function getBuilderState() { return builderState; }
+export function getBlocks() { return builderState.blocks; }
+export function setBlocks(newBlocks) { builderState.blocks = newBlocks; }
+
+export function getSchedulerAutosave() {
+    return builderState.scheduler;
 }
 
-export function getBlocks() {
-    return builderState.blocks;
-}
-
-export function setBlocks(newBlocks) {
-    builderState.blocks = newBlocks;
+export function setSchedulerAutosave(data) {
+    builderState.scheduler = data;
+    saveBuilderState();
 }
 
 export function spliceBlock(index, deleteCount, newBlock) {
@@ -41,7 +52,10 @@ export function pushBlock(newBlock) {
 }
 
 export const saveBuilderState = () => {
-    if (builderState.blocks.length > 0) {
+    const hasBlocks = builderState.blocks && builderState.blocks.length > 0;
+    const hasScheduler = builderState.scheduler && Object.keys(builderState.scheduler).length > 0;
+    
+    if (hasBlocks || hasScheduler) {
         localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(builderState));
     } else {
         localStorage.removeItem(AUTOSAVE_KEY);
@@ -99,18 +113,10 @@ export const applyDataToUI = async (blocksData = [], userSelectElement) => {
 };
 
 export function restoreSessionFromAutosave() {
-    const savedData = localStorage.getItem(AUTOSAVE_KEY);
-    if (savedData) {
-        try {
-            const savedState = JSON.parse(savedData);
-            return savedState.blocks;
-        } catch (e) {
-            localStorage.removeItem(AUTOSAVE_KEY);
-        }
-    }
-    return null;
+    return builderState.blocks;
 }
 
 export function clearAutosave() {
+    builderState = { blocks: [], scheduler: null };
     localStorage.removeItem(AUTOSAVE_KEY);
 }
