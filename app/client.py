@@ -34,7 +34,7 @@ EMBY_USER = os.environ.get("EMBY_USER")
 EMBY_PASS = os.environ.get("EMBY_PASS")
 
 CLIENT_NAME = "MixerBee"
-CLIENT_VERSION = "1.0.0"
+CLIENT_VERSION = "2026.04.3"
 DEVICE_ID = "MixerBeePy"
 DEVICE_NAME = "MixerBee"
 

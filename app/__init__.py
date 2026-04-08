@@ -8,7 +8,8 @@ from .client import (
     EMBY_USER,
     EMBY_PASS,
     authenticate,
-    auth_headers
+    auth_headers,
+    CLIENT_VERSION
 )
 
 from .users import (

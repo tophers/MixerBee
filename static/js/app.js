@@ -211,6 +211,11 @@ async function initializeApp() {
                  throw new Error("Application is not configured.");
             }
 
+        const versionDisplay = document.getElementById('app-version-display');
+            if (versionDisplay && config.version) {
+                versionDisplay.textContent = `v${config.version}`;
+            }
+
             notConfiguredWarning.classList.add('hidden');
             mainContent.classList.remove('hidden');
 
