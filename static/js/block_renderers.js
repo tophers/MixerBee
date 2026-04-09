@@ -157,7 +157,7 @@ export function renderMovieBlock({ blockData, index }) {
     previewCountContainer.innerHTML = `<span class="preview-count-span">...</span>`;
     const activeFiltersSpan = blockElement.querySelector('.movie-block-active-filters');
     if (activeFiltersSpan) {
-        const status = filters.watched_status || 'unplayed';
+        const status = filters.watched_status || 'all';
         
         if (status === 'unplayed') {
             activeFiltersSpan.innerHTML = '<i data-feather="eye-off" style="width: 14px; height: 14px; vertical-align: text-bottom;"></i> Unplayed';
