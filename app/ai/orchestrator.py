@@ -2,10 +2,9 @@
 app/ai/orchestrator.py - AI multi-agent RAG orchestrator 
 """
 
-
 import os
 import logging
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, Any
 from pydantic import BaseModel, Field, field_validator
 from google import genai
 from google.genai import types
@@ -20,57 +19,28 @@ class AIBlock(BaseModel):
     @field_validator('block_type', mode='before')
     @classmethod
     def lowercase_block_type(cls, v):
-        if isinstance(v, str):
-            return v.lower()
-        return v
+        return v.lower() if isinstance(v, str) else v
 
     ai_title: str = Field(
         default="Curated Mix",
         description="A short, catchy title for this block. E.g., 'Spooky Vibes' or '80s Action'"
     )
 
-    tv_shows: List[str] = Field(
-        default=[],
-        description="List of exact TV show names. Empty array if not a tv block."
-    )
-    tv_count: int = Field(
-        default=3,
-        description="Number of episodes. Default to 3 if unspecified."
-    )
+    # TV Fields
+    tv_shows: List[str] = Field(default=[], description="List of exact TV show names. Empty if not a tv block.")
+    tv_count: int = Field(default=3, description="Number of episodes. Default to 3 if unspecified.")
 
-    movie_genres: List[str] = Field(
-        default=[],
-        description="List of exact movie genres. Empty array if not a movie block."
-    )
-    movie_limit: int = Field(
-        default=5,
-        description="Number of movies. Default to 5 if unspecified."
-    )
-    movie_year_from: int = Field(
-        default=0,
-        description="Start year for movie release (e.g., 1980). 0 if unspecified."
-    )
-    movie_year_to: int = Field(
-        default=0,
-        description="End year for movie release (e.g., 1989). 0 if unspecified."
-    )
-    movie_people: List[str] = Field(
-        default=[],
-        description="List of other people names requested (e.g., writers, producers) or general person search. Empty array if unspecified."
-    )
-    movie_directors: List[str] = Field(
-        default=[],
-        description="List of exact director names requested. Empty array if unspecified."
-    )
-    movie_actors: List[str] = Field(
-        default=[],
-        description="List of exact actor names requested. Empty array if unspecified."
-    )
-    movie_ids: List[str] = Field(
-        default=[],
-        description="List of specific internal item IDs returned by the vibe search tool. Empty array if unspecified."
-    )
+    # Movie Fields
+    movie_genres: List[str] = Field(default=[], description="List of exact movie genres. Empty if not a movie block.")
+    movie_limit: int = Field(default=5, description="Number of movies. Default to 5 if unspecified.")
+    movie_year_from: int = Field(default=0, description="Start year for movie release (e.g., 1980). 0 if unspecified.")
+    movie_year_to: int = Field(default=0, description="End year for movie release (e.g., 1989). 0 if unspecified.")
+    movie_people: List[str] = Field(default=[], description="List of people (writers, producers, general). Empty if unspecified.")
+    movie_directors: List[str] = Field(default=[], description="List of exact director names. Empty if unspecified.")
+    movie_actors: List[str] = Field(default=[], description="List of exact actor names. Empty if unspecified.")
+    movie_ids: List[str] = Field(default=[], description="List of internal item IDs from the vibe search tool. Empty if unspecified.")
 
+    # Music Fields
     music_mode: Literal["album", "artist_top", "artist_random", "genre"] = Field(
         default="genre",
         description="Must be 'album', 'artist_top', 'artist_random', or 'genre'. Default to 'genre'."
@@ -79,104 +49,113 @@ class AIBlock(BaseModel):
     @field_validator('music_mode', mode='before')
     @classmethod
     def lowercase_music_mode(cls, v):
-        if isinstance(v, str):
-            return v.lower()
-        return v
+        return v.lower() if isinstance(v, str) else v
 
-    music_artist_id: str = Field(
-        default="",
-        description="The internal ID from the verify_artist tool. Empty string if not an artist request."
-    )
-    music_genres: List[str] = Field(
-        default=[],
-        description="List of exact music genres. Empty array if not a genre request."
-    )
-    music_count: int = Field(
-        default=15,
-        description="Number of tracks to fetch. Default to 15 if unspecified."
-    )
+    music_artist_id: str = Field(default="", description="The internal ID from the verify_artist tool. Empty if not an artist request.")
+    music_genres: List[str] = Field(default=[], description="List of exact music genres. Empty if not a genre request.")
+    music_count: int = Field(default=15, description="Number of tracks to fetch. Default to 15 if unspecified.")
 
-def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict]:
-    """Translates the flat AI schema into the complex nested schema the frontend needs."""
-    b_type = ai_block.block_type.lower()
 
-    if "tv" in b_type:
-        shows = [{"name": name, "season": 1, "episode": 1, "unwatched": True} for name in ai_block.tv_shows]
-        if not shows:
-            return None
-        return {
-            "type": "tv",
-            "title": ai_block.ai_title,
-            "is_ai_generated": True,
-            "mode": "count",
-            "count": max(1, ai_block.tv_count),
-            "interleave": True,
-            "shows": shows
-        }
+# --- MAPPING HELPERS ---
 
-    elif "movie" in b_type:
-        if not ai_block.movie_genres and not ai_block.movie_people and not ai_block.movie_ids and ai_block.movie_year_from == 0:
-            return None
+def _map_tv_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
+    shows = [{"name": name, "season": 1, "episode": 1, "unwatched": True} for name in ai_block.tv_shows]
+    if not shows:
+        return None
+        
+    return {
+        "type": "tv",
+        "title": ai_block.ai_title,
+        "is_ai_generated": True,
+        "mode": "count",
+        "count": max(1, ai_block.tv_count),
+        "interleave": True,
+        "shows": shows
+    }
 
-        filters = {
-            "watched_status": "all",
-            "sort_by": "Random",
-            "limit": max(1, ai_block.movie_limit)
-        }
+def _map_movie_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
+    has_filters = any([
+        ai_block.movie_genres,
+        ai_block.movie_people,
+        ai_block.movie_directors,
+        ai_block.movie_actors,
+        ai_block.movie_ids,
+        ai_block.movie_year_from > 0,
+        ai_block.movie_year_to > 0,
+    ])
 
-        is_ai_curated = False
+    if not has_filters:
+        return None
 
-        if ai_block.movie_genres:
-            filters["genres_any"] = ai_block.movie_genres
-        if ai_block.movie_year_from > 0:
-            filters["year_from"] = ai_block.movie_year_from
-        if ai_block.movie_year_to > 0:
-            filters["year_to"] = ai_block.movie_year_to
-            
-        if ai_block.movie_people:
-            filters["people"] = [{"Name": name, "Role": "Person"} for name in ai_block.movie_people]
-        else:
-            filters["people"] = []
+    filters: Dict[str, Any] = {
+        "watched_status": "all",
+        "sort_by": "Random",
+        "limit": max(1, ai_block.movie_limit)
+    }
 
-        if ai_block.movie_directors:
-            filters["people"].extend([{"Name": name, "Role": "Director"} for name in ai_block.movie_directors])
-            
-        if ai_block.movie_actors:
-            filters["people"].extend([{"Name": name, "Role": "Actor"} for name in ai_block.movie_actors])
+    if ai_block.movie_genres:
+        filters["genres_any"] = ai_block.movie_genres
+    if ai_block.movie_year_from > 0:
+        filters["year_from"] = ai_block.movie_year_from
+    if ai_block.movie_year_to > 0:
+        filters["year_to"] = ai_block.movie_year_to
 
-        if ai_block.movie_ids:
-            filters["ids"] = ai_block.movie_ids
-            is_ai_curated = True
+    people_list = [{"Name": name, "Role": "Person"} for name in ai_block.movie_people]
+    people_list.extend({"Name": name, "Role": "Director"} for name in ai_block.movie_directors)
+    people_list.extend({"Name": name, "Role": "Actor"} for name in ai_block.movie_actors)
 
-        return {
-            "type": "movie",
-            "title": ai_block.ai_title,
-            "is_ai_generated": is_ai_curated,
-            "filters": filters
-        }
+    if people_list:
+        filters["people"] = people_list
 
-    elif "music" in b_type:
-        return {
-            "type": "music",
-            "title": ai_block.ai_title,
-            "is_ai_generated": bool(ai_block.music_artist_id),
-            "music": {
-                "mode": ai_block.music_mode,
-                "artistId": ai_block.music_artist_id,
-                "count": max(1, ai_block.music_count),
-                "filters": {
-                    "genres": ai_block.music_genres,
-                    "sort_by": "Random",
-                    "limit": max(1, ai_block.music_count)
-                }
+    is_ai_curated = False
+    if ai_block.movie_ids:
+        filters["ids"] = ai_block.movie_ids
+        is_ai_curated = True
+
+    return {
+        "type": "movie",
+        "title": ai_block.ai_title,
+        "is_ai_generated": is_ai_curated,
+        "filters": filters
+    }
+
+def _map_music_block(ai_block: AIBlock) -> Dict[str, Any]:
+    return {
+        "type": "music",
+        "title": ai_block.ai_title,
+        "is_ai_generated": bool(ai_block.music_artist_id),
+        "music": {
+            "mode": ai_block.music_mode,
+            "artistId": ai_block.music_artist_id,
+            "count": max(1, ai_block.music_count),
+            "filters": {
+                "genres": ai_block.music_genres,
+                "sort_by": "Random",
+                "limit": max(1, ai_block.music_count)
             }
         }
+    }
+
+def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
+    """Routes the flat AI schema to the correct nested schema mapper."""
+    b_type = ai_block.block_type.lower()
+    
+    if "tv" in b_type:
+        return _map_tv_block(ai_block)
+    elif "movie" in b_type:
+        return _map_movie_block(ai_block)
+    elif "music" in b_type:
+        return _map_music_block(ai_block)
+        
     return None
+
+
+# --- CORE ORCHESTRATOR ---
 
 def _get_best_model() -> str:
     return os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
-def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
+def generate_smart_blocks(prompt: str) -> tuple[List[Dict[str, Any]], str]:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("Gemini API key is not configured.")
@@ -236,11 +215,11 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict], str]:
     if not builder_response.parsed:
         raise ValueError("AI failed to generate a valid schema.")
 
-    valid_blocks = []
-    for ai_block in builder_response.parsed:
-        frontend_block = _map_to_frontend_block(ai_block)
-        if frontend_block:
-            valid_blocks.append(frontend_block)
+    # Apply mapping and filter out any None returns
+    valid_blocks = [
+        frontend_block for ai_block in builder_response.parsed
+        if (frontend_block := _map_to_frontend_block(ai_block)) is not None
+    ]
 
     if not valid_blocks:
         raise ValueError("AI generated blocks, but none contained valid data.")

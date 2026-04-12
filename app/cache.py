@@ -6,8 +6,7 @@ import logging
 import threading
 from typing import Dict, Any, List
 
-from . import client
-from . import tv, movies, music, users
+from . import tv, movies, studios, client,  music, users
 
 _cache_key = ["data"]
 CACHE: Dict[str, Any] = {_cache_key[0]: {}}
@@ -41,6 +40,7 @@ def _fetch_all_data(auth_details: Dict[str, str]) -> Dict[str, Any]:
             "libraryData": movies.get_movie_libraries(login_uid, hdr),
             "artistData": music.get_music_artists(hdr),
             "musicGenreData": music.get_music_genres(login_uid, hdr),
+            "studioData": studios.aggregate_all_studios(login_uid, hdr),
         }
         logging.info("CACHE: Background refresh completed successfully.")
         return data
