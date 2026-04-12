@@ -10,7 +10,7 @@ from itertools import zip_longest
 from .items import create_playlist, add_items_to_playlist_by_ids
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
-from .tv import (episodes, get_first_unwatched_episode, parse_show,
+from .tv import (episodes, get_first_unwatched_episode,
                  series_id)
 
 
@@ -41,9 +41,6 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict], hdr: Dict[str, 
                         else:
                             s = int(raw_show.get("season", 1))
                             e = int(raw_show.get("episode", 1))
-
-                    elif isinstance(raw_show, str):
-                        show_name, s, e = parse_show(raw_show)
 
                     if not all([show_name, s is not None, e is not None]):
                         log_messages.append(f"Block {i}: Could not process show entry: {raw_show}")

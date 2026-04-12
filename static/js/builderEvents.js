@@ -280,7 +280,7 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             }
             return;
 
-        } else if (button.matches('.random-ep-btn')) {
+         } else if (button.matches('.random-ep-btn')) {
             const rowIndex = parseInt(button.closest('.show-row').dataset.rowIndex, 10);
             const seriesId = appState.seriesData.find(s => s.name === blockData.shows[rowIndex].name)?.id;
 
@@ -290,15 +290,17 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             }
 
             const response = await fetch(`api/shows/${seriesId}/random_unwatched?user_id=${userSelectElement.value}`);
-            const ep = await response.json();
-
-            if (ep) {
+            
+            if (response.ok) {
+                const ep = await response.json();
                 blockData.shows[rowIndex].season = ep.season;
                 blockData.shows[rowIndex].episode = ep.episode;
                 renderBuilder();
+            } else {
+                toast('No unwatched episodes found for this show.', false);
             }
-            return;
-
+            return; 
+          
         } else if (button.matches('.filter-toggle-btn.movie-block-watched')) {
             const cycle = { all: 'unplayed', unplayed: 'played', played: 'all' };
             blockData.filters.watched_status = cycle[blockData.filters.watched_status];

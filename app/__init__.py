@@ -23,10 +23,6 @@ from .tv import (
     get_specific_episode,
     get_first_unwatched_episode,
     get_random_unwatched_episode,
-    parse_show, # For legacy CLI
-    series_id,  # For legacy CLI
-    episodes,   # For legacy CLI
-    interleave  # For legacy CLI
 )
 
 from .movies import (

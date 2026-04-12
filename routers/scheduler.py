@@ -39,7 +39,7 @@ def api_create_schedule(req: models.ScheduleRequest):
 
         CronTrigger.from_crontab(crontab)
 
-        schedule_data_to_save = req.dict(exclude_none=True)
+        schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab
 
         schedule_id = scheduler.scheduler_manager.add_schedule(schedule_data_to_save)
@@ -65,7 +65,7 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
 
         CronTrigger.from_crontab(crontab)
 
-        schedule_data_to_save = req.dict(exclude_none=True)
+        schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab
 
         success = scheduler.scheduler_manager.update_schedule(schedule_id, schedule_data_to_save)

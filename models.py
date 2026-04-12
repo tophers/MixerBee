@@ -62,14 +62,6 @@ class QuickBuildRequest(BaseModel):
     quick_build_type: str
     options: Dict[str, Any] = Field(default_factory=dict)
 
-class MixRequest(BaseModel):
-    shows: List[str] = Field(default_factory=list)
-    count: int = 5
-    playlist: str = "MixerBee Playlist"
-    delete: bool = False
-    verbose: bool = False
-    target_uid: Optional[str] = None
-
 class DeleteItemRequest(BaseModel):
     item_id: str
     user_id: str

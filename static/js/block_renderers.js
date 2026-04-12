@@ -82,7 +82,7 @@ export async function updateAllBlockPreviews() {
     });
 
     await Promise.all(previewPromises);
-}
+  }
 
 export function renderTvBlock({ blockData, index }) {
     const template = document.getElementById('template-tv-block');
@@ -290,7 +290,7 @@ export function renderMusicBlock({ blockData, index }) {
         .catch(() => {
             albumSelect.innerHTML = '<option value="">-- Could not load albums --</option>';
         });
-}
+    }
 
 countInput.value = musicData.count || 10;
 

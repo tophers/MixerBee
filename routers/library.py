@@ -163,22 +163,6 @@ def api_remove_from_playlist(playlist_id: str, req: models.RemoveFromPlaylistReq
         logging.error(f"Error removing item {req.item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/api/mix")
-def api_mix(req: models.MixRequest, auth_deps: dict = Depends(get_current_auth_headers)):
-    try:
-        if req.delete:
-            return core.mix(
-                shows=[],
-                count=0,
-                playlist=req.playlist,
-                delete=True,
-                verbose=False,
-                target_uid=req.target_uid,
-            )
-        raise HTTPException(400, "This endpoint is for deletion only.")
-    except Exception as e:
-        raise HTTPException(400, str(e))
-
 @router.post("/api/convert_item")
 def api_convert_item(req: models.ConvertItemRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     action_hdr = core.auth_headers(auth_deps["token"], req.user_id)

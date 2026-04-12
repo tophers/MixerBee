@@ -4,17 +4,9 @@ app/tv.py - All TV show and episode related logic.
 
 import re
 import random
-from itertools import islice, zip_longest
 from typing import Tuple, Dict, List, Optional
 
 from . import client
-
-def parse_show(arg: str) -> Tuple[str, int, int]:
-    """Parses a string like 'Show::S01E01' into its components."""
-    m = re.match(r"^(.*?)::S(\d+)E(\d+)$", arg, re.IGNORECASE)
-    if not m:
-        raise ValueError(f"Invalid format: '{arg}', expected 'Show::S3E1'")
-    return m.group(1).strip(), int(m.group(2)), int(m.group(3))
 
 def get_all_series(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches a complete list of all TV Series for a given user."""
@@ -160,11 +152,3 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
             "episode": random_ep.get("IndexNumber", 1)
         }
     return None
-
-
-def interleave(groups: List[List[dict]]) -> List[str]:
-    """Interleaves items from multiple lists and returns their IDs, continuing until the longest list is exhausted."""
-    out = []
-    for bundle in zip_longest(*groups):
-        out.extend(ep["Id"] for ep in bundle if ep is not None)
-    return out

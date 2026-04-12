@@ -58,22 +58,24 @@ async function handleSmartBuildSelection(type, button) {
         case 'from_the_vault':
             await showQuickBuildModal({ ...commonConfig, title: 'From the Vault', description: 'Creates a playlist of favorited movies you haven\'t seen in a while.', defaultName: 'From the Vault', defaultCount: 20 });
             break;
-        case 'genre_roulette':
+        case 'genre_roulette': {
             if (!appState.movieGenreData?.length) return toast("Movie genres not loaded yet.", false);
             const randomMovieGenre = appState.movieGenreData[Math.floor(Math.random() * appState.movieGenreData.length)];
             await showQuickBuildModal({ ...commonConfig, title: `Movie Roulette: ${randomMovieGenre.Name}`, description: `A playlist of random, unwatched ${randomMovieGenre.Name} movies.`, defaultName: `Movie Roulette: ${randomMovieGenre.Name}`, defaultCount: 5, extraParams: { genre: randomMovieGenre.Name } });
             break;
+        }
         case 'artist_spotlight':
             await handleFetchThenShowModal({ ...commonConfig, fetchEndpoint: 'api/music/random_artist', modalConfigFactory: (artist) => ({ title: `Artist Spotlight: ${artist.Name}`, description: `A playlist with the most popular tracks from ${artist.Name}.`, defaultName: `Spotlight: ${artist.Name}`, defaultCount: 15, extraParams: { artist_id: artist.Id } }) });
             break;
         case 'album_roulette':
             await handleFetchThenShowModal({ ...commonConfig, fetchEndpoint: 'api/music/random_album', modalConfigFactory: (album) => ({ title: `Album: ${album.Name}`, description: `A playlist of all tracks from "${album.Name}" by ${album.ArtistItems?.[0]?.Name || 'Unknown Artist'}.`, defaultName: `Album: ${album.Name}`, showCount: false, extraParams: { album_id: album.Id } }) });
             break;
-        case 'genre_sampler':
+        case 'genre_sampler': {
             if (!appState.musicGenreData?.length) return toast("Music genres not loaded yet.", false);
             const randomMusicGenre = appState.musicGenreData[Math.floor(Math.random() * appState.musicGenreData.length)];
             await showQuickBuildModal({ ...commonConfig, title: `Music Sampler: ${randomMusicGenre.Name}`, description: `A playlist of random songs from the ${randomMusicGenre.Name} genre.`, defaultName: `Sampler: ${randomMusicGenre.Name}`, defaultCount: 20, extraParams: { genre: randomMusicGenre.Name } });
             break;
+        }
     }
 }
 
@@ -96,14 +98,14 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
         aiPromptClearBtn.classList.add('hidden');
         aiPromptInput.focus();
     });
-    
+
     generateWithAiBtn.addEventListener('click', async () => {
         const prompt = aiPromptInput.value;
         if (!prompt.trim()) return toast('Please enter a prompt for the AI.', false);
-        
+
         const originalText = generateWithAiBtn.innerHTML;
         generateWithAiBtn.innerHTML = 'Thinking...';
-        
+
         try {
             const response = await post('api/create_from_text', { prompt }, generateWithAiBtn);
             if (response.status === 'ok') {

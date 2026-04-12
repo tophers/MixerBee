@@ -14,7 +14,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
 
-import app_state
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -99,6 +98,7 @@ def auth_headers(token: str, user_id: str) -> Dict[str, str]:
         "X-Emby-User-Id": user_id,
     }
 
+    import app_state
     if app_state.SERVER_TYPE == 'jellyfin':
         headers['Authorization'] = auth_str
     else:

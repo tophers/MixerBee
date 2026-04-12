@@ -158,11 +158,6 @@ body[data-theme='light'] #loading-overlay {
 .toast.fail {
     background: var(--danger);
 }
-.typewriter-wrapper {
-  display: block;
-  width: 100%;
-  padding: 0.5rem 1rem;
-}
 .typewriter-header {
   font-family: monospace;
   font-size: 2rem;

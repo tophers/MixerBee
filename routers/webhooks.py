@@ -41,10 +41,7 @@ async def handle_media_webhook(request: Request):
     Returns 200 immediately and processes the updates via a debounced background job.
     """
     if not app_state.is_configured:
-        app_state.load_and_authenticate()
-        if not app_state.is_configured:
-            return {"status": "ignored", "reason": "App not configured"}
-
+        return {"status": "ignored", "reason": "App not configured"}
     try:
         payload: Dict[str, Any] = await request.json()
     except Exception:
