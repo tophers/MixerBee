@@ -38,7 +38,9 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 continue
 
             s, e = None, None
-            if raw_show.get("unwatched"):
+            is_unwatched = raw_show.get("unwatched", False)
+            
+            if is_unwatched:
                 ep_info = get_first_unwatched_episode(sid, user_id, hdr)
                 if ep_info:
                     s = ep_info.get("ParentIndexNumber")
@@ -51,10 +53,10 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 log_messages.append(f"Block {block_index}: Could not determine start episode for '{show_name}'")
                 continue
 
-            eps = episodes(sid, s, e, count, hdr, user_id=user_id, end_season=end_season, end_episode=end_episode)
+            eps = episodes(sid, s, e, count, hdr, user_id=user_id, end_season=end_season, end_episode=end_episode, only_unwatched=is_unwatched)
 
             if len(eps) < count and mode == 'count':
-                log_messages.append(f"Block {block_index}: Only found {len(eps)}/{count} unwatched eps for '{show_name}'")
+                log_messages.append(f"Block {block_index}: Only found {len(eps)}/{count} requested eps for '{show_name}'")
             
             if eps:
                 groups.append(eps)

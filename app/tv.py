@@ -45,9 +45,10 @@ def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
 
 def episodes(sid: str, season: int, episode: int, count: int,
              hdr: Dict[str, str], user_id: str, end_season: Optional[int] = None,
-             end_episode: Optional[int] = None) -> List[Dict]:
+             end_episode: Optional[int] = None, only_unwatched: bool = True) -> List[Dict]:
     """
-    Gets a list of UNWATCHED episodes for a series, either by count or within a specified S/E range.
+    Gets a list of episodes for a series, either by count or within a specified S/E range.
+    Respects the only_unwatched flag to allow for rewatches.
     """
     params = {
         "userId": user_id,
@@ -72,15 +73,19 @@ def episodes(sid: str, season: int, episode: int, count: int,
                       if ep.get("ParentIndexNumber", 0) < end_season
                       or (ep.get("ParentIndexNumber", 0) == end_season
                           and ep.get("IndexNumber", 0) <= end_episode)]
-        return [ep for ep in ranged_eps if not ep.get("UserData", {}).get("Played", False)]
+        
+        if only_unwatched:
+            return [ep for ep in ranged_eps if not ep.get("UserData", {}).get("Played", False)]
+        return ranged_eps
     else:
-        unwatched_eps = []
+        result_eps = []
         for ep in start_eps:
-            if not ep.get("UserData", {}).get("Played", False):
-                unwatched_eps.append(ep)
-            if len(unwatched_eps) >= count:
+            is_played = ep.get("UserData", {}).get("Played", False)
+            if not only_unwatched or not is_played:
+                result_eps.append(ep)
+            if len(result_eps) >= count:
                 break
-        return unwatched_eps
+        return result_eps
 
 
 def get_specific_episode(series_id: str, season: int,
