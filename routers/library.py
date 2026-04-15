@@ -4,8 +4,9 @@ routers/library.py – APIRouter
 
 import logging
 from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 import app as core
 import models
@@ -162,3 +163,23 @@ def api_convert_item(req: models.ConvertItemRequest, auth_deps: dict = Depends(g
     except Exception as e:
         logging.error(f"Error converting item {req.item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/shows/{series_id}/unplayed")
+def api_mark_unplayed(
+    series_id: str, 
+    req: models.ResetWatchRequest = Body(...),
+    auth_deps: dict = Depends(get_current_auth_headers)
+):
+    user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+    try:
+        from app import tv 
+        success = tv.mark_unplayed(series_id, req.user_id, user_specific_hdr, req.season_number)
+        
+        if success:
+            return {"status": "ok", "log": ["Watch history reset successfully."]}
+        else:
+            raise HTTPException(400, "Could not find the specified season to reset.")
+            
+    except Exception as e:
+        logging.error(f"Error resetting watch state: {e}", exc_info=True)
+        raise HTTPException(500, str(e))

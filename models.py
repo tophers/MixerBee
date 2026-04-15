@@ -76,3 +76,7 @@ class ConvertItemRequest(BaseModel):
     new_name: str
     target_type: str
     delete_original: bool = False
+
+class ResetWatchRequest(BaseModel):
+    user_id: str
+    season_number: Optional[int] = None

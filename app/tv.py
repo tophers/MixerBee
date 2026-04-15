@@ -157,3 +157,25 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
             "episode": random_ep.get("IndexNumber", 1)
         }
     return None
+
+def mark_unplayed(series_id: str, user_id: str, hdr: Dict[str, str], season_number: Optional[int] = None) -> bool:
+    """Removes the watch history for an entire series or a specific season."""
+    target_id = series_id
+
+    if season_number is not None:
+        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Seasons",
+                               params={"UserId": user_id}, headers=hdr, timeout=10)
+        r.raise_for_status()
+        seasons = r.json().get("Items", [])
+        
+        for s in seasons:
+            if s.get("IndexNumber") == season_number:
+                target_id = s.get("Id")
+                break
+                
+        if target_id == series_id:
+            return False
+
+    r = client.SESSION.delete(f"{client.EMBY_URL}/Users/{user_id}/PlayedItems/{target_id}", headers=hdr, timeout=10)
+    r.raise_for_status()
+    return True

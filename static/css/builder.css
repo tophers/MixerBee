@@ -279,6 +279,7 @@
     width: 100%;
     margin-bottom: 0.4rem;
 }
+
 .tv-block-show-row {
     display: grid;
     align-items: center;
@@ -288,82 +289,57 @@
     box-shadow: var(--shadow);
     gap: 0.8rem 0.5rem;
     grid-template-columns: auto 1fr 1fr;
+    /* Mobile Grid Map */
     grid-template-areas:
-        "handle select  select"
-        "handle season  episode"
-        ".      options options"
+        "handle select   select"
+        "handle season   episode"
         ".      controls controls"
-        ".      preview preview";
+        ".      options  options"
+        ".      preview  preview";
 }
-.tv-block-show-row > .drag-handle {
-    grid-area: handle;
-    align-self: center;
-    font-size: 1.4rem;
-}
-.tv-block-show-row > .show-select-wrapper {
-    grid-area: select;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    min-width: 0;
-}
-.show-select-wrapper .search-and-select {
-    flex-grow: 1;
-    min-width: 0;
-}
-.show-select-wrapper select {
-    width: 100%;
-}
+
+.tv-block-show-row > .drag-handle { grid-area: handle; align-self: center; font-size: 1.4rem; }
+.tv-block-show-row > .show-select-wrapper { grid-area: select; display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.show-select-wrapper .search-and-select { flex-grow: 1; min-width: 0; }
+.show-select-wrapper select { width: 100%; }
+
 .tv-block-show-row > .tv-block-season { grid-area: season; }
 .tv-block-show-row > .tv-block-episode { grid-area: episode; }
-.tv-block-show-row > .show-row-controls {
-    grid-area: controls;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 0.4rem;
+
+.tv-block-show-row > .show-row-controls { 
+    grid-area: controls; 
+    display: flex; 
+    align-items: center; 
+    justify-content: flex-start; 
+    gap: 0.4rem; 
 }
-.tv-block-show-row > .tv-block-show-options {
-    grid-area: options;
-    margin-top: 0;
-    grid-column: 2 / -1;
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    font-size: .9rem;
-    cursor: pointer;
+.tv-block-show-row > .tv-block-show-options { 
+    grid-area: options; 
+    display: flex; 
+    align-items: center; 
+    gap: .4rem; 
+    font-size: .9rem; 
+    cursor: pointer; 
 }
-.tv-block-show-row > .tv-block-preview {
-    grid-area: preview;
-    margin-top: 0;
-    text-align: left;
-    font-style: italic;
-    color: var(--text-subtle);
-    font-size: .9rem;
-    grid-column: 2 / -1;
+.tv-block-show-row > .tv-block-preview { 
+    grid-area: preview; 
+    text-align: left; 
+    font-style: italic; 
+    color: var(--text-subtle); 
+    font-size: .9rem; 
 }
-.show-row-controls .icon-btn {
-    padding: 0.2rem;
-    font-size: 1rem;
-}
-.random-ep-btn {
-    font-size: 1.1rem !important;
-}
+
+/* Desktop Grid Map */
 @media (min-width: 680px) {
     .tv-block-show-row {
-        display: flex;
-        flex-flow: row wrap;
-        align-items: center;
-        gap: var(--gap) .8rem;
+        grid-template-columns: auto 1fr 80px 80px auto;
+        grid-template-areas:
+            "handle select  season episode controls"
+            "handle options options preview preview";
+        gap: 0.5rem 0.8rem;
     }
-    .tv-block-show-row > .drag-handle { order: 1; }
-    .tv-block-show-row > .show-select-wrapper { order: 2; flex: 1 1 300px; }
-    .tv-block-show-row > .tv-block-season { order: 3; flex: 0 1 60px; }
-    .tv-block-show-row > .tv-block-episode { order: 4; flex: 0 1 60px; }
-    .tv-block-show-row > .show-row-controls { order: 5; flex: 1 1 auto; justify-content: flex-end; }
-    .tv-block-show-row > .tv-block-show-options { order: 6; flex: 1 1 50%; margin: 0; padding-left: 32px; }
-    .tv-block-show-row > .tv-block-preview { order: 7; flex: 1 1 45%; margin: 0; text-align: right; font-size: .85rem; }
+    .tv-block-show-row > .show-row-controls { justify-content: flex-end; }
+    .tv-block-show-row > .tv-block-preview { text-align: right; }
 }
 .sortable-ghost {
     background: var(--panel);
