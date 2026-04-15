@@ -12,12 +12,6 @@ from contextlib import contextmanager
 from app_state import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "mixerbee.db"
-PRESETS_JSON_PATH = CONFIG_DIR / "presets.json"
-SCHEDULES_JSON_PATH = CONFIG_DIR / "schedules.json"
-
-PRESETS_MIGRATED_PATH = CONFIG_DIR / "presets.json.migrated"
-SCHEDULES_MIGRATED_PATH = CONFIG_DIR / "schedules.json.migrated"
-
 
 @contextmanager
 def get_db_connection():
@@ -28,91 +22,6 @@ def get_db_connection():
         yield conn
     finally:
         conn.close()
-
-def _migrate_presets(conn):
-    """Migrates data from presets.json to the database."""
-    source_path = PRESETS_JSON_PATH if PRESETS_JSON_PATH.exists() else PRESETS_MIGRATED_PATH
-    if not source_path.exists():
-        return
-
-    logging.info(f"Found {source_path.name}, attempting one-time migration to database...")
-    try:
-        with open(source_path, 'r') as f:
-            presets_data = json.load(f)
-
-        if not isinstance(presets_data, dict):
-            logging.warning(f"{source_path.name} is not a valid dictionary. Skipping migration.")
-            os.rename(source_path, str(source_path) + '.invalid')
-            return
-
-        cursor = conn.cursor()
-        for name, data in presets_data.items():
-            data_json = json.dumps(data)
-            cursor.execute(
-                "INSERT OR REPLACE INTO presets (name, data) VALUES (?, ?)",
-                (name, data_json)
-            )
-        conn.commit()
-
-        final_migrated_name = str(PRESETS_JSON_PATH) + '.migrated'
-        if source_path.exists() and str(source_path) != final_migrated_name:
-            if os.path.exists(final_migrated_name):
-                os.remove(final_migrated_name)
-            os.rename(source_path, final_migrated_name)
-            
-        logging.info(f"Successfully migrated {len(presets_data)} presets.")
-
-    except Exception as e:
-        logging.error(f"Error migrating presets data: {e}", exc_info=True)
-
-
-def _migrate_schedules(conn):
-    """Migrates data from schedules.json to the database."""
-    source_path = SCHEDULES_JSON_PATH if SCHEDULES_JSON_PATH.exists() else SCHEDULES_MIGRATED_PATH
-    if not source_path.exists():
-        return
-
-    logging.info(f"Found {source_path.name}, attempting one-time migration to database...")
-    try:
-        schedules_data = json.loads(source_path.read_text())
-        if not isinstance(schedules_data, dict):
-            logging.warning(f"{source_path.name} is not a valid dictionary. Skipping migration.")
-            os.rename(source_path, str(source_path) + '.invalid')
-            return
-
-        cursor = conn.cursor()
-        for schedule_id, data in schedules_data.items():
-            config_payload = {
-                "preset_name": data.get("preset_name"),
-                "blocks": data.get("blocks"),
-                "quick_playlist_data": data.get("quick_playlist_data"),
-                "schedule_details": data.get("schedule_details")
-            }
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO schedules
-                (id, playlist_name, user_id, job_type, crontab, config_data, last_run)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    schedule_id, data.get("playlist_name"), data.get("user_id"),
-                    data.get("job_type"), data.get("crontab"),
-                    json.dumps(config_payload), json.dumps(data.get("last_run"))
-                )
-            )
-        conn.commit()
-
-        final_migrated_name = str(SCHEDULES_JSON_PATH) + '.migrated'
-        if source_path.exists() and str(source_path) != final_migrated_name:
-            if os.path.exists(final_migrated_name):
-                os.remove(final_migrated_name)
-            os.rename(source_path, final_migrated_name)
-
-        logging.info(f"Successfully migrated {len(schedules_data)} schedules.")
-
-    except Exception as e:
-        logging.error(f"Error migrating schedules data: {e}", exc_info=True)
-
 
 def init_db():
     """Initializes the database, creating tables and running migrations if needed."""
@@ -139,6 +48,3 @@ def init_db():
             )
         """)
         conn.commit()
-
-        _migrate_presets(conn)
-        _migrate_schedules(conn)
