@@ -315,7 +315,34 @@ class ToastHistoryModal extends BaseModal {
     }
 }
 
-export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal, toastHistoryModal;
+class ResetWatchModal extends BaseModal {
+    constructor(modalId) {
+        super(modalId);
+        this.showNameEl = this.overlay.querySelector('#reset-watch-show-name');
+        this.seasonNumEl = this.overlay.querySelector('#reset-season-num');
+        
+        this.resetSeasonBtn = this.overlay.querySelector('#reset-season-btn');
+        this.resetShowBtn = this.overlay.querySelector('#reset-show-btn');
+
+        this.resetSeasonBtn.addEventListener('click', () => {
+            this.hide(false);
+            this._resolvePromise({ scope: 'season' });
+        });
+
+        this.resetShowBtn.addEventListener('click', () => {
+            this.hide(false);
+            this._resolvePromise({ scope: 'show' });
+        });
+    }
+
+    show({ showName, season }) {
+        this.showNameEl.textContent = showName;
+        this.seasonNumEl.textContent = season;
+        return super.show();
+    }
+}
+
+export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal, toastHistoryModal, resetWatchModal;
 
 export function initModals() {
     confirmModal = new ConfirmationModal('confirm-modal-overlay');
@@ -325,4 +352,5 @@ export function initModals() {
     smartBuildModal = new SmartBuildModal('smart-build-modal-overlay');
     previewModal = new PreviewModal('preview-modal-overlay');
     toastHistoryModal = new ToastHistoryModal('toast-history-modal-overlay');
+    resetWatchModal = new ResetWatchModal('reset-watch-modal-overlay');
 }

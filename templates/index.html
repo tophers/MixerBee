@@ -420,6 +420,23 @@
             </div>
         </div>
     </div>
+    
+    <div id="reset-watch-modal-overlay" class="modal-overlay hidden">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2>Reset Watch History?</h2>
+                <button class="icon-btn js-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <p>You are about to erase your watch history for <strong id="reset-watch-show-name"></strong>. This cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="secondary js-modal-cancel mr-auto">Cancel</button>
+                <button id="reset-season-btn" type="button" class="danger">Reset Season <span id="reset-season-num"></span></button>
+                <button id="reset-show-btn" type="button" class="danger">Reset Entire Show</button>
+            </div>
+        </div>
+    </div>
 
     <div id="confirm-modal-overlay" class="modal-overlay hidden">
         <div class="modal-window">
@@ -500,7 +517,7 @@
                     </div>
                 </div>
                 <div class="ai-controls hidden">
-                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <i data-feather="chrome" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
                     <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
                     <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
                 </div>
@@ -520,6 +537,7 @@
             <input type="number" class="tv-block-season" value="1" min="1">
             <input type="number" class="tv-block-episode" value="1" min="1">
             <div class="show-row-controls">
+                <button type="button" class="icon-btn reset-watch-btn" title="Reset Watch History"><i data-feather="eye"></i></button>
                 <button type="button" class="icon-btn random-ep-btn" title="Pick Random Episode"><i data-feather="shuffle"></i></button>
                 <button type="button" class="icon-btn danger delete-btn" title="Delete Row"><i data-feather="x"></i></button>
             </div>
@@ -612,7 +630,7 @@
                     </fieldset>
                 </div>
                 <div class="ai-controls hidden">
-                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <i data-feather="chrome" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
                     <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
                     <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
                 </div>
@@ -684,7 +702,7 @@
                     </div>
                 </div>
                 <div class="ai-controls hidden">
-                    <i data-feather="sparkles" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
+                    <i data-feather="chrome" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
                     <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
                     <button type="button" class="ai-preview-btn"><i data-feather="list"></i> View Selected Items</button>
                 </div>

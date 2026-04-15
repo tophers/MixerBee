@@ -120,6 +120,7 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
                 }
             }
         } catch (e) {
+            toast('AI generation failed. Please check your connection or try again.', false);
         } finally {
             generateWithAiBtn.innerHTML = originalText;
         }

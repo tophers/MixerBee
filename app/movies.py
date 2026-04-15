@@ -25,7 +25,7 @@ def get_movie_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all movie genres available to a specific user."""
     params = {"IncludeItemTypes": "Movie", "UserId": user_id}
     r = client.SESSION.get(f"{client.EMBY_URL}/Genres",
-                      params=params, headers=hdr, timeout=10)
+                           params=params, headers=hdr, timeout=10)
     r.raise_for_status()
     return r.json().get("Items", [])
 
@@ -94,33 +94,20 @@ def find_movies(user_id: str, filters: Dict,
     r.raise_for_status()
     all_movies = r.json().get("Items", [])
 
+    # --- REFACTORED STUDIO FILTERING ---
+    def get_movie_studio_set(movie):
+        return {s.get("Name", "").lower() for s in movie.get("Studios", []) if s.get("Name")}
+
     studios_to_search = filters.get("studios")
     if studios_to_search:
-        search_terms = [s.lower() for s in studios_to_search]
-        
-        def has_matching_studio(movie):
-            movie_studios = [s.get("Name", "").lower() for s in movie.get("Studios", [])]
-            for movie_studio in movie_studios:
-                for term in search_terms:
-                    if term in movie_studio:
-                        return True
-            return False
-
-        all_movies = [m for m in all_movies if has_matching_studio(m)]
+        required_studios = {s.lower() for s in studios_to_search}
+        all_movies = [m for m in all_movies if get_movie_studio_set(m).intersection(required_studios)]
 
     studios_to_exclude = filters.get("exclude_studios")
     if studios_to_exclude:
-        exclude_terms = [s.lower() for s in studios_to_exclude]
-
-        def has_excluded_studio(movie):
-            movie_studios = [s.get("Name", "").lower() for s in movie.get("Studios", [])]
-            for movie_studio in movie_studios:
-                for term in exclude_terms:
-                    if term in movie_studio:
-                        return True
-            return False
-
-        all_movies = [m for m in all_movies if not has_excluded_studio(m)]
+        exclude_studios = {s.lower() for s in studios_to_exclude}
+        all_movies = [m for m in all_movies if not get_movie_studio_set(m).intersection(exclude_studios)]
+    # -----------------------------------
 
     watched_status = filters.get("watched_status")
     if watched_status and watched_status != "all":
