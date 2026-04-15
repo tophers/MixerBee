@@ -188,7 +188,6 @@
     gap: 0.8rem;
 }
 .tv-block-show-row input[type="number"] {
-    padding-left: 0.2rem;
     padding-right: 0.2rem;
 }
 .movie-block-filter-grid, .music-block-filter-grid {
@@ -288,11 +287,11 @@
     border-radius: var(--radius);
     box-shadow: var(--shadow);
     gap: 0.8rem 0.5rem;
-    grid-template-columns: auto 1fr 1fr;
     /* Mobile Grid Map */
+    grid-template-columns: auto 1fr 80px;
     grid-template-areas:
-        "handle select   select"
-        "handle season   episode"
+        "handle select   season"
+        "handle select   episode"
         ".      controls controls"
         ".      options  options"
         ".      preview  preview";
@@ -303,8 +302,15 @@
 .show-select-wrapper .search-and-select { flex-grow: 1; min-width: 0; }
 .show-select-wrapper select { width: 100%; }
 
-.tv-block-show-row > .tv-block-season { grid-area: season; }
-.tv-block-show-row > .tv-block-episode { grid-area: episode; }
+.tv-block-show-row > .tv-block-season { 
+    grid-area: season; 
+    align-self: end; 
+}
+.tv-block-show-row > .tv-block-episode { 
+    grid-area: episode; 
+    align-self: start; 
+    margin-top: 0;
+}
 
 .tv-block-show-row > .show-row-controls { 
     grid-area: controls; 
@@ -332,14 +338,32 @@
 /* Desktop Grid Map */
 @media (min-width: 680px) {
     .tv-block-show-row {
-        grid-template-columns: auto 1fr 80px 80px auto;
+        grid-template-columns: auto minmax(0, 1fr) 80px 110px;
         grid-template-areas:
-            "handle select  season episode controls"
-            "handle options options preview preview";
+            "handle select  season  controls"
+            "handle select  episode controls"
+            "handle options preview preview";
         gap: 0.5rem 0.8rem;
     }
-    .tv-block-show-row > .show-row-controls { justify-content: flex-end; }
-    .tv-block-show-row > .tv-block-preview { text-align: right; }
+    
+    .tv-block-show-row > .show-row-controls { 
+        justify-content: flex-end; 
+        align-self: center; 
+    }
+    
+    .tv-block-show-row > .tv-block-show-options { 
+        align-self: center; 
+        margin-top: 0.2rem;
+    }
+    
+    .tv-block-show-row > .tv-block-preview { 
+        text-align: right; 
+        margin-top: 0.2rem; 
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
 }
 .sortable-ghost {
     background: var(--panel);

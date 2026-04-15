@@ -10,6 +10,7 @@ select, input[type="number"], input[type="text"], input[type="search"], input[ty
     min-width: 0;
     box-sizing: border-box;
     font-family: inherit;
+    margin-top: 0.5rem;
 }
 select {
     width: 100%;
@@ -55,6 +56,7 @@ button {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    margin-top: 0.5rem;
 }
 button:hover {
     background: var(--accent-dark);
@@ -192,6 +194,7 @@ body[data-theme="light"] .theme-switcher .feather-sun {
 button.secondary {
     background: transparent;
     border: 1px solid var(--border-color);
+    margin-top: .5rem;
     color: var(--text);
     transition: all 0.2s ease;
 }
