@@ -6,21 +6,30 @@ import { getBuilderState, getBlocks, setBlocks, saveBuilderState, applyDataToUI,
 import { initBuilderActions } from './builderActions.js';
 import { attachBuilderEventListeners } from './builderEvents.js';
 
-export function renderBuilder() {
+export function renderBuilder(forceCollapse = false) {
     const blocksContainer = document.getElementById('mixed-playlist-blocks');
     const placeholder = blocksContainer.querySelector('.placeholder-text');
     const builderState = getBuilderState();
 
     const openStates = new Set();
-    blocksContainer.querySelectorAll('.mixed-block[data-block-index]').forEach(blockEl => {
-        const index = blockEl.dataset.blockIndex;
-        if (blockEl.open) {
-            openStates.add(`block-${index}`);
-        }
-        blockEl.querySelectorAll('details[open][data-section]').forEach(detailEl => {
-            openStates.add(`${index}-${detailEl.dataset.section}`);
+    const openModals = new Set();
+
+    if (!forceCollapse) {
+        blocksContainer.querySelectorAll('.mixed-block[data-block-index]').forEach(blockEl => {
+            const index = blockEl.dataset.blockIndex;
+            if (blockEl.open) {
+                openStates.add(`block-${index}`);
+            }
+            blockEl.querySelectorAll('details[open][data-section]').forEach(detailEl => {
+                openStates.add(`${index}-${detailEl.dataset.section}`);
+            });
+
+            const modal = blockEl.querySelector('.modal-overlay');
+            if (modal && modal.style.display !== 'none') {
+                openModals.add(index.toString());
+            }
         });
-    });
+    }
 
     blocksContainer.innerHTML = '';
     blocksContainer.appendChild(placeholder);
@@ -28,19 +37,32 @@ export function renderBuilder() {
     builderState.blocks.forEach((blockData, index) => {
         let blockElement;
         const renderData = { blockData, index };
+        
         if (blockData.type === 'tv') blockElement = renderTvBlock(renderData);
         else if (blockData.type === 'movie') blockElement = renderMovieBlock(renderData);
         else if (blockData.type === 'music') blockElement = renderMusicBlock(renderData);
 
         if (blockElement) {
-            if (openStates.has(`block-${index}`)) {
-                blockElement.open = true;
-            }
-            blockElement.querySelectorAll('details[data-section]').forEach(detailEl => {
-                if (openStates.has(`${index}-${detailEl.dataset.section}`)) {
-                    detailEl.open = true;
+            if (forceCollapse) {
+                blockElement.open = (index === builderState.blocks.length - 1);
+            } else {
+                if (openStates.has(`block-${index}`)) {
+                    blockElement.open = true;
                 }
-            });
+                blockElement.querySelectorAll('details[data-section]').forEach(detailEl => {
+                    if (openStates.has(`${index}-${detailEl.dataset.section}`)) {
+                        detailEl.open = true;
+                    }
+                });
+            }
+
+            if (openModals.has(index.toString())) {
+                if (blockData.type === 'movie' || blockData.type === 'music') {
+                    const currentMode = blockData.type === 'music' ? (blockData.music?.mode || 'album') : 'all';
+                    blockElement.setAttribute('x-data', `{ menuOpen: false, filterModalOpen: true, mode: '${currentMode}' }`);
+                }
+            }
+
             blocksContainer.appendChild(blockElement);
         }
     });
@@ -145,7 +167,6 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
         }
     });
 
-    addBlockBtn.addEventListener('click', (e) => { e.stopPropagation(); addBlockMenu.classList.toggle('hidden'); });
     addBlockMenu.addEventListener('click', (e) => {
         e.preventDefault();
         const target = e.target.closest('.dropdown-item');
@@ -165,7 +186,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
         if (newBlockData) {
             const currentBlocks = getBlocks();
             setBlocks([...currentBlocks, newBlockData]);
-            renderBuilder();
+            renderBuilder(true);
             
             setTimeout(() => {
                 const renderedBlocks = blocksContainer.querySelectorAll('.mixed-block');
@@ -174,10 +195,7 @@ export function initBuilderPane(userSelectElement, restoreDecision) {
                 }
             }, 50);
         }
-        addBlockMenu.classList.add('hidden');
     });
-
-    document.addEventListener('click', () => !addBlockMenu.classList.contains('hidden') && addBlockMenu.classList.add('hidden'));
 
     if (restoreDecision === 'restore') {
         const blocksToRestore = restoreSessionFromAutosave();

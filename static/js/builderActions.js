@@ -136,7 +136,7 @@ export function initBuilderActions(userSelectElement, applyDataToUI, renderBuild
             }
             const newBlock = await response.json();
             pushBlock(newBlock);
-            renderBuilder();
+            renderBuilder(true);
             toast("A surprise block was added!", true);
         } catch (error) {
             toast(`Error: ${error.message}`, false);

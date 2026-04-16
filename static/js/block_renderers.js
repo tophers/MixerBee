@@ -106,10 +106,6 @@ export function renderTvBlock({ blockData, index }) {
     endEpisodeInput.value = blockData.end_episode || 1;
     interleaveCb.checked = blockData.interleave !== false;
 
-    const isCountMode = (blockData.mode || 'count') === 'count';
-    countContainer.classList.toggle('hidden', !isCountMode);
-    rangeContainer.classList.toggle('hidden', isCountMode);
-
     (blockData.shows || []).forEach((showData, rowIndex) => {
         const newRow = createTvShowRow({ rowData: showData, rowIndex });
         showsContainer.appendChild(newRow);
@@ -318,12 +314,6 @@ countInput.value = musicData.count || 10;
 
     genreSortSelect.value = filters.sort_by || 'Random';
     genreLimitInput.value = filters.limit || 25;
-
-    const mode = musicData.mode || 'album';
-    artistContainer.classList.toggle('hidden', mode === 'genre');
-    genreContainer.classList.toggle('hidden', mode !== 'genre');
-    albumLabel.classList.toggle('hidden', mode !== 'album');
-    countLabel.classList.toggle('hidden', !mode.startsWith('artist_'));
 
     applyAiCuratedState(blockElement, blockData);
     return blockElement;
