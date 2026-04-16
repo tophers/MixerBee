@@ -192,10 +192,5 @@ export function createTvShowRow({ rowData, rowIndex }) {
 
     previewDiv.textContent = '...';
 
-    const isUnwatched = unwatchedCb.checked;
-    seasonInput.disabled = isUnwatched;
-    episodeInput.disabled = isUnwatched;
-    rowElement.querySelector('.random-ep-btn').disabled = isUnwatched;
-
     return rowElement;
 }

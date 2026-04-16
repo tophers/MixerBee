@@ -12,7 +12,7 @@ let userSelect, createBtn, schedulesList, schedulePlaylistNameInput, scheduleSou
 
 let editingScheduleId = null;
 let schedulesData = [];
-let isHydrating = true; // Start LOCKED to prevent defaults from overwriting autosave
+let isHydrating = true; 
 
 const schedulableQuickPlaylists = SMART_BUILD_TYPES.filter(t => t.schedulable);
 const quickPlaylistFriendlyNames = schedulableQuickPlaylists.reduce((acc, curr) => {
@@ -47,18 +47,6 @@ function syncPlaylistName() {
   }
 }
 
-function toggleSourceOptions() {
-  const sourceType = scheduleSourceSelect?.value;
-  if (builderOptionsContainer) builderOptionsContainer.classList.toggle('hidden', sourceType !== 'builder');
-  if (quickOptionsContainer) quickOptionsContainer.classList.toggle('hidden', sourceType !== 'quick_playlist');
-  syncPlaylistName();
-}
-
-function toggleDaysOfWeek() {
-  const isWeekly = frequencySelect?.value === 'weekly';
-  if (daysContainer) daysContainer.classList.toggle('hidden', !isWeekly);
-}
-
 async function getMixedPresets() {
   try {
     const response = await fetch('api/presets');
@@ -85,7 +73,8 @@ async function populatePresetDropdown() {
 
 function resetCreateForm() {
     editingScheduleId = null;
-    isHydrating = true; // Lock while resetting
+    isHydrating = true; 
+    
     const form = document.querySelector('#scheduler-pane .collapsible-section-body');
     if (form) {
         form.querySelectorAll('input[type="text"], input[type="number"], input[type="time"]').forEach(input => {
@@ -97,10 +86,9 @@ function resetCreateForm() {
         if (daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = false);
         if (scheduleCreateAsCollectionCb) scheduleCreateAsCollectionCb.checked = false;
     }
-    toggleSourceOptions();
-    toggleDaysOfWeek();
-    if (createBtn) createBtn.textContent = 'Create Schedule';
-    if (cancelEditBtn) cancelEditBtn.classList.add('hidden');
+
+    window.dispatchEvent(new CustomEvent('cancel-edit'));
+
     setSchedulerAutosave(null); 
     isHydrating = false;
 }
@@ -109,7 +97,7 @@ function populateFormForEdit(schedule) {
     isHydrating = true;
     if (schedulePlaylistNameInput) schedulePlaylistNameInput.value = schedule.playlist_name;
     if (scheduleSourceSelect) scheduleSourceSelect.value = schedule.job_type;
-    toggleSourceOptions();
+    
     if (schedule.job_type === 'builder') {
         if (presetSelect) presetSelect.value = schedule.preset_name;
         if (scheduleCreateAsCollectionCb) scheduleCreateAsCollectionCb.checked = schedule.create_as_collection || false;
@@ -119,7 +107,6 @@ function populateFormForEdit(schedule) {
     }
     const details = schedule.schedule_details;
     if (frequencySelect) frequencySelect.value = details.frequency;
-    toggleDaysOfWeek();
     if (scheduleTimeInput) scheduleTimeInput.value = details.time;
     if (daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = (details.days_of_week || []).includes(parseInt(cb.value)));
     isHydrating = false;
@@ -128,10 +115,17 @@ function populateFormForEdit(schedule) {
 function enterEditMode(scheduleId) {
     const scheduleToEdit = schedulesData.find(s => s.id === scheduleId);
     if (!scheduleToEdit) return toast('Could not find schedule data to edit.', false);
+    
     editingScheduleId = scheduleId;
     populateFormForEdit(scheduleToEdit);
-    if (createBtn) createBtn.textContent = 'Update Schedule';
-    if (cancelEditBtn) cancelEditBtn.classList.remove('hidden');
+
+    window.dispatchEvent(new CustomEvent('edit-schedule', {
+        detail: {
+            source: scheduleToEdit.job_type,
+            frequency: scheduleToEdit.schedule_details.frequency
+        }
+    }));
+
     const createSection = schedulerPane?.querySelector('.collapsible-section');
     if (createSection) { createSection.open = true; createSection.scrollIntoView({ behavior: 'smooth' }); }
 }
@@ -171,12 +165,42 @@ function renderSchedule(schedule, parentList) {
     : 'daily';
 
   const listItem = document.createElement('li');
-  listItem.innerHTML = `<fieldset class="filter-group" style="margin-bottom:1rem;"><legend>${schedule.playlist_name}</legend><div class="schedule-item-content"><p class="schedule-details-text"><span style="font-weight:bold;color:var(--accent);margin-right:0.5rem;">→</span>Builds ${frequencyText} at ${friendlyTime} from ${sourceText}</p><div class="schedule-status-container">${schedule.last_run ? `<span class="last-run-status ${schedule.last_run.status === 'ok' ? 'status-success' : 'status-danger'}" title="${(schedule.last_run.log || []).join('\n')}"><i data-feather="${schedule.last_run.status === 'ok' ? 'check-circle' : 'alert-circle'}"></i></span><span>Last run: ${new Date(schedule.last_run.timestamp).toLocaleString()}</span>` : `<span style="font-style:italic;">Never run</span>`}</div><div class="schedule-button-container"><button type="button" class="icon-btn edit-schedule-btn" title="Edit" data-id="${schedule.id}"><i data-feather="edit-2"></i></button><button type="button" class="icon-btn run-now-btn" title="Run Now" data-id="${schedule.id}"><i data-feather="play"></i></button><button type="button" class="icon-btn danger delete-schedule-btn" title="Delete" data-id="${schedule.id}"><i data-feather="trash-2"></i></button></div></div></fieldset>`;
+  listItem.innerHTML = `
+    <fieldset class="filter-group" style="margin-bottom:1rem;">
+        <legend>${schedule.playlist_name}</legend>
+        <div class="schedule-item-content">
+            <p class="schedule-details-text">
+                <span style="font-weight:bold;color:var(--accent);margin-right:0.5rem;">→</span>
+                Builds ${frequencyText} at ${friendlyTime} from ${sourceText}
+            </p>
+            <div class="schedule-status-container">
+                ${schedule.last_run ? `<span class="last-run-status ${schedule.last_run.status === 'ok' ? 'status-success' : 'status-danger'}" title="${(schedule.last_run.log || []).join('\n')}"><i data-feather="${schedule.last_run.status === 'ok' ? 'check-circle' : 'alert-circle'}"></i></span><span>Last run: ${new Date(schedule.last_run.timestamp).toLocaleString()}</span>` : `<span style="font-style:italic;">Never run</span>`}
+            </div>
+            
+            <div class="schedule-button-container dropdown-container" x-data="{ open: false }">
+                <button type="button" class="icon-btn" @click="open = !open" @click.outside="open = false">
+                    <i data-feather="more-vertical"></i>
+                </button>
+                <div class="dropdown-menu" x-show="open" style="display: none; right: 0; left: auto; top: 100%; z-index: 10; min-width: 150px;">
+                    <a href="#" class="dropdown-item run-now-btn" @click.prevent="open = false"><i data-feather="play"></i> Run Now</a>
+                    <a href="#" class="dropdown-item edit-schedule-btn" @click.prevent="open = false"><i data-feather="edit-2"></i> Edit</a>
+                    <a href="#" class="dropdown-item danger delete-schedule-btn" @click.prevent="open = false" style="color: var(--danger);"><i data-feather="trash-2"></i> Delete</a>
+                </div>
+            </div>
+        </div>
+    </fieldset>`;
+
   parentList.appendChild(listItem);
+
+  // Link the actions
   listItem.querySelector('.edit-schedule-btn').addEventListener('click', () => enterEditMode(schedule.id));
   listItem.querySelector('.run-now-btn').addEventListener('click', async e => { await post(`api/schedules/${schedule.id}/run`, {}, e.currentTarget, 'POST'); loadSchedulerData(); });
   listItem.querySelector('.delete-schedule-btn').addEventListener('click', async e => {
-      try { await confirmModal.show({ title: 'Delete Schedule?', text: `Are you sure?`, confirmText: 'Delete' }); const res = await post(`api/schedules/${schedule.id}`, {}, e.currentTarget, 'DELETE'); if (res.status === 'ok') loadSchedulerData(); } catch {}
+      try { 
+          await confirmModal.show({ title: 'Delete Schedule?', text: `Are you sure?`, confirmText: 'Delete' }); 
+          const res = await post(`api/schedules/${schedule.id}`, {}, e.currentTarget, 'DELETE'); 
+          if (res.status === 'ok') loadSchedulerData(); 
+      } catch {}
   });
 }
 
@@ -228,17 +252,19 @@ function applySchedulerFormState(state) {
         if (state.frequency) frequencySelect.value = state.frequency;
         if (state.time) scheduleTimeInput.value = state.time;
         if (state.days && daysCheckboxes) daysCheckboxes.forEach(cb => cb.checked = state.days.includes(cb.value));
-        toggleSourceOptions();
-        toggleDaysOfWeek();
+        
+        window.dispatchEvent(new CustomEvent('edit-schedule', {
+            detail: { source: state.source, frequency: state.frequency }
+        }));
+
         if (state.playlistName) schedulePlaylistNameInput.value = state.playlistName;
     } catch (e) { console.error("Restore failed:", e); }
-    // Lock is released in init function after all async work is done
 }
 
 export function initSchedulerPane() {
     schedulerPane = document.getElementById('scheduler-pane');
     if (!schedulerPane) return;
-    isHydrating = true; // Lock everything immediately
+    isHydrating = true; 
 
     userSelect = document.getElementById('user-select');
     createBtn = schedulerPane.querySelector('#create-schedule-btn');
@@ -262,7 +288,6 @@ export function initSchedulerPane() {
         const saved = getSchedulerAutosave();
         if (saved) applySchedulerFormState(saved);
         
-        // --- RELEASE THE LOCK LAST ---
         isHydrating = false;
 
         const body = schedulerPane.querySelector('.collapsible-section-body');
@@ -273,13 +298,13 @@ export function initSchedulerPane() {
 
     createBtn?.addEventListener('click', handleScheduleFormSubmit);
     cancelEditBtn?.addEventListener('click', resetCreateForm);
-    scheduleSourceSelect?.addEventListener('change', toggleSourceOptions);
-    frequencySelect?.addEventListener('change', toggleDaysOfWeek);
+    
+    scheduleSourceSelect?.addEventListener('change', syncPlaylistName);
     quickTypeSelect?.addEventListener('change', syncPlaylistName);
     presetSelect?.addEventListener('change', syncPlaylistName);
+
     ['save-preset-confirm-btn', 'delete-preset-btn', 'import-preset-confirm-btn'].forEach(id => {
         document.getElementById(id)?.addEventListener('click', () => {
-            console.log(`Global event ${id} detected: Refreshing Scheduler dropdown.`);
             setTimeout(populatePresetDropdown, 250);
         });
     });

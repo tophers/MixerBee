@@ -18,7 +18,7 @@
         <div class="header-user-display">
             <i data-feather="user"></i>
             <span id="active-user-display"></span>
-            
+
             <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;">
                 <i data-feather="bell"></i>
                 <span id="toast-badge" class="hidden">0</span>
@@ -39,9 +39,9 @@
 
     <div id="typewriter-overlay">
         <div class="typewriter-wrapper">
-          <h2 class="typewriter-header">
-            <span id="typed-text"></span>
-          </h2>
+            <h2 class="typewriter-header">
+                <span id="typed-text"></span>
+            </h2>
         </div>
     </div>
 
@@ -52,12 +52,12 @@
     </div>
 
     <div id="not-configured-warning" class="container">
-         <div class="warning-box">
-             <i data-feather="alert-triangle"></i>
-             <h3>Application Not Configured</h3>
-             <p>MixerBee can't connect to your server. Please open the settings and provide your server details, or check if the server is running.</p>
-             <button id="not-configured-settings-btn">Open Settings</button>
-         </div>
+        <div class="warning-box">
+            <i data-feather="alert-triangle"></i>
+            <h3>Application Not Configured</h3>
+            <p>MixerBee can't connect to your server. Please open the settings and provide your server details, or check if the server is running.</p>
+            <button id="not-configured-settings-btn">Open Settings</button>
+        </div>
     </div>
 
     <div id="main-content-area" class="hidden">
@@ -78,7 +78,7 @@
                         <button id="export-preset-btn" type="button" class="secondary" disabled>Export</button>
                     </div>
                 </div>
-                 <fieldset id="ai-generator-container" class="filter-group hidden">
+                <fieldset id="ai-generator-container" class="filter-group hidden">
                     <legend>AI Block Builder</legend>
                     <details>
                         <summary>Expand AI Block Builder</summary>
@@ -96,118 +96,123 @@
                 <div id="mixed-playlist-blocks">
                     <p class="placeholder-text">Click <strong>'Add Block'</strong> below to begin building your mix, <br> or try <strong>'Auto Playlists'</strong> for a quick start.</p>
                 </div>
-                <div id="add-block-controls" class="button-group">
-                    <div class="dropdown-container">
-                        <button id="add-block-btn" class="secondary"><i data-feather="plus"></i> Add Block <i data-feather="chevron-down" class="chevron"></i></button>
-                        <div id="add-block-menu" class="dropdown-menu hidden">
-                            <a href="#" class="dropdown-item" data-block-type="tv"><i data-feather="tv"></i> TV Block</a>
-                            <a href="#" class="dropdown-item" data-block-type="movie"><i data-feather="film"></i> Movie Block</a>
-                            <a href="#" class="dropdown-item" data-block-type="music"><i data-feather="music"></i> Music Block</a>
+            </div>
+        </div>
+        <div id="scheduler-pane" class="tab-pane hidden" 
+     x-data="{ 
+        source: 'builder', 
+        frequency: 'daily',
+        isEditing: false
+     }"
+     @edit-schedule.window="isEditing = true; source = $event.detail.source; frequency = $event.detail.frequency"
+     @cancel-edit.window="isEditing = false; source = 'builder'; frequency = 'daily'">
+    
+    <div class="container">
+        <details class="collapsible-section" open>
+            <summary class="collapsible-section-header">
+                <h3>
+                    <i data-feather="plus-circle" x-show="!isEditing"></i>
+                    <i data-feather="edit" x-show="isEditing" style="display:none;"></i>
+                    <span x-text="isEditing ? 'Update Schedule' : 'Create a New Schedule'"></span>
+                </h3>
+                <span class="icon-btn collapse-toggle-btn">
+                    <i data-feather="chevron-up"></i>
+                </span>
+            </summary>
+            
+            <div class="collapsible-section-body">
+                <fieldset class="filter-group">
+                    <legend>Schedule Details</legend>
+                    <div class="scheduler-grid">
+                        <label class="control-item">
+                            <span>Playlist Name</span>
+                            <input type="text" id="schedule-playlist-name" value="Scheduled">
+                        </label>
+                        <label class="control-item">
+                            <span>Schedule Source</span>
+                            <select id="schedule-source-select" x-model="source">
+                                <option value="builder">From Builder Preset</option>
+                                <option value="quick_playlist">From Auto Playlists</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div id="schedule-builder-options" class="scheduler-source-options" x-show="source === 'builder'">
+                        <label class="control-item">
+                            <span>Preset to Schedule</span>
+                            <select id="schedule-preset-select">
+                                <option value="">-- Select a saved preset --</option>
+                            </select>
+                        </label>
+                        <label class="action-bar-checkbox-label" style="margin-top: 0.8rem; margin-left: 0; justify-content: flex-start;">
+                            <input type="checkbox" id="schedule-create-as-collection-cb">
+                            <span>Create as Collection</span>
+                        </label>
+                    </div>
+
+                    <div id="schedule-quick-options" class="scheduler-source-options" x-show="source === 'quick_playlist'" style="display: none;">
+                         <div class="scheduler-grid">
+                            <label class="control-item">
+                                <span>Auto Playlist Type</span>
+                                <select id="schedule-quick-type-select"></select>
+                            </label>
+                            <label class="control-item">
+                                <span>Number of Items</span>
+                                <input type="number" id="schedule-quick-count-input" value="10" min="1">
+                            </label>
                         </div>
                     </div>
-                    <button id="smart-build-btn" type="button" class="secondary"><i data-feather="framer"></i> Auto Playlists</button>
-                    <button id="surprise-me-btn" type="button" class="secondary"><i data-feather="gift"></i> Surprise Me</button>
-                    <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin-left: auto;">Clear All Blocks</button>
+                </fieldset>
+
+                <fieldset class="filter-group">
+                    <legend>Schedule Time</legend>
+                    <div class="scheduler-grid">
+                         <label class="control-item">
+                            <span>Frequency</span>
+                            <select id="schedule-frequency" x-model="frequency">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                            </select>
+                        </label>
+                        <label class="control-item">
+                            <span>Run At</span>
+                            <input type="time" id="schedule-time-input" value="19:00">
+                        </label>
+                    </div>
+
+                    <div id="schedule-days-container" class="checkbox-grid" x-show="frequency === 'weekly'" style="margin-top: 1rem; display: none;">
+                        <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
+                        <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
+                        <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
+                        <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
+                        <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
+                        <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
+                        <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
+                    </div>
+                </fieldset>
+
+                <div id="scheduler-actions" class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
+                    <button id="cancel-edit-schedule-btn" type="button" class="secondary" x-show="isEditing" style="display: none;">Cancel</button>
+                    <button id="create-schedule-btn" x-text="isEditing ? 'Update Schedule' : 'Create Schedule'"></button>
                 </div>
             </div>
-        </div>
+        </details>
 
-        <div id="scheduler-pane" class="tab-pane hidden">
-            <div class="container">
-              <details class="collapsible-section" open>
-                    <summary class="collapsible-section-header">
-                        <h3><i data-feather="plus-circle"></i> Create a New Schedule</h3>
-                        <span class="icon-btn collapse-toggle-btn">
-                            <i data-feather="chevron-up"></i>
-                        </span>
-                    </summary>
-                    <div class="collapsible-section-body">
-                        <fieldset class="filter-group">
-                            <legend>Schedule Details</legend>
-                            <div class="scheduler-grid">
-                                <label class="control-item">
-                                    <span>Playlist Name</span>
-                                    <input type="text" id="schedule-playlist-name" value="Scheduled">
-                                </label>
-                                <label class="control-item">
-                                    <span>Schedule Source</span>
-                                    <select id="schedule-source-select">
-                                        <option value="builder">From Builder Preset</option>
-                                        <option value="quick_playlist">From Auto Playlists</option>
-                                    </select>
-                                </label>
-                            </div>
-                            <div id="schedule-builder-options" class="scheduler-source-options">
-                                <label class="control-item">
-                                    <span>Preset to Schedule</span>
-                                    <select id="schedule-preset-select">
-                                        <option value="">-- Select a saved preset --</option>
-                                    </select>
-                                </label>
-                                <label class="action-bar-checkbox-label" style="margin-top: 0.8rem; margin-left: 0; justify-content: flex-start;">
-                                    <input type="checkbox" id="schedule-create-as-collection-cb">
-                                    <span>Create as Collection</span>
-                                </label>
-                            </div>
-                            <div id="schedule-quick-options" class="scheduler-source-options hidden">
-                                 <div class="scheduler-grid">
-                                    <label class="control-item">
-                                        <span>Auto Playlist Type</span>
-                                        <select id="schedule-quick-type-select"></select>
-                                    </label>
-                                    <label class="control-item">
-                                        <span>Number of Items</span>
-                                        <input type="number" id="schedule-quick-count-input" value="10" min="1">
-                                    </label>
-                                </div>
-                            </div>
-                        </fieldset>
-                        <fieldset class="filter-group">
-                            <legend>Schedule Time</legend>
-                            <div class="scheduler-grid">
-                                 <label class="control-item">
-                                    <span>Frequency</span>
-                                    <select id="schedule-frequency">
-                                        <option value="daily">Daily</option>
-                                        <option value="weekly">Weekly</option>
-                                    </select>
-                                </label>
-                                <label class="control-item">
-                                    <span>Run At</span>
-                                    <input type="time" id="schedule-time-input" value="19:00">
-                                </label>
-                            </div>
-                             <div id="schedule-days-container" class="checkbox-grid hidden" style="margin-top: 1rem;">
-                                <label><input type="checkbox" name="schedule-day" value="1"> Mon</label>
-                                <label><input type="checkbox" name="schedule-day" value="2"> Tue</label>
-                                <label><input type="checkbox" name="schedule-day" value="3"> Wed</label>
-                                <label><input type="checkbox" name="schedule-day" value="4"> Thu</label>
-                                <label><input type="checkbox" name="schedule-day" value="5"> Fri</label>
-                                <label><input type="checkbox" name="schedule-day" value="6"> Sat</label>
-                                <label><input type="checkbox" name="schedule-day" value="0"> Sun</label>
-                            </div>
-                        </fieldset>
-                        <div id="scheduler-actions" class="button-group" style="justify-content: flex-end; margin-top: 1rem;">
-                            <button id="cancel-edit-schedule-btn" type="button" class="secondary hidden">Cancel</button>
-                            <button id="create-schedule-btn">Create Schedule</button>
-                        </div>
-                    </div>
-                </details>
-                <details id="schedules-list-container" class="collapsible-section hidden" open>
-                    <summary class="collapsible-section-header">
-                        <h3><i data-feather="list"></i> Active Schedules <span id="schedule-count"></span></h3>
-                        <span class="icon-btn collapse-toggle-btn">
-                            <i data-feather="chevron-up"></i>
-                        </span>
-                    </summary>
-                    <div class="collapsible-section-body no-padding">
-                        <ul id="schedules-list">
-                        </ul>
-                    </div>
-                </details>
+        <details id="schedules-list-container" class="collapsible-section hidden" open>
+            <summary class="collapsible-section-header">
+                <h3><i data-feather="list"></i> Active Schedules <span id="schedule-count"></span></h3>
+                <span class="icon-btn collapse-toggle-btn">
+                    <i data-feather="chevron-up"></i>
+                </span>
+            </summary>
+            <div class="collapsible-section-body no-padding">
+                <ul id="schedules-list"></ul>
             </div>
-        </div>
-        <div id="manager-pane" class="tab-pane hidden">
+        </details>
+    </div>
+</div>
+
+      <div id="manager-pane" class="tab-pane hidden">
           <div class="container">
            <details class="collapsible-section" open>
             <summary class="collapsible-section-header">
@@ -238,27 +243,53 @@
             </div>
         </div>
     </div>
+    <div id="action-bar">
+        <div class="action-bar-content" style="flex-direction: column; align-items: stretch; gap: 0.8rem; padding: 0.8rem 1rem;">
 
+            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; align-items: center;">
+                <div class="button-group" style="flex-wrap: wrap;">
+                    <div class="dropdown-container" x-data="{ open: false }">
+                        <button id="add-block-btn" class="secondary" style="margin: 0;" @click="open = !open" @click.outside="open = false">
+                            <i data-feather="plus"></i> Add Block <i data-feather="chevron-down" class="chevron"></i>
+                        </button>
+                        <div id="add-block-menu" class="dropdown-menu" x-show="open" style="display: none; bottom: 100%; top: auto; margin-bottom: 0.5rem; left: 0;">
+                            <a href="#" class="dropdown-item" @click="open = false" data-block-type="tv"><i data-feather="tv"></i> TV Block</a>
+                            <a href="#" class="dropdown-item" @click="open = false" data-block-type="movie"><i data-feather="film"></i> Movie Block</a>
+                            <a href="#" class="dropdown-item" @click="open = false" data-block-type="music"><i data-feather="music"></i> Music Block</a>
+                        </div>
+                    </div>
+                    <button id="smart-build-btn" type="button" class="secondary" style="margin: 0;"><i data-feather="framer"></i> Auto Playlists</button>
+                    <button id="surprise-me-btn" type="button" class="secondary" style="margin: 0;"><i data-feather="gift"></i> Surprise Me</button>
+                </div>
 
-    <div id="action-bar" class="hidden">
-        <div class="action-bar-content">
-            <div class="build-options-container">
-                <select id="build-mode-select">
-                    <option value="create">Create New</option>
-                    <option value="add">Add to Existing</option>
-                </select>
-                <select id="existing-playlist-select" class="hidden">
-                </select>
+                <button id="clear-all-blocks-btn" type="button" class="secondary" style="margin: 0; color: var(--danger); border-color: rgba(153, 32, 32, 0.5);">
+                    <i data-feather="trash-2"></i> Clear All
+                </button>
             </div>
-            <button id="preview-playlist-btn" type="button" class="secondary">Preview</button>
-            <button id="generate-mixed-playlist-btn">Build</button>
-            <label class="action-bar-checkbox-label">
-                <input type="checkbox" id="create-as-collection-cb">
-                <span>Create as Collection</span>
-            </label>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-start; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.8rem;">
+
+                <div class="build-options-container" style="margin: 0; flex-grow: 1; min-width: 200px;">
+                    <select id="build-mode-select" style="margin: 0; width: 100%;">
+                        <option value="create">Create New</option>
+                        <option value="add">Add to Existing</option>
+                    </select>
+                    <select id="existing-playlist-select" class="hidden" style="margin: 0.5rem 0 0 0; width: 100%;">
+                    </select>
+                </div>
+
+                <div class="button-group" style="flex-wrap: wrap; justify-content: flex-end; flex-grow: 1;">
+                    <button id="preview-playlist-btn" type="button" class="secondary" style="margin: 0;">Preview</button>
+                    <button id="generate-mixed-playlist-btn" style="margin: 0; flex-grow: 1;">Build</button>
+                    <label class="action-bar-checkbox-label" style="margin: 0; padding: 0.4rem 0.5rem; border: none;">
+                        <input type="checkbox" id="create-as-collection-cb">
+                        <span>Collection</span>
+                    </label>
+                </div>
+
+            </div>
         </div>
     </div>
-
     <div id="settings-modal-overlay" class="modal-overlay hidden">
         <div class="modal-window">
             <div class="modal-header">
@@ -271,8 +302,8 @@
                     <label class="control-item">
                         <span>Server Type</span>
                         <select id="settings-server-type-select">
-                          <option value="emby">Emby</option>
-                          <option value="jellyfin">Jellyfin</option>
+                            <option value="emby">Emby</option>
+                            <option value="jellyfin">Jellyfin</option>
                         </select>
                     </label>
                     <label class="control-item">
@@ -345,8 +376,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-               <button type="button" class="secondary js-modal-cancel">Cancel</button> 
-               <button id="smart-playlist-confirm-btn" type="button">Create</button>
+                <button type="button" class="secondary js-modal-cancel">Cancel</button>
+                <button id="smart-playlist-confirm-btn" type="button">Create</button>
             </div>
         </div>
     </div>
@@ -370,8 +401,8 @@
                 </div>
             </div>
             <div class="modal-footer">
-               <button type="button" class="secondary js-modal-cancel">Cancel</button>
-               <button id="import-preset-confirm-btn" type="button">Import</button>
+                <button type="button" class="secondary js-modal-cancel">Cancel</button>
+                <button id="import-preset-confirm-btn" type="button">Import</button>
             </div>
         </div>
     </div>
@@ -388,7 +419,7 @@
                 </ul>
             </div>
             <div class="modal-footer">
-               <button type="button" class="secondary js-modal-cancel">Cancel</button>
+                <button type="button" class="secondary js-modal-cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -414,13 +445,13 @@
                 <button class="icon-btn js-modal-close">×</button>
             </div>
             <div class="modal-body" id="preview-modal-body">
-                 </div>
+            </div>
             <div class="modal-footer">
                 <button class="js-modal-cancel" type="button">Close</button>
             </div>
         </div>
     </div>
-    
+
     <div id="reset-watch-modal-overlay" class="modal-overlay hidden">
         <div class="modal-window">
             <div class="modal-header">
@@ -453,7 +484,7 @@
             </div>
         </div>
     </div>
-    
+
     <div id="toast-history-modal-overlay" class="modal-overlay hidden">
         <div class="modal-window">
             <div class="modal-header">
@@ -474,17 +505,23 @@
         <div class="spinner"></div>
     </div>
 
-<template id="template-tv-block">
+    <template id="template-tv-block">
         <details class="mixed-block" data-type="tv" open>
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
                     <h3><i data-feather="tv"></i> <span class="block-title-text">TV Block</span></h3>
-                    <div class="mixed-block-controls">
-                        <span class="tv-block-preview-summary"></span>
-                        <button type="button" class="icon-btn duplicate-block-btn" title="Duplicate Block"><i data-feather="copy"></i></button>
-                        <button type="button" class="icon-btn danger delete-block-btn" title="Delete Block"><i data-feather="x"></i></button>
-                        <span class="icon-btn collapse-toggle-btn"><i data-feather="chevron-up"></i></span>
+
+                    <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
+                        <span class="tv-block-preview-summary" style="margin-right: 0.5rem;"></span>
+                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false">
+                            <i data-feather="more-vertical"></i>
+                        </button>
+                        <div class="dropdown-menu" x-show="menuOpen" style="display: none; right: 0; left: auto; top: 100%; z-index: 10;">
+                            <a href="#" class="dropdown-item duplicate-block-btn" @click.prevent="menuOpen = false"><i data-feather="copy"></i> Duplicate Block</a>
+                            <a href="#" class="dropdown-item delete-block-btn" @click.prevent="menuOpen = false" style="color: var(--danger);"><i data-feather="trash-2"></i> Delete Block</a>
+                        </div>
+                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;"><i data-feather="chevron-up"></i></span>
                     </div>
                 </div>
             </summary>
@@ -495,21 +532,24 @@
                         <button type="button" class="secondary add-show-row-btn"><i data-feather="plus"></i> Add Show</button>
                     </div>
                     <div class="block-options-footer">
-                        <div class="block-options-grid">
+                        <div class="block-options-grid" x-data="{ mode: 'count' }" x-init="mode = $el.querySelector('.tv-block-mode-select').value">
                             <label class="control-item">
-                                <select class="tv-block-mode-select">
+                                <select class="tv-block-mode-select" x-model="mode">
                                     <option value="count">By Episode Count</option>
                                     <option value="range">By End Episode</option>
                                 </select>
                             </label>
-                            <label class="control-item tv-block-count-container">
+
+                            <label class="control-item tv-block-count-container" x-show="mode === 'count'">
                                 <span>Count</span>
                                 <input type="number" class="tv-block-count" value="3" min="1">
                             </label>
-                            <div class="tv-block-range-container hidden">
+
+                            <div class="tv-block-range-container" x-show="mode === 'range'" style="display: none;">
                                 <label class="control-item"><span>S</span><input type="number" class="tv-block-end-season" value="1" min="1"></label>
                                 <label class="control-item"><span>E</span><input type="number" class="tv-block-end-episode" value="1" min="1"></label>
                             </div>
+
                             <label class="interleave-label">
                                 <input type="checkbox" class="tv-block-interleave" checked> Interleave
                             </label>
@@ -524,8 +564,13 @@
             </div>
         </details>
     </template>
+
     <template id="template-tv-show-row">
-        <div class="show-row tv-block-show-row">
+        <div class="show-row tv-block-show-row"
+             x-data="{ unwatched: true, season: 1 }"
+             x-init="unwatched = $el.querySelector('.first-unwatched-cb').checked; season = $el.querySelector('.tv-block-season').value"
+             :class="{ 'is-unwatched': unwatched }">
+
             <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
             <div class="show-select-wrapper">
                 <div class="search-and-select">
@@ -534,100 +579,169 @@
                 </div>
                 <button type="button" class="icon-btn shuffle-show-btn" title="Pick Random Show"><i data-feather="shuffle"></i></button>
             </div>
-            <input type="number" class="tv-block-season" value="1" min="1">
-            <input type="number" class="tv-block-episode" value="1" min="1">
-            <div class="show-row-controls">
-                <button type="button" class="icon-btn reset-watch-btn" title="Reset Watch History"><i data-feather="eye"></i></button>
-                <button type="button" class="icon-btn random-ep-btn" title="Pick Random Episode"><i data-feather="shuffle"></i></button>
-                <button type="button" class="icon-btn danger delete-btn" title="Delete Row"><i data-feather="x"></i></button>
+
+            <input type="number" class="tv-block-season" x-model="season" min="1" x-show="!unwatched">
+            <input type="number" class="tv-block-episode" value="1" min="1" x-show="!unwatched">
+            <div class="show-row-controls dropdown-container" x-data="{ rowMenuOpen: false, confirmReset: false }">
+                <button type="button" class="icon-btn random-ep-btn" title="Pick Random Episode" x-show="!unwatched"><i data-feather="shuffle"></i></button>
+                <button type="button" class="icon-btn" @click.prevent="rowMenuOpen = !rowMenuOpen" @click.outside="rowMenuOpen = false; confirmReset = false">
+                    <i data-feather="more-vertical"></i>
+                </button>
+
+                <div class="dropdown-menu" x-show="rowMenuOpen" style="display: none; right: 0; left: auto; top: 100%; z-index: 10; min-width: 200px;">
+                    <template x-if="!confirmReset">
+                        <div>
+                            <a href="#" class="dropdown-item" @click.prevent="confirmReset = true">
+                                <i data-feather="eye"></i> Reset Watch History
+                            </a>
+                            <a href="#" class="dropdown-item delete-btn" @click.prevent="rowMenuOpen = false" style="color: var(--danger);">
+                                <i data-feather="trash-2"></i> Remove Show
+                            </a>
+                        </div>
+                    </template>
+                    <template x-if="confirmReset">
+                        <div style="padding: 0.5rem 0;">
+                            <div style="font-size: 0.75rem; color: var(--text-subtle); padding: 0 1rem 0.5rem; text-transform: uppercase; font-weight: bold;">Are you very sure?</div>
+
+                            <a href="#" class="dropdown-item reset-watch-btn" data-scope="season" @click.prevent="rowMenuOpen = false; confirmReset = false" style="color: var(--danger); font-weight: bold;">
+                                Reset Season:<span x-text="season" style="margin-left: 4px;"></span>
+                            </a>
+
+                            <a href="#" class="dropdown-item reset-watch-btn" data-scope="show" @click.prevent="rowMenuOpen = false; confirmReset = false" style="color: var(--danger); font-weight: bold;">
+                                Reset Entire Show
+                            </a>
+
+                            <a href="#" class="dropdown-item" @click.prevent="confirmReset = false" style="border-top: 1px solid var(--border-color); margin-top: 0.5rem;">
+                                Cancel
+                            </a>
+                        </div>
+                    </template>
+                </div>
             </div>
+
             <div class="tv-block-show-options">
                 <label>
-                    <input type="checkbox" class="first-unwatched-cb"> Start from next unwatched
+                    <input type="checkbox" class="first-unwatched-cb" x-model="unwatched"> Start from next unwatched
                 </label>
             </div>
             <div class="tv-block-preview"></div>
         </div>
     </template>
     <template id="template-movie-block">
-        <details class="mixed-block" data-type="movie" open>
+        <details class="mixed-block" data-type="movie" open x-data="{ menuOpen: false, filterModalOpen: false }">
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
                     <h3><i data-feather="film"></i> <span class="block-title-text">Movie Block</span></h3>
-                    <div class="mixed-block-controls">
-                        <span class="movie-block-active-filters hidden" style="font-size: 0.85em; color: var(--text-subtle);"></span>
-                        <span class="movie-block-preview-count"></span>
-                        <button type="button" class="icon-btn duplicate-block-btn" title="Duplicate Block"><i data-feather="copy"></i></button>
-                        <button type="button" class="icon-btn danger delete-block-btn" title="Delete Block"><i data-feather="x"></i></button>
-                        <span class="icon-btn collapse-toggle-btn"><i data-feather="chevron-up"></i></span>
+
+                    <div class="mixed-block-controls dropdown-container">
+                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false">
+                            <i data-feather="more-vertical"></i>
+                        </button>
+                        <div class="dropdown-menu" x-show="menuOpen" style="display: none; right: 0; left: auto; top: 100%; z-index: 10;">
+                            <a href="#" class="dropdown-item duplicate-block-btn" @click.prevent="menuOpen = false"><i data-feather="copy"></i> Duplicate Block</a>
+                            <a href="#" class="dropdown-item delete-block-btn" @click.prevent="menuOpen = false" style="color: var(--danger);"><i data-feather="trash-2"></i> Delete Block</a>
+                        </div>
+                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;"><i data-feather="chevron-up"></i></span>
                     </div>
                 </div>
             </summary>
             <div class="mixed-block-body">
                 <div class="manual-controls">
-                    <fieldset class="filter-group">
-                        <legend>Libraries</legend>
-                        <div class="checkbox-grid movie-block-libraries"></div>
-                    </fieldset>
-                    <fieldset class="filter-group">
-                        <legend>Genres</legend>
-                        <details>
-                            <summary>Expand/Collapse Genre Filters</summary>
-                            <div class="token-field-wrapper">
-                                <input type="search" class="token-input movie-block-genre-input" placeholder="Search for a genre...">
-                                <div class="autocomplete-suggestions"></div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0;">
+                        <div>
+                            <span class="movie-block-active-filters hidden" style="font-size: 0.9em; font-weight: 600; color: var(--accent); margin-right: 1rem;"></span>
+                            <span class="movie-block-preview-count" style="font-size: 0.9em; font-weight: 600;"></span>
+                        </div>
+                        <button type="button" class="secondary" @click="filterModalOpen = true">
+                            <i data-feather="sliders"></i> Edit Filters
+                        </button>
+                    </div>
+
+                    <div class="modal-overlay" x-show="filterModalOpen" style="display: none; z-index: 4000; position: fixed;">
+                        <div class="modal-window" @click.outside="filterModalOpen = false" style="max-height: 90vh; display: flex; flex-direction: column;">
+
+                            <div class="modal-header">
+                                <h2>Movie Block Filters</h2>
+                                <button type="button" class="icon-btn" @click="filterModalOpen = false">&times;</button>
                             </div>
-                            <div class="token-container movie-block-genre-tokens"></div>
-                        </details>
-                    </fieldset>
-                    <fieldset class="filter-group">
-                        <legend>People & Studios</legend>
-                        <details>
-                            <summary>Expand/Collapse Filters</summary>
-                          <div class="input-with-button" style="margin-bottom: 0.5rem; align-items: flex-start;">
-                              <select class="movie-block-person-role" style="flex-shrink: 0; width: auto;">
-                                <option value="Person">Any Role</option>
-                                <option value="Actor">Actor</option>
-                                <option value="Director">Director</option>
-                                <option value="Writer">Writer</option>
-                                <option value="Producer">Producer</option>
-                              </select>
-                              <div class="token-field-wrapper" style="flex-grow: 1;">
-                                 <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios..." style="width: 100%;">
-                                 <div class="autocomplete-suggestions"></div>
-                             </div>
-                          </div>  
-                          <div class="token-container movie-block-person-tokens"></div>
-                        </details>
-                    </fieldset>
-                    <fieldset class="filter-group">
-                        <legend>Other Filters</legend>
-                        <details>
-                            <summary>Expand/Collapse Other Filters</summary>
-                            <div class="movie-block-filter-grid">
-                                <button type="button" class="filter-toggle-btn movie-block-watched" data-state="all"></button>
-                                <button type="button" class="filter-toggle-btn movie-block-sort-by" data-state="Random"></button>
-                                <div class="range-slider-wrapper">
-                                    <div class="range-slider-display">1920 - 2024</div>
-                                    <div class="range-slider-container">
-                                        <div class="range-slider-track"></div>
-                                        <div class="range-slider-progress"></div>
-                                        <input type="range" class="movie-block-year-from" min="1920">
-                                        <input type="range" class="movie-block-year-to" min="1920">
-                                    </div>
-                                </div>
-                                <div class="limit-by-wrapper">
-                                    <label><input type="radio" name="limit-mode" value="count">Count</label>
-                                    <label><input type="radio" name="limit-mode" value="duration">Duration</label>
-                                    <div class="input-group">
-                                        <input type="number" class="movie-block-limit-value" min="1">
-                                        <span class="limit-unit"></span>
-                                    </div>
-                                </div>
+
+                            <div class="modal-body" style="flex-grow: 1; overflow-y: auto; padding-right: 0.5rem;">
+                                <fieldset class="filter-group">
+                                    <legend>Libraries</legend>
+                                    <div class="checkbox-grid movie-block-libraries"></div>
+                                </fieldset>
+
+                                <fieldset class="filter-group">
+                                    <legend>Genres</legend>
+                                    <details>
+                                        <summary>Expand/Collapse Genre Filters</summary>
+                                        <div class="token-field-wrapper">
+                                            <input type="search" class="token-input movie-block-genre-input" placeholder="Search for a genre...">
+                                            <div class="autocomplete-suggestions"></div>
+                                        </div>
+                                        <div class="token-container movie-block-genre-tokens"></div>
+                                    </details>
+                                </fieldset>
+
+                                <fieldset class="filter-group">
+                                    <legend>People & Studios</legend>
+                                    <details>
+                                        <summary>Expand/Collapse Filters</summary>
+                                        <div class="input-with-button" style="margin-bottom: 0.5rem; align-items: flex-start;">
+                                            <select class="movie-block-person-role" style="flex-shrink: 0; width: auto;">
+                                                <option value="Person">Any Role</option>
+                                                <option value="Actor">Actor</option>
+                                                <option value="Director">Director</option>
+                                                <option value="Writer">Writer</option>
+                                                <option value="Producer">Producer</option>
+                                            </select>
+                                            <div class="token-field-wrapper" style="flex-grow: 1;">
+                                                <input type="search" class="token-input movie-block-person-input" placeholder="Search for People or Studios..." style="width: 100%;">
+                                                <div class="autocomplete-suggestions"></div>
+                                            </div>
+                                        </div>
+                                        <div class="token-container movie-block-person-tokens"></div>
+                                    </details>
+                                </fieldset>
+
+                                <fieldset class="filter-group">
+                                    <legend>Other Filters</legend>
+                                    <details>
+                                        <summary>Expand/Collapse Other Filters</summary>
+                                        <div class="movie-block-filter-grid">
+                                            <button type="button" class="filter-toggle-btn movie-block-watched" data-state="all"></button>
+                                            <button type="button" class="filter-toggle-btn movie-block-sort-by" data-state="Random"></button>
+                                            <div class="range-slider-wrapper">
+                                                <div class="range-slider-display">1920 - 2024</div>
+                                                <div class="range-slider-container">
+                                                    <div class="range-slider-track"></div>
+                                                    <div class="range-slider-progress"></div>
+                                                    <div class="range-slider-track"></div>
+                                                    <input type="range" class="movie-block-year-from" min="1920">
+                                                    <input type="range" class="movie-block-year-to" min="1920">
+                                                </div>
+                                            </div>
+                                            <div class="limit-by-wrapper">
+                                                <label><input type="radio" name="limit-mode" value="count">Count</label>
+                                                <label><input type="radio" name="limit-mode" value="duration">Duration</label>
+                                                <div class="input-group">
+                                                    <input type="number" class="movie-block-limit-value" min="1">
+                                                    <span class="limit-unit"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </details>
+                                </fieldset>
                             </div>
-                        </details>
-                    </fieldset>
+
+                            <div class="modal-footer" style="margin-top: 1rem; padding-top: 1rem;">
+                                <button type="button" @click="filterModalOpen = false" style="width: 100%;">Done</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
                 <div class="ai-controls hidden">
                     <i data-feather="chrome" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
@@ -637,70 +751,102 @@
             </div>
         </details>
     </template>
-
     <template id="template-music-block">
-        <details class="mixed-block" data-type="music" open>
+        <details class="mixed-block" data-type="music" open x-data="{ menuOpen: false, filterModalOpen: false, mode: 'album' }" x-init="mode = $el.querySelector('.music-block-mode').value">
             <summary>
                 <div class="mixed-block-header">
                     <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
                     <h3><i data-feather="music"></i> <span class="block-title-text">Music Block</span></h3>
-                    <div class="mixed-block-controls">
-                        <span class="music-block-preview-count"></span>
-                        <span class="music-block-preview-summary"></span>
-                        <button type="button" class="icon-btn duplicate-block-btn" title="Duplicate Block"><i data-feather="copy"></i></button>
-                        <button type="button" class="icon-btn danger delete-block-btn" title="Delete Block"><i data-feather="x"></i></button>
-                        <span class="icon-btn collapse-toggle-btn"><i data-feather="chevron-up"></i></span>
+
+                    <div class="mixed-block-controls dropdown-container">
+                        <span class="music-block-preview-count" style="font-size: 0.9em; font-weight: 600;"></span>
+                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false">
+                            <i data-feather="more-vertical"></i>
+                        </button>
+                        <div class="dropdown-menu" x-show="menuOpen" style="display: none; right: 0; left: auto; top: 100%; z-index: 10;">
+                            <a href="#" class="dropdown-item duplicate-block-btn" @click.prevent="menuOpen = false"><i data-feather="copy"></i> Duplicate Block</a>
+                            <a href="#" class="dropdown-item delete-block-btn" @click.prevent="menuOpen = false" style="color: var(--danger);"><i data-feather="trash-2"></i> Delete Block</a>
+                        </div>
+                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;"><i data-feather="chevron-up"></i></span>
                     </div>
                 </div>
             </summary>
             <div class="mixed-block-body">
                 <div class="manual-controls">
-                    <label>Mode:
-                        <select class="music-block-mode">
-                            <option value="album">Add by Album</option>
-                            <option value="artist_top">Add by Artist (Top Tracks)</option>
-                            <option value="artist_random">Add by Artist (Random)</option>
-                            <option value="genre">Add by Genre</option>
-                        </select>
-                    </label>
-                    <div class="music-artist-container">
+                    <div class="block-options-grid" style="margin-bottom: 0.5rem;">
+                        <label class="control-item" style="flex-grow: 1;">
+                            <span>Mode</span>
+                            <select class="music-block-mode" x-model="mode">
+                                <option value="album">Add by Album</option>
+                                <option value="artist_top">Add by Artist (Top Tracks)</option>
+                                <option value="artist_random">Add by Artist (Random)</option>
+                                <option value="genre">Add by Genre</option>
+                            </select>
+                        </label>
+
+                        <div x-show="mode === 'genre'" style="display: none; align-self: flex-end;">
+                            <button type="button" class="secondary" @click="filterModalOpen = true" style="margin: 0;">
+                                <i data-feather="sliders"></i> Edit Genres
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="music-artist-container" x-show="mode !== 'genre'">
                         <div class="music-block-filter-grid">
-                            <label>Artist:
+                            <label class="control-item">
+                                <span>Artist</span>
                                 <input type="search" class="artist-search-input" placeholder="Filter artists...">
                                 <select class="music-block-artist"></select>
                             </label>
-                            <label class="music-block-album-label">Album:
+
+                            <label class="control-item music-block-album-label" x-show="mode === 'album'">
+                                <span>Album</span>
                                 <select class="music-block-album"></select>
                             </label>
-                            <label class="music-block-count-label">Track Count:
+
+                            <label class="control-item music-block-count-label" x-show="mode.startsWith('artist_')">
+                                <span>Track Count</span>
                                 <input type="number" class="music-block-count" value="10" min="1">
                             </label>
                         </div>
                     </div>
-                    <div class="music-genre-container">
-                        <fieldset class="filter-group">
-                            <legend>Genres</legend>
-                            <details>
-                                <summary>Expand/Collapse Genre List</summary>
-                                <div class="checkbox-grid music-block-genre-grid"></div>
-                                <div class="genre-match-toggle"></div>
-                            </details>
-                        </fieldset>
-                        <div class="music-block-filter-grid">
-                            <label>Sort By:
-                                <select class="music-block-sort-by">
-                                    <option value="Random">Random</option>
-                                    <option value="PlayCount">Most Played</option>
-                                    <option value="DateCreated">Date Added</option>
-                                    <option value="Name">Name</option>
-                                </select>
-                            </label>
-                            <label>Limit:
-                                <input type="number" class="music-block-limit" value="25" min="1">
-                            </label>
+
+                    <div class="modal-overlay" x-show="filterModalOpen" style="display: none; z-index: 4000; position: fixed;">
+                        <div class="modal-window" @click.outside="filterModalOpen = false" style="max-height: 90vh; display: flex; flex-direction: column;">
+                            <div class="modal-header">
+                                <h2>Music Genre Filters</h2>
+                                <button type="button" class="icon-btn" @click="filterModalOpen = false">&times;</button>
+                            </div>
+                            <div class="modal-body" style="flex-grow: 1; overflow-y: auto;">
+                                <fieldset class="filter-group">
+                                    <legend>Music Genres</legend>
+                                    <div class="checkbox-grid music-block-genre-grid"></div>
+                                    <div class="genre-match-toggle"></div>
+                                </fieldset>
+
+                                <div class="music-block-filter-grid">
+                                    <label class="control-item">
+                                        <span>Sort By</span>
+                                        <select class="music-block-sort-by">
+                                            <option value="Random">Random</option>
+                                            <option value="PlayCount">Most Played</option>
+                                            <option value="DateCreated">Date Added</option>
+                                            <option value="Name">Name</option>
+                                        </select>
+                                    </label>
+                                    <label class="control-item">
+                                        <span>Limit</span>
+                                        <input type="number" class="music-block-limit" value="25" min="1">
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="modal-footer" style="margin-top: 1rem; padding-top: 1rem;">
+                                <button type="button" @click="filterModalOpen = false" style="width: 100%;">Done</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+
                 <div class="ai-controls hidden">
                     <i data-feather="chrome" style="width: 3rem; height: 3rem; stroke: var(--accent); margin-bottom: 1rem;"></i>
                     <p style="color: var(--text-subtle); margin-bottom: 1.5rem;">This block was uniquely curated by the AI based on your prompt.</p>
@@ -711,6 +857,7 @@
     </template>
     <script src="static/vendor/Sortable.min.js"></script>
     <script src="static/vendor/feather.min.js"></script>
+    <script src="static/vendor/alpine.min.js" defer></script>
     <script>
       function replaceFeatherIcons() {
           feather.replace({
