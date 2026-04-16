@@ -281,7 +281,7 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             }
             return;
 
-         } else if (button.matches('.random-ep-btn')) {
+        } else if (button.matches('.random-ep-btn')) {
             const rowIndex = parseInt(button.closest('.show-row').dataset.rowIndex, 10);
             const seriesId = appState.seriesData.find(s => s.name === blockData.shows[rowIndex].name)?.id;
 
@@ -291,7 +291,7 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             }
 
             const response = await fetch(`api/shows/${seriesId}/random_unwatched?user_id=${userSelectElement.value}`);
-            
+
             if (response.ok) {
                 const ep = await response.json();
                 blockData.shows[rowIndex].season = ep.season;
@@ -300,36 +300,37 @@ export function attachBuilderEventListeners(container, userSelectElement, render
             } else {
                 toast('No unwatched episodes found for this show.', false);
             }
-            return; 
+            return;
+
         } else if (button.matches('.reset-watch-btn')) {
-    const rowEl = button.closest('.show-row');
-    const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
-    const showData = blockData.shows[rowIndex];
-    
-    const scope = button.dataset.scope; 
-    const selectEl = rowEl.querySelector('.tv-block-show-select');
-    const seriesId = selectEl.options[selectEl.selectedIndex]?.dataset.id;
-    const season = parseInt(rowEl.querySelector('.tv-block-season').value, 10) || 1;
+            const rowEl = button.closest('.show-row');
+            const rowIndex = parseInt(rowEl.dataset.rowIndex, 10);
+            const showData = blockData.shows[rowIndex];
 
-    if (!seriesId) return toast("Select a show first.", false);
+            const scope = button.dataset.scope;
+            const selectEl = rowEl.querySelector('.tv-block-show-select');
+            const seriesId = selectEl.options[selectEl.selectedIndex]?.dataset.id;
+            const season = parseInt(rowEl.querySelector('.tv-block-season').value, 10) || 1;
 
-    const payload = { 
-        user_id: userSelectElement.value, 
-        season_number: (scope === 'season') ? season : null 
-    };
+            if (!seriesId) return toast("Select a show first.", false);
 
-    const res = await post(`api/shows/${seriesId}/unplayed`, payload, button);
-    
-    if (res && res.status === 'ok') {
-        showData.unwatched = true;
-        rowEl.querySelector('.first-unwatched-cb').checked = true;
-        rowEl.__x.$data.unwatched = true; 
-        
-        await updateRowToNextUnwatched(showData, userSelectElement, renderBuilder);
-        toast(`Watch history reset for ${scope === 'season' ? 'Season ' + season : 'the entire show'}.`, true);
-    }
-    return;
-                  
+            const payload = {
+                user_id: userSelectElement.value,
+                season_number: (scope === 'season') ? season : null
+            };
+
+            const res = await post(`api/shows/${seriesId}/unplayed`, payload, button);
+
+            if (res && res.status === 'ok') {
+                showData.unwatched = true;
+                rowEl.querySelector('.first-unwatched-cb').checked = true;
+                rowEl.__x.$data.unwatched = true;
+
+                await updateRowToNextUnwatched(showData, userSelectElement, renderBuilder);
+                toast(`Watch history reset for ${scope === 'season' ? 'Season ' + season : 'the entire show'}.`, true);
+            }
+            return;
+
         } else if (button.matches('.filter-toggle-btn.movie-block-watched')) {
             const cycle = { all: 'unplayed', unplayed: 'played', played: 'all' };
             blockData.filters.watched_status = cycle[blockData.filters.watched_status];

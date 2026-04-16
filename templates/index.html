@@ -571,7 +571,6 @@
              x-init="unwatched = $el.querySelector('.first-unwatched-cb').checked; season = $el.querySelector('.tv-block-season').value"
              :class="{ 'is-unwatched': unwatched }">
 
-            <input type="number" class="tv-block-season" x-model="season" min="1" x-show="!unwatched">
             <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
             <div class="show-select-wrapper">
                 <div class="search-and-select">
@@ -581,7 +580,7 @@
                 <button type="button" class="icon-btn shuffle-show-btn" title="Pick Random Show"><i data-feather="shuffle"></i></button>
             </div>
 
-            <input type="number" class="tv-block-season" value="1" min="1" x-show="!unwatched">
+            <input type="number" class="tv-block-season" x-model="season" min="1" x-show="!unwatched">
             <input type="number" class="tv-block-episode" value="1" min="1" x-show="!unwatched">
             <div class="show-row-controls dropdown-container" x-data="{ rowMenuOpen: false, confirmReset: false }">
                 <button type="button" class="icon-btn random-ep-btn" title="Pick Random Episode" x-show="!unwatched"><i data-feather="shuffle"></i></button>
