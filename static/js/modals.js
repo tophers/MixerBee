@@ -216,15 +216,10 @@ class ImportPresetModal extends BaseModal {
                 const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
                 if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
 
-                // 1. Decode Base64 to a "binary string" (chars with codes 0-255)
                 const binString = atob(base64String);
-
-                // 2. Convert binary string to a Uint8Array
                 const bytes = Uint8Array.from(binString, (c) => c.charCodeAt(0));
-
-                // 3. Decode the UTF-8 byte array back into a Javascript string
                 const jsonString = new TextDecoder().decode(bytes);
-                
+
                 const sharePayload = JSON.parse(jsonString);
 
                 if (!sharePayload.data || !Array.isArray(sharePayload.data)) {
@@ -266,20 +261,21 @@ class SmartBuildModal extends BaseModal {
 
     show(items) {
         this.list.innerHTML = '';
+        // Look up icons from the Alpine store
+        const iconStore = typeof Alpine !== 'undefined' ? Alpine.store('icons') : {};
+
         items.forEach(item => {
             const li = document.createElement('li');
+            const iconSvg = iconStore[item.icon] || '';
             li.innerHTML = `
                 <a href="#" data-type="${item.type}">
-                    <div class="item-name"><i data-feather="${item.icon}"></i> ${item.name}</div>
+                    <div class="item-name"><span class="dropdown-icon align-center">${iconSvg}</span> ${item.name}</div>
                     <div class="item-description">${item.description}</div>
                 </a>
             `;
             this.list.appendChild(li);
         });
 
-        if (window.featherReplace) {
-            window.featherReplace();
-        }
         return super.show();
     }
 }

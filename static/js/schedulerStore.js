@@ -39,15 +39,13 @@ export const schedulerStore = {
             console.error("Scheduler Load Error:", err);
         } finally {
             this.isLoading = false;
-            if (window.featherReplace) setTimeout(() => window.featherReplace(), 100);
         }
     },
 
     async saveSchedule(entry, btnEl) {
         if (!entry) return;
         const userSel = document.getElementById('user-select');
-
-        const frequency = entry.schedule_details.days_of_week.length === 7 ? "daily" : "weekly";
+        const frequency = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
 
         const payload = {
             user_id: userSel.value,
@@ -99,7 +97,7 @@ export const schedulerStore = {
             if (res && res.status === 'ok') {
                 this.schedule = this.schedule.filter(s => s !== entry);
             }
-        } catch (err) { 
+        } catch (err) {
             console.error("Delete failed:", err);
         }
     },
@@ -120,11 +118,10 @@ export const schedulerStore = {
             }
         };
         this.schedule = [...this.schedule, newEntry];
-        if (window.featherReplace) setTimeout(() => window.featherReplace(), 100);
     },
 
     toggleDay(entry, dayNum) {
-        let days = [...entry.schedule_details.days_of_week];
+        let days = [...(entry.schedule_details.days_of_week || [])];
         if (days.includes(dayNum)) {
             days = days.filter(d => d !== dayNum);
         } else {

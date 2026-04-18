@@ -10,7 +10,9 @@
                        x-model="$store.manager.searchQuery"
                        @input.debounce.250ms="$store.manager.applyFilters()"
                        class="grow-1 m-0">
-                <button type="button" class="secondary" @click="$store.manager.load()">Refresh</button>
+                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.load()">
+                    <span x-html="$store.icons.refresh"></span> Refresh
+                </button>
             </div>
         </div>
 
@@ -35,16 +37,28 @@
                         <tr class="table-row">
                             <td class="table-cell bold" x-text="item.Name"></td>
                             <td class="table-cell">
-                                <span class="badge" 
-                                      :class="item.Type === 'Playlist' ? 'badge-accent' : 'badge-outline'" 
+                                <span class="badge"
+                                      :class="item.Type === 'Playlist' ? 'badge-accent' : 'badge-outline'"
                                       x-text="item.Type"></span>
                             </td>
                             <td class="table-cell text-center" x-text="item.ChildCount"></td>
                             <td class="table-cell text-right">
                                 <div class="flex-row justify-end gap-sm">
-                                    <button type="button" class="secondary small" @click="$store.manager.viewContents(item)">View</button>
-                                    <button type="button" class="secondary small" @click="$store.manager.convertItem(item)">Convert</button>
-                                    <button type="button" class="secondary small danger-hover" @click="$store.manager.deleteItem(item)">Delete</button>
+                                    <button type="button" 
+                                            class="secondary small icon-only" 
+                                            @click="$store.manager.viewContents(item)" 
+                                            title="View Contents"
+                                            x-html="$store.icons.eye"></button>
+                                    <button type="button" 
+                                            class="secondary small icon-only" 
+                                            @click="$store.manager.convertItem(item)" 
+                                            title="Convert Type"
+                                            x-html="$store.icons.refresh"></button>
+                                    <button type="button" 
+                                            class="secondary small icon-only danger-hover" 
+                                            @click="$store.manager.deleteItem(item)" 
+                                            title="Delete Entire List"
+                                            x-html="$store.icons.trash"></button>
                                 </div>
                             </td>
                         </tr>
@@ -55,7 +69,7 @@
     </div>
 
     <!-- Item Contents Modal -->
-    <div class="modal-overlay" x-show="$store.manager.contentsModal.isOpen" x-cloak style="z-index: 4500;">
+    <div class="modal-overlay" x-show="$store.manager.contentsModal.isOpen" x-cloak style="z-index: 4500; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
         <div class="modal-window wide" @click.outside="$store.manager.contentsModal.isOpen = false">
             <div class="modal-header">
                 <h2 x-text="$store.manager.contentsModal.title"></h2>
@@ -75,9 +89,11 @@
                                     <template x-if="c.SeriesName"><span x-text="' • ' + c.SeriesName"></span></template>
                                 </div>
                             </div>
-                            <button type="button" class="secondary small btn-danger-outline"
-                                    @click="$store.manager.removeItem(c)">
-                                Remove
+                            <button type="button" 
+                                    class="secondary small icon-only btn-danger-outline"
+                                    @click="$store.manager.removeItem(c)"
+                                    title="Remove from list"
+                                    x-html="$store.icons.trash">
                             </button>
                         </li>
                     </template>

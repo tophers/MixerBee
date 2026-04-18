@@ -23,6 +23,7 @@ from .tv import (
     get_specific_episode,
     get_first_unwatched_episode,
     get_random_unwatched_episode,
+    mark_unplayed
 )
 
 from .movies import (

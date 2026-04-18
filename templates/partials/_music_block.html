@@ -2,30 +2,32 @@
     <div x-data="{ editModalOpen: false, artistSearch: '', albums: [] }"
          x-init="
             $store.mixer.ensureBlockState(block);
-            if(block.music.artistId) {
+            if(block.music && block.music.artistId) {
                 albums = await (await fetch(`api/music/artists/${block.music.artistId}/albums`)).json();
             }
          ">
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             <summary>
                 <div class="mixed-block-header">
-                    <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
-                    <h3>
+                    <button type="button" class="icon-btn drag-handle" title="Drag to reorder" x-html="$store.icons.move"></button>
+                    <h3 class="flex-row align-center gap-xs">
                         <template x-if="block.is_ai_generated">
-                            <i data-feather="zap" class="ai-badge-icon"></i>
+                            <span class="ai-badge-icon" x-html="$store.icons.zap"></span>
                         </template>
                         <span x-text="block.title || 'Music Block'"></span>
                     </h3>
 
                     <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
-                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false">
-                            <i data-feather="more-vertical"></i>
-                        </button>
-                        <div class="dropdown-menu" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 10;">
-                            <a href="#" class="dropdown-item" @click.prevent="$store.mixer.duplicateBlock(index)"><i data-feather="copy"></i> Duplicate</a>
-                            <a href="#" class="dropdown-item" @click.prevent="$store.mixer.deleteBlock(index)" style="color: var(--danger);"><i data-feather="trash-2"></i> Delete</a>
+                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
+                        <div class="dropdown-menu" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 1000;">
+                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.duplicateBlock(index)">
+                                <span class="dropdown-icon" x-html="$store.icons.copy"></span> Duplicate
+                            </a>
+                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.deleteBlock(index)" style="color: var(--danger);">
+                                <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete
+                            </a>
                         </div>
-                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;"><i data-feather="chevron-up"></i></span>
+                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;" x-html="$store.icons.chevronUp"></span>
                     </div>
                 </div>
             </summary>
@@ -36,8 +38,8 @@
                         <div class="grow-1">
                             <div class="summary-label">Music Selection</div>
 
-                            <div x-show="block.music.mode !== 'genre'">
-                                <template x-if="block.music.artistId">
+                            <div x-show="block.music && block.music.mode !== 'genre'">
+                                <template x-if="block.music && block.music.artistId">
                                     <div class="summary-content">
                                         <span x-text="$store.mixer.library.artistData.find(a => a.Id === block.music.artistId)?.Name || 'Artist Selected'"></span>
                                         <template x-if="block.music.mode === 'album' && block.music.albumId">
@@ -47,44 +49,45 @@
                                 </template>
                             </div>
 
-                            <div x-show="block.music.mode === 'genre'">
-                                <template x-if="block.music.filters.genres?.length">
+                            <div x-show="block.music && block.music.mode === 'genre'">
+                                <template x-if="block.music && block.music.filters && block.music.filters.genres?.length">
                                     <div class="flex-row flex-wrap gap-sm">
                                         <template x-for="(g,i) in block.music.filters.genres" :key="'msg-'+g">
-                                            <span class="badge" style="background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--accent); color: var(--accent);" x-text="g"></span>
+                                            <span class="badge badge-accent-light" x-text="g"></span>
                                         </template>
                                     </div>
                                 </template>
                             </div>
 
-                            <div class="mt-sm">
-                                <span class="badge" style="background: var(--panel); border: 1px solid var(--border-color);">
-                                    <span x-text="block.music.mode.replace('artist_', '').toUpperCase()"></span>
-                                    <template x-if="block.music.mode !== 'album'">
-                                        <span> • <span x-text="block.music.mode === 'genre' ? block.music.filters.limit : block.music.count"></span> Tracks</span>
+                            <!-- FIXED: Changed x-if to x-show to prevent Alpine crash -->
+                            <div class="mt-sm" x-show="block.music">
+                                <span class="badge badge-outline-subtle">
+                                    <span x-text="block.music?.mode ? block.music.mode.replace('artist_', '').toUpperCase() : ''"></span>
+                                    <template x-if="block.music?.mode !== 'album'">
+                                        <span> • <span x-text="block.music?.mode === 'genre' ? (block.music.filters?.limit || 0) : (block.music?.count || 0)"></span> Tracks</span>
                                     </template>
                                 </span>
                             </div>
                         </div>
 
                         <div class="text-right">
-                            <template x-if="block.music.mode === 'genre'">
+                            <template x-if="block.music && block.music.mode === 'genre'">
                                 <div class="mb-sm">
                                     <div class="summary-label">Matches</div>
-                                    <div class="bold" style="color: var(--accent);" x-text="block._previewLoading ? '...' : block._previewCount"></div>
+                                    <div class="bold" style="color: var(--accent);" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
                                 </div>
                             </template>
-                            <button type="button" class="secondary small" @click="editModalOpen = true">
-                                <i data-feather="sliders" class="small-icon"></i> Edit Filters
+                            <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true">
+                                <span x-html="$store.icons.sliders"></span> Edit Filters
                             </button>
                         </div>
                     </div>
                 </div>
 
-                <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 4000; position: fixed;">
+                <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 9999; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
                     <div class="modal-window" @click.outside="editModalOpen = false" style="max-width: 550px;">
                         <div class="modal-header">
-                            <h2>Edit Music</h2>
+                            <h2 x-text="(block.title || 'Music') + ' Settings'"></h2>
                             <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
                         </div>
                         <div class="modal-body" style="overflow-y: auto;">
@@ -98,7 +101,7 @@
                                 </select>
                             </label>
 
-                            <div x-show="block.music.mode !== 'genre'" class="flex-column gap-md">
+                            <div x-show="block.music?.mode !== 'genre'" class="flex-column gap-md">
                                 <div class="search-and-select w-full">
                                     <input type="search" placeholder="Search artists..." x-model="artistSearch" class="mb-sm">
                                     <select x-model="block.music.artistId" @change="block.music.albumId = ''; if($el.value) albums = await (await fetch(`api/music/artists/${$el.value}/albums`)).json()">
@@ -108,24 +111,24 @@
                                         </template>
                                     </select>
                                 </div>
-                                <select x-show="block.music.mode === 'album'" x-model="block.music.albumId" class="w-full">
+                                <select x-show="block.music?.mode === 'album'" x-model="block.music.albumId" class="w-full">
                                     <option value="">-- Select Album --</option>
                                     <template x-for="al in albums" :key="al.Id">
                                         <option :value="al.Id" x-text="al.Name"></option>
                                     </template>
                                 </select>
-                                <label class="control-item" x-show="block.music.mode.startsWith('artist_')">
+                                <label class="control-item" x-show="block.music?.mode?.startsWith('artist_')">
                                     <span>Track Limit</span>
                                     <input type="number" x-model.number="block.music.count" min="1">
                                 </label>
                             </div>
 
-                            <div x-show="block.music.mode === 'genre'">
+                            <div x-show="block.music?.mode === 'genre'">
                                 <div class="checkbox-grid">
                                     <template x-for="g in $store.mixer.library.musicGenreData" :key="g.Id">
-                                        <label>
-                                            <input type="checkbox" :value="g.Name" x-model="block.music.filters.genres" @change="$store.mixer.updatePreviewCount(block)"> 
-                                            <span x-text="g.Name"></span>
+                                        <label class="align-center gap-xs">
+                                            <input type="checkbox" :value="g.Name" x-model="block.music.filters.genres" @change="$store.mixer.updatePreviewCount(block)">
+                                            <span x-text="g.Name" style="font-size: 0.9rem;"></span>
                                         </label>
                                     </template>
                                 </div>

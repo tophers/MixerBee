@@ -1,7 +1,7 @@
 <div id="mixed-pane" class="tab-pane active">
     <div class="container">
         <div class="preset-controls" x-data="{ presetMenuOpen: false }">
-            
+
             <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-grow: 1;">
                 <label class="control-item grow-1 m-0" for="load-preset-select">
                     <span>Load Preset</span>
@@ -16,52 +16,37 @@
                     </select>
                 </label>
 
-                <!-- Mobile-Only Kebab Menu -->
                 <div class="dropdown-container hide-desktop shrink-0">
                     <button type="button" class="secondary icon-only m-0" @click="presetMenuOpen = !presetMenuOpen" @click.outside="presetMenuOpen = false">
-                        <i data-feather="more-vertical"></i>
+                        <span x-html="$store.icons.more"></span>
                     </button>
-                    
+
                     <div class="dropdown-menu" x-show="presetMenuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 100;">
                         <a href="#" class="dropdown-item" x-show="$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.updateCurrentPreset()">
-                            <i data-feather="save"></i> Save
+                            <span class="dropdown-icon" x-html="$store.icons.save"></span> Save
                         </a>
                         <a href="#" class="dropdown-item" x-show="!$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.savePreset()">
-                            <i data-feather="save"></i> Save as Preset...
+                            <span class="dropdown-icon" x-html="$store.icons.save"></span> Save as Preset...
                         </a>
                         <a href="#" class="dropdown-item" @click.prevent="presetMenuOpen = false; $store.mixer.importPreset()">
-                            <i data-feather="download"></i> Import
+                            <span class="dropdown-icon" x-html="$store.icons.download"></span> Import
                         </a>
                         <a href="#" class="dropdown-item" :class="{ 'opacity-60': !$store.mixer.currentPresetName }" @click.prevent="if($store.mixer.currentPresetName) { presetMenuOpen = false; $store.mixer.exportPreset(); }">
-                            <i data-feather="upload"></i> Export
+                            <span class="dropdown-icon" x-html="$store.icons.upload"></span> Export
                         </a>
                         <a href="#" class="dropdown-item danger-hover" style="color: var(--danger);" x-show="$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.deletePreset()">
-                            <i data-feather="trash-2"></i> Delete
+                            <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- Desktop-Only Inline Buttons -->
             <div class="preset-buttons button-group hide-mobile">
-                <button type="button" x-cloak
-                        x-show="$store.mixer.currentPresetName"
-                        @click="$store.mixer.updateCurrentPreset()">Save</button>
-
-                <button type="button" class="secondary" x-cloak
-                        x-show="!$store.mixer.currentPresetName"
-                        @click="$store.mixer.savePreset()">Save as Preset...</button>
-
-                <button type="button" class="secondary" x-cloak
-                        x-show="$store.mixer.currentPresetName"
-                        @click="$store.mixer.deletePreset()">Delete Preset</button>
-
-                <button type="button" class="secondary"
-                        @click="$store.mixer.importPreset()">Import</button>
-
-                <button type="button" class="secondary"
-                        :disabled="!$store.mixer.currentPresetName"
-                        @click="$store.mixer.exportPreset()">Export</button>
+                <button type="button" x-cloak x-show="$store.mixer.currentPresetName" @click="$store.mixer.updateCurrentPreset()">Save</button>
+                <button type="button" class="secondary" x-cloak x-show="!$store.mixer.currentPresetName" @click="$store.mixer.savePreset()">Save as Preset...</button>
+                <button type="button" class="secondary" x-cloak x-show="$store.mixer.currentPresetName" @click="$store.mixer.deletePreset()">Delete Preset</button>
+                <button type="button" class="secondary" @click="$store.mixer.importPreset()">Import</button>
+                <button type="button" class="secondary" :disabled="!$store.mixer.currentPresetName" @click="$store.mixer.exportPreset()">Export</button>
             </div>
         </div>
 
@@ -70,35 +55,28 @@
             <details>
                 <summary>Expand AI Block Builder</summary>
                 <div class="textarea-wrapper">
-                    <textarea id="ai-prompt-input" rows="2"
-                              placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville"
-                              x-model="$store.mixer.aiPrompt"></textarea>
-
-                    <button type="button" class="icon-btn clear-btn"
-                            title="Clear text" x-cloak
-                            x-show="$store.mixer.aiPrompt.length > 0"
-                            @click="$store.mixer.clearAiPrompt()">
-                        <i data-feather="x-circle"></i>
+                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" x-model="$store.mixer.aiPrompt"></textarea>
+                    <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.mixer.aiPrompt.length > 0" @click="$store.mixer.clearAiPrompt()">
+                        <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
                 <div class="ai-prompt-footer">
-                    <button id="generate-with-ai-btn" type="button" class="secondary"
-                            @click="$store.mixer.generateWithAi()"
-                            :disabled="$store.mixer.isAiGenerating">
+                    <button id="generate-with-ai-btn" type="button" class="secondary" @click="$store.mixer.generateWithAi()" :disabled="$store.mixer.isAiGenerating">
                         <span x-text="$store.mixer.isAiGenerating ? 'Thinking...' : 'Generate with AI'"></span>
                     </button>
                 </div>
             </details>
         </fieldset>
 
-        <div id="mixed-playlist-blocks" x-init="$store.mixer.setupSortable($el, 'blocks')">
+        <!-- Parent Sortable: Now specifically handles '.block-drag-handle' -->
+        <div id="mixed-playlist-blocks" x-sort:config="{ handle: '.block-drag-handle' }" x-sort="$store.mixer.blocks">
             <p class="placeholder-text" x-show="$store.mixer.blocks.length === 0">
                 Click <strong>'Add Block'</strong> below to begin building your mix, <br>
                 or try <strong>'Auto Playlists'</strong> for a quick start.
             </p>
 
             <template x-for="(block, index) in $store.mixer.blocks" :key="block._uid">
-                <div class="block-wrapper" x-effect="$nextTick(() => window.featherReplace())">
+                <div class="block-wrapper" x-sort:item>
                     {% include 'partials/_tv_block.html' %}
                     {% include 'partials/_movie_block.html' %}
                     {% include 'partials/_music_block.html' %}
@@ -113,63 +91,39 @@
         <div class="action-bar-row">
             <div class="button-group flex-wrap grow-1">
                 <div class="dropdown-container" x-data="{ open: false }">
-                    <button class="secondary m-0" @click="open = !open" @click.outside="open = false">
-                        <i data-feather="plus"></i> 
-                        <span class="hide-mobile">Add Block</span> 
-                        <i data-feather="chevron-down" class="chevron hide-mobile"></i>
+                    <button class="secondary m-0 align-center gap-xs" @click="open = !open" @click.outside="open = false">
+                        <span x-html="$store.icons.plus"></span>
+                        <span class="hide-mobile">Add Block</span>
+                        <span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
                     </button>
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><i data-feather="tv"></i> TV Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><i data-feather="film"></i> Movie Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><i data-feather="music"></i> Music Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addSurpriseBlock($el)"><i data-feather="gift"></i> Surprise Me</a>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addSurpriseBlock($el)"><span class="dropdown-icon" x-html="$store.icons.gift"></span> Surprise Me</a>
                     </div>
                 </div>
-
-                <button type="button" class="secondary m-0" @click="$store.mixer.showSmartBuildMenu()">
-                    <i data-feather="framer"></i> <span class="hide-mobile">Auto Playlists</span>
-                </button>
-
-                <button type="button" class="secondary m-0" @click="$store.mixer.previewPlaylist($el)">
-                    <i data-feather="search" class="hide-desktop"></i> <span class="hide-mobile">Preview</span>
-                </button>
+                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.showSmartBuildMenu()"><span x-html="$store.icons.framer"></span> <span class="hide-mobile">Auto Playlists</span></button>
+                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.previewPlaylist($el)"><span x-html="$store.icons.search"></span> <span class="hide-mobile">Preview</span></button>
             </div>
-
-            <button type="button" class="secondary btn-danger-outline m-0"
-                    title="Clear All Blocks"
-                    @click="$store.mixer.clearAllBlocks()">
-                <i data-feather="trash-2"></i> <span class="hide-mobile">Clear All</span>
-            </button>
+            <button type="button" class="secondary btn-danger-outline m-0 align-center gap-xs" title="Clear All Blocks" @click="$store.mixer.clearAllBlocks()"><span x-html="$store.icons.trash"></span> <span class="hide-mobile">Clear All</span></button>
         </div>
-
         <div class="action-bar-footer">
             <div class="flex-row gap-sm grow-1 align-center flex-wrap">
-                <select x-model="$store.mixer.buildMode" 
-                        class="m-0" 
-                        style="max-width: 150px; flex-grow: 1;"
-                        @change="if($el.value === 'add') $store.mixer.refreshUserPlaylists()">
+                <select x-model="$store.mixer.buildMode" class="m-0" style="max-width: 150px; flex-grow: 1;" @change="if($el.value === 'add') $store.mixer.refreshUserPlaylists()">
                     <option value="create">New</option>
                     <option value="add">Append</option>
                 </select>
-
                 <div class="toggle-pill action-bar-pill" x-show="$store.mixer.buildMode === 'create'" x-cloak>
                     <span class="pill-btn" :class="!$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = false">Playlist</span>
                     <span class="pill-btn" :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
                 </div>
-
-                <select x-model="$store.mixer.existingPlaylistId" x-cloak
-                        x-show="$store.mixer.buildMode === 'add'"
-                        class="m-0 grow-1">
+                <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1">
                     <option value="">-- Target --</option>
-                    <template x-for="p in $store.mixer.userPlaylists" :key="p.Id">
-                        <option :value="p.Id" x-text="p.Name"></option>
-                    </template>
+                    <template x-for="p in $store.mixer.userPlaylists" :key="p.Id"><option :value="p.Id" x-text="p.Name"></option></template>
                 </select>
             </div>
-
-            <button class="m-0" 
-                    style="min-width: 100px; font-weight: 800; font-size: 1.1rem; height: 42px;"
-                    @click="$store.mixer.buildPlaylist($el)">
+            <button class="m-0" style="min-width: 100px; font-weight: 800; font-size: 1.1rem; height: 42px;" @click="$store.mixer.buildPlaylist($el)">
                 <span x-text="$store.mixer.createAsCollection && $store.mixer.buildMode === 'create' ? 'Build Collection' : 'Build'"></span>
             </button>
         </div>

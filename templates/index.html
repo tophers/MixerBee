@@ -6,7 +6,8 @@
 
     <div id="not-configured-warning" class="container">
         <div class="warning-box">
-            <i data-feather="alert-triangle"></i>
+            <!-- Swapped data-feather for store icon -->
+            <span x-html="$store.icons.alert"></span>
             <h3>Application Not Configured</h3>
             <p>MixerBee can't connect to your server. Please open the settings and provide your server details.</p>
             <button id="not-configured-settings-btn" @click="$store.settings.show()">Open Settings</button>
@@ -21,34 +22,8 @@
 
     {% include 'partials/_modals.html' %}
 
-    <script src="static/vendor/Sortable.min.js"></script>
-    <script src="static/vendor/feather.min.js"></script>
-    
     <script src="static/vendor/alpinesort.min.js" defer></script>
     <script src="static/vendor/alpine.min.js" defer></script>
     <script src="static/js/app.js" type="module" defer></script>
-
-    <script>
-      /**
-       * Global Icon Refresh Helper
-       * Defined here so it's accessible to both Alpine (global) and Modules (window.featherReplace)
-       */
-      window.featherReplace = function() {
-          if (typeof feather !== 'undefined') {
-              try {
-                  feather.replace({ 
-                      'stroke-width': 2.5, 
-                      'width': '1.1em', 
-                      'height': '1.1em' 
-                  });
-              } catch (e) {
-                  // Silently ignore errors where Alpine removed a node before Feather could replace it
-              }
-          }
-      };
-      
-      // Initial run
-      document.addEventListener('DOMContentLoaded', window.featherReplace);
-    </script>
 </body>
 </html>

@@ -18,10 +18,12 @@ export function toast(message, isSuccess, options = {}) {
   let contentHTML = `<div class="toast-message">${message}</div>`;
 
   if (actionCallback) {
+    // Access store directly from Alpine global
+    const icon = typeof Alpine !== 'undefined' ? Alpine.store('icons').externalLink : '';
     contentHTML += `
       <div class="toast-actions">
-        <button type="button" class="toast-button">
-          <i data-feather="external-link"></i> ${actionText}
+        <button type="button" class="toast-button align-center gap-xs">
+          ${icon} ${actionText}
         </button>
       </div>
     `;
@@ -48,10 +50,6 @@ export function toast(message, isSuccess, options = {}) {
 
   document.body.appendChild(toastElement);
 
-  if (window.featherReplace) {
-    window.featherReplace();
-  }
-
   if (!actionCallback) {
     toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 9.5s forwards';
     setTimeout(() => {
@@ -76,15 +74,7 @@ export function debounce(func, wait) {
     };
 };
 
-/**
- * Standard POST helper
- * @param {string} endpoint 
- * @param {object} body 
- * @param {HTMLElement|Event} eventOrElement - Button to disable/enable
- * @param {string} method 
- * @param {boolean} silent - If true, success toasts are suppressed
- */
-export function post(endpoint, body, eventOrElement = null, method = 'POST', silent = false) {
+export function post(endpoint, body, eventOrElement = null, method = 'POST', silent = false, showLoading = true) {
   const loadingOverlay = document.getElementById('loading-overlay');
   let clickedButton = null;
 
@@ -100,7 +90,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
     }
   }
 
-  if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+  if (showLoading && loadingOverlay) loadingOverlay.classList.remove('hidden');
 
   return fetch(endpoint, {
     method: method,
@@ -117,7 +107,6 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
     })
     .then(res => {
         if (res.status === 'ok') {
-            // Only toast if not silent
             if (!silent) {
                 const successMessage = res.log?.join(' • ') || 'Success!';
                 const toastOptions = {};
@@ -127,8 +116,8 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
                 }
                 toast(successMessage, true, toastOptions);
             }
-        } else if (res.status === 'error' || res.detail) {
-            // Errors are never silent
+        }
+        else if (res.status === 'error' || res.detail) {
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);
         }
@@ -140,7 +129,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
         return { status: 'error', detail: errorMessage };
     })
     .finally(() => {
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (showLoading && loadingOverlay) loadingOverlay.classList.add('hidden');
         if (clickedButton) clickedButton.disabled = false;
     });
 }

@@ -1,14 +1,13 @@
 <div id="scheduler-pane" class="tab-pane hidden"
-     x-data="{ jobModalOpen: null }"
-     x-effect="$store.scheduler.schedule; $nextTick(() => window.featherReplace())">
+     x-data="{ jobModalOpen: null }">
     <div class="container">
         <div class="manager-header flex-row justify-between align-center mb-md">
             <div>
                 <h2 class="m-0">Automated Jobs</h2>
                 <p class="m-0 text-subtle" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
             </div>
-            <button type="button" class="primary" @click="$store.scheduler.addEntry()">
-                <i data-feather="plus" class="small-icon" style="margin-right: 4px;"></i> Add New Job
+            <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.addEntry()">
+                <span x-html="$store.icons.plus"></span> Add New Job
             </button>
         </div>
 
@@ -17,9 +16,7 @@
                 <div class="mixed-block">
                     <div class="mixed-block-header" style="padding: 1rem;">
                         <div class="flex-row align-center gap-lg grow-1">
-                            <div :style="entry.id ? 'color: var(--accent);' : 'color: var(--text-subtle);'">
-                                 <i data-feather="clock" style="width: 22px;"></i> 
-                            </div>
+                            <div :style="entry.id ? 'color: var(--accent);' : 'color: var(--text-subtle);'" x-html="$store.icons.clock"></div>
 
                             <div class="grow-1">
                                 <div class="flex-row align-center gap-md">
@@ -29,9 +26,9 @@
                                           x-text="entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'"></span>
                                 </div>
                                 <div class="automation-details-row">
-                                    <span x-text="entry.schedule_details.days_of_week.length === 7 ? 'Daily' : 'Weekly'"></span>
+                                    <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
                                     <span style="opacity: 0.3;">|</span>
-                                    <span x-text="entry.schedule_details.time"></span>
+                                    <span x-text="entry.schedule_details?.time || '12:00'"></span>
                                     <template x-if="entry.preset_name">
                                         <div class="flex-row align-center gap-md">
                                             <span style="opacity: 0.3;">|</span>
@@ -43,20 +40,14 @@
                         </div>
 
                         <div class="flex-row gap-sm align-center">
-                            <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now">
-                                <i data-feather="play"></i>
-                            </button>
-                            <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Change Schedule">
-                                <i data-feather="settings"></i>
-                            </button>
-                            <button type="button" class="secondary small icon-only btn-danger-outline" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Schedule">
-                                <i data-feather="trash-2"></i>
-                            </button>
+                            <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
+                            <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Change Schedule" x-html="$store.icons.settings"></button>
+                            <button type="button" class="secondary small icon-only btn-danger-outline" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Schedule" x-html="$store.icons.trash"></button>
                         </div>
                     </div>
 
                     <!-- Automation Edit Modal -->
-                    <div class="modal-overlay" x-show="jobModalOpen === entry._uid" x-cloak style="z-index: 5000;">
+                    <div class="modal-overlay" x-show="jobModalOpen === entry._uid" x-cloak style="z-index: 5000; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
                         <div class="modal-window wide" @click.outside="jobModalOpen = null">
                             <div class="modal-header">
                                 <h2>Edit Automation Task</h2>
@@ -88,17 +79,17 @@
                                     </select>
                                 </div>
 
-                                <div class="automation-config-card">
+                                <!-- FIXED: Changed x-if to x-show on this div -->
+                                <div class="automation-config-card" x-show="entry.schedule_details">
                                     <div class="flex-row justify-between align-center mb-md">
                                         <label class="field-label m-0">Execution Time</label>
                                         <input type="time" x-model="entry.schedule_details.time" class="themed-input" style="width: auto;">
                                     </div>
                                     <div class="flex-row justify-between gap-sm">
-                                        <!-- idx for static arrays like days is safe; idx for reorderable data is the risk -->
                                         <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
                                             <button type="button"
                                                     class="day-btn grow-1"
-                                                    :class="entry.schedule_details.days_of_week.includes(i) ? 'active' : ''"
+                                                    :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''"
                                                     @click="$store.scheduler.toggleDay(entry, i)"
                                                     x-text="day">
                                             </button>
@@ -108,8 +99,8 @@
                             </div>
 
                             <div class="modal-footer">
-                                <button type="button" class="primary" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
-                                    <i data-feather="save" style="width: 16px; margin-right: 8px;"></i> Save Automation
+                                <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
+                                    <span x-html="$store.icons.save"></span> Save Automation
                                 </button>
                             </div>
                         </div>

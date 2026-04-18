@@ -1,6 +1,6 @@
 /* static/js/mixerStore.js */
 
-import { post, toast } from './utils.js';
+import { post, toast, debounce } from './utils.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, presetModal, importPresetModal, resetWatchModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
@@ -28,6 +28,8 @@ export const mixerStore = {
     isAiGenerating: false,
     autosaveKey: 'mixerbee_autosave',
 
+    _previewDebouncers: {},
+
     // --- Initialization ---
     init() {
         try {
@@ -35,7 +37,6 @@ export const mixerStore = {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 const loadedBlocks = parsed.blocks || [];
-                // Hydrate loaded blocks with state and UIDs
                 loadedBlocks.forEach(b => this.ensureBlockState(b));
                 this.blocks = loadedBlocks;
             }
@@ -43,19 +44,11 @@ export const mixerStore = {
             console.error("Autosave restore failed:", e);
         }
 
-        // IMPACT: Changed from shallow watch to deep watch via JSON stringification.
-        // This ensures nested filter changes trigger a save to localStorage.
         Alpine.watch(() => JSON.stringify(this.blocks), () => this.persistToLocalStorage());
     },
 
-    /**
-     * Ensures every block and nested show row has the required properties
-     * and a unique identifier for DOM tracking.
-     */
     ensureBlockState(block) {
         if (!block) return;
-
-        // Assign a unique ID if one doesn't exist
         if (!block._uid) block._uid = crypto.randomUUID();
 
         block._previewCount = block._previewCount ?? '...';
@@ -69,6 +62,7 @@ export const mixerStore = {
             block.filters.genres_all = block.filters.genres_all ?? [];
             block.filters.genres_exclude = block.filters.genres_exclude ?? [];
             block.filters.people = block.filters.people ?? [];
+            block.filters.people_all = block.filters.people_all ?? [];
             block.filters.exclude_people = block.filters.exclude_people ?? [];
             block.filters.studios = block.filters.studios ?? [];
             block.filters.exclude_studios = block.filters.exclude_studios ?? [];
@@ -178,27 +172,7 @@ export const mixerStore = {
         } catch (e) {}
     },
 
-    // --- Standard Helpers ---
-    setupSortable(el, type = 'blocks', blockIndex = null) {
-        if (!el) return;
-        if (Sortable.get(el)) return;
-
-        new Sortable(el, {
-            animation: 150,
-            handle: '.drag-handle',
-            ghostClass: 'sortable-ghost',
-            onEnd: (evt) => {
-                if (evt.oldIndex === evt.newIndex) return;
-                if (type === 'blocks') {
-                    const moved = this.blocks.splice(evt.oldIndex, 1)[0];
-                    this.blocks.splice(evt.newIndex, 0, moved);
-                } else if (type === 'tv-shows' && blockIndex !== null) {
-                    const moved = this.blocks[blockIndex].shows.splice(evt.oldIndex, 1)[0];
-                    this.blocks[blockIndex].shows.splice(evt.newIndex, 0, moved);
-                }
-            }
-        });
-    },
+    // setupSortable REMOVED - Using Alpine Sort directives in HTML instead
 
     async fetchSuggestions(type, query) {
         if (!query || query.length < 2) return [];
@@ -229,7 +203,10 @@ export const mixerStore = {
             if (!f.genres_any.includes(itemData.Name)) f.genres_any.push(itemData.Name);
         } else if (type === 'person') {
             const person = { ...itemData, Role: role };
-            if (!f.people.some(p => p.Id === person.Id && p.Role === role)) f.people.push(person);
+            if (!f.people.some(p => p.Id === person.Id && p.Role === role) &&
+                !f.people_all.some(p => p.Id === person.Id && p.Role === role)) {
+                f.people.push(person);
+            }
         } else if (type === 'studio') {
             if (!f.studios.includes(itemData.Name)) f.studios.push(itemData.Name);
         }
@@ -243,45 +220,71 @@ export const mixerStore = {
         }
     },
 
-    cycleTokenState(block, key, index) {
-        const item = block.filters[key][index];
-        block.filters[key].splice(index, 1);
+    cycleTokenState(block, key, item) {
+        if (!block || !item) return;
+
+        const sourceArray = block.filters[key];
+        const index = sourceArray.indexOf(item);
+        if (index === -1) return;
+
+        const clonedItem = JSON.parse(JSON.stringify(item));
+        sourceArray.splice(index, 1);
+
         let nextKey;
         if (key.startsWith('genres_')) {
             const map = { genres_any: 'genres_all', genres_all: 'genres_exclude', genres_exclude: 'genres_any' };
             nextKey = map[key];
-        } else {
-            const map = { people: 'exclude_people', exclude_people: 'people', studios: 'exclude_studios', exclude_studios: 'studios' };
+        } else if (key.includes('people')) {
+            const map = { people: 'people_all', people_all: 'exclude_people', exclude_people: 'people' };
+            nextKey = map[key];
+        } else if (key.includes('studios')) {
+            const map = { studios: 'exclude_studios', exclude_studios: 'studios' };
             nextKey = map[key];
         }
-        block.filters[nextKey].push(item);
+
+        if (nextKey) {
+            block.filters[nextKey].push(clonedItem);
+        }
         this.updatePreviewCount(block);
     },
 
     async updatePreviewCount(block) {
         if (!block || block.type === 'tv') return;
-        const user_id = document.getElementById('user-select')?.value;
-        const endpoint = block.type === 'movie' ? 'api/movies/preview_count' : 'api/music/preview_count';
-        const filters = block.type === 'movie' ? block.filters : block.music.filters;
 
         block._previewLoading = true;
-        try {
-            // Using silent=true to suppress toasts during background count updates
-            const countData = await post(endpoint, { user_id, filters }, null, 'POST', true);
-            block._previewCount = countData.count ?? '0';
 
-            if (block.type === 'movie') {
-                const itemsData = await post('api/builder/preview', {
-                    user_id,
-                    blocks: [{ ...block, filters: { ...block.filters, limit: 3 } }]
-                }, null, 'POST', true);
-                block._previewItems = itemsData.data || [];
-            }
-        } catch (e) {
-            block._previewCount = 'Error';
-        } finally {
-            block._previewLoading = false;
+        if (!this._previewDebouncers[block._uid]) {
+            this._previewDebouncers[block._uid] = debounce(async (b) => {
+                const user_id = document.getElementById('user-select')?.value;
+                if (!user_id) return;
+
+                const endpoint = b.type === 'movie' ? 'api/movies/preview_count' : 'api/music/preview_count';
+                const filters = b.type === 'movie' ? b.filters : b.music.filters;
+
+                try {
+                    const countData = await post(endpoint, { user_id, filters }, null, 'POST', true, false);
+                    if (countData && countData.status !== 'error') {
+                        b._previewCount = countData.count !== undefined ? countData.count : (countData.data?.count ?? '0');
+                    }
+
+                    if (b.type === 'movie') {
+                        const itemsData = await post('api/builder/preview', {
+                            user_id,
+                            blocks: [{ ...b, filters: { ...b.filters, limit: 3 } }]
+                        }, null, 'POST', true, false);
+                        if (itemsData && itemsData.status !== 'error') {
+                            b._previewItems = itemsData.data || [];
+                        }
+                    }
+                } catch (e) {
+                    b._previewCount = 'Error';
+                } finally {
+                    b._previewLoading = false;
+                }
+            }, 800);
         }
+
+        this._previewDebouncers[block._uid](block);
     },
 
     async refreshPresets() {

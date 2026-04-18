@@ -47,7 +47,6 @@ async function initializeApp() {
             body.dataset.theme = theme;
             localStorage.setItem('mixerbeeTheme', theme);
             themeToggle.checked = (theme === 'light');
-            if (window.featherReplace) window.featherReplace();
         };
 
         const saveGlobalState = () => {
@@ -75,7 +74,6 @@ async function initializeApp() {
             }
 
             mainActionBar.classList.toggle('hidden', activeTab !== 'mixed');
-            if (window.featherReplace) window.featherReplace();
         };
 
         const apiFetch = (url) => {
@@ -125,7 +123,7 @@ async function initializeApp() {
             const sStore = Alpine.store('settings');
             sStore.version = config.version || '';
             sStore.server_type = config.server_type || 'emby';
-            
+
             sStore.is_ai_configured = !!config.is_ai_configured;
 
             if (!config.is_configured) throw new Error("Not configured.");
