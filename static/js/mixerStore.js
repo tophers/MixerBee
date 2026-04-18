@@ -351,7 +351,12 @@ export const mixerStore = {
             
             // Safe Unicode Base64 encoding
             const bytes = new TextEncoder().encode(payload);
-            const binString = String.fromCodePoint(...bytes);
+            
+            /** * Robust binary string construction:
+             * Using Array.from with a mapping function instead of the spread operator (...)
+             * avoids potential 'Maximum call stack size exceeded' errors with large arrays.
+             */
+            const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
             const code = btoa(binString);
 
             navigator.clipboard.writeText(`MixerBee Preset: "${this.currentPresetName}"\n---\n${code}`).then(() => toast('Copied!', true));

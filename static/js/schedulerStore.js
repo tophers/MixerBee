@@ -53,6 +53,8 @@ export const schedulerStore = {
             job_type: entry.job_type || "builder",
             playlist_name: entry.playlist_name || "Scheduled Mix",
             preset_name: entry.preset_name || "",
+            // Preserve quick_playlist_data if it exists (for migrated or specific quick-build jobs)
+            quick_playlist_data: entry.quick_playlist_data || null,
             schedule_details: {
                 time: entry.schedule_details.time,
                 frequency: frequency,

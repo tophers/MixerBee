@@ -174,8 +174,8 @@
                                         <div class="range-slider-container">
                                             <div class="range-slider-track"></div>
                                             <div class="range-slider-progress" :style="`left: ${((block.filters.year_from - 1920) / (new Date().getFullYear() - 1920)) * 100}%; width: ${((block.filters.year_to - block.filters.year_from) / (new Date().getFullYear() - 1920)) * 100}%`"></div>
-                                            <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_from" @input="$store.mixer.updatePreviewCount(block)">
-                                            <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_to" @input="$store.mixer.updatePreviewCount(block)">
+                                            <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_from" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                            <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_to" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
                                         </div>
                                     </div>
                                 </div>
