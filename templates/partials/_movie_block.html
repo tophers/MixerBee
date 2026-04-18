@@ -56,8 +56,14 @@
                                 <span class="badge" x-show="block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear()"
                                       x-text="block.filters.year_from + ' - ' + block.filters.year_to"></span>
 
+                                <!-- Added Library Preview Badges -->
+                                <template x-for="libId in block.filters.parent_ids" :key="libId">
+                                    <span class="badge" style="border: 1px solid var(--border-color); color: var(--text-subtle); opacity: 0.8;"
+                                          x-text="$store.mixer.library.libraryData.find(l => l.Id === libId)?.Name"></span>
+                                </template>
+
                                 <template x-for="g in (block.filters.genres_any || []).slice(0, 3)" :key="g">
-                                    <span class="badge" style="background: rgba(var(--accent-rgb), 0.15); color: var(--accent); border: 1px solid var(--accent);" x-text="g"></span>
+                                    <span class="badge" style="background: rgba(var(--accent-rgb), 0.15); color: var(--accent); border: 1px solid var(--accent)" x-text="g"></span>
                                 </template>
 
                                 <template x-for="p in (block.filters.people || []).slice(0, 2)" :key="p.Id">
@@ -96,12 +102,22 @@
                         <div class="modal-body" style="overflow-y: auto; max-height: 70vh;">
                             <fieldset class="filter-group">
                                 <legend>Libraries</legend>
-                                <div class="checkbox-grid">
+                                <div class="flex-row flex-wrap gap-xs">
                                     <template x-for="lib in $store.mixer.library.libraryData" :key="lib.Id">
-                                        <label>
-                                            <input type="checkbox" :value="lib.Id" x-model="block.filters.parent_ids" @change="$store.mixer.updatePreviewCount(block)">
-                                            <span x-text="lib.Name"></span>
-                                        </label>
+                                        <button type="button" 
+                                                class="pill-btn" 
+                                                style="padding: 6px 12px; font-size: 0.85rem;"
+                                                :class="block.filters.parent_ids.includes(lib.Id) ? 'active' : ''"
+                                                @click="
+                                                    if(block.filters.parent_ids.includes(lib.Id)) {
+                                                        block.filters.parent_ids = block.filters.parent_ids.filter(id => id !== lib.Id)
+                                                    } else {
+                                                        block.filters.parent_ids.push(lib.Id)
+                                                    };
+                                                    $store.mixer.updatePreviewCount(block);
+                                                "
+                                                x-text="lib.Name">
+                                        </button>
                                     </template>
                                 </div>
                             </fieldset>
@@ -143,8 +159,8 @@
                                 <legend>Genres</legend>
                                 <div class="token-field-wrapper">
                                     <input type="search" class="token-input" placeholder="Search genres..."
-                                           x-model="genreQuery"
-                                           @input.debounce.300ms="genreSuggestions = await $store.mixer.fetchSuggestions('genre', genreQuery)">
+                                            x-model="genreQuery"
+                                            @input.debounce.300ms="genreSuggestions = await $store.mixer.fetchSuggestions('genre', genreQuery)">
                                     <div class="autocomplete-suggestions" x-show="genreSuggestions.length > 0" x-cloak>
                                         <ul>
                                             <template x-for="s in genreSuggestions" :key="s.text">

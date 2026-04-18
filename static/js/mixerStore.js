@@ -266,14 +266,15 @@ export const mixerStore = {
 
         block._previewLoading = true;
         try {
-            const countData = await post(endpoint, { user_id, filters });
+            // Using silent=true to suppress toasts during background count updates
+            const countData = await post(endpoint, { user_id, filters }, null, 'POST', true);
             block._previewCount = countData.count ?? '0';
 
             if (block.type === 'movie') {
                 const itemsData = await post('api/builder/preview', {
                     user_id,
                     blocks: [{ ...block, filters: { ...block.filters, limit: 3 } }]
-                });
+                }, null, 'POST', true);
                 block._previewItems = itemsData.data || [];
             }
         } catch (e) {

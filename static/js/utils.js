@@ -58,7 +58,7 @@ export function toast(message, isSuccess, options = {}) {
         if (toastElement.parentNode) {
             toastElement.remove();
         }
-    }, 10000); 
+    }, 10000);
   } else {
     toastElement.style.animation = 'fadeInDown 0.5s forwards';
   }
@@ -76,7 +76,15 @@ export function debounce(func, wait) {
     };
 };
 
-export function post(endpoint, body, eventOrElement = null, method = 'POST') {
+/**
+ * Standard POST helper
+ * @param {string} endpoint 
+ * @param {object} body 
+ * @param {HTMLElement|Event} eventOrElement - Button to disable/enable
+ * @param {string} method 
+ * @param {boolean} silent - If true, success toasts are suppressed
+ */
+export function post(endpoint, body, eventOrElement = null, method = 'POST', silent = false) {
   const loadingOverlay = document.getElementById('loading-overlay');
   let clickedButton = null;
 
@@ -109,14 +117,18 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     })
     .then(res => {
         if (res.status === 'ok') {
-            const successMessage = res.log?.join(' • ') || 'Success!';
-            const toastOptions = {};
-            if (res.newItemUrl) {
-                toastOptions.actionText = 'View on Server';
-                toastOptions.actionCallback = () => window.open(res.newItemUrl, '_blank');
+            // Only toast if not silent
+            if (!silent) {
+                const successMessage = res.log?.join(' • ') || 'Success!';
+                const toastOptions = {};
+                if (res.newItemUrl) {
+                    toastOptions.actionText = 'View on Server';
+                    toastOptions.actionCallback = () => window.open(res.newItemUrl, '_blank');
+                }
+                toast(successMessage, true, toastOptions);
             }
-            toast(successMessage, true, toastOptions);
-        } else {
+        } else if (res.status === 'error' || res.detail) {
+            // Errors are never silent
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);
         }
