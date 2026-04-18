@@ -1,49 +1,4 @@
-<div id="settings-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
-        <div class="modal-header">
-            <h2>Settings</h2>
-            <button class="icon-btn js-modal-close">×</button>
-        </div>
-        <div class="modal-body">
-            <p>Enter your server details. The page will reload automatically to apply your changes.</p>
-            <div class="modal-form-layout">
-                <label class="control-item">
-                    <span>Server Type</span>
-                    <select id="settings-server-type-select">
-                        <option value="emby">Emby</option>
-                        <option value="jellyfin">Jellyfin</option>
-                    </select>
-                </label>
-                <label class="control-item">
-                    <span>Server URL</span>
-                    <input type="text" id="settings-url-input" placeholder="e.g., http://localhost:8096">
-                </label>
-                <label class="control-item">
-                    <span>Username</span>
-                    <input type="text" id="settings-user-input" placeholder="Your username">
-                </label>
-                <label class="control-item">
-                    <span>Password</span>
-                    <input type="password" id="settings-pass-input" placeholder="Your password">
-                </label>
-                <label class="control-item">
-                    <span>Gemini API Key (Optional)</span>
-                    <div class="input-with-button">
-                        <input type="password" id="settings-gemini-input" placeholder="Google Gemini API Key">
-                        <button id="settings-gemini-remove-btn" type="button" class="secondary small" title="Remove Key on Save">Remove</button>
-                    </div>
-                </label>
-            </div>
-        </div>
-        <div class="modal-footer">
-            <span id="app-version-display" class="mr-auto" style="font-size: 0.85rem; color: var(--text-subtle); font-family: monospace;"></span>
-            <button id="settings-test-btn" type="button" class="secondary mr-auto">Test Current Connection</button>
-            <button type="button" class="secondary js-modal-cancel">Cancel</button>
-            <button id="settings-save-btn" type="button">Save</button>
-        </div>
-    </div>
-</div>
-
+<!-- Save Preset Modal -->
 <div id="save-preset-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -64,6 +19,7 @@
     </div>
 </div>
 
+<!-- Smart Playlist Modal -->
 <div id="smart-playlist-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -90,6 +46,7 @@
     </div>
 </div>
 
+<!-- Import Preset Modal -->
 <div id="import-preset-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -115,6 +72,7 @@
     </div>
 </div>
 
+<!-- Smart Build Selection Modal -->
 <div id="smart-build-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -131,6 +89,7 @@
     </div>
 </div>
 
+<!-- Manager Contents Modal -->
 <div id="contents-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -144,6 +103,7 @@
     </div>
 </div>
 
+<!-- Playlist Preview Modal -->
 <div id="preview-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -157,6 +117,7 @@
     </div>
 </div>
 
+<!-- Reset Watch History Modal -->
 <div id="reset-watch-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -174,6 +135,7 @@
     </div>
 </div>
 
+<!-- Generic Confirmation Modal -->
 <div id="confirm-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -190,6 +152,7 @@
     </div>
 </div>
 
+<!-- Notification History Modal -->
 <div id="toast-history-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
         <div class="modal-header">
@@ -206,13 +169,16 @@
     </div>
 </div>
 
+<!-- Global Loading Overlay -->
 <div id="loading-overlay" class="hidden">
     <div class="spinner"></div>
 </div>
 
-<div id="settings-modal-overlay" class="modal-overlay" 
-     x-show="$store.settings.isOpen" 
+<!-- Alpine-powered Settings Modal -->
+<div id="settings-modal-overlay" class="modal-overlay"
+     x-show="$store.settings.isOpen"
      x-transition.opacity
+     x-cloak
      style="display: none;">
     <div class="modal-window" @click.outside="$store.settings.hide()">
         <div class="modal-header">
