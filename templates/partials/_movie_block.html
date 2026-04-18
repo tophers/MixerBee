@@ -133,6 +133,9 @@
                                     <template x-for="(s, i) in block.filters.studios" :key="'s'+i">
                                         <span class="token" style="background: rgba(var(--accent-rgb), 0.1);"><span class="token-state" @click="$store.mixer.cycleTokenState(block, 'studios', i)">⊕</span> <span x-text="s"></span> <b class="token-remove" @click="$store.mixer.removeToken(block, 'studios', i)">&times;</b></span>
                                     </template>
+                                    <template x-for="(s, i) in block.filters.exclude_studios" :key="'es'+i">
+                                        <span class="token" style="border-color: var(--danger);"><span class="token-state" @click="$store.mixer.cycleTokenState(block, 'exclude_studios', i)">⊖</span> <span x-text="s"></span> <b class="token-remove" @click="$store.mixer.removeToken(block, 'exclude_studios', i)">&times;</b></span>
+                                    </template>
                                 </div>
                             </fieldset>
 

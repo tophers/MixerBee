@@ -120,6 +120,30 @@ def api_delete_item(req: models.DeleteItemRequest, auth_deps: dict = Depends(get
         logging.error(f"Error processing delete request for item {req.item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
 
+@router.post("/api/collections/{collection_id}/items/remove")
+def api_remove_from_collection(
+    collection_id: str, 
+    req: models.RemoveFromPlaylistRequest, 
+    auth_deps: dict = Depends(get_current_auth_headers)
+) -> Dict[str, Any]:
+    """
+    Removes an item from a Collection (BoxSet).
+    Uses the generic RemoveFromPlaylistRequest as the schema is identical.
+    """
+    try:
+        action_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+        
+        if core.remove_item_from_collection(collection_id, req.item_id_to_remove, action_hdr):
+            return {"status": "ok", "log": ["Item removed from collection."]}
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Failed to remove item from collection. It may not be in this collection."
+            )
+    except Exception as e:
+        logging.error(f"Error removing item {req.item_id_to_remove} from collection {collection_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/api/playlists/{playlist_id}/items/remove")
 def api_remove_from_playlist(playlist_id: str, req: models.RemoveFromPlaylistRequest, auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
     try:

@@ -11,12 +11,12 @@ export const managerStore = {
     sortDirection: 'asc',
     isLoading: false,
 
-    contentsModal: { 
-        isOpen: false, 
+    contentsModal: {
+        isOpen: false,
         parentItem: null,
-        title: '', 
-        items: [], 
-        isLoading: false 
+        title: '',
+        items: [],
+        isLoading: false
     },
 
     async load() {
@@ -35,7 +35,7 @@ export const managerStore = {
                     Type: item.Type || item.type || 'Playlist',
                     ChildCount: item.ChildCount !== undefined ? item.ChildCount : (item.child_count || 0)
                 }));
-                this.applyFilters(); 
+                this.applyFilters();
             }
         } catch (e) { console.error("Manager load failed:", e); }
         finally { this.isLoading = false; }
@@ -47,15 +47,20 @@ export const managerStore = {
             const q = this.searchQuery.toLowerCase().trim();
             list = list.filter(i => i.Name.toLowerCase().includes(q));
         }
+        
         const col = this.sortColumn;
         const dir = this.sortDirection === 'asc' ? 1 : -1;
+
         list.sort((a, b) => {
-            let aVal = (a[col] || '').toString().toLowerCase();
-            let bVal = (b[col] || '').toString().toLowerCase();
-            if (aVal < bVal) return -1 * dir;
-            if (aVal > bVal) return 1 * dir;
-            return 0;
+            const aVal = (a[col] ?? '').toString();
+            const bVal = (b[col] ?? '').toString();
+            
+            return aVal.localeCompare(bVal, undefined, { 
+                numeric: true, 
+                sensitivity: 'accent' 
+            }) * dir;
         });
+
         this.filtered = list;
     },
 
@@ -99,7 +104,11 @@ export const managerStore = {
                 isDanger: true
             });
 
-            const res = await post(`api/playlists/${parent.Id}/items/remove`, {
+            // Handle pathing based on whether it's a Playlist or a Collection (BoxSet)
+            const isCollection = parent.Type === 'BoxSet' || parent.Type === 'Collection';
+            const endpointType = isCollection ? 'collections' : 'playlists';
+            
+            const res = await post(`api/${endpointType}/${parent.Id}/items/remove`, {
                 user_id: uid,
                 item_id_to_remove: childItem.Id || childItem.id
             });

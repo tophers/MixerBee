@@ -18,7 +18,7 @@ export const mixerStore = {
     presets: {},
     availablePresets: [],
     currentPresetName: '',
-    
+
     buildMode: 'create',
     createAsCollection: false,
     existingPlaylistId: '',
@@ -47,7 +47,7 @@ export const mixerStore = {
 
     ensureBlockState(block) {
         if (!block) return;
-        
+
         block._previewCount = block._previewCount ?? '...';
         block._previewItems = block._previewItems ?? [];
         block._previewLoading = block._previewLoading ?? false;
@@ -113,7 +113,7 @@ export const mixerStore = {
     async fetchEpisodeTitle(showData) {
         const series = this.library.seriesData.find(s => s.name === showData.name);
         if (!series || !showData.season || !showData.episode) return;
-        
+
         showData._loadingTitle = true;
         try {
             const res = await fetch(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`);
@@ -134,7 +134,7 @@ export const mixerStore = {
         const series = this.library.seriesData.find(s => s.name === showData.name);
         const uid = document.getElementById('user-select')?.value;
         if (!series || !uid) return;
-        
+
         showData._loadingTitle = true;
         try {
             const res = await fetch(`api/shows/${series.id}/first_unwatched?user_id=${uid}`);
@@ -170,6 +170,10 @@ export const mixerStore = {
     // --- Standard Helpers ---
     setupSortable(el, type = 'blocks', blockIndex = null) {
         if (!el) return;
+
+        // Prevent multiple Sortable instances on the same element
+        if (Sortable.get(el)) return;
+
         new Sortable(el, {
             animation: 150,
             handle: '.drag-handle',
@@ -250,24 +254,18 @@ export const mixerStore = {
         const user_id = document.getElementById('user-select')?.value;
         const endpoint = block.type === 'movie' ? 'api/movies/preview_count' : 'api/music/preview_count';
         const filters = block.type === 'movie' ? block.filters : block.music.filters;
-        
+
         block._previewLoading = true;
         try {
-            const countRes = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id, filters })
-            });
-            const countData = await countRes.json();
-            block._previewCount = countData.count;
+            // Using post utility for centralized error handling and response validation
+            const countData = await post(endpoint, { user_id, filters });
+            block._previewCount = countData.count ?? '0';
 
             if (block.type === 'movie') {
-                const previewItemsRes = await fetch('api/builder/preview', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id, blocks: [{ ...block, filters: { ...block.filters, limit: 3 } }] })
+                const itemsData = await post('api/builder/preview', {
+                    user_id,
+                    blocks: [{ ...block, filters: { ...block.filters, limit: 3 } }]
                 });
-                const itemsData = await previewItemsRes.json();
                 block._previewItems = itemsData.data || [];
             }
         } catch (e) {
@@ -347,8 +345,20 @@ export const mixerStore = {
 
     exportPreset() {
         if (!this.currentPresetName) return;
-        const code = btoa(JSON.stringify({ name: this.currentPresetName, data: this.presets[this.currentPresetName] }));
-        navigator.clipboard.writeText(`MixerBee Preset: "${this.currentPresetName}"\n---\n${code}`).then(() => toast('Copied!', true));
+        
+        try {
+            const payload = JSON.stringify({ name: this.currentPresetName, data: this.presets[this.currentPresetName] });
+            
+            // Safe Unicode Base64 encoding
+            const bytes = new TextEncoder().encode(payload);
+            const binString = String.fromCodePoint(...bytes);
+            const code = btoa(binString);
+
+            navigator.clipboard.writeText(`MixerBee Preset: "${this.currentPresetName}"\n---\n${code}`).then(() => toast('Copied!', true));
+        } catch (e) {
+            console.error("Export failed:", e);
+            toast("Failed to encode preset data.", false);
+        }
     },
 
     async loadBlocks(blocksData = []) {
@@ -367,8 +377,8 @@ export const mixerStore = {
                             if (series) {
                                 const p = fetch(`api/shows/${series.id}/first_unwatched?user_id=${uid}`)
                                     .then(r => r.ok ? r.json() : null)
-                                    .then(ep => { if (ep) { 
-                                        show.season = ep.ParentIndexNumber; 
+                                    .then(ep => { if (ep) {
+                                        show.season = ep.ParentIndexNumber;
                                         show.episode = ep.IndexNumber;
                                         show.previewTitle = ep.Name || '';
                                     } });
@@ -464,7 +474,7 @@ export const mixerStore = {
     async previewPlaylist(btnEl, blocksOverride = null) {
         const targetBlocks = blocksOverride || this.blocks;
         if (targetBlocks.length === 0) return toast('No content to preview.', false);
-        
+
         const uid = document.getElementById('user-select')?.value;
         const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
         if (res.status === 'ok') previewModal.show(res.data);
@@ -504,7 +514,7 @@ export const mixerStore = {
             recently_added: { title: 'Recently Added', description: 'New media.', defaultName: 'Recently Added', defaultCount: 25 },
             next_up: { title: 'Next Up', description: 'In-progress shows.', defaultName: 'Next Up' },
             pilot_sampler: { title: 'Pilot Sampler', description: 'Random pilots.', defaultName: 'Pilot Sampler' },
-            from_the_vault: { title: 'From the Vault', description: 'Forgotten favorites.', defaultName: 'From the Vault', defaultCount: 20 },
+            from_the_vault: { title: 'From the Vault', description: 'Forgotten favorites.', defaultName: 'Forgotten favorites.', defaultCount: 20 },
         };
         if (config[type]) await this.executeQuickBuild(type, config[type]);
         else if (type === 'genre_roulette' || type === 'genre_sampler') {

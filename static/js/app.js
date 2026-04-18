@@ -126,11 +126,7 @@ async function initializeApp() {
             sStore.version = config.version || '';
             sStore.server_type = config.server_type || 'emby';
             
-            // --- DEBUGGING LOGS ---
-            console.log("📡 Backend Config Response:", config);
             sStore.is_ai_configured = !!config.is_ai_configured;
-            console.log("🧠 Frontend Settings Store 'is_ai_configured' set to:", sStore.is_ai_configured);
-            // ----------------------
 
             if (!config.is_configured) throw new Error("Not configured.");
 
