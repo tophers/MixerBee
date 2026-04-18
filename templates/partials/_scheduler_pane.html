@@ -1,5 +1,5 @@
-<div id="scheduler-pane" class="tab-pane hidden" 
-     x-data="{ jobModalOpen: null }" 
+<div id="scheduler-pane" class="tab-pane hidden"
+     x-data="{ jobModalOpen: null }"
      x-effect="$store.scheduler.schedule; $nextTick(() => window.featherReplace())">
     <div class="container">
         <div class="manager-header flex-row justify-between align-center mb-md">
@@ -13,12 +13,12 @@
         </div>
 
         <div class="flex-column gap-md">
-            <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || 'new-' + idx">
+            <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
                 <div class="mixed-block">
                     <div class="mixed-block-header" style="padding: 1rem;">
                         <div class="flex-row align-center gap-lg grow-1">
                             <div :style="entry.id ? 'color: var(--accent);' : 'color: var(--text-subtle);'">
-                                <i data-feather="clock" style="width: 22px;"></i>
+                                 <i data-feather="clock" style="width: 22px;"></i> 
                             </div>
 
                             <div class="grow-1">
@@ -46,17 +46,17 @@
                             <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now">
                                 <i data-feather="play"></i>
                             </button>
-                            <button type="button" class="secondary small" @click="jobModalOpen = idx">
-                                <i data-feather="settings" class="small-icon" style="margin-right: 4px;"></i> Edit
+                            <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Change Schedule">
+                                <i data-feather="settings"></i>
                             </button>
-                            <button type="button" class="secondary small icon-only danger-hover" @click="$store.scheduler.removeEntry(entry, $el)">
+                            <button type="button" class="secondary small icon-only btn-danger-outline" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Schedule">
                                 <i data-feather="trash-2"></i>
                             </button>
                         </div>
                     </div>
 
                     <!-- Automation Edit Modal -->
-                    <div class="modal-overlay" x-show="jobModalOpen === idx" x-cloak style="z-index: 5000;">
+                    <div class="modal-overlay" x-show="jobModalOpen === entry._uid" x-cloak style="z-index: 5000;">
                         <div class="modal-window wide" @click.outside="jobModalOpen = null">
                             <div class="modal-header">
                                 <h2>Edit Automation Task</h2>
@@ -78,7 +78,7 @@
                                     </div>
                                 </div>
 
-                                <div>
+                                <div style="margin-top: 1.5rem;">
                                     <label class="field-label">Automation Preset</label>
                                     <select x-model="entry.preset_name" class="mixer-select w-full">
                                         <option value="">-- Select Builder Preset --</option>
@@ -94,6 +94,7 @@
                                         <input type="time" x-model="entry.schedule_details.time" class="themed-input" style="width: auto;">
                                     </div>
                                     <div class="flex-row justify-between gap-sm">
+                                        <!-- idx for static arrays like days is safe; idx for reorderable data is the risk -->
                                         <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
                                             <button type="button"
                                                     class="day-btn grow-1"

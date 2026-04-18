@@ -3,9 +3,9 @@
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             <summary>
                 <div class="mixed-block-header">
-                    <button type="button" class="icon-btn drag-handle" title="Drag to reorder"><i data-feather="move"></i></button>
+                    <button type="button" class="icon-btn drag-handle"><i data-feather="move"></i></button>
                     <h3>
-                        <template x-if="block.is_ai_generated"><i data-feather="zap" style="color: var(--accent); width: 16px; margin-right: 4px;"></i></template>
+                        <template x-if="block.is_ai_generated"><i data-feather="zap" class="ai-badge-icon"></i></template>
                         <span x-text="block.title || 'TV Block'"></span>
                     </h3>
                     <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
@@ -20,83 +20,95 @@
             </summary>
 
             <div class="mixed-block-body">
-                <div class="tv-block-preview-summary" style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 600; color: var(--text);"><span x-text="$store.mixer.getTvShowList(block)"></span></div>
-                        <div style="margin-top: 0.2rem;" x-text="$store.mixer.getTvBlockSummary(block)"></div>
-                    </div>
-                    <button type="button" class="secondary small" @click="editModalOpen = true"><i data-feather="sliders"></i> Edit Shows</button>
-                </div>
-
-                <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 4000;">
-                    <div class="modal-window wide" @click.outside="editModalOpen = false">
-                        <div class="modal-header">
-                            <h2>Edit TV Block</h2>
-                            <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
-                        </div>
-                        <div class="modal-body">
-                            <div class="tv-block-shows" x-init="$store.mixer.setupSortable($el, 'tv-shows', index)">
-                                <template x-for="(show, rowIndex) in block.shows" :key="rowIndex">
-                                    
-                                    <!-- Matches the CSS Grid layout in your original builder.css -->
-                                    <div class="tv-block-show-row" :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowSearch: '', rowMenuOpen: false }">
-                                        
-                                        <div class="drag-handle"><i data-feather="move"></i></div>
-                                        
-                                        <div class="show-select-wrapper">
-                                            <div class="search-and-select">
-                                                <input type="search" placeholder="Filter..." x-model="rowSearch" class="show-search-input">
-                                                <select x-model="show.name" @change="show.unwatched = true; $store.mixer.syncNextUnwatched(show)">
-                                                    <option value="">-- Select Series --</option>
-                                                    <template x-for="s in $store.mixer.library.seriesData" :key="s.id">
-                                                        <option :value="s.name" x-text="s.name" x-show="!rowSearch || s.name.toLowerCase().includes(rowSearch.toLowerCase())"></option>
-                                                    </template>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        
-                                        <template x-if="!show.unwatched">
-                                            <input type="number" class="tv-block-season" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" title="Season">
-                                        </template>
-                                        
-                                        <template x-if="!show.unwatched">
-                                            <input type="number" class="tv-block-episode" x-model.number="show.episode" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" title="Episode">
-                                        </template>
-
-                                        <div class="show-row-controls">
-                                            <div class="dropdown-container">
-                                                <button type="button" class="secondary small" @click="rowMenuOpen = !rowMenuOpen" @click.outside="rowMenuOpen = false"><i data-feather="settings"></i></button>
-                                                <div class="dropdown-menu" x-show="rowMenuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 100;">
-                                                    <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.promptResetWatch(show)">Mark Unwatched...</a>
-                                                    <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.syncNextUnwatched(show)">Sync Next Up</a>
-                                                </div>
-                                            </div>
-                                            <button type="button" class="secondary small" style="color: var(--danger);" @click="$store.mixer.deleteShowRow(index, rowIndex)"><i data-feather="trash-2"></i></button>
-                                        </div>
-
-                                        <div class="tv-block-show-options">
-                                            <div class="toggle-pill" style="height: 32px; font-size: 0.8rem; width: 100%; max-width: 200px; margin-top: 0.2rem;">
-                                                <span class="pill-btn" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show)">Next-Up</span>
-                                                <span class="pill-btn" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show)">Manual</span>
-                                            </div>
-                                        </div>
-
-                                        <div class="tv-block-preview">
-                                            <template x-if="show._loadingTitle"><span>Loading episode info...</span></template>
-                                            <template x-if="!show._loadingTitle && show.previewTitle">
-                                                <span x-text="show.previewTitle"></span>
-                                            </template>
-                                        </div>
-
-                                    </div>
-                                </template>
-                            </div>
-                            <button type="button" class="secondary" style="width: 100%; margin-top: 1rem;" @click="$store.mixer.addShowRow(index)">+ Add Series</button>
-                        </div>
-                        <div class="modal-footer"><button type="button" @click="editModalOpen = false" class="primary">Done</button></div>
+                <div class="block-summary-card">
+                    <div class="summary-label">Shows Included</div>
+                    <div class="summary-content" x-text="$store.mixer.getTvShowList(block)"></div>
+                    <div class="summary-footer mt-md">
+                        <span class="badge" x-text="$store.mixer.getTvBlockSummary(block)"></span>
+                        <button type="button" class="secondary small" @click="editModalOpen = true" style="margin-left: auto;"><i data-feather="edit-3"></i> Edit Shows</button>
                     </div>
                 </div>
             </div>
         </details>
+
+        <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 4000; position: fixed;">
+            <div class="modal-window wide" @click.outside="editModalOpen = false">
+                <div class="modal-header">
+                    <h2>Edit TV Block</h2>
+                    <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <!-- General Settings -->
+                    <div class="modal-form-layout mb-lg">
+                        <label class="control-item">
+                            <span>Block Title</span>
+                            <input type="text" x-model="block.title" placeholder="e.g., Evening Comedy">
+                        </label>
+                        <div class="flex-row gap-md flex-wrap">
+                            <label class="control-item">
+                                <span>Selection Mode</span>
+                                <select x-model="block.mode">
+                                    <option value="count">Fixed Count</option>
+                                    <option value="range">Range (Not recommended for mix)</option>
+                                </select>
+                            </label>
+                            <label class="control-item" x-show="block.mode === 'count'">
+                                <span>Episodes per show</span>
+                                <input type="number" x-model.number="block.count" min="1" max="50">
+                            </label>
+                        </div>
+                        <label class="toggle-control">
+                            <input type="checkbox" x-model="block.interleave">
+                            <span>Interleave shows (Show A Ep 1, Show B Ep 1...)</span>
+                        </label>
+                    </div>
+
+                    <div class="tv-block-shows" x-init="$store.mixer.setupSortable($el, 'tv-shows', index)">
+                        <template x-for="(show, rowIndex) in block.shows" :key="show._uid">
+                            <div class="tv-block-show-row" :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowSearch: '', rowMenuOpen: false }">
+                                <div class="drag-handle"><i data-feather="menu"></i></div>
+                                <div class="show-selector-area">
+                                    <div class="show-input-wrapper">
+                                        <input type="text" placeholder="Search for a show..." x-model="show.name" 
+                                               @input.debounce.300ms="rowSearch = show.name">
+                                        <div class="autocomplete-suggestions" x-show="rowSearch.length > 1" x-cloak>
+                                            <ul>
+                                                <template x-for="s in $store.mixer.library.seriesData.filter(item => item.name.toLowerCase().includes(rowSearch.toLowerCase())).slice(0, 5)" :key="s.id">
+                                                    <li @click="show.name = s.name; rowSearch = ''; if(show.unwatched) $store.mixer.syncNextUnwatched(show); else $store.mixer.fetchEpisodeTitle(show)" x-text="s.name"></li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="show-episode-config" x-show="show.name">
+                                        <label class="toggle-control">
+                                            <input type="checkbox" x-model="show.unwatched" @change="show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show)">
+                                            <span>Next Unwatched</span>
+                                        </label>
+                                        <div class="episode-inputs" x-show="!show.unwatched">
+                                            <input type="number" title="Season" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show)">
+                                            <input type="number" title="Episode" x-model.number="show.episode" min="1" @change="$store.mixer.fetchEpisodeTitle(show)">
+                                        </div>
+                                        <div class="episode-title-preview" x-show="show.previewTitle">
+                                            <span x-text="show.previewTitle"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row-actions dropdown-container">
+                                    <button type="button" class="icon-btn" @click="rowMenuOpen = !rowMenuOpen" @click.outside="rowMenuOpen = false"><i data-feather="more-horizontal"></i></button>
+                                    <div class="dropdown-menu" x-show="rowMenuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
+                                        <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.promptResetWatch(show)"><i data-feather="refresh-cw"></i> Reset Watch State</a>
+                                        <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.deleteShowRow(index, rowIndex)" style="color: var(--danger);"><i data-feather="trash-2"></i> Remove</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <button type="button" class="secondary" style="width: 100%; margin-top: 1rem;" @click="$store.mixer.addShowRow(index)">+ Add Series</button>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="primary" @click="editModalOpen = false">Done</button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

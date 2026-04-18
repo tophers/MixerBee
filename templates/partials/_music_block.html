@@ -50,7 +50,7 @@
                             <div x-show="block.music.mode === 'genre'">
                                 <template x-if="block.music.filters.genres?.length">
                                     <div class="flex-row flex-wrap gap-sm">
-                                        <template x-for="g in block.music.filters.genres" :key="g">
+                                        <template x-for="(g,i) in block.music.filters.genres" :key="'msg-'+g">
                                             <span class="badge" style="background: rgba(var(--accent-rgb), 0.1); border: 1px solid var(--accent); color: var(--accent);" x-text="g"></span>
                                         </template>
                                     </div>

@@ -20,6 +20,7 @@ export const schedulerStore = {
                     const details = entry.schedule_details || {};
                     return {
                         ...entry,
+                        _uid: crypto.randomUUID(),
                         job_type: entry.job_type || "builder",
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
                         user_id: entry.user_id || document.getElementById('user-select')?.value || "",
@@ -53,7 +54,6 @@ export const schedulerStore = {
             job_type: entry.job_type || "builder",
             playlist_name: entry.playlist_name || "Scheduled Mix",
             preset_name: entry.preset_name || "",
-            // Preserve quick_playlist_data if it exists (for migrated or specific quick-build jobs)
             quick_playlist_data: entry.quick_playlist_data || null,
             schedule_details: {
                 time: entry.schedule_details.time,
@@ -73,22 +73,19 @@ export const schedulerStore = {
             }
 
             if (res && res.status === 'ok') {
-                toast('Schedule saved successfully!', true);
                 this.schedule = [...this.schedule];
             }
         } catch (err) {
             console.error("Backend Save Error:", err);
-            toast("Save Failed: " + (err.detail || "Invalid payload format"), false);
         }
     },
 
     async runNow(id, btnEl) {
         if (!id) return toast("Save the schedule first to generate a Job ID.", false);
         try {
-            const res = await post(`api/schedules/${id}/run`, {}, btnEl);
-            if (res && res.status === 'ok') toast('Manual build triggered!', true);
+            await post(`api/schedules/${id}/run`, {}, btnEl);
         } catch (err) {
-            toast(`Run Failed: ${err.message}`, false);
+            console.error("Manual run failed:", err);
         }
     },
 
@@ -99,17 +96,19 @@ export const schedulerStore = {
         }
         try {
             const res = await post(`api/schedules/${entry.id}`, {}, btnEl, 'DELETE');
-            if (res) {
+            if (res && res.status === 'ok') {
                 this.schedule = this.schedule.filter(s => s !== entry);
-                toast('Schedule deleted.', true);
             }
-        } catch (err) { toast('Delete failed.', false); }
+        } catch (err) { 
+            console.error("Delete failed:", err);
+        }
     },
 
     addEntry() {
         const userSel = document.getElementById('user-select');
         const newEntry = {
             id: null,
+            _uid: crypto.randomUUID(),
             job_type: "builder",
             playlist_name: "New Scheduled Mix",
             preset_name: "",

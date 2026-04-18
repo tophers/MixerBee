@@ -1,4 +1,4 @@
-// static/js/mixerStore.js
+/* static/js/mixerStore.js */
 
 import { post, toast } from './utils.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, presetModal, importPresetModal, resetWatchModal } from './modals.js';
@@ -35,6 +35,7 @@ export const mixerStore = {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 const loadedBlocks = parsed.blocks || [];
+                // Hydrate loaded blocks with state and UIDs
                 loadedBlocks.forEach(b => this.ensureBlockState(b));
                 this.blocks = loadedBlocks;
             }
@@ -42,11 +43,20 @@ export const mixerStore = {
             console.error("Autosave restore failed:", e);
         }
 
-        Alpine.watch(() => this.blocks, () => this.persistToLocalStorage());
+        // IMPACT: Changed from shallow watch to deep watch via JSON stringification.
+        // This ensures nested filter changes trigger a save to localStorage.
+        Alpine.watch(() => JSON.stringify(this.blocks), () => this.persistToLocalStorage());
     },
 
+    /**
+     * Ensures every block and nested show row has the required properties
+     * and a unique identifier for DOM tracking.
+     */
     ensureBlockState(block) {
         if (!block) return;
+
+        // Assign a unique ID if one doesn't exist
+        if (!block._uid) block._uid = crypto.randomUUID();
 
         block._previewCount = block._previewCount ?? '...';
         block._previewItems = block._previewItems ?? [];
@@ -82,6 +92,7 @@ export const mixerStore = {
         if (block.type === 'tv') {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
+                if (!s._uid) s._uid = crypto.randomUUID();
                 s.previewTitle = s.previewTitle ?? '';
                 s._loadingTitle = false;
             });
@@ -170,8 +181,6 @@ export const mixerStore = {
     // --- Standard Helpers ---
     setupSortable(el, type = 'blocks', blockIndex = null) {
         if (!el) return;
-
-        // Prevent multiple Sortable instances on the same element
         if (Sortable.get(el)) return;
 
         new Sortable(el, {
@@ -257,7 +266,6 @@ export const mixerStore = {
 
         block._previewLoading = true;
         try {
-            // Using post utility for centralized error handling and response validation
             const countData = await post(endpoint, { user_id, filters });
             block._previewCount = countData.count ?? '0';
 
@@ -345,17 +353,9 @@ export const mixerStore = {
 
     exportPreset() {
         if (!this.currentPresetName) return;
-        
         try {
             const payload = JSON.stringify({ name: this.currentPresetName, data: this.presets[this.currentPresetName] });
-            
-            // Safe Unicode Base64 encoding
             const bytes = new TextEncoder().encode(payload);
-            
-            /** * Robust binary string construction:
-             * Using Array.from with a mapping function instead of the spread operator (...)
-             * avoids potential 'Maximum call stack size exceeded' errors with large arrays.
-             */
             const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
             const code = btoa(binString);
 
@@ -410,7 +410,7 @@ export const mixerStore = {
     addBlock(type) {
         let block;
         if (type === 'tv') {
-            const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '' };
+            const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: crypto.randomUUID() };
             block = { type: 'tv', shows: [def], mode: 'count', count: 3, interleave: true };
         } else if (type === 'movie') {
             block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear() } };
@@ -419,6 +419,7 @@ export const mixerStore = {
         }
 
         if (block) {
+            block._uid = crypto.randomUUID();
             this.ensureBlockState(block);
             this.blocks.push(block);
             this.updatePreviewCount(block);
@@ -427,6 +428,8 @@ export const mixerStore = {
 
     duplicateBlock(index) {
         const copy = JSON.parse(JSON.stringify(this.blocks[index]));
+        copy._uid = crypto.randomUUID();
+        if (copy.shows) copy.shows.forEach(s => s._uid = crypto.randomUUID());
         this.blocks.splice(index + 1, 0, copy);
     },
 
@@ -443,7 +446,7 @@ export const mixerStore = {
     },
 
     addShowRow(blockIndex) {
-        const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '' };
+        const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: crypto.randomUUID() };
         this.blocks[blockIndex].shows.push(def);
     },
 
@@ -457,6 +460,7 @@ export const mixerStore = {
             const res = await fetch('api/builder/random_block');
             if (res.ok) {
                 const block = await res.json();
+                block._uid = crypto.randomUUID();
                 this.ensureBlockState(block);
                 this.blocks.push(block);
                 this.updatePreviewCount(block);

@@ -2,7 +2,6 @@
     <div class="container">
         <div class="preset-controls" x-data="{ presetMenuOpen: false }">
             
-            <!-- Flex wrapper to align the Select and Mobile Kebab Menu side-by-side -->
             <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-grow: 1;">
                 <label class="control-item grow-1 m-0" for="load-preset-select">
                     <span>Load Preset</span>
@@ -33,7 +32,6 @@
                         <a href="#" class="dropdown-item" @click.prevent="presetMenuOpen = false; $store.mixer.importPreset()">
                             <i data-feather="download"></i> Import
                         </a>
-                        <!-- Disable 'Export' visually and functionally if no preset is selected -->
                         <a href="#" class="dropdown-item" :class="{ 'opacity-60': !$store.mixer.currentPresetName }" @click.prevent="if($store.mixer.currentPresetName) { presetMenuOpen = false; $store.mixer.exportPreset(); }">
                             <i data-feather="upload"></i> Export
                         </a>
@@ -67,7 +65,6 @@
             </div>
         </div>
 
-        <!-- ADD x-data HERE to wake up Alpine -->
         <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.is_ai_configured" x-cloak>
             <legend>AI Block Builder</legend>
             <details>
@@ -100,7 +97,7 @@
                 or try <strong>'Auto Playlists'</strong> for a quick start.
             </p>
 
-            <template x-for="(block, index) in $store.mixer.blocks" :key="index">
+            <template x-for="(block, index) in $store.mixer.blocks" :key="block._uid">
                 <div class="block-wrapper" x-effect="$nextTick(() => window.featherReplace())">
                     {% include 'partials/_tv_block.html' %}
                     {% include 'partials/_movie_block.html' %}

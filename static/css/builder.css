@@ -145,7 +145,7 @@
     justify-content: space-between;
     align-items: center;
     gap: 0.5rem;
-    background: var(--header-bg);
+    background: var(--bg);
     padding: 0.6rem 1rem;
     border-bottom: 1px solid var(--border-color-subtle);
     border-radius: var(--radius) var(--radius) 0 0;

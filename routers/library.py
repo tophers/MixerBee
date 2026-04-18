@@ -116,6 +116,8 @@ def api_delete_item(req: models.DeleteItemRequest, auth_deps: dict = Depends(get
             return {"status": "ok", "log": ["Item deleted successfully."]}
         else:
             raise HTTPException(status_code=400, detail="Failed to delete item. Check server logs for permission issues.")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error processing delete request for item {req.item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
@@ -126,14 +128,24 @@ def api_remove_from_collection(
     req: models.RemoveFromPlaylistRequest,
     auth_deps: dict = Depends(get_current_auth_headers)
 ) -> Dict[str, Any]:
+    """
+    Removes an item from a Collection (BoxSet).
+    Uses the generic RemoveFromPlaylistRequest as the schema is identical.
+    """
     try:
         action_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+
         if core.remove_item_from_collection(collection_id, req.item_id_to_remove, action_hdr):
             return {"status": "ok", "log": ["Item removed from collection."]}
         else:
-            raise HTTPException(status_code=400, detail="Failed to remove item.")
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to remove item from collection. It may not be in this collection."
+            )
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Error: {e}")
+        logging.error(f"Error removing item {req.item_id_to_remove} from collection {collection_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/playlists/{playlist_id}/items/remove")
@@ -144,6 +156,8 @@ def api_remove_from_playlist(playlist_id: str, req: models.RemoveFromPlaylistReq
             return {"status": "ok", "log": ["Item removed from playlist."]}
         else:
             raise HTTPException(status_code=400, detail="Failed to remove item from playlist. It may have already been removed.")
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error removing item {req.item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -182,20 +196,21 @@ def api_convert_item(req: models.ConvertItemRequest, auth_deps: dict = Depends(g
 
 @router.post("/api/shows/{series_id}/unplayed")
 def api_mark_unplayed(
-    series_id: str, 
+    series_id: str,
     req: models.ResetWatchRequest = Body(...),
     auth_deps: dict = Depends(get_current_auth_headers)
 ):
     user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
     try:
-        from app import tv 
+        from app import tv
         success = tv.mark_unplayed(series_id, req.user_id, user_specific_hdr, req.season_number)
-        
+
         if success:
             return {"status": "ok", "log": ["Watch history reset successfully."]}
         else:
             raise HTTPException(400, "Could not find the specified season to reset.")
-            
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error resetting watch state: {e}", exc_info=True)
         raise HTTPException(500, str(e))
