@@ -63,7 +63,7 @@ class PreviewModal extends BaseModal {
     }
 
     show(items) {
-        this.bodyEl.innerHTML = ''; 
+        this.bodyEl.innerHTML = '';
 
         if (!items || items.length === 0) {
             this.bodyEl.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">No items were found for this configuration.</p>';
@@ -216,7 +216,17 @@ class ImportPresetModal extends BaseModal {
                 const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
                 if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
 
-                const sharePayload = JSON.parse(atob(base64String));
+                // 1. Decode Base64 to a "binary string" (chars with codes 0-255)
+                const binString = atob(base64String);
+
+                // 2. Convert binary string to a Uint8Array
+                const bytes = Uint8Array.from(binString, (c) => c.charCodeAt(0));
+
+                // 3. Decode the UTF-8 byte array back into a Javascript string
+                const jsonString = new TextDecoder().decode(bytes);
+                
+                const sharePayload = JSON.parse(jsonString);
+
                 if (!sharePayload.data || !Array.isArray(sharePayload.data)) {
                     throw new Error("The share code has an invalid format.");
                 }
@@ -320,7 +330,7 @@ class ResetWatchModal extends BaseModal {
         super(modalId);
         this.showNameEl = this.overlay.querySelector('#reset-watch-show-name');
         this.seasonNumEl = this.overlay.querySelector('#reset-season-num');
-        
+
         this.resetSeasonBtn = this.overlay.querySelector('#reset-season-btn');
         this.resetShowBtn = this.overlay.querySelector('#reset-show-btn');
 

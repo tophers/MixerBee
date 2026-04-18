@@ -4,7 +4,7 @@ app/items.py - Generic playlist, collection, and item management.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Any
 import random
 import time
 
@@ -58,6 +58,31 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
         item["DisplayType"] = "Collection" if item_type in ["BoxSet", "Collection"] else "Playlist"
 
     return items
+
+def remove_item_from_collection(collection_id: str, item_id: str, hdr: Dict[str, str]) -> bool:
+    """
+    Removes a specific item from an Emby/Jellyfin Collection (BoxSet).
+    """
+    try:
+        base_url = hdr.get("__base_url") 
+        
+        url = f"{base_url}/Collections/{collection_id}/Items"
+        params = {"Ids": item_id}
+        
+        request_headers = {k: v for k, v in hdr.items() if not k.startswith("__")}
+        
+        response = requests.delete(url, headers=request_headers, params=params)
+        
+        if response.status_code in [200, 204]:
+            logging.info(f"Successfully removed item {item_id} from collection {collection_id}")
+            return True
+        else:
+            logging.error(f"Failed to remove item from collection. Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        logging.error(f"Error in remove_item_from_collection: {e}", exc_info=True)
+        return False
 
 def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all playlists for a user."""
