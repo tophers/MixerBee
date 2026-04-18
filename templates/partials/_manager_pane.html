@@ -1,0 +1,107 @@
+<div id="manager-pane" class="tab-pane hidden">
+    <div class="container">
+        <div class="flex-row justify-between align-center mb-md gap-md">
+            <div class="flex-row items-baseline gap-sm">
+                <h2 class="m-0">Manager</h2>
+                <span class="badge opacity-60" x-text="'Total: ' + ($store.manager.items || []).length"></span>
+            </div>
+            <div class="flex-row gap-md grow-1" style="max-width: 500px;">
+                <input type="search" placeholder="Search by name..."
+                       x-model="$store.manager.searchQuery"
+                       @input.debounce.250ms="$store.manager.applyFilters()"
+                       class="grow-1 m-0">
+                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.load()">
+                    <span x-html="$store.icons.refresh"></span> Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="table-container card">
+            <table class="manager-table w-full">
+                <thead>
+                    <tr class="table-header-row">
+                        <th @click="$store.manager.toggleSort('Name')" class="table-cell pointer text-left">Name</th>
+                        <th @click="$store.manager.toggleSort('Type')" class="table-cell pointer text-left">Type</th>
+                        <th @click="$store.manager.toggleSort('ChildCount')" class="table-cell pointer text-center">Items</th>
+                        <th class="table-cell text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-if="$store.manager.isLoading">
+                        <tr><td colspan="4" class="table-loading">Loading...</td></tr>
+                    </template>
+                    <template x-if="!$store.manager.isLoading && ($store.manager.filtered || []).length === 0">
+                        <tr><td colspan="4" class="table-loading">No items found.</td></tr>
+                    </template>
+                    <template x-for="item in ($store.manager.filtered || [])" :key="item.Id">
+                        <tr class="table-row">
+                            <td class="table-cell bold" x-text="item.Name"></td>
+                            <td class="table-cell">
+                                <span class="badge"
+                                      :class="item.Type === 'Playlist' ? 'badge-accent' : 'badge-outline'"
+                                      x-text="item.Type"></span>
+                            </td>
+                            <td class="table-cell text-center" x-text="item.ChildCount"></td>
+                            <td class="table-cell text-right">
+                                <div class="flex-row justify-end gap-sm">
+                                    <button type="button" 
+                                            class="secondary small icon-only" 
+                                            @click="$store.manager.viewContents(item)" 
+                                            title="View Contents"
+                                            x-html="$store.icons.eye"></button>
+                                    <button type="button" 
+                                            class="secondary small icon-only" 
+                                            @click="$store.manager.convertItem(item)" 
+                                            title="Convert Type"
+                                            x-html="$store.icons.refresh"></button>
+                                    <button type="button" 
+                                            class="secondary small icon-only danger-hover" 
+                                            @click="$store.manager.deleteItem(item)" 
+                                            title="Delete Entire List"
+                                            x-html="$store.icons.trash"></button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Item Contents Modal -->
+    <div class="modal-overlay" x-show="$store.manager.contentsModal.isOpen" x-cloak style="z-index: 4500; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+        <div class="modal-window wide" @click.outside="$store.manager.contentsModal.isOpen = false">
+            <div class="modal-header">
+                <h2 x-text="$store.manager.contentsModal.title"></h2>
+                <button type="button" class="icon-btn" @click="$store.manager.contentsModal.isOpen = false">&times;</button>
+            </div>
+            <div class="modal-body-scroll">
+                <template x-if="$store.manager.contentsModal.isLoading">
+                    <p class="text-center" style="padding: 2rem;">Loading contents...</p>
+                </template>
+                <ul class="no-list">
+                    <template x-for="c in ($store.manager.contentsModal.items || [])" :key="c.Id">
+                        <li class="list-item-divider flex-row justify-between align-center">
+                            <div>
+                                <div class="bold" x-text="c.Name || c.name"></div>
+                                <div class="text-subtle" style="font-size: 0.8rem;">
+                                    <span x-text="c.Type || c.type"></span>
+                                    <template x-if="c.SeriesName"><span x-text="' • ' + c.SeriesName"></span></template>
+                                </div>
+                            </div>
+                            <button type="button" 
+                                    class="secondary small icon-only btn-danger-outline"
+                                    @click="$store.manager.removeItem(c)"
+                                    title="Remove from list"
+                                    x-html="$store.icons.trash">
+                            </button>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="primary" @click="$store.manager.contentsModal.isOpen = false">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -3,6 +3,7 @@ app/movies.py - All movie-related logic.
 """
 
 import random
+import logging
 from typing import Dict, List, Optional
 
 from . import client
@@ -35,7 +36,7 @@ def find_movies(user_id: str, filters: Dict,
     base_params = {
         "IncludeItemTypes": "Movie",
         "Recursive": "true",
-        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios"
+        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios,People"
     }
 
     if filters.get("parent_ids"):
@@ -48,20 +49,27 @@ def find_movies(user_id: str, filters: Dict,
         base_params["MinPremiereDate"] = f"{filters['year_from']}-01-01"
     if filters.get("year_to"):
         base_params["MaxPremiereDate"] = f"{filters['year_to']}-12-31"
+
+    people_any = filters.get("people", [])
+    people_all = filters.get("people_all", [])
+    combined_people = people_any + people_all
     
-    people_filter = filters.get("people")
-    if people_filter:
+    if combined_people:
         person_ids = []
         person_names = []
         person_types = set()
 
-        for p in people_filter:
-            if p.get("Id"):
-                person_ids.append(p["Id"])
-            elif p.get("Name"):
-                person_names.append(p["Name"])
+        for p in combined_people:
+            # Handle both dicts and legacy string entries if they exist
+            p_id = p.get("Id") if isinstance(p, dict) else None
+            p_name = p.get("Name") if isinstance(p, dict) else (p if isinstance(p, str) else None)
 
-            role = p.get("Role", "")
+            if p_id:
+                person_ids.append(p_id)
+            elif p_name:
+                person_names.append(p_name)
+
+            role = p.get("Role", "") if isinstance(p, dict) else ""
             if role and role.lower() not in ["person", "any", ""]:
                 person_types.add(role)
 
@@ -75,26 +83,43 @@ def find_movies(user_id: str, filters: Dict,
     exclude_people_filter = filters.get("exclude_people")
     if exclude_people_filter:
         exclude_person_ids = []
-        
         for p in exclude_people_filter:
-            if p.get("Id"):
-                exclude_person_ids.append(p["Id"])
-            
+            p_id = p.get("Id") if isinstance(p, dict) else p
+            if p_id:
+                exclude_person_ids.append(p_id)
         if exclude_person_ids:
-            base_params["ExcludePersonIds"] = ",".join(exclude_person_ids)    
+            base_params["ExcludePersonIds"] = ",".join(exclude_person_ids)
 
+    # Use item-endpoint if filtering by people, otherwise user-endpoint is faster
     if "PersonIds" in base_params or "ExcludePersonIds" in base_params:
-        base_params["UserId"] = user_id 
+        base_params["UserId"] = user_id
         endpoint_url = f"{client.EMBY_URL}/Items"
     else:
         endpoint_url = f"{client.EMBY_URL}/Users/{user_id}/Items"
 
     r = client.SESSION.get(endpoint_url, params=base_params, headers=hdr, timeout=30)
-    
     r.raise_for_status()
     all_movies = r.json().get("Items", [])
 
-    # --- REFACTORED STUDIO FILTERING ---
+    # --- AND Logic for People ---
+    if people_all:
+        required_ids = {p["Id"] for p in people_all if isinstance(p, dict) and p.get("Id")}
+        required_names = {p["Name"].lower() for p in people_all if isinstance(p, dict) and not p.get("Id") and p.get("Name")}
+        
+        filtered_by_people = []
+        for m in all_movies:
+            movie_people = m.get("People", [])
+            movie_person_ids = {p.get("Id") for p in movie_people}
+            movie_person_names = {p.get("Name", "").lower() for p in movie_people}
+            
+            id_match = required_ids.issubset(movie_person_ids) if required_ids else True
+            name_match = required_names.issubset(movie_person_names) if required_names else True
+            
+            if id_match and name_match:
+                filtered_by_people.append(m)
+        all_movies = filtered_by_people
+
+    # --- Studio Filtering ---
     def get_movie_studio_set(movie):
         return {s.get("Name", "").lower() for s in movie.get("Studios", []) if s.get("Name")}
 
@@ -107,7 +132,6 @@ def find_movies(user_id: str, filters: Dict,
     if studios_to_exclude:
         exclude_studios = {s.lower() for s in studios_to_exclude}
         all_movies = [m for m in all_movies if not get_movie_studio_set(m).intersection(exclude_studios)]
-    # -----------------------------------
 
     watched_status = filters.get("watched_status")
     if watched_status and watched_status != "all":
@@ -155,7 +179,7 @@ def find_movies(user_id: str, filters: Dict,
         return playlist_movies
 
     limit = filters.get("limit")
-    if limit is not None:
+    if limit:
         return final_list[:int(limit)]
 
     return final_list

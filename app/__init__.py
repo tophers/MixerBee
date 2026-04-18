@@ -23,6 +23,7 @@ from .tv import (
     get_specific_episode,
     get_first_unwatched_episode,
     get_random_unwatched_episode,
+    mark_unplayed
 )
 
 from .movies import (
@@ -55,6 +56,7 @@ from .items import (
     delete_playlist,
     create_playlist,
     remove_item_from_playlist,
+    remove_item_from_collection,
     get_collections,
     delete_collection,
     create_movie_collection,

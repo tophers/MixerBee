@@ -53,27 +53,36 @@
     flex-direction: column;
     gap: 1rem;
 }
+
 #action-bar {
-    position: sticky;
+    position: fixed;
     bottom: 0;
-    width: 100%;
-    background: var(--panel);
-    box-shadow: 0 -2px 6px rgba(0,0,0,.5);
-    display: flex;
-    justify-content: center;
-    padding: .8rem 1rem;
-    z-index: 10;
-    margin-top: auto;
-    height: auto;
+    left: 0;
+    right: 0;
+    background: rgba(var(--bg-rgb, 18, 18, 18), 0.8) !important;
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -10px 30px rgba(0,0,0,0.5);
+    padding: .2rem 0;
+    z-index: 1000;
+    transition: transform 0.3s ease-in-out;
 }
+
+.has-fixed-footer {
+    padding-bottom: 220px !important;
+}
+
 .action-bar-content {
-    width: 100%;
     max-width: 680px;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    margin: 0 auto;
     padding: 0 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    align-items: center;
 }
+
 .build-options-container {
     display: flex;
     gap: 0.5rem;

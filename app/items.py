@@ -4,7 +4,7 @@ app/items.py - Generic playlist, collection, and item management.
 
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Any
 import random
 import time
 
@@ -58,6 +58,31 @@ def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
         item["DisplayType"] = "Collection" if item_type in ["BoxSet", "Collection"] else "Playlist"
 
     return items
+
+def remove_item_from_collection(collection_id: str, item_id: str, hdr: Dict[str, str]) -> bool:
+    """
+    Removes a specific item from an Emby/Jellyfin Collection (BoxSet).
+    """
+    try:
+        # Use the centralized client URL and Session for consistency
+        url = f"{client.EMBY_URL}/Collections/{collection_id}/Items"
+        params = {"Ids": item_id}
+
+        # Filter headers to remove internal mixerbee helper keys
+        request_headers = {k: v for k, v in hdr.items() if not k.startswith("__")}
+
+        response = client.SESSION.delete(url, headers=request_headers, params=params, timeout=10)
+
+        if response.status_code in [200, 204]:
+            logging.info(f"Successfully removed item {item_id} from collection {collection_id}")
+            return True
+        else:
+            logging.error(f"Failed to remove item from collection. Status: {response.status_code}, Response: {response.text}")
+            return False
+
+    except Exception as e:
+        logging.error(f"Error in remove_item_from_collection: {e}", exc_info=True)
+        return False
 
 def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all playlists for a user."""
@@ -131,7 +156,7 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
         except requests.RequestException as e:
             logging.error(f"Rollback chunk failed: {e}")
             failed_restores += len(chunk)
-    
+
     if failed_restores > 0:
         msg = f"Rollback incomplete: {failed_restores} items could not be restored."
         logging.error(msg)
@@ -143,10 +168,10 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
 
 
 def clear_playlist_items(
-    playlist_id: str, 
-    user_id: str, 
-    hdr: Dict[str, str], 
-    log: List[str], 
+    playlist_id: str,
+    user_id: str,
+    hdr: Dict[str, str],
+    log: List[str],
     restore_on_failure: bool = True
 ) -> bool:
     """
@@ -165,7 +190,7 @@ def clear_playlist_items(
         log.append(msg)
         return False
 
-    playlist_entries = [{"media_id": item.get("Id"), "entry_id": item.get("PlaylistItemId")} 
+    playlist_entries = [{"media_id": item.get("Id"), "entry_id": item.get("PlaylistItemId")}
                         for item in items if item.get("PlaylistItemId")]
 
     if not playlist_entries:
@@ -179,7 +204,7 @@ def clear_playlist_items(
         chunk = playlist_entries[i:i + chunk_size]
         entry_ids = [c["entry_id"] for c in chunk]
         media_ids = [c["media_id"] for c in chunk]
-        
+
         chunk_success = False
         for attempt in range(max_attempts):
             try:
@@ -200,7 +225,7 @@ def clear_playlist_items(
             error_msg = "Failed to clear playlist completely. Initiating rollback to restore removed items..."
             logging.error(error_msg)
             log.append(error_msg)
-            
+
             if restore_on_failure and successfully_removed_media_ids:
                 _restore_items(playlist_id, successfully_removed_media_ids, user_id, hdr, log)
             return False
@@ -220,7 +245,7 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
     for i in range(0, len(item_ids), chunk_size):
         chunk = item_ids[i:i + chunk_size]
         params = {"UserId": user_id, "Ids": ",".join(chunk)}
-        
+
         try:
             resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
                                      params=params, headers=hdr, timeout=15)
@@ -280,7 +305,7 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
         resp = client.SESSION.post(
             f"{client.EMBY_URL}/Playlists",
             headers=hdr,
-            params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)}, 
+            params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)},
             timeout=10
         )
 
@@ -687,10 +712,10 @@ def create_collection_from_ids(user_id: str, collection_name: str, item_ids: Lis
         }
         request_headers = hdr.copy()
         request_headers["Content-Type"] = "application/json"
-        
+
         r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
-        
+
         new_id = r.json().get("Id")
         log.append(f"Successfully created collection '{collection_name}'.")
         return new_id

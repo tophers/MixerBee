@@ -1,0 +1,112 @@
+<div id="scheduler-pane" class="tab-pane hidden"
+     x-data="{ jobModalOpen: null }">
+    <div class="container">
+        <div class="manager-header flex-row justify-between align-center mb-md">
+            <div>
+                <h2 class="m-0">Automated Jobs</h2>
+                <p class="m-0 text-subtle" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
+            </div>
+            <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.addEntry()">
+                <span x-html="$store.icons.plus"></span> Add New Job
+            </button>
+        </div>
+
+        <div class="flex-column gap-md">
+            <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
+                <div class="mixed-block">
+                    <div class="mixed-block-header" style="padding: 1rem;">
+                        <div class="flex-row align-center gap-lg grow-1">
+                            <div :style="entry.id ? 'color: var(--accent);' : 'color: var(--text-subtle);'" x-html="$store.icons.clock"></div>
+
+                            <div class="grow-1">
+                                <div class="flex-row align-center gap-md">
+                                    <h3 class="m-0" style="font-size: 1.1rem; letter-spacing: -0.01em;" x-text="entry.playlist_name || 'Unnamed Job'"></h3>
+                                    <span class="badge" :class="entry.create_as_collection ? 'collection-active' : 'playlist-active'"
+                                          style="font-size: 0.7rem;"
+                                          x-text="entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'"></span>
+                                </div>
+                                <div class="automation-details-row">
+                                    <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
+                                    <span style="opacity: 0.3;">|</span>
+                                    <span x-text="entry.schedule_details?.time || '12:00'"></span>
+                                    <template x-if="entry.preset_name">
+                                        <div class="flex-row align-center gap-md">
+                                            <span style="opacity: 0.3;">|</span>
+                                            <span style="color: var(--accent); opacity: 0.8;" x-text="entry.preset_name"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex-row gap-sm align-center">
+                            <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
+                            <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Change Schedule" x-html="$store.icons.settings"></button>
+                            <button type="button" class="secondary small icon-only btn-danger-outline" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Schedule" x-html="$store.icons.trash"></button>
+                        </div>
+                    </div>
+
+                    <!-- Automation Edit Modal -->
+                    <div class="modal-overlay" x-show="jobModalOpen === entry._uid" x-cloak style="z-index: 5000; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+                        <div class="modal-window wide" @click.outside="jobModalOpen = null">
+                            <div class="modal-header">
+                                <h2>Edit Automation Task</h2>
+                                <button type="button" class="icon-btn" @click="jobModalOpen = null">&times;</button>
+                            </div>
+
+                            <div class="modal-body scheduler-modal-inner">
+                                <div class="filter-grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem;">
+                                    <div>
+                                        <label class="field-label">Job Name</label>
+                                        <input type="text" x-model="entry.playlist_name" class="ghost-input w-full" style="border-bottom: 2px solid var(--border-color); font-size: 1.1rem; padding: 8px 0;">
+                                    </div>
+                                    <div>
+                                        <label class="field-label">Output Mode</label>
+                                        <div class="toggle-pill">
+                                            <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
+                                            <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style="margin-top: 1.5rem;">
+                                    <label class="field-label">Automation Preset</label>
+                                    <select x-model="entry.preset_name" class="mixer-select w-full">
+                                        <option value="">-- Select Builder Preset --</option>
+                                        <template x-for="(config, name) in $store.mixer.presets" :key="name">
+                                            <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
+                                        </template>
+                                    </select>
+                                </div>
+
+                                <!-- FIXED: Changed x-if to x-show on this div -->
+                                <div class="automation-config-card" x-show="entry.schedule_details">
+                                    <div class="flex-row justify-between align-center mb-md">
+                                        <label class="field-label m-0">Execution Time</label>
+                                        <input type="time" x-model="entry.schedule_details.time" class="themed-input" style="width: auto;">
+                                    </div>
+                                    <div class="flex-row justify-between gap-sm">
+                                        <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
+                                            <button type="button"
+                                                    class="day-btn grow-1"
+                                                    :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''"
+                                                    @click="$store.scheduler.toggleDay(entry, i)"
+                                                    x-text="day">
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="modal-footer">
+                                <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
+                                    <span x-html="$store.icons.save"></span> Save Automation
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
