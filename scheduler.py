@@ -34,51 +34,83 @@ def run_playlist_job(**schedule_data) -> Dict:
     schedule_id = schedule_data.get("id")
     user_id = schedule_data.get("user_id")
     playlist_name = schedule_data.get("playlist_name")
-    job_type = schedule_data.get("job_type", "builder")
     
+    raw_type = schedule_data.get("job_type", "builder")
+    job_type = "builder" if raw_type == "preset" else raw_type
+
     log_messages = []
     if not all([user_id, playlist_name]):
-        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data. Aborting."
+        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data (User or Playlist Name). Aborting."
         logging.error(msg)
         return {"status": "error", "log": [msg]}
 
     logging.info(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
     result = {}
+    
     try:
+        import preset_manager as pm
+        from routers.builder import _get_random_movie_block, _get_random_tv_block
+        import random
+
         auth_data = get_current_auth_headers()
         hdr = core.auth_headers(auth_data["token"], user_id=user_id)
 
         if job_type == "builder":
-            blocks = schedule_data.get("blocks", [])
-            create_as_collection = schedule_data.get("create_as_collection", False)
-            if not blocks: 
-                raise ValueError("Scheduled builder job has no blocks.")
+            blocks = schedule_data.get("blocks")
+            preset_name = schedule_data.get("preset_name")
             
+            if not blocks and preset_name:
+                all_presets = pm.preset_manager.get_all_presets()
+                blocks = all_presets.get(preset_name)
+                if blocks:
+                    logging.info(f"SCHEDULER: Resolved blocks for job {schedule_id} from preset '{preset_name}'")
+
+            if not blocks:
+                logging.info(f"SCHEDULER: No blocks found for job {schedule_id}. Generating surprise block.")
+                blocks = [random.choice([_get_random_movie_block(), _get_random_tv_block()])]
+
+            create_as_collection = schedule_data.get("create_as_collection", False)
+
             if create_as_collection:
                 if len(blocks) != 1 or blocks[0].get("type") != "movie":
                     msg = "Scheduled collections must consist of exactly one Movie block."
                     logging.error(f"SCHEDULER: {msg}")
                     return {"status": "error", "log": [msg]}
-                result = items_api.create_movie_collection(user_id=user_id, collection_name=playlist_name, filters=blocks[0].get("filters", {}), hdr=hdr)
-            else:
-                result = core.create_mixed_playlist(user_id=user_id, playlist_name=playlist_name, blocks=blocks, hdr=hdr)
                 
+                result = items_api.create_movie_collection(
+                    user_id=user_id, 
+                    collection_name=playlist_name, 
+                    filters=blocks[0].get("filters", {}), 
+                    hdr=hdr
+                )
+            else:
+                result = core.create_mixed_playlist(
+                    user_id=user_id, 
+                    playlist_name=playlist_name, 
+                    blocks=blocks, 
+                    hdr=hdr
+                )
+
         elif job_type == "quick_playlist":
             quick_playlist_data = schedule_data.get("quick_playlist_data", {})
             quick_playlist_type = quick_playlist_data.get("quick_playlist_type")
             func_to_call = QUICK_PLAYLIST_MAP.get(quick_playlist_type)
-            if not func_to_call: 
+            
+            if not func_to_call:
                 raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
+            
             options = quick_playlist_data.get("options", {})
             result = func_to_call(user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options)
 
-        final_log = result.get("log", ["No log messages."])
+        final_log = result.get("log", ["No log messages returned from build process."])
         final_status = result.get("status", "error")
         logging.info(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
+        
     except Exception as e:
-        error_message = f"CRITICAL ERROR running job '{schedule_id}' for playlist '{playlist_name}': {e}"
+        error_message = f"CRITICAL ERROR running job '{schedule_id}': {e}"
         logging.error(f"SCHEDULER: {error_message}", exc_info=True)
         result = {"status": "error", "log": [error_message]}
+        
     return result
 
 def scheduled_job_wrapper(**schedule_data):

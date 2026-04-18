@@ -60,13 +60,13 @@ async def handle_media_webhook(request: Request):
         user_id = payload.get("UserId")
 
     relevant_keywords = [
-        "stop",       # Playback Stop
-        "played",     # Mark Played / Mark Unplayed
-        "userdata",   # User Data Changed (Jellyfin equivalent)
-        "new",        # New Media Added (Emby: library.new)
-        "added",      # New Media Added (Jellyfin: ItemAdded)
-        "removed",    # Media Removed (Jellyfin: ItemRemoved)
-        "deleted"     # Media Removed (Emby: library.deleted)
+        "stop",
+        "played",
+        "userdata",
+        "new",
+        "added",
+        "removed",
+        "deleted"
     ]
 
     if any(keyword in event_type_lower for keyword in relevant_keywords):

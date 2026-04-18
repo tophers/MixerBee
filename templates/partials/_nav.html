@@ -1,0 +1,40 @@
+<select id="user-select" class="hidden"></select>
+
+<div class="main-header-bar">
+    <div class="header-user-display">
+        <i data-feather="user"></i>
+        <span id="active-user-display"></span>
+
+        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.history.show()">
+            <i data-feather="bell"></i>
+            <span id="toast-badge" class="hidden">0</span>
+        </button>
+
+        <div class="theme-switcher">
+            <label for="theme-toggle-cb" class="theme-toggle-label">
+                <i data-feather="moon"></i>
+                <input type="checkbox" id="theme-toggle-cb">
+                <span class="slider"></span>
+                <i data-feather="sun"></i>
+            </label>
+        </div>
+
+        <button id="settings-btn" type="button" class="icon-btn" title="Settings" @click="$store.settings.show()">
+            <i data-feather="settings"></i>
+        </button>
+    </div>
+</div>
+
+<div id="typewriter-overlay">
+    <div class="typewriter-wrapper">
+        <h2 class="typewriter-header">
+            <span id="typed-text"></span>
+        </h2>
+    </div>
+</div>
+
+<div class="tab-switcher">
+    <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
+    <button id="scheduler-tab-btn" class="tab-btn">Scheduler</button>
+    <button id="manager-tab-btn" class="tab-btn">Manager</button>
+</div>

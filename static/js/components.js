@@ -2,7 +2,6 @@
 
 import { post, toast } from './utils.js';
 import { presetModal, confirmModal, importPresetModal } from './modals.js';
-import { appState } from './builderState.js';
 
 export class PresetManager {
     constructor(storageKey, { loadSelect, updateBtn, saveAsBtn, deleteBtn, importBtn, exportBtn }) {
@@ -164,10 +163,12 @@ export class PresetManager {
         });
       }
 }
-
 export function createTvShowRow({ rowData, rowIndex }) {
     const template = document.getElementById('template-tv-show-row');
+    if (!template) return document.createElement('div');
+
     const rowElement = template.content.cloneNode(true).firstElementChild;
+    const mStore = Alpine.store('mixer');
 
     rowElement.dataset.rowIndex = rowIndex;
 
@@ -177,13 +178,16 @@ export function createTvShowRow({ rowData, rowIndex }) {
     const previewDiv = rowElement.querySelector('.tv-block-preview');
     const unwatchedCb = rowElement.querySelector('.first-unwatched-cb');
 
-    appState.seriesData.forEach(s => {
-        const option = document.createElement('option');
-        option.value = s.name;
-        option.textContent = s.name;
-        option.dataset.id = s.id;
-        showSelect.appendChild(option);
-    });
+    // Populate the dropdown using the library data from the store
+    if (mStore.library && mStore.library.seriesData) {
+        mStore.library.seriesData.forEach(s => {
+            const option = document.createElement('option');
+            option.value = s.name;
+            option.textContent = s.name;
+            option.dataset.id = s.id;
+            showSelect.appendChild(option);
+        });
+    }
 
     if (rowData?.name) showSelect.value = rowData.name;
     seasonInput.value = rowData?.season ?? 1;

@@ -4,83 +4,93 @@
     html {
         font-size: 15px;
     }
+
     body {
         -webkit-text-size-adjust: 100%;
+        height: auto !important; /* CRITICAL: Fixes scroll trapping */
+        min-height: 100vh;
+        overflow-x: hidden;
     }
+
+    /* Better touch targets for mobile */
     button, select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
         padding: .6rem .75rem;
         font-size: 1.1rem;
     }
+
+    /* Cushion so content isn't hidden under the Action Bar */
+    .has-fixed-footer { padding-bottom: 140px !important; }
+    .tab-pane { padding-bottom: 180px !important; }
+
+    /* Modal Overflow Fixes */
     .modal-window {
-        padding: 0.8rem 1rem;
+        padding: 1rem;
+        width: calc(100% - 20px) !important;
+        max-width: 95vw;
+        margin: 10px;
+        box-sizing: border-box; /* CRITICAL: Stops buttons from bleeding off screen */
     }
+    
+    .modal-body {
+        overflow-x: hidden !important; 
+        padding-right: 0 !important;
+    }
+
+    /* Stack Modal Buttons properly */
+    .modal-footer {
+        flex-direction: column;
+        gap: 0.8rem;
+        padding: 1rem 0 0 0 !important;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .modal-footer button {
+        width: 100% !important;
+        margin: 0 !important;
+        box-sizing: border-box;
+    }
+    
+    .modal-footer .mr-auto {
+        margin-right: 0;
+        text-align: center;
+    }
+
     .container, .action-bar-content {
         padding-left: 0.8rem;
         padding-right: 0.8rem;
     }
-    .header-user-display {
-        gap: 0.4rem;
-    }
-    .header-user-display .theme-switcher::before {
-        margin-right: 0;
-    }
-    #active-user-display {
-        display: none; 
-    }
-    .preset-controls {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.8rem;
-    }
-    .preset-controls > .control-item,
-    .preset-controls > .preset-buttons {
-        flex: initial;
-    }
-    .preset-controls .button-group {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .preset-controls .button-group button {
-        width: 100%;
-        text-align: center;
-    }
+
+    /* Header Cleanup */
+    .header-user-display { gap: 0.4rem; }
+    .header-user-display .theme-switcher::before { margin-right: 0; }
+    #active-user-display { display: none; }
+
+    /* Preset Controls Stacking */
+    .preset-controls { flex-direction: column; align-items: stretch; gap: 0.8rem; }
+    .preset-controls > .control-item, .preset-controls > .preset-buttons { flex: initial; }
+    .preset-controls .button-group { flex-direction: column; align-items: stretch; }
+    .preset-controls .button-group button { width: 100%; text-align: center; }
+
+    /* Action Bar Stack */
+    #action-bar { padding: 0.5rem 0; }
     .action-bar-content {
-        flex-wrap: wrap;
+        display: flex !important;
+        flex-direction: column;
         gap: 0.8rem;
     }
-    .action-bar-content .build-options-container {
-        flex-basis: 100%;
-        order: 1;
-        gap: 0.8rem;
+    .action-bar-content .build-options-container { flex-basis: 100%; order: 1; gap: 0.8rem; }
+    .action-bar-content .build-options-container > select { flex-grow: 1; }
+    .action-bar-checkbox-label { flex-basis: 100%; order: 4; justify-content: center; margin-left: 0; padding: 0.5rem 0 0 0; border-top: 1px solid var(--border-color); }
+    #generate-mixed-playlist-btn { grid-column: span 2; order: 5; height: 50px; font-size: 1.1rem; margin-top: 0.5rem; }
+    #preview-playlist-btn { order: 3; }
+    .action-bar-pill { min-width: 120px; font-size: 0.8rem; }
+
+    /* TV Block Row mobile fixes */
+    .tv-block-show-row > .tv-block-season, .tv-block-show-row > .tv-block-episode {
+        padding: .6rem .3rem; font-size: 1.1rem;
     }
-    .action-bar-content .build-options-container > select {
-        flex-grow: 1;
-    }
-    #generate-mixed-playlist-btn {
-        flex-grow: 1;
-        order: 2;
-        padding: 0.7rem 1rem;
-    }
-    #preview-playlist-btn {
-        order: 3;
-    }
-    .action-bar-checkbox-label {
-        flex-basis: 100%;
-        order: 4;
-        justify-content: center;
-        margin-left: 0;
-        padding: 0.5rem 0 0 0;
-        border-top: 1px solid var(--border-color);
-    }
-    .tv-block-show-row > .tv-block-season,
-    .tv-block-show-row > .tv-block-episode {
-        padding: .6rem .3rem;
-        font-size: 1.1rem;
-    }
-    table {
-        font-size: 0.9rem;
-    }
-    th, td {
-        padding: 0.6rem 0.5rem;
-    }
+
+    table { font-size: 0.9rem; }
+    th, td { padding: 0.6rem 0.5rem; }
 }

@@ -1,95 +1,35 @@
 // static/js/app.js
 
-import { post, toast } from './utils.js';
-import { initModals, confirmModal, toastHistoryModal } from './modals.js';
-import { initBuilderPane, renderBuilder } from './builder.js';
-import { initSchedulerPane, loadSchedulerData } from './scheduler.js';
-import { initManager, loadManagerData } from './manager.js';
-import { applyDataToUI, restoreSessionFromAutosave, clearAutosave, appState } from './builderState.js';
+import { toast } from './utils.js';
+import { initModals, confirmModal, toastHistoryModal, smartPlaylistModal, smartBuildModal, previewModal, resetWatchModal } from './modals.js';
+import { mixerStore } from './mixerStore.js';
+import { settingsStore } from './settingsStore.js';
+import { schedulerStore } from './schedulerStore.js';
+import { managerStore } from './managerStore.js';
 
-const AUTOSAVE_KEY = 'mixerbee_autosave';
+/** Merges module logic into the shells defined in _head.html */
+const hydrateStores = () => {
+    if (typeof Alpine === 'undefined') return;
 
-function initSettingsModal() {
-    const settingsBtn = document.getElementById('settings-btn');
-    const settingsModal = document.getElementById('settings-modal-overlay');
-    const closeBtn = settingsModal.querySelector('.js-modal-close');
-    const cancelBtn = settingsModal.querySelector('.js-modal-cancel');
-    const saveBtn = document.getElementById('settings-save-btn');
-    const testBtn = document.getElementById('settings-test-btn');
-    const notConfiguredBtn = document.getElementById('not-configured-settings-btn');
-    const serverTypeSelect = document.getElementById('settings-server-type-select');
-    const urlInput = document.getElementById('settings-url-input');
-    const userInput = document.getElementById('settings-user-input');
-    const passInput = document.getElementById('settings-pass-input');
-    const geminiInput = document.getElementById('settings-gemini-input');
-    const geminiRemoveBtn = document.getElementById('settings-gemini-remove-btn');
+    Object.assign(Alpine.store('mixer'), mixerStore);
+    Object.assign(Alpine.store('settings'), settingsStore);
+    Object.assign(Alpine.store('scheduler'), schedulerStore);
+    Object.assign(Alpine.store('manager'), managerStore);
 
-    const showModal = () => settingsModal.classList.remove('hidden');
-    const hideModal = () => settingsModal.classList.add('hidden');
+    const modalStore = Alpine.store('modals');
+    modalStore.confirm = confirmModal;
+    modalStore.playlist = smartPlaylistModal;
+    modalStore.smartBuild = smartBuildModal;
+    modalStore.preview = previewModal;
+    modalStore.resetWatch = resetWatchModal;
+    modalStore.history = toastHistoryModal;
 
-    settingsBtn.addEventListener('click', showModal);
-    if (notConfiguredBtn) { notConfiguredBtn.addEventListener('click', showModal); }
-    closeBtn.addEventListener('click', hideModal);
-    if(cancelBtn) { cancelBtn.addEventListener('click', hideModal); }
-
-    geminiRemoveBtn.addEventListener('click', () => {
-        geminiInput.value = '';
-        toast('Gemini API key has been cleared. Click Save to finalize.', true);
-    });
-
-    testBtn.addEventListener('click', (event) => { post('api/settings/test', {}, event).then(res => { toast(res.log.join(' '), res.status === 'ok'); }); });
-
-    saveBtn.addEventListener('click', (event) => {
-        const payload = { server_type: serverTypeSelect.value, emby_url: urlInput.value.trim(), emby_user: userInput.value.trim(), emby_pass: passInput.value, gemini_key: geminiInput.value.trim() };
-        if (!payload.emby_url || !payload.emby_user) { toast('URL and Username are required.', false); return; }
-
-        post('api/settings', payload, event).then(res => {
-            if (res.status === 'ok') {
-                hideModal();
-                sessionStorage.setItem('isReloading', 'true');
-                toast("Settings saved! Server is restarting. The page will reload automatically...", true);
-                setTimeout(() => window.location.reload(), 500);
-            }
-        });
-    });
-}
-
-async function handleEarlyRestorePrompt() {
-    const savedData = localStorage.getItem(AUTOSAVE_KEY);
-    if (!savedData) return 'none';
-
-    try {
-        const savedState = JSON.parse(savedData);
-        const blocks = savedState.blocks || [];
-        const scheduler = savedState.scheduler || null;
-        
-        const hasBlocks = Array.isArray(blocks) && blocks.length > 0;
-        const hasScheduler = scheduler && Object.keys(scheduler).length > 0;
-
-        if (hasBlocks || hasScheduler) {
-            await confirmModal.show({
-                title: 'Restore Previous Session?',
-                text: 'We found unsaved data from your last session. Would you like to restore it?',
-                confirmText: 'Restore',
-            });
-            return 'restore';
-        }
-    } catch (e) {
-        if (e.message.includes('Modal cancelled')) {
-             return 'cancel';
-        }
-        console.error("Could not parse or prompt for autosaved data.", e);
-        localStorage.removeItem(AUTOSAVE_KEY);
-    }
-    return 'none';
-}
+    Alpine.store('mixer').init();
+};
 
 async function initializeApp() {
     const loadingOverlay = document.getElementById('loading-overlay');
     try {
-        let isSchedulerInitialized = false;
-        let isManagerInitialized = false;
-
         const userSel = document.getElementById('user-select');
         const themeToggle = document.getElementById('theme-toggle-cb');
         const body = document.body;
@@ -100,11 +40,14 @@ async function initializeApp() {
         const allPanes = document.querySelectorAll('.tab-pane');
         const allTabBtns = document.querySelectorAll('.tab-btn');
 
+        initModals();
+        hydrateStores();
+
         const applyTheme = (theme) => {
             body.dataset.theme = theme;
             localStorage.setItem('mixerbeeTheme', theme);
             themeToggle.checked = (theme === 'light');
-            if (typeof window.featherReplace === 'function') window.featherReplace();
+            if (window.featherReplace) window.featherReplace();
         };
 
         const saveGlobalState = () => {
@@ -116,18 +59,15 @@ async function initializeApp() {
             const activeBtn = document.getElementById(`${activeTab}-tab-btn`);
             const activePane = document.getElementById(`${activeTab}-pane`);
 
-            if (activeTab === 'scheduler' && !isSchedulerInitialized) {
-                initSchedulerPane();
-                isSchedulerInitialized = true;
-            } else if (activeTab === 'manager' && !isManagerInitialized) {
-                initManager();
-                isManagerInitialized = true;
-            }
+            if (activeTab === 'scheduler') Alpine.store('scheduler').loadSchedule();
+            else if (activeTab === 'manager') Alpine.store('manager').load();
+
             allTabBtns.forEach(b => b.classList.remove('active'));
             allPanes.forEach(p => {
                 p.classList.remove('active');
                 p.classList.add('hidden');
             });
+
             if (activeBtn) activeBtn.classList.add('active');
             if (activePane) {
                 activePane.classList.add('active');
@@ -135,91 +75,64 @@ async function initializeApp() {
             }
 
             mainActionBar.classList.toggle('hidden', activeTab !== 'mixed');
-
-            if (activeTab === 'scheduler') {
-                loadSchedulerData();
-            } else if (activeTab === 'manager') {
-                loadManagerData();
-            }
-
-            if (typeof window.featherReplace === 'function') window.featherReplace();
+            if (window.featherReplace) window.featherReplace();
         };
 
         const apiFetch = (url) => {
             const separator = url.includes('?') ? '&' : '?';
-            const cacheBuster = `_cb=${new Date().getTime()}`;
-            return fetch(`${url}${separator}${cacheBuster}`, {
-                cache: 'no-store',
-                headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+            return fetch(`${url}${separator}_cb=${new Date().getTime()}`, {
+                cache: 'no-store'
             }).then(r => {
-                if (!r.ok) throw new Error(`API call to ${url} failed with status ${r.status}`);
+                if (!r.ok) throw new Error(`API call failed: ${r.status}`);
                 return r.json();
             });
         };
 
-        const initializeBaseUI = (defUser, restoreDecision) => {
-            activeUserDisplay.textContent = defUser.name;
-            userSel.innerHTML = '';
-            const userOption = document.createElement('option');
-            userOption.value = defUser.id;
-            userOption.textContent = defUser.name;
-            userSel.appendChild(userOption);
-            userSel.value = defUser.id;
-            saveGlobalState();
-            initBuilderPane(userSel, restoreDecision);
-        };
-
-        initModals();
-        initSettingsModal();
         applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
-
-        const restoreDecision = await handleEarlyRestorePrompt();
-
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
         document.getElementById('mixed-tab-btn').addEventListener('click', () => switchTab('mixed'));
         document.getElementById('scheduler-tab-btn').addEventListener('click', () => switchTab('scheduler'));
         document.getElementById('manager-tab-btn').addEventListener('click', () => switchTab('manager'));
         themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
-        
+
         userSel.addEventListener('input', () => {
             saveGlobalState();
-            if (document.getElementById('manager-tab-btn').classList.contains('active')) loadManagerData();
-            if (document.getElementById('scheduler-tab-btn').classList.contains('active')) loadSchedulerData();
+            const currentTab = document.querySelector('.tab-btn.active')?.id.split('-')[0];
+            if (currentTab === 'manager') Alpine.store('manager').load();
+            if (currentTab === 'scheduler') Alpine.store('scheduler').loadSchedule();
         });
 
         const historyBtn = document.getElementById('toast-history-btn');
         const toastBadge = document.getElementById('toast-badge');
-
         historyBtn.addEventListener('click', () => {
-            toastHistoryModal.show();
+            Alpine.store('modals').history.show();
             toastBadge.classList.add('hidden');
             toastBadge.textContent = '0';
         });
 
         document.addEventListener('toast-added', () => {
-            if (toastHistoryModal.overlay.classList.contains('hidden')) {
+            const modals = Alpine.store('modals');
+            if (modals.history && modals.history.overlay.classList.contains('hidden')) {
                 const currentCount = parseInt(toastBadge.textContent || '0', 10);
                 toastBadge.textContent = currentCount + 1;
                 toastBadge.classList.remove('hidden');
             }
         });
 
-        document.addEventListener('toast-cleared', () => {
-            toastBadge.classList.add('hidden');
-            toastBadge.textContent = '0';
-        });
-
         try {
             const config = await apiFetch('api/config_status');
-            if (!config.is_configured) {
-                 throw new Error("Application is not configured.");
-            }
+            const sStore = Alpine.store('settings');
+            sStore.version = config.version || '';
+            sStore.server_type = config.server_type || 'emby';
+            
+            // --- DEBUGGING LOGS ---
+            console.log("📡 Backend Config Response:", config);
+            sStore.is_ai_configured = !!config.is_ai_configured;
+            console.log("🧠 Frontend Settings Store 'is_ai_configured' set to:", sStore.is_ai_configured);
+            // ----------------------
 
-        const versionDisplay = document.getElementById('app-version-display');
-            if (versionDisplay && config.version) {
-                versionDisplay.textContent = `v${config.version}`;
-            }
+            if (!config.is_configured) throw new Error("Not configured.");
 
             notConfiguredWarning.classList.add('hidden');
             mainContent.classList.remove('hidden');
@@ -229,46 +142,50 @@ async function initializeApp() {
                 apiFetch('api/library_data')
             ]);
 
-            Object.assign(appState, libraryData);
+            activeUserDisplay.textContent = defUser.name;
+            userSel.innerHTML = '';
+            const userOption = document.createElement('option');
+            userOption.value = defUser.id;
+            userOption.textContent = defUser.name;
+            userSel.appendChild(userOption);
+            userSel.value = defUser.id;
+            saveGlobalState();
 
-            initializeBaseUI(defUser, restoreDecision);
+            const mStore = Alpine.store('mixer');
+            Object.assign(mStore.library, libraryData);
+            await mStore.refreshPresets();
 
             switchTab('mixed');
 
         } catch (err) {
             console.error("Initialization Error:", err.message);
-            toast('Initialization error. Check settings or server status.', false);
+            toast('Initialization error. Check settings.', false);
             notConfiguredWarning.classList.remove('hidden');
             mainContent.classList.add('hidden');
-            if (typeof window.featherReplace === 'function') window.featherReplace();
         }
     } finally {
         if (loadingOverlay) loadingOverlay.classList.add('hidden');
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+const bootstrap = () => {
     if (sessionStorage.getItem('isReloading') === 'true') {
-        const loadingOverlay = document.getElementById('loading-overlay');
-        loadingOverlay.classList.remove('hidden');
-        toast("Connecting to server after restart...", true);
-
-        const pollForServerReady = () => {
-            const intervalId = setInterval(() => {
-                fetch('api/config_status')
-                    .then(response => {
-                        if (response.ok) {
-                            clearInterval(intervalId);
-                            sessionStorage.removeItem('isReloading');
-                            setTimeout(initializeApp, 250);
-                        }
-                    })
-                    .catch(() => {
-                    });
-            }, 1500);
-        };
-        pollForServerReady();
+        const poll = setInterval(() => {
+            fetch('api/config_status').then(r => {
+                if (r.ok) {
+                    clearInterval(poll);
+                    sessionStorage.removeItem('isReloading');
+                    setTimeout(initializeApp, 250);
+                }
+            }).catch(() => {});
+        }, 1500);
     } else {
         initializeApp();
     }
-});
+};
+
+if (typeof Alpine !== 'undefined') {
+    bootstrap();
+} else {
+    document.addEventListener('alpine:init', bootstrap);
+}

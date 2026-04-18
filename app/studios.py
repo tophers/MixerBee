@@ -33,8 +33,6 @@ def aggregate_all_studios(user_id: str, hdr: Dict[str, str]) -> List[str]:
         logging.error(f"STUDIO CACHE: Failed to aggregate studios: {e}", exc_info=True)
         return []
 
-# app/studios.py
-
 def get_studios(name: str, library_data: Dict[str, Any]) -> List[Dict[str, str]]:
     """
     Utility: Searches a provided library data dictionary for studios.

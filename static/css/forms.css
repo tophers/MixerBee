@@ -77,6 +77,27 @@ button .feather.chevron {
     height: 1em;
     stroke-width: 3;
 }
+.day-pill {
+    background: rgba(128, 128, 128, 0.1) !important;
+    color: var(--text-subtle) !important;
+    border: 1px solid var(--border-color) !important;
+    padding: 0.3rem 0.7rem !important;
+    font-size: 0.85rem !important;
+    margin-top: 0 !important;
+    box-shadow: none !important;
+    opacity: 0.6;
+}
+.day-pill.active {
+    background: var(--accent) !important;
+    color: #fff !important;
+    border-color: var(--accent) !important;
+    opacity: 1;
+    box-shadow: var(--shadow) !important;
+}
+.day-pill:hover {
+    opacity: 1;
+    background: rgba(128, 128, 128, 0.2) !important;
+}
 .control-item {
     display: flex;
     flex-direction: column;
@@ -214,4 +235,85 @@ button.secondary:hover {
     padding: .35rem .7rem;
     font-size: .9rem;
     flex-shrink: 0;
+}
+.toggle-pill {
+    display: flex;
+    background: rgba(0,0,0,0.3);
+    border-radius: 24px;
+    padding: 3px;
+    border: 1px solid var(--border-color);
+    height: 38px;
+}
+.pill-btn {
+    flex: 1;
+    text-align: center;
+    padding: 6px 0;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: var(--text-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.pill-btn.active {
+    background: var(--accent);
+    color: #000 !important;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
+}
+.day-btn {
+    flex: 1;
+    max-width: 42px;
+    height: 38px;
+    border: 1px solid var(--border-color);
+    background: rgba(255,255,255,0.03);
+    color: var(--text-subtle);
+    font-size: 0.8rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.day-btn.active {
+    background: var(--accent);
+    color: #000 !important;
+    border-color: var(--accent);
+    font-weight: 800;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(var(--accent-rgb), 0.2);
+}
+.day-btn:hover:not(.active) {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.08);
+}
+.playlist-active { border: 1px solid var(--accent); color: var(--accent); background: transparent; padding: 2px 10px; }
+.collection-active { background: var(--accent); color: #000; font-weight: 800; padding: 2px 10px; }
+.ghost-input:focus { border-bottom-color: var(--accent) !important; outline: none; }
+select, 
+.themed-input,
+.mixer-select {
+    background-color: #1a1a1a !important;
+    color: var(--text, #eeeeee) !important;
+    border: 1px solid var(--border-color, #333);
+    border-radius: 6px;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px top 50%;
+    background-size: 16px;
+    cursor: pointer;
+}
+select option {
+    background-color: #1a1a1a !important;
+    color: #eeeeee !important;
+    padding: 10px;
+}
+input[type="time"],
+input[type="search"],
+input[type="text"].ghost-input {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    border: 1px solid var(--border-color);
 }

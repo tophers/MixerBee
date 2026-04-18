@@ -133,11 +133,8 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
 
     try:
-        # Hand off to the AI Module. It handles tools, context, and exact schema generation!
         blocks, model_used = generate_smart_blocks(req.prompt)
 
-        # The only post-processing left in the router is fetching actor IDs directly from Emby 
-        # (since actors aren't cached locally, we didn't give the AI a tool for them to save time).
         for block in blocks:
             if block.get("type") == "movie" and "filters" in block:
                 filters = block["filters"]

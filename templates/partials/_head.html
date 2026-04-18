@@ -1,0 +1,76 @@
+<head>
+    <meta charset="utf-8">
+    <title>MixerBee</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="static/css/main.css">
+    <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <script src="static/js/header.js"></script>
+
+    <script>
+        /**
+         * BOOTSTRAPPER: Define reactive shells immediately.
+         * We do this BEFORE Alpine loads so the HTML always has an object to bind to.
+         */
+        document.addEventListener('alpine:init', () => {
+            // Mixer Shell
+            Alpine.store('mixer', {
+                blocks: [],
+                currentPresetName: '',
+                availablePresets: [],
+                aiPrompt: '',
+                library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] },
+                // Dummy methods to prevent "is not a function" errors during load
+                getTvBlockSummary: () => '',
+                setupSortable: () => {},
+                ensureBlockState: () => {},
+                updatePreviewCount: () => {},
+                init: () => {}
+            });
+
+            // Scheduler Shell
+            Alpine.store('scheduler', {
+                schedule: [],
+                isLoading: true,
+                loadSchedule: () => {}
+            });
+
+            // Manager Shell
+            Alpine.store('manager', {
+                items: [],
+                searchQuery: '',
+                sortColumn: 'Name',
+                sortDirection: 'asc',
+                filteredItems: [],
+                contentsModal: { isOpen: false, title: '', items: [], isLoading: false },
+                load: () => {}
+            });
+
+            // Settings Shell
+            Alpine.store('settings', {
+                isOpen: false,
+                version: '',
+                server_type: 'emby',
+                emby_url: '',
+                emby_user: '',
+                emby_pass: '',
+                is_ai_configured: false,
+                gemini_key: '',
+                show: () => { Alpine.store('settings').isOpen = true; },
+                hide: () => { Alpine.store('settings').isOpen = false; }
+            });
+
+            // Modals Shell
+            Alpine.store('modals', {
+                confirm: { show: () => new Promise(() => {}) },
+                playlist: { show: () => new Promise(() => {}) },
+                smartBuild: { show: () => new Promise(() => {}) },
+                preview: { show: () => new Promise(() => {}) },
+                resetWatch: { show: () => new Promise(() => {}) },
+                history: { show: () => new Promise(() => {}) }
+            });
+        });
+    </script>
+</head>
