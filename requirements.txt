@@ -10,6 +10,6 @@ starlette==0.52.1
 uvicorn[standard]==0.34.0
 
 # AI
-numpy=2.4.4
+numpy==2.4.4
 google-genai==0.3.0
 chromadb[default]==1.5.5
