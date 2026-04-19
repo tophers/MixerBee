@@ -26,11 +26,8 @@
         .small-icon svg { width: 0.9em; height: 0.9em; }
         .ai-badge-icon svg { color: var(--accent); }
         
-        /* Ensure handles look like handles */
         .drag-handle { cursor: grab; }
         .drag-handle:active { cursor: grabbing; }
-
-        /* Filter Token UX Improvements */
         .token {
             cursor: pointer;
             user-select: none;
@@ -47,25 +44,23 @@
             transform: translateY(0);
         }
         .token-label {
-            pointer-events: none; /* Let clicks pass through to the token wrapper */
+            pointer-events: none;
         }
         .token-state-trigger {
             font-weight: bold;
             font-size: 1.1rem;
-            pointer-events: none; /* Let clicks pass through to the token wrapper */
+            pointer-events: none;
         }
         .token-remove {
             padding: 0 4px;
             margin-left: 4px;
             border-radius: 4px;
             cursor: pointer;
-            pointer-events: auto; /* Keep the 'X' interactive independently */
+            pointer-events: auto;
         }
         .token-remove:hover {
             background: rgba(255,255,255,0.2);
         }
-
-        /* Token Color Modes */
         .token-logic-any { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb), 0.05); }
         .token-logic-all { border-color: #4ade80 !important; color: #4ade80 !important; background: rgba(74, 222, 128, 0.1); }
         .token-logic-exclude { border-color: #f87171 !important; color: #f87171 !important; background: rgba(248, 113, 113, 0.1); }
@@ -73,7 +68,6 @@
 
     <script>
         document.addEventListener('alpine:init', () => {
-            // Global Icon Store
             Alpine.store('icons', {
                 move: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 9 2 12 5 15'></polyline><polyline points='9 5 12 2 15 5'></polyline><polyline points='15 19 12 22 9 19'></polyline><polyline points='19 9 22 12 19 15'></polyline><line x1='2' y1='12' x2='22' y2='12'></line><line x1='12' y1='2' x2='12' y2='22'></line></svg>`,
                 zap: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'></polygon></svg>`,
@@ -113,7 +107,6 @@
                 externalLink: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg>`
             });
 
-            // Stores remain unchanged...
             Alpine.store('mixer', {
                 blocks: [],
                 currentPresetName: '',

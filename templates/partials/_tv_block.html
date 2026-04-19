@@ -3,7 +3,6 @@
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             <summary>
                 <div class="mixed-block-header">
-                    <!-- Specific class for parent sortable handle -->
                     <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
                     <h3>
                         <template x-if="block.is_ai_generated"><span class="ai-badge-icon" x-html="$store.icons.zap"></span></template>
@@ -59,12 +58,10 @@
                         </div>
                     </div>
 
-                    <!-- Inner Sortable List -->
                     <div class="tv-block-shows" x-sort:config="{ handle: '.show-drag-handle' }" x-sort="block.shows">
                         <template x-for="(show, rowIndex) in (block.shows || [])" :key="show._uid">
                             <div class="tv-block-show-row" x-sort:item :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowMenuOpen: false }" style="display: flex; align-items: flex-start; gap: 0.5rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
                                 
-                                <!-- Inner Handle -->
                                 <div class="drag-handle show-drag-handle" 
                                      x-sort:handle 
                                      @mousedown.stop 
@@ -74,7 +71,6 @@
 
                                 <div class="show-selector-area grow-1">
                                     <div class="show-input-wrapper">
-                                        <!-- FIXED: Using :value and manual @change to prevent the "reset on load" race condition -->
                                         <select class="w-full" 
                                                 :value="show.name" 
                                                 @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show)">

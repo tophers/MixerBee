@@ -59,7 +59,6 @@
                                 </template>
                             </div>
 
-                            <!-- FIXED: Changed x-if to x-show to prevent Alpine crash -->
                             <div class="mt-sm" x-show="block.music">
                                 <span class="badge badge-outline-subtle">
                                     <span x-text="block.music?.mode ? block.music.mode.replace('artist_', '').toUpperCase() : ''"></span>
