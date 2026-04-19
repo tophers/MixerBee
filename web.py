@@ -4,6 +4,7 @@ web.py – FastAPI wrapper for MixerBee.
 
 import os
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -27,25 +28,11 @@ ROOT_PATH = os.getenv("MIXERBEE_ROOT_PATH")
 if ROOT_PATH is None:
     ROOT_PATH = "" if IS_CONTAINER else "/mixerbee"
 
-app = FastAPI(title="MixerBee API", root_path=ROOT_PATH)
-HERE = Path(__file__).parent
-
-app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
-
-templates = Jinja2Templates(directory=str(HERE / "templates"))
-
-app.include_router(config.router)
-app.include_router(builder.router)
-app.include_router(library.router)
-app.include_router(quick_playlists.router)
-app.include_router(scheduler_router.router)
-app.include_router(presets.router)
-app.include_router(webhooks.router)
-
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     database.init_db()
     app_state.load_and_authenticate()
+    
     if app_state.is_configured:
         auth_details = {
             "token": app_state.token,
@@ -61,11 +48,27 @@ def startup_event():
             ).start()
 
     scheduler.scheduler_manager.start()
+    
+    yield
 
-@app.on_event("shutdown")
-def shutdown_event():
     scheduler.scheduler_manager.scheduler.shutdown()
+
+app = FastAPI(title="MixerBee API", root_path=ROOT_PATH, lifespan=lifespan)
+HERE = Path(__file__).parent
+app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+templates = Jinja2Templates(directory=str(HERE / "templates"))
+
+app.include_router(config.router)
+app.include_router(builder.router)
+app.include_router(library.router)
+app.include_router(quick_playlists.router)
+app.include_router(scheduler_router.router)
+app.include_router(presets.router)
+app.include_router(webhooks.router)
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(
+    request=request, 
+    name="index.html", 
+)

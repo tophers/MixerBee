@@ -1,0 +1,13 @@
+# core
+python-dotenv
+requests
+apscheduler
+jinja2
+
+# web
+fastapi
+uvicorn[standard]
+
+# AI
+google-genai
+chromadb[default]
