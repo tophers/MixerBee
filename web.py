@@ -32,7 +32,7 @@ HERE = Path(__file__).parent
 
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=str(HERE / "templates"))
 
 app.include_router(config.router)
 app.include_router(builder.router)
