@@ -63,7 +63,7 @@ class PreviewModal extends BaseModal {
     }
 
     show(items) {
-        this.bodyEl.innerHTML = ''; 
+        this.bodyEl.innerHTML = '';
 
         if (!items || items.length === 0) {
             this.bodyEl.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">No items were found for this configuration.</p>';
@@ -216,7 +216,12 @@ class ImportPresetModal extends BaseModal {
                 const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
                 if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
 
-                const sharePayload = JSON.parse(atob(base64String));
+                const binString = atob(base64String);
+                const bytes = Uint8Array.from(binString, (c) => c.charCodeAt(0));
+                const jsonString = new TextDecoder().decode(bytes);
+
+                const sharePayload = JSON.parse(jsonString);
+
                 if (!sharePayload.data || !Array.isArray(sharePayload.data)) {
                     throw new Error("The share code has an invalid format.");
                 }
@@ -256,20 +261,21 @@ class SmartBuildModal extends BaseModal {
 
     show(items) {
         this.list.innerHTML = '';
+        // Look up icons from the Alpine store
+        const iconStore = typeof Alpine !== 'undefined' ? Alpine.store('icons') : {};
+
         items.forEach(item => {
             const li = document.createElement('li');
+            const iconSvg = iconStore[item.icon] || '';
             li.innerHTML = `
                 <a href="#" data-type="${item.type}">
-                    <div class="item-name"><i data-feather="${item.icon}"></i> ${item.name}</div>
+                    <div class="item-name"><span class="dropdown-icon align-center">${iconSvg}</span> ${item.name}</div>
                     <div class="item-description">${item.description}</div>
                 </a>
             `;
             this.list.appendChild(li);
         });
 
-        if (window.featherReplace) {
-            window.featherReplace();
-        }
         return super.show();
     }
 }
@@ -320,7 +326,7 @@ class ResetWatchModal extends BaseModal {
         super(modalId);
         this.showNameEl = this.overlay.querySelector('#reset-watch-show-name');
         this.seasonNumEl = this.overlay.querySelector('#reset-season-num');
-        
+
         this.resetSeasonBtn = this.overlay.querySelector('#reset-season-btn');
         this.resetShowBtn = this.overlay.querySelector('#reset-show-btn');
 

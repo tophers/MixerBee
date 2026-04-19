@@ -1,0 +1,228 @@
+<!-- All Modal close buttons normalized to '&times;' for simplicity, or use store icons if preferred -->
+
+<!-- Save Preset Modal -->
+<div id="save-preset-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2>Save Preset</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label for="preset-name-input" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Preset Name</label>
+            <input type="text" id="preset-name-input" placeholder="e.g., Sci-Fi Favorites" style="width: 100%; box-sizing: border-box;">
+            <div id="preset-overwrite-warning" style="color: var(--danger); font-size: 0.9em; margin-top: 0.5rem; display: none;">
+                Warning: A preset with this name already exists. Saving will overwrite it.
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel">Cancel</button>
+            <button id="save-preset-confirm-btn" type="button">Save</button>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Playlist Modal -->
+<div id="smart-playlist-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2 id="smart-playlist-title">Create Playlist</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="smart-playlist-description"></p>
+            <div class="modal-form-layout">
+                <label class="control-item">
+                    <span>Playlist Name</span>
+                    <input type="text" id="smart-playlist-name-input">
+                </label>
+                <label class="control-item" id="smart-playlist-count-wrapper">
+                    <span id="smart-playlist-count-label">Number of Items</span>
+                    <input type="number" id="smart-playlist-count-input" min="1" value="10">
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel">Cancel</button>
+            <button id="smart-playlist-confirm-btn" type="button">Create</button>
+        </div>
+    </div>
+</div>
+
+<!-- Import Preset Modal -->
+<div id="import-preset-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2>Import Preset</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-layout">
+                <label class="control-item">
+                    <span>Share Code</span>
+                    <textarea id="import-code-input" rows="4" placeholder="Paste share code here..."></textarea>
+                </label>
+                <label class="control-item">
+                    <span>New Preset Name</span>
+                    <input type="text" id="import-name-input" placeholder="e.g., Friend's Movie Mix">
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel">Cancel</button>
+            <button id="import-preset-confirm-btn" type="button">Import</button>
+        </div>
+    </div>
+</div>
+
+<!-- Smart Build Selection Modal -->
+<div id="smart-build-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2>Build an Auto Playlist</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Select a pre-configured playlist type to create.</p>
+            <ul id="smart-build-list" class="item-selection-list"></ul>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manager Contents Modal -->
+<div id="contents-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2 id="contents-modal-title">Contents</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="contents-modal-body"></div>
+        <div class="modal-footer">
+            <button class="js-modal-cancel" type="button">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Playlist Preview Modal -->
+<div id="preview-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2 id="preview-modal-title">Playlist Preview</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="preview-modal-body"></div>
+        <div class="modal-footer">
+            <button class="js-modal-cancel" type="button">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Watch History Modal -->
+<div id="reset-watch-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2>Reset Watch History?</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>You are about to erase your watch history for <strong id="reset-watch-show-name"></strong>. This cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel mr-auto">Cancel</button>
+            <button id="reset-season-btn" type="button" class="danger">Reset Season <span id="reset-season-num"></span></button>
+            <button id="reset-show-btn" type="button" class="danger">Reset Entire Show</button>
+        </div>
+    </div>
+</div>
+
+<!-- Generic Confirmation Modal -->
+<div id="confirm-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2 id="confirm-modal-title">Are you sure?</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="confirm-modal-text">This action cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary js-modal-cancel mr-auto">Cancel</button>
+            <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- Notification History Modal -->
+<div id="toast-history-modal-overlay" class="modal-overlay hidden">
+    <div class="modal-window">
+        <div class="modal-header">
+            <h2>Notification History</h2>
+            <button class="icon-btn js-modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <ul class="contents-list" id="toast-history-list" style="list-style: none; padding-left: 0;"></ul>
+        </div>
+        <div class="modal-footer">
+            <button id="clear-toast-history-btn" type="button" class="secondary mr-auto">Clear History</button>
+            <button class="js-modal-cancel" type="button">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Global Loading Overlay -->
+<div id="loading-overlay" class="hidden">
+    <div class="spinner"></div>
+</div>
+
+<!-- Alpine-powered Settings Modal -->
+<div id="settings-modal-overlay" class="modal-overlay"
+     x-show="$store.settings.isOpen"
+     x-transition.opacity
+     x-cloak
+     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;">
+    <div class="modal-window" @click.outside="$store.settings.hide()">
+        <div class="modal-header">
+            <h2>Settings</h2>
+            <button class="icon-btn" @click="$store.settings.hide()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Enter your server details. The page will reload automatically to apply your changes.</p>
+            <div class="modal-form-layout">
+                <label class="control-item">
+                    <span>Server Type</span>
+                    <select x-model="$store.settings.server_type">
+                        <option value="emby">Emby</option>
+                        <option value="jellyfin">Jellyfin</option>
+                    </select>
+                </label>
+                <label class="control-item">
+                    <span>Server URL</span>
+                    <input type="text" x-model="$store.settings.emby_url" placeholder="e.g., http://localhost:8096">
+                </label>
+                <label class="control-item">
+                    <span>Username</span>
+                    <input type="text" x-model="$store.settings.emby_user" placeholder="Your username">
+                </label>
+                <label class="control-item">
+                    <span>Password</span>
+                    <input type="password" x-model="$store.settings.emby_pass" placeholder="Your password">
+                </label>
+                <label class="control-item">
+                    <span>Gemini API Key (Optional)</span>
+                    <div class="input-with-button">
+                        <input type="password" x-model="$store.settings.gemini_key" placeholder="Google Gemini API Key">
+                        <button type="button" class="secondary small" @click="$store.settings.removeGeminiKey()">Remove</button>
+                    </div>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <span x-text="'v' + $store.settings.version" class="mr-auto" style="font-size: 0.85rem; color: var(--text-subtle); font-family: monospace;"></span>
+            <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($el)">Test Current Connection</button>
+            <button type="button" class="secondary" @click="$store.settings.hide()">Cancel</button>
+            <button type="button" @click="$store.settings.saveSettings($el)">Save</button>
+        </div>
+    </div>
+</div>

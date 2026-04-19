@@ -18,10 +18,12 @@ export function toast(message, isSuccess, options = {}) {
   let contentHTML = `<div class="toast-message">${message}</div>`;
 
   if (actionCallback) {
+    // Access store directly from Alpine global
+    const icon = typeof Alpine !== 'undefined' ? Alpine.store('icons').externalLink : '';
     contentHTML += `
       <div class="toast-actions">
-        <button type="button" class="toast-button">
-          <i data-feather="external-link"></i> ${actionText}
+        <button type="button" class="toast-button align-center gap-xs">
+          ${icon} ${actionText}
         </button>
       </div>
     `;
@@ -48,17 +50,13 @@ export function toast(message, isSuccess, options = {}) {
 
   document.body.appendChild(toastElement);
 
-  if (window.featherReplace) {
-    window.featherReplace();
-  }
-
   if (!actionCallback) {
     toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 9.5s forwards';
     setTimeout(() => {
         if (toastElement.parentNode) {
             toastElement.remove();
         }
-    }, 10000); 
+    }, 10000);
   } else {
     toastElement.style.animation = 'fadeInDown 0.5s forwards';
   }
@@ -76,7 +74,7 @@ export function debounce(func, wait) {
     };
 };
 
-export function post(endpoint, body, eventOrElement = null, method = 'POST') {
+export function post(endpoint, body, eventOrElement = null, method = 'POST', silent = false, showLoading = true) {
   const loadingOverlay = document.getElementById('loading-overlay');
   let clickedButton = null;
 
@@ -92,7 +90,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     }
   }
 
-  if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+  if (showLoading && loadingOverlay) loadingOverlay.classList.remove('hidden');
 
   return fetch(endpoint, {
     method: method,
@@ -109,14 +107,17 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
     })
     .then(res => {
         if (res.status === 'ok') {
-            const successMessage = res.log?.join(' • ') || 'Success!';
-            const toastOptions = {};
-            if (res.newItemUrl) {
-                toastOptions.actionText = 'View on Server';
-                toastOptions.actionCallback = () => window.open(res.newItemUrl, '_blank');
+            if (!silent) {
+                const successMessage = res.log?.join(' • ') || 'Success!';
+                const toastOptions = {};
+                if (res.newItemUrl) {
+                    toastOptions.actionText = 'View on Server';
+                    toastOptions.actionCallback = () => window.open(res.newItemUrl, '_blank');
+                }
+                toast(successMessage, true, toastOptions);
             }
-            toast(successMessage, true, toastOptions);
-        } else {
+        }
+        else if (res.status === 'error' || res.detail) {
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
             toast('Error: ' + errorMessage, false);
         }
@@ -128,7 +129,7 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST') {
         return { status: 'error', detail: errorMessage };
     })
     .finally(() => {
-        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (showLoading && loadingOverlay) loadingOverlay.classList.add('hidden');
         if (clickedButton) clickedButton.disabled = false;
     });
 }
