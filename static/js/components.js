@@ -178,7 +178,6 @@ export function createTvShowRow({ rowData, rowIndex }) {
     const previewDiv = rowElement.querySelector('.tv-block-preview');
     const unwatchedCb = rowElement.querySelector('.first-unwatched-cb');
 
-    // Populate the dropdown using the library data from the store
     if (mStore.library && mStore.library.seriesData) {
         mStore.library.seriesData.forEach(s => {
             const option = document.createElement('option');

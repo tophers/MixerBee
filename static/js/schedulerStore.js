@@ -118,6 +118,7 @@ export const schedulerStore = {
             }
         };
         this.schedule = [...this.schedule, newEntry];
+        return newEntry._uid;
     },
 
     toggleDay(entry, dayNum) {

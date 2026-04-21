@@ -1,9 +1,8 @@
 """
-scheduler.py – Manages schedules for MixerBee
+scheduler.py – Manages schedules
 """
 
 import json
-import logging
 import uuid
 import random
 from typing import Dict, List, Optional, Any
@@ -19,9 +18,13 @@ from app.cache import refresh_cache
 import app_state
 import database
 from routers.dependencies import get_current_auth_headers
+from app.logger import get_logger
 
-logging.basicConfig()
-logging.getLogger('apscheduler').setLevel(logging.INFO)
+logger = get_logger("MixerBee.Scheduler")
+
+# Put apscheduler logging behind the same verbosity gate
+import logging
+logging.getLogger('apscheduler').setLevel(logging.INFO if app_state.VERBOSE_LOGGING else logging.WARNING)
 
 QUICK_PLAYLIST_MAP = {
     "recently_added": items_api.create_recently_added_playlist,
@@ -41,11 +44,11 @@ def run_playlist_job(**schedule_data) -> Dict:
 
     log_messages = []
     if not all([user_id, playlist_name]):
-        msg = f"SCHEDULER: Job '{schedule_id}' is missing required data (User or Playlist Name). Aborting."
-        logging.error(msg)
+        msg = f"Job '{schedule_id}' is missing required data (User or Playlist Name). Aborting."
+        logger.error(msg)
         return {"status": "error", "log": [msg]}
 
-    logging.info(f"SCHEDULER: Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
+    logger.info(f"Running job '{schedule_id}' for playlist '{playlist_name}' (Type: {job_type}) for user {user_id}")
     result = {}
 
     try:
@@ -63,20 +66,18 @@ def run_playlist_job(**schedule_data) -> Dict:
                 all_presets = pm.preset_manager.get_all_presets()
                 blocks = all_presets.get(preset_name)
                 if blocks:
-                    logging.info(f"SCHEDULER: Resolved blocks for job {schedule_id} from preset '{preset_name}'")
+                    logger.info(f"Resolved blocks for job {schedule_id} from preset '{preset_name}'")
 
             if not blocks:
-                logging.info(f"SCHEDULER: No blocks found for job {schedule_id}. Generating surprise block.")
+                logger.info(f"No blocks found for job {schedule_id}. Generating surprise block.")
                 
-                # Robust surprise block selection: Filter out None results
-                # (e.g. if _get_random_tv_block returns None because library has no TV shows)
                 potential_options = [b for b in [_get_random_movie_block(), _get_random_tv_block()] if b is not None]
                 
                 if potential_options:
                     blocks = [random.choice(potential_options)]
                 else:
                     msg = "Could not generate a surprise block; library appears to be empty."
-                    logging.error(f"SCHEDULER: {msg}")
+                    logger.error(msg)
                     return {"status": "error", "log": [msg]}
 
             create_as_collection = schedule_data.get("create_as_collection", False)
@@ -84,7 +85,7 @@ def run_playlist_job(**schedule_data) -> Dict:
             if create_as_collection:
                 if len(blocks) != 1 or blocks[0].get("type") != "movie":
                     msg = "Scheduled collections must consist of exactly one Movie block."
-                    logging.error(f"SCHEDULER: {msg}")
+                    logger.error(msg)
                     return {"status": "error", "log": [msg]}
 
                 result = items_api.create_movie_collection(
@@ -114,11 +115,11 @@ def run_playlist_job(**schedule_data) -> Dict:
 
         final_log = result.get("log", ["No log messages returned from build process."])
         final_status = result.get("status", "error")
-        logging.info(f"SCHEDULER: Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
+        logger.info(f"Job '{schedule_id}' for '{playlist_name}' completed with status: {final_status.upper()}.")
 
     except Exception as e:
         error_message = f"CRITICAL ERROR running job '{schedule_id}': {e}"
-        logging.error(f"SCHEDULER: {error_message}", exc_info=True)
+        logger.error(error_message, exc_info=True)
         result = {"status": "error", "log": [error_message]}
 
     return result
@@ -150,7 +151,7 @@ class Scheduler:
                 self.schedules[schedule_id]['last_run'] = last_run_info
 
         except Exception as e:
-            logging.error(f"SCHEDULER: Error updating last run status for {schedule_id} in DB: {e}", exc_info=True)
+            logger.error(f"Error updating last run status for {schedule_id} in DB: {e}", exc_info=True)
 
     def _load_schedules(self) -> Dict[str, Dict]:
         schedules = {}
@@ -172,11 +173,11 @@ class Scheduler:
                     if (old_type := qpd.get("quick_playlist_type")) in LEGACY_TYPE_MAP:
                         new_type = LEGACY_TYPE_MAP[old_type]
                         data["quick_playlist_data"]["quick_playlist_type"] = new_type
-                        logging.info(f"Migrated legacy schedule type '{old_type}' to '{new_type}' for job {schedule_id}.")
+                        logger.info(f"Migrated legacy schedule type '{old_type}' to '{new_type}' for job {schedule_id}.")
                         self._update_schedule_config_in_db(schedule_id, data)
             return schedules
         except Exception as e:
-            logging.error(f"SCHEDULER: Error loading schedules from database: {e}", exc_info=True)
+            logger.error(f"Error loading schedules from database: {e}", exc_info=True)
             return {}
 
     def _update_schedule_config_in_db(self, schedule_id, schedule_data):
@@ -192,7 +193,7 @@ class Scheduler:
                 conn.execute("UPDATE schedules SET config_data = ? WHERE id = ?", (json.dumps(config_payload), schedule_id))
                 conn.commit()
         except Exception as e:
-            logging.error(f"Failed to update schedule config in DB for {schedule_id}: {e}", exc_info=True)
+            logger.error(f"Failed to update schedule config in DB for {schedule_id}: {e}", exc_info=True)
 
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         if not (schedule_data := self.schedules.get(schedule_id)): return None
@@ -241,7 +242,7 @@ class Scheduler:
 
         job_count = len(self.schedules)
         total_jobs = len(self.scheduler.get_jobs())
-        logging.info(f"Scheduler started with {job_count} user schedule(s) and {total_jobs - job_count} system job(s).")
+        logger.info(f"Scheduler started with {job_count} user schedule(s) and {total_jobs - job_count} system job(s).")
 
 
     def add_schedule(self, schedule_data: Dict) -> str:
@@ -262,7 +263,7 @@ class Scheduler:
                 )
                 conn.commit()
         except Exception as e:
-            logging.error(f"Failed to save schedule {schedule_id} to database: {e}", exc_info=True)
+            logger.error(f"Failed to save schedule {schedule_id} to database: {e}", exc_info=True)
             return None
 
         self.schedules[schedule_id] = schedule_data
@@ -277,7 +278,7 @@ class Scheduler:
 
     def update_schedule(self, schedule_id: str, schedule_data: Dict) -> bool:
         if schedule_id not in self.schedules:
-            logging.warning(f"SCHEDULER: Attempted to update non-existent schedule {schedule_id}")
+            logger.warning(f"Attempted to update non-existent schedule {schedule_id}")
             return False
         try:
             with database.get_db_connection() as conn:
@@ -323,7 +324,7 @@ class Scheduler:
             return True
 
         except Exception as e:
-            logging.error(f"SCHEDULER: Failed to update schedule {schedule_id}: {e}", exc_info=True)
+            logger.error(f"Failed to update schedule {schedule_id}: {e}", exc_info=True)
             return False
 
     def remove_schedule(self, schedule_id: str):
@@ -331,14 +332,14 @@ class Scheduler:
             try:
                 self.scheduler.remove_job(schedule_id)
             except JobLookupError:
-                logging.warning(f"SCHEDULER: Job {schedule_id} not found, removing from storage anyway.")
+                logger.warning(f"Job {schedule_id} not found, removing from storage anyway.")
             del self.schedules[schedule_id]
             try:
                 with database.get_db_connection() as conn:
                     conn.execute("DELETE FROM schedules WHERE id = ?", (schedule_id,))
                     conn.commit()
             except Exception as e:
-                 logging.error(f"Failed to delete schedule {schedule_id} from database: {e}", exc_info=True)
+                 logger.error(f"Failed to delete schedule {schedule_id} from database: {e}", exc_info=True)
 
     def get_all_schedules(self) -> List[Dict]:
         if not self.schedules and self.scheduler.running:

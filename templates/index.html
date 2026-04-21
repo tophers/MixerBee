@@ -1,3 +1,4 @@
+<!-- templates/index.html -->
 <!doctype html>
 <html lang="en">
 {% include 'partials/_head.html' %}
@@ -6,7 +7,6 @@
 
     <div id="not-configured-warning" class="container">
         <div class="warning-box">
-            <!-- Swapped data-feather for store icon -->
             <span x-html="$store.icons.alert"></span>
             <h3>Application Not Configured</h3>
             <p>MixerBee can't connect to your server. Please open the settings and provide your server details.</p>
@@ -14,7 +14,7 @@
         </div>
     </div>
 
-    <div id="main-content-area" class="hidden">
+    <div id="main-content-area" class="hidden has-fixed-footer">
         {% include 'partials/_builder_pane.html' %}
         {% include 'partials/_scheduler_pane.html' %}
         {% include 'partials/_manager_pane.html' %}

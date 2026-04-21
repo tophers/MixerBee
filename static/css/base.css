@@ -46,7 +46,6 @@ body[data-theme='light'] {
     color-scheme: light;
 }
 html, body {
-    /* Removed height: 100% to allow for natural scrolling on mobile */
     margin: 0;
     background: var(--bg);
     color: var(--text);
@@ -61,7 +60,7 @@ h2 {
 body {
     display: flex;
     flex-direction: column;
-    min-height: 100vh; /* Keeps footer at bottom on empty pages, but allows growth */
+    min-height: 100vh;
 }
 #loading-overlay {
     position: fixed;

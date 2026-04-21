@@ -1,5 +1,5 @@
 """
-web.py – FastAPI wrapper for MixerBee.
+web.py – FastAPI wrapper
 """
 
 import os
@@ -32,7 +32,7 @@ if ROOT_PATH is None:
 async def lifespan(app: FastAPI):
     database.init_db()
     app_state.load_and_authenticate()
-    
+
     if app_state.is_configured:
         auth_details = {
             "token": app_state.token,
@@ -40,7 +40,9 @@ async def lifespan(app: FastAPI):
         }
         refresh_cache(auth_details)
 
-        if app_state.GEMINI_API_KEY:
+        ai_enabled = bool(app_state.GEMINI_API_KEY) or (app_state.AI_PROVIDER == "ollama")
+        
+        if ai_enabled:
             threading.Thread(
                 target=index_library_for_vibes,
                 args=(app_state.DEFAULT_UID, app_state.HDR),
@@ -48,12 +50,13 @@ async def lifespan(app: FastAPI):
             ).start()
 
     scheduler.scheduler_manager.start()
-    
+
     yield
 
     scheduler.scheduler_manager.scheduler.shutdown()
 
 app = FastAPI(title="MixerBee API", root_path=ROOT_PATH, lifespan=lifespan)
+
 HERE = Path(__file__).parent
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=str(HERE / "templates"))

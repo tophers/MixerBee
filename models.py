@@ -1,5 +1,5 @@
 """
-models.py - Pydantic models for the MixerBee API.
+models.py - Manages Pydantic models 
 """
 
 from typing import List, Optional, Dict, Any
@@ -11,6 +11,9 @@ class SettingsRequest(BaseModel):
     emby_user: str
     emby_pass: str
     gemini_key: Optional[str] = None
+    ai_provider: Optional[str] = "gemini"
+    ollama_url: Optional[str] = "http://localhost:11434"
+    ollama_model: Optional[str] = "llama3.1"
 
 class MovieFinderRequest(BaseModel):
     user_id: str

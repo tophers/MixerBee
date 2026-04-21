@@ -1,5 +1,5 @@
 """
-app/__init__.py - Public interface for the MixerBee core logic.
+app/__init__.py - Public interface for the MixerBee core logic
 """
 
 from .client import (

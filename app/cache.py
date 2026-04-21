@@ -1,12 +1,14 @@
 """
-app/cache.py - Manages a persistent, background-refreshed cache for library data.
+app/cache.py - Manages a persistent, background-refreshed cache for library data
 """
 
-import logging
 import threading
 from typing import Dict, Any, List
+from app.logger import get_logger
 
 from . import tv, movies, studios, client,  music, users
+
+logger = get_logger("MixerBee.Cache")
 
 _cache_key = ["data"]
 CACHE: Dict[str, Any] = {_cache_key[0]: {}}
@@ -27,12 +29,12 @@ def _fetch_all_data(auth_details: Dict[str, str]) -> Dict[str, Any]:
         login_uid = auth_details.get("login_uid")
 
         if not all([token, login_uid]):
-            logging.warning("CACHE: Cannot refresh cache, missing auth details.")
+            logger.warning("Cannot refresh cache, missing auth details.")
             return {}
 
         hdr = client.auth_headers(token, login_uid)
 
-        logging.info("CACHE: Starting background refresh of all library data...")
+        logger.info("Starting background refresh of all library data...")
         
         data = {
             "seriesData": tv.get_all_series(login_uid, hdr),
@@ -42,11 +44,11 @@ def _fetch_all_data(auth_details: Dict[str, str]) -> Dict[str, Any]:
             "musicGenreData": music.get_music_genres(login_uid, hdr),
             "studioData": studios.aggregate_all_studios(login_uid, hdr),
         }
-        logging.info("CACHE: Background refresh completed successfully.")
+        logger.info("Background refresh completed successfully.")
         return data
 
     except Exception as e:
-        logging.error(f"CACHE: An error occurred during background refresh: {e}", exc_info=True)
+        logger.error(f"An error occurred during background refresh: {e}", exc_info=True)
         return {}
 
 def refresh_cache(auth_details: Dict[str, str] = None):
@@ -65,4 +67,4 @@ def refresh_cache(auth_details: Dict[str, str] = None):
         finally:
             _refresh_lock.release()
     else:
-        logging.info("CACHE: Refresh is already in progress. Skipping.")
+        logger.info("Refresh is already in progress. Skipping.")

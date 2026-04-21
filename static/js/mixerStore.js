@@ -5,7 +5,6 @@ import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, preset
 import { SMART_BUILD_TYPES } from './definitions.js';
 
 export const mixerStore = {
-    // --- State ---
     blocks: [],
     library: {
         seriesData: [],
@@ -30,7 +29,6 @@ export const mixerStore = {
 
     _previewDebouncers: {},
 
-    // --- Initialization ---
     init() {
         try {
             const saved = localStorage.getItem(this.autosaveKey);
@@ -51,13 +49,20 @@ export const mixerStore = {
         if (!block) return;
         if (!block._uid) block._uid = crypto.randomUUID();
 
-        block._previewCount = block._previewCount ?? '...';
-        block._previewItems = block._previewItems ?? [];
-        block._previewLoading = block._previewLoading ?? false;
+        if (block._previewCount === undefined) block._previewCount = 0;
+        if (block._previewItems === undefined) block._previewItems = [];
+        if (block._previewLoading === undefined) block._previewLoading = false;
 
-        if (block.type === 'movie') {
+        const isStandardMovie = block.type === 'movie';
+        const isVibeMovie = (block.type === 'vibe' && block.vibe_type === 'movie');
+
+        if (isStandardMovie || isVibeMovie) {
             if (!block.filters) block.filters = {};
-            block.filters.parent_ids = block.filters.parent_ids ?? this.library.libraryData.map(l => l.Id);
+
+            if (isStandardMovie && (!block.filters.parent_ids || block.filters.parent_ids.length === 0)) {
+                block.filters.parent_ids = this.library.libraryData.map(l => l.Id);
+            }
+
             block.filters.genres_any = block.filters.genres_any ?? [];
             block.filters.genres_all = block.filters.genres_all ?? [];
             block.filters.genres_exclude = block.filters.genres_exclude ?? [];
@@ -68,8 +73,9 @@ export const mixerStore = {
             block.filters.exclude_studios = block.filters.exclude_studios ?? [];
             block.filters.watched_status = block.filters.watched_status ?? 'all';
             block.filters.sort_by = block.filters.sort_by ?? 'Random';
-            block.filters.year_from = block.filters.year_from ?? 1920;
-            block.filters.year_to = block.filters.year_to ?? new Date().getFullYear();
+            block.filters.year_from = block.filters.year_from ?? 1900;
+            block.filters.year_to = block.filters.year_to ?? new Date().getFullYear() + 2;
+            block.filters.ids = block.filters.ids ?? [];
 
             block._limitMode = block._limitMode ?? (block.filters.duration_minutes ? 'duration' : 'count');
             block._limitDurationUnit = block._limitDurationUnit ?? 60;
@@ -83,7 +89,7 @@ export const mixerStore = {
             if (!block.music.filters) block.music.filters = { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' };
         }
 
-        if (block.type === 'tv') {
+        if (block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv')) {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
                 if (!s._uid) s._uid = crypto.randomUUID();
@@ -101,22 +107,29 @@ export const mixerStore = {
         }
     },
 
-    // --- TV Logic ---
     getTvBlockSummary(block) {
-        if (!block || block.type !== 'tv' || !block.shows) return '';
+        if (!block || (block.type !== 'tv' && block.type !== 'vibe') || !block.shows) return '';
         let modeText = (block.mode === 'count') ? `${block.count || 1} eps per show` : 'to specific end episode';
         return modeText + (block.interleave ? ' • Interleaved' : ' • Sequential');
     },
 
     getTvShowList(block) {
         if (!block?.shows?.length) return 'No shows selected';
-        const names = block.shows.map(s => s.name || 'Unknown').filter(n => n !== '');
+        const names = block.shows.map(s => {
+            if (s.name) return s.name;
+            if (s.id) {
+                const libMatch = this.library.seriesData.find(ls => ls.id === s.id);
+                return libMatch ? libMatch.name : 'Show ID: ' + s.id;
+            }
+            return 'Unknown';
+        }).filter(n => n !== '');
+
         if (!names.length) return 'Empty selection';
         return names.join(', ');
     },
 
     async fetchEpisodeTitle(showData) {
-        const series = this.library.seriesData.find(s => s.name === showData.name);
+        const series = this.library.seriesData.find(s => s.name === showData.name || s.id === showData.id);
         if (!series || !showData.season || !showData.episode) return;
 
         showData._loadingTitle = true;
@@ -136,7 +149,7 @@ export const mixerStore = {
     },
 
     async syncNextUnwatched(showData) {
-        const series = this.library.seriesData.find(s => s.name === showData.name);
+        const series = this.library.seriesData.find(s => s.name === showData.name || s.id === showData.id);
         const uid = document.getElementById('user-select')?.value;
         if (!series || !uid) return;
 
@@ -156,7 +169,7 @@ export const mixerStore = {
     },
 
     async promptResetWatch(showData) {
-        const series = this.library.seriesData.find(s => s.name === showData.name);
+        const series = this.library.seriesData.find(s => s.name === showData.name || s.id === showData.id);
         if (!series) return toast("Select a show.", false);
         try {
             const decision = await resetWatchModal.show({ showName: series.name, season: showData.season });
@@ -171,8 +184,6 @@ export const mixerStore = {
             }
         } catch (e) {}
     },
-
-    // setupSortable REMOVED - Using Alpine Sort directives in HTML instead
 
     async fetchSuggestions(type, query) {
         if (!query || query.length < 2) return [];
@@ -249,42 +260,47 @@ export const mixerStore = {
     },
 
     async updatePreviewCount(block) {
-        if (!block || block.type === 'tv') return;
-
-        block._previewLoading = true;
+        if (!block) return;
+        if (block.type === 'tv' && !block.vibe_type) return;
 
         if (!this._previewDebouncers[block._uid]) {
-            this._previewDebouncers[block._uid] = debounce(async (b) => {
+            this._previewDebouncers[block._uid] = debounce(async (targetUid) => {
                 const user_id = document.getElementById('user-select')?.value;
                 if (!user_id) return;
 
-                const endpoint = b.type === 'movie' ? 'api/movies/preview_count' : 'api/music/preview_count';
-                const filters = b.type === 'movie' ? b.filters : b.music.filters;
+                const liveBlock = this.blocks.find(b => b._uid === targetUid);
+                if (!liveBlock) return;
+
+                liveBlock._previewLoading = true;
+
+                const isMovie = (liveBlock.type === 'movie' || liveBlock.vibe_type === 'movie');
+                const isMusic = liveBlock.type === 'music';
 
                 try {
-                    const countData = await post(endpoint, { user_id, filters }, null, 'POST', true, false);
-                    if (countData && countData.status !== 'error') {
-                        b._previewCount = countData.count !== undefined ? countData.count : (countData.data?.count ?? '0');
+                    const itemsData = await post('api/builder/preview', {
+                        user_id,
+                        blocks: [liveBlock]
+                    }, null, 'POST', true, false);
+
+                    if (itemsData && itemsData.status !== 'error') {
+                        liveBlock._previewItems = itemsData.data || [];
+                        liveBlock._previewCount = liveBlock._previewItems.length;
+                    } else {
+                        liveBlock._previewItems = [];
+                        liveBlock._previewCount = 0;
                     }
 
-                    if (b.type === 'movie') {
-                        const itemsData = await post('api/builder/preview', {
-                            user_id,
-                            blocks: [{ ...b, filters: { ...b.filters, limit: 3 } }]
-                        }, null, 'POST', true, false);
-                        if (itemsData && itemsData.status !== 'error') {
-                            b._previewItems = itemsData.data || [];
-                        }
-                    }
                 } catch (e) {
-                    b._previewCount = 'Error';
+                    console.error("[MixerBee] Preview update failed:", e);
+                    liveBlock._previewCount = 0;
+                    liveBlock._previewItems = [];
                 } finally {
-                    b._previewLoading = false;
+                    liveBlock._previewLoading = false;
                 }
             }, 800);
         }
 
-        this._previewDebouncers[block._uid](block);
+        this._previewDebouncers[block._uid](block._uid);
     },
 
     async refreshPresets() {
@@ -371,18 +387,26 @@ export const mixerStore = {
     },
 
     async loadBlocks(blocksData = []) {
+        console.log("[MixerBee] loadBlocks called with:", blocksData);
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
         try {
+            if (!Array.isArray(blocksData)) {
+                console.error("[MixerBee] loadBlocks received non-array data:", blocksData);
+                blocksData = [];
+            }
+
             blocksData.forEach(b => this.ensureBlockState(b));
             const uid = document.getElementById('user-select')?.value;
             const promises = [];
+
             blocksData.forEach(block => {
-                if (block.type === 'tv' && uid) {
+                const isTv = block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv');
+                if (isTv && uid) {
                     block.shows.forEach(show => {
                         if (show.unwatched) {
-                            const series = this.library.seriesData.find(s => s.name === show.name);
+                            const series = this.library.seriesData.find(s => s.name === show.name || s.id === show.id);
                             if (series) {
                                 const p = fetch(`api/shows/${series.id}/first_unwatched?user_id=${uid}`)
                                     .then(r => r.ok ? r.json() : null)
@@ -393,18 +417,19 @@ export const mixerStore = {
                                     } });
                                 promises.push(p);
                             }
-                        } else if (show.name && show.season && show.episode) {
+                        } else if ((show.name || show.id) && show.season && show.episode) {
                             promises.push(this.fetchEpisodeTitle(show));
                         }
                     });
-                } else {
-                    promises.push(this.updatePreviewCount(block));
                 }
+                promises.push(this.updatePreviewCount(block));
             });
 
             await Promise.all(promises);
-            this.blocks = blocksData;
+            this.blocks.splice(0, this.blocks.length, ...blocksData);
+
         } catch (e) {
+            console.error("[MixerBee] loadBlocks failed:", e);
             toast("Load failed.", false);
         } finally {
             if (overlay) overlay.classList.add('hidden');
@@ -444,7 +469,7 @@ export const mixerStore = {
     async clearAllBlocks() {
         try {
             await confirmModal.show({ title: 'Clear All?', text: 'Remove all blocks?', confirmText: 'Clear' });
-            this.blocks = [];
+            this.blocks.splice(0, this.blocks.length);
             this.currentPresetName = '';
         } catch (e) { }
     },
@@ -458,39 +483,55 @@ export const mixerStore = {
         this.blocks[blockIndex].shows.splice(rowIndex, 1);
     },
 
-    async addSurpriseBlock(btnEl) {
-        btnEl.disabled = true;
-        try {
-            const res = await fetch('api/builder/random_block');
-            if (res.ok) {
-                const block = await res.json();
-                block._uid = crypto.randomUUID();
-                this.ensureBlockState(block);
-                this.blocks.push(block);
-                this.updatePreviewCount(block);
-                toast("Surprise added!", true);
-            }
-        } finally { btnEl.disabled = false; }
-    },
-
     async generateWithAi() {
         if (!this.aiPrompt.trim()) return toast('Prompt required.', false);
         this.isAiGenerating = true;
+        console.log("[MixerBee] generateWithAi prompt:", this.aiPrompt);
         try {
             const res = await post('api/create_from_text', { prompt: this.aiPrompt });
-            if (res.status === 'ok') await this.loadBlocks(res.blocks);
-        } finally { this.isAiGenerating = false; }
+            console.log("[MixerBee] AI Response received:", res);
+            
+            if (res.status === 'ok' && Array.isArray(res.blocks)) {
+                res.blocks.forEach((b, i) => {
+                    const blockSnapshot = JSON.parse(JSON.stringify(b));
+                    console.log(`[MixerBee] Block ${i} structure:`, blockSnapshot);
+                });
+                await this.loadBlocks(res.blocks);
+            } else {
+                console.warn("[MixerBee] AI succeeded but returned no valid blocks array.");
+            }
+        } catch (e) {
+            console.error("[MixerBee] generateWithAi failed:", e);
+        } finally {
+            this.isAiGenerating = false;
+        }
     },
 
     clearAiPrompt() { this.aiPrompt = ''; },
 
     async previewPlaylist(btnEl, blocksOverride = null) {
-        const targetBlocks = blocksOverride || this.blocks;
-        if (targetBlocks.length === 0) return toast('No content to preview.', false);
+        try {
+            if (blocksOverride && blocksOverride.length === 1) {
+                const cachedBlock = blocksOverride[0];
+                if (cachedBlock._previewItems && cachedBlock._previewItems.length > 0) {
+                    console.log("[MixerBee] Showing cached results in modal.");
+                    return await previewModal.show(cachedBlock._previewItems);
+                }
+            }
 
-        const uid = document.getElementById('user-select')?.value;
-        const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
-        if (res.status === 'ok') previewModal.show(res.data);
+            const targetBlocks = blocksOverride || this.blocks;
+            if (targetBlocks.length === 0) return toast('No content to preview.', false);
+
+            const uid = document.getElementById('user-select')?.value;
+            const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
+            if (res.status === 'ok') {
+                await previewModal.show(res.data);
+            }
+        } catch (err) {
+            if (err.message !== 'Modal cancelled by user.') {
+                console.error("[MixerBee] Preview modal error:", err);
+            }
+        }
     },
 
     async buildPlaylist(btnEl) {
@@ -500,7 +541,7 @@ export const mixerStore = {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
             await post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: this.blocks }, btnEl);
         } else {
-            if (this.createAsCollection && (this.blocks.length !== 1 || this.blocks[0].type !== 'movie')) {
+            if (this.createAsCollection && (this.blocks.length !== 1 || (this.blocks[0].type !== 'movie' && this.blocks[0].vibe_type !== 'movie'))) {
                 return toast('Requires one Movie block.', false);
             }
             try {

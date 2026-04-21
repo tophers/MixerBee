@@ -1,5 +1,5 @@
 """
-routers/webhooks.py – APIRouter for handling live events from Emby/Jellyfin
+routers/webhooks.py – APIRouter
 """
 
 import logging

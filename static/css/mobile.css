@@ -7,36 +7,32 @@
 
     body {
         -webkit-text-size-adjust: 100%;
-        height: auto !important; /* CRITICAL: Fixes scroll trapping */
+        height: auto !important;
         min-height: 100vh;
         overflow-x: hidden;
     }
 
-    /* Better touch targets for mobile */
     button, select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
         padding: .6rem .75rem;
         font-size: 1.1rem;
     }
 
-    /* Cushion so content isn't hidden under the Action Bar */
-    .has-fixed-footer { padding-bottom: 140px !important; }
-    .tab-pane { padding-bottom: 180px !important; }
+    .has-fixed-footer { padding-bottom: 280px !important; }
+    .tab-pane { padding-bottom: 40px !important; }
 
-    /* Modal Overflow Fixes */
     .modal-window {
         padding: 1rem;
         width: calc(100% - 20px) !important;
         max-width: 95vw;
         margin: 10px;
-        box-sizing: border-box; /* CRITICAL: Stops buttons from bleeding off screen */
+        box-sizing: border-box;
     }
-    
+
     .modal-body {
-        overflow-x: hidden !important; 
+        overflow-x: hidden !important;
         padding-right: 0 !important;
     }
 
-    /* Stack Modal Buttons properly */
     .modal-footer {
         flex-direction: column;
         gap: 0.8rem;
@@ -44,13 +40,13 @@
         width: 100%;
         box-sizing: border-box;
     }
-    
+
     .modal-footer button {
         width: 100% !important;
         margin: 0 !important;
         box-sizing: border-box;
     }
-    
+
     .modal-footer .mr-auto {
         margin-right: 0;
         text-align: center;
@@ -61,18 +57,15 @@
         padding-right: 0.8rem;
     }
 
-    /* Header Cleanup */
     .header-user-display { gap: 0.4rem; }
     .header-user-display .theme-switcher::before { margin-right: 0; }
     #active-user-display { display: none; }
 
-    /* Preset Controls Stacking */
     .preset-controls { flex-direction: column; align-items: stretch; gap: 0.8rem; }
     .preset-controls > .control-item, .preset-controls > .preset-buttons { flex: initial; }
     .preset-controls .button-group { flex-direction: column; align-items: stretch; }
     .preset-controls .button-group button { width: 100%; text-align: center; }
 
-    /* Action Bar Stack */
     #action-bar { padding: 0.5rem 0; }
     .action-bar-content {
         display: flex !important;
@@ -86,7 +79,6 @@
     #preview-playlist-btn { order: 3; }
     .action-bar-pill { min-width: 120px; font-size: 0.8rem; }
 
-    /* TV Block Row mobile fixes */
     .tv-block-show-row > .tv-block-season, .tv-block-show-row > .tv-block-episode {
         padding: .6rem .3rem; font-size: 1.1rem;
     }

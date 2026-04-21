@@ -1,5 +1,5 @@
 """
-quick_playlists.py – APIRouter
+routers/quick_playlists.py – APIRouter
 """
 
 from fastapi import APIRouter, HTTPException, Depends

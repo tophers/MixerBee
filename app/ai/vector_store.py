@@ -1,18 +1,18 @@
 """
-app/ai/vector_store.py - Vector DB init and config 
+app/ai/vector_store.py - Vector DB init and config.
 """
 
-import logging
+import json
 from typing import List, Dict
-
 import chromadb
 
 import app.client as client
 from app_state import CONFIG_DIR
+from app.logger import get_logger, refresh_logger_level
 
-# ==========================================
-# 1. DATABASE INITIALIZATION
-# ==========================================
+logger = get_logger("MixerBee.Vector")
+
+# DATABASE INITIALIZATION
 CHROMA_PATH = CONFIG_DIR / "chroma_db"
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
@@ -20,110 +20,142 @@ media_collection = chroma_client.get_or_create_collection(
     name="mixerbee_media"
 )
 
-# ==========================================
-# 2. INDEXING & SEARCHING
-# ==========================================
+# INDEXING & SEARCHING
 def index_library_for_vibes(user_id: str, hdr: dict):
-    """Fetches metadata from Emby and embeds it completely locally."""
-    logging.info("VIBE INDEXER: Starting local library vector indexing...")
-    
-    all_items = []
-    start_index = 0
-    limit = 500
-    
+    """Fetches metadata from Emby and embeds only new/missing items locally."""
+    refresh_logger_level()
+    logger.info("--- VIBE INDEXER: CHECKING FOR LIBRARY UPDATES ---")
+
     try:
-        # --- PAGINATION LOOP ---
+        existing_data = media_collection.get(include=[])
+        existing_ids = set(existing_data['ids']) if existing_data and existing_data['ids'] else set()
+
+        emby_ids = set()
+        start_index = 0
+        limit = 15000 
+        
         while True:
             params = {
                 "IncludeItemTypes": "Movie,Series",
                 "Recursive": "true",
-                "Fields": "Overview,Genres",
                 "UserId": user_id,
                 "StartIndex": start_index,
-                "Limit": limit
+                "Limit": limit,
+                "Fields": "" 
             }
+            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
+            r.raise_for_status()
+            items = r.json().get("Items", [])
+            if not items: break
             
+            emby_ids.update([item["Id"] for item in items])
+            if len(items) < limit: break
+            start_index += limit
+
+        ids_to_remove = list(existing_ids - emby_ids)
+        ids_to_add = list(emby_ids - existing_ids)
+
+        if ids_to_remove:
+            logger.info(f"VIBE INDEXER: Removing {len(ids_to_remove)} deleted items from Vector DB.")
+            for i in range(0, len(ids_to_remove), 500):
+                media_collection.delete(ids=ids_to_remove[i:i+500])
+
+        if not ids_to_add:
+            logger.info("VIBE INDEXER: Vector DB is up to date. No new items to index.")
+            return
+
+        logger.info(f"VIBE INDEXER: Found {len(ids_to_add)} new items. Fetching metadata...")
+        
+        batch_size = 100 
+        for i in range(0, len(ids_to_add), batch_size):
+            batch_ids = ids_to_add[i:i+batch_size]
+            params = {
+                "Ids": ",".join(batch_ids),
+                "UserId": user_id,
+                "Fields": "Overview,Genres,ProductionYear,PremiereDate,DateCreated"
+            }
             r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
             r.raise_for_status()
             
-            data = r.json()
-            items = data.get("Items", [])
-            
-            if not items:
-                break
-                
-            all_items.extend(items)
-            
-            if len(items) < limit:
-                break
-                
-            start_index += limit
-            logging.info(f"VIBE INDEXER: Fetched {len(all_items)} items from server so far...")
+            new_items = r.json().get("Items", [])
+            if not new_items: continue
 
-        if not all_items:
-            logging.warning("VIBE INDEXER: No items found to index.")
-            return
+            documents = []
+            metadatas = []
+            upsert_ids = []
 
-        documents = []
-        metadatas = []
-        ids = []
-        
-        for item in all_items:
-            title = item.get("Name", "")
-            overview = item.get("Overview", "")
-            genres = ", ".join(item.get("Genres", []))
-            
-            if not overview:
-                continue
-                
-            text_to_embed = f"Title: {title}. Genres: {genres}. Summary: {overview}"
-            
-            documents.append(text_to_embed)
-            metadatas.append({"name": title, "type": item.get("Type")})
-            ids.append(item["Id"])
+            for item in new_items:
+                title = item.get("Name", "")
+                overview = item.get("Overview", "").strip()
+                genres = ", ".join(item.get("Genres", []))
 
-        batch_size = 500
-        total_items = len(ids)
-        
-        logging.info(f"VIBE INDEXER: Commencing vectorization of {total_items} total items...")
-        
-        for i in range(0, total_items, batch_size):
-            media_collection.upsert(
-                documents=documents[i:i+batch_size],
-                metadatas=metadatas[i:i+batch_size],
-                ids=ids[i:i+batch_size]
-            )
-            logging.info(f"VIBE INDEXER: Successfully indexed {min(i+batch_size, total_items)} / {total_items} items.")
+                year = item.get("ProductionYear")
+                if not year and item.get("PremiereDate"):
+                    try:
+                        year = item.get("PremiereDate")[:4]
+                    except: pass
+                if not year and item.get("DateCreated"):
+                    try:
+                        year = item.get("DateCreated")[:4]
+                    except: pass
 
-        logging.info("VIBE INDEXER: Local vector indexing complete!")
-        
+                year_str = str(year) if year else "Unknown Year"
+
+                if not overview: 
+                    overview = "No summary available."
+
+                text_to_embed = f"Title: {title}. Year: {year_str}. Type: {item.get('Type')}. Genres: {genres}. Summary: {overview}"
+
+                documents.append(text_to_embed)
+                metadatas.append({
+                    "name": title,
+                    "type": item.get("Type"),
+                    "year": year_str
+                })
+                upsert_ids.append(item["Id"])
+
+            if upsert_ids:
+                media_collection.upsert(
+                    documents=documents,
+                    metadatas=metadatas,
+                    ids=upsert_ids
+                )
+            logger.info(f"VIBE INDEXER: Processed {min(i+batch_size, len(ids_to_add))} / {len(ids_to_add)} new items.")
+
+        logger.info("--- VIBE INDEXER: VECTOR UPDATE COMPLETE ---")
+
     except Exception as e:
-        logging.error(f"VIBE INDEXER: Failed to index library: {e}", exc_info=True)
+        logger.error(f"VIBE INDEXER: Failed during library sync: {e}", exc_info=True)
 
 
-def search_by_vibe(query: str) -> List[Dict[str, str]]:
-    """
-    TOOL: Searches the library locally by semantic meaning or 'vibe'.
-    Returns a list of matching items with their names and IDs.
-    """
+def search_by_vibe(query: str = None, **kwargs) -> List[Dict[str, str]]:
+    refresh_logger_level()
+    if not query:
+        query = kwargs.get("vibe") or kwargs.get("concept") or kwargs.get("description")
+    if not query: return []
+
+    logger.info(f"--- VIBE SEARCH REQUEST: '{query}' ---")
+
     try:
-        results = media_collection.query(
-            query_texts=[query],
-            n_results=15 
-        )
-        
+        results = media_collection.query(query_texts=[query], n_results=25)
+
         if not results['ids'] or not results['ids'][0]:
             return []
-            
+
         matched_items = []
         for i in range(len(results['ids'][0])):
             matched_items.append({
                 "Id": results['ids'][0][i],
                 "Name": results['metadatas'][0][i]["name"],
-                "Type": results['metadatas'][0][i]["type"]
+                "Type": results['metadatas'][0][i]["type"],
+                "Year": results['metadatas'][0][i].get("year", "Unknown")
             })
-            
+
+        logger.info(f"VIBE SEARCH: Found {len(matched_items)} potential matches.")
+        for i, item in enumerate(matched_items[:5]):
+            logger.info(f"    Hit {i+1}: {item['Name']} ({item['Year']}) [ID: {item['Id']}]")
+
         return matched_items
     except Exception as e:
-        logging.error(f"Vibe search failed: {e}")
+        logger.error(f"Vibe search failed: {e}")
         return []

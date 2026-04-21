@@ -1,5 +1,5 @@
 """
-builder.py – APIRouter
+routers/builder.py – APIRouter
 """
 
 import logging
@@ -33,7 +33,7 @@ def _get_random_movie_block() -> Dict:
         filters["genres_any"] = [chosen_genre["Name"]]
 
     if random.random() < 0.4:
-        start_year = random.choice([1970, 1980, 1990, 2000, 2010])
+        start_year = random.choice([1970, 1980, 1990, 2000, 2010, 2020])
         filters["year_from"] = start_year
         filters["year_to"] = start_year + 9
 
@@ -129,8 +129,11 @@ def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
 
 @router.post("/api/create_from_text")
 def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
-    if not app_state.GEMINI_API_KEY:
+    if app_state.AI_PROVIDER == "gemini" and not app_state.GEMINI_API_KEY:
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
+    
+    if app_state.AI_PROVIDER not in ["gemini", "ollama"]:
+        raise HTTPException(status_code=501, detail="AI Provider is not correctly configured.")
 
     try:
         blocks, model_used = generate_smart_blocks(req.prompt)
@@ -152,7 +155,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
             "status": "ok",
             "blocks": blocks,
             "model_used": model_used,
-            "log": [f"Successfully generated using {model_used} and function calling."]
+            "log": [f"Successfully generated using {model_used}."]
         }
     except Exception as e:
         logging.error("Failed to generate from text", exc_info=True)
@@ -197,7 +200,7 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
     user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
     result = {}
     if req.create_as_collection:
-        if not req.blocks or len(req.blocks) != 1 or req.blocks[0].get("type") != "movie":
+        if not req.blocks or len(req.blocks) != 1 or (req.blocks[0].get("type") != "movie" and req.blocks[0].get("vibe_type") != "movie"):
             raise HTTPException(400, "Collections can only be created from a single movie block.")
 
         movie_filters = req.blocks[0].get("filters", {})

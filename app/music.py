@@ -1,24 +1,24 @@
 """
-app/music.py - All music-related logic.
+app/music.py - All music-related logic
 """
 
 import random
-import logging
 from typing import Dict, List, Optional
-
 import requests
 
 from . import client
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Music")
 
 def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """
-    Fetches all music genres for a user by aggregating them from all audio items.
-    /Genres endpoint for some user/permission configuration didn't work.
+    Fetches all music genres for a user by aggregating them from all albums.
     """
-    logging.info(f"Aggregating music genres for user {user_id}. This may take a moment for large libraries...")
+    logger.info(f"Aggregating music genres for user {user_id}. Using MusicAlbums to optimize payload...")
 
     params = {
-        "IncludeItemTypes": "Audio",
+        "IncludeItemTypes": "MusicAlbum",
         "Recursive": "true",
         "Fields": "Genres",
         "UserId": user_id
@@ -28,29 +28,30 @@ def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=60)
         r.raise_for_status()
 
-        all_songs = r.json().get("Items", [])
+        all_albums = r.json().get("Items", [])
 
-        if not all_songs:
-            logging.info(f"No audio items found for user {user_id}. Returning empty genre list.")
+        if not all_albums:
+            logger.info(f"No music albums found for user {user_id}. Returning empty genre list.")
             return []
 
         unique_genres = set()
-        for song in all_songs:
-            for genre_name in song.get("Genres", []):
+        for album in all_albums:
+            for genre_name in album.get("Genres", []):
                 unique_genres.add(genre_name)
 
-        logging.info(f"Found {len(unique_genres)} unique music genres for user {user_id}.")
+        logger.info(f"Found {len(unique_genres)} unique music genres for user {user_id} across {len(all_albums)} albums.")
 
         genre_list = [{"Name": name, "Id": name} for name in sorted(list(unique_genres))]
         return genre_list
 
     except Exception as e:
-        logging.error(f"Failed to aggregate music genres for user {user_id}: {e}", exc_info=True)
+        logger.error(f"Failed to aggregate music genres for user {user_id}: {e}", exc_info=True)
         return []
 
 def get_music_artists(hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all music artists from Emby for the user specified in the header."""
     user_id = hdr.get("X-Emby-User-Id")
+    logger.info(f"Fetching all music artists for user {user_id}...")
     params = {
         "IncludeItemTypes": "MusicArtist",
         "Recursive": "true",
@@ -60,7 +61,9 @@ def get_music_artists(hdr: Dict[str, str]) -> List[Dict[str, str]]:
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=20)
     r.raise_for_status()
-    return r.json().get("Items", [])
+    artists = r.json().get("Items", [])
+    logger.info(f"Found {len(artists)} music artists.")
+    return artists
 
 def get_random_artist(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
     """Fetches all music artists and returns one at random."""
@@ -88,6 +91,7 @@ def get_random_album(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
 def get_albums_by_artist(artist_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all albums for a given artist."""
     user_id = hdr.get("X-Emby-User-Id")
+    logger.info(f"Fetching albums for artist ID {artist_id}...")
     params = {
         "IncludeItemTypes": "MusicAlbum",
         "Recursive": "true",
@@ -99,12 +103,15 @@ def get_albums_by_artist(artist_id: str, hdr: Dict[str, str]) -> List[Dict[str, 
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
-    return r.json().get("Items", [])
+    albums = r.json().get("Items", [])
+    logger.info(f"Found {len(albums)} albums.")
+    return albums
 
 
 def get_songs_by_album(album_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all songs for a given album, sorted by track number."""
     user_id = hdr.get("X-Emby-User-Id")
+    logger.info(f"Fetching songs for album ID {album_id}...")
     params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
@@ -115,11 +122,14 @@ def get_songs_by_album(album_id: str, hdr: Dict[str, str]) -> List[Dict[str, str
     }
     r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
-    return r.json().get("Items", [])
+    songs = r.json().get("Items", [])
+    logger.info(f"Found {len(songs)} songs.")
+    return songs
 
 def get_songs_by_artist(artist_id: str, hdr: Dict[str, str], sort: str = "PlayCount", limit: Optional[int] = None) -> List[Dict[str, str]]:
     """Fetches songs for an artist, with optional sorting and limiting."""
     user_id = hdr.get("X-Emby-User-Id")
+    logger.info(f"Fetching songs for artist ID {artist_id} (Sort: {sort}, Limit: {limit})...")
     params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
@@ -137,12 +147,14 @@ def get_songs_by_artist(artist_id: str, hdr: Dict[str, str], sort: str = "PlayCo
         songs.sort(key=lambda x: x.get("UserData", {}).get("PlayCount", 0), reverse=True)
 
     if limit:
-        return songs[:limit]
-
+        songs = songs[:limit]
+        
+    logger.info(f"Returning {len(songs)} tracks for artist.")
     return songs
 
 def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Finds songs based on a set of filters, similar to find_movies."""
+    logger.info(f"Finding songs for user {user_id} with filters: {filters}")
     base_params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
@@ -153,6 +165,7 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
     r.raise_for_status()
     all_songs = r.json().get("Items", [])
+    logger.info(f"Retrieved {len(all_songs)} initial songs from API.")
 
     genres_to_search = filters.get("genres")
     if genres_to_search:
@@ -176,6 +189,7 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
             ]
 
     final_list = all_songs
+    logger.info(f"Local filtering complete. {len(final_list)} songs match criteria.")
 
     sort_by = filters.get("sort_by", "Random")
     if sort_by == "Random":
@@ -186,6 +200,7 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
 
     limit = filters.get("limit")
     if limit is not None:
+        logger.info(f"Applying count limit. Returning {int(limit)} songs.")
         return final_list[:int(limit)]
 
     return final_list

@@ -1,15 +1,18 @@
+<!-- templates/partials/_music_block.html -->
 <template x-if="block && block.type === 'music'">
     <div x-data="{ editModalOpen: false, artistSearch: '', albums: [] }"
          x-init="
             $store.mixer.ensureBlockState(block);
             if(block.music && block.music.artistId) {
-                albums = await (await fetch(`api/music/artists/${block.music.artistId}/albums`)).json();
+                fetch(`api/music/artists/${block.music.artistId}/albums`)
+                    .then(res => res.json())
+                    .then(data => { albums = data; });
             }
          ">
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             <summary>
                 <div class="mixed-block-header">
-                    <button type="button" class="icon-btn drag-handle" title="Drag to reorder" x-html="$store.icons.move"></button>
+                    <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle title="Drag to reorder" x-html="$store.icons.move"></button>
                     <h3 class="flex-row align-center gap-xs">
                         <template x-if="block.is_ai_generated">
                             <span class="ai-badge-icon" x-html="$store.icons.zap"></span>
@@ -51,11 +54,17 @@
 
                             <div x-show="block.music && block.music.mode === 'genre'">
                                 <template x-if="block.music && block.music.filters && block.music.filters.genres?.length">
-                                    <div class="flex-row flex-wrap gap-sm">
-                                        <template x-for="(g,i) in block.music.filters.genres" :key="'msg-'+g">
+                                    <div class="flex-row flex-wrap gap-sm align-center">
+                                        <template x-for="(g, i) in block.music.filters.genres.slice(0, 3)" :key="'msg-'+g">
                                             <span class="badge badge-accent-light" x-text="g"></span>
                                         </template>
+                                        <template x-if="block.music.filters.genres.length > 3">
+                                            <span class="text-subtle" style="font-size: 0.85rem;"> + <span x-text="block.music.filters.genres.length - 3"></span> more</span>
+                                        </template>
                                     </div>
+                                </template>
+                                <template x-if="!block.music || !block.music.filters || !block.music.filters.genres?.length">
+                                    <div class="text-subtle italic" style="font-size: 0.85rem;">No genres selected</div>
                                 </template>
                             </div>
 
@@ -77,7 +86,7 @@
                                 </div>
                             </template>
                             <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true">
-                                <span x-html="$store.icons.sliders"></span> Edit Filters
+                                <span x-html="$store.icons.sliders"></span> Edit Settings
                             </button>
                         </div>
                     </div>
@@ -103,7 +112,7 @@
                             <div x-show="block.music?.mode !== 'genre'" class="flex-column gap-md">
                                 <div class="search-and-select w-full">
                                     <input type="search" placeholder="Search artists..." x-model="artistSearch" class="mb-sm">
-                                    <select x-model="block.music.artistId" @change="block.music.albumId = ''; if($el.value) albums = await (await fetch(`api/music/artists/${$el.value}/albums`)).json()">
+                                    <select x-model="block.music.artistId" @change="block.music.albumId = ''; if($el.value) fetch(`api/music/artists/${$el.value}/albums`).then(r => r.json()).then(d => { albums = d; })">
                                         <option value="">-- Select Artist --</option>
                                         <template x-for="a in $store.mixer.library.artistData" :key="a.Id">
                                             <option :value="a.Id" x-text="a.Name" x-show="!artistSearch || a.Name.toLowerCase().includes(artistSearch.toLowerCase())"></option>

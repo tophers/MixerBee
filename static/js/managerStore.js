@@ -104,7 +104,6 @@ export const managerStore = {
                 isDanger: true
             });
 
-            // Handle pathing based on whether it's a Playlist or a Collection (BoxSet)
             const isCollection = parent.Type === 'BoxSet' || parent.Type === 'Collection';
             const endpointType = isCollection ? 'collections' : 'playlists';
             

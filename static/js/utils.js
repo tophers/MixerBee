@@ -18,7 +18,6 @@ export function toast(message, isSuccess, options = {}) {
   let contentHTML = `<div class="toast-message">${message}</div>`;
 
   if (actionCallback) {
-    // Access store directly from Alpine global
     const icon = typeof Alpine !== 'undefined' ? Alpine.store('icons').externalLink : '';
     contentHTML += `
       <div class="toast-actions">
@@ -51,12 +50,12 @@ export function toast(message, isSuccess, options = {}) {
   document.body.appendChild(toastElement);
 
   if (!actionCallback) {
-    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 9.5s forwards';
+    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 3.2s forwards';
     setTimeout(() => {
         if (toastElement.parentNode) {
             toastElement.remove();
         }
-    }, 10000);
+    }, 4300);
   } else {
     toastElement.style.animation = 'fadeInDown 0.5s forwards';
   }

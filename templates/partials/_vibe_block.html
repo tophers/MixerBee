@@ -1,0 +1,84 @@
+<!-- templates/partials/_vibe_block.html -->
+<template x-if="block && block.type === 'vibe'">
+    <div x-data="{ }" x-init="$store.mixer.ensureBlockState(block)">
+
+        <details class="mixed-block vibe-block-curated" :open="index === $store.mixer.blocks.length - 1">
+            <summary>
+                <div class="mixed-block-header">
+                    <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
+                    <h3 class="flex-row align-center gap-xs">
+                        <span class="ai-badge-icon pulse-icon" x-html="$store.icons.zap" style="color: var(--accent);"></span>
+                        <span x-text="block.title || (block.vibe_type === 'tv' ? 'TV Vibes' : 'Movie Vibes')"></span>
+                    </h3>
+
+                    <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
+                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
+                        <div class="dropdown-menu" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 1000;">
+                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.duplicateBlock(index)">
+                                <span class="dropdown-icon" x-html="$store.icons.copy"></span> Duplicate
+                            </a>
+                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.deleteBlock(index)" style="color: var(--danger);">
+                                <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete
+                            </a>
+                        </div>
+                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;" x-html="$store.icons.chevronUp"></span>
+                    </div>
+                </div>
+            </summary>
+
+            <div class="mixed-block-body">
+                <div class="block-summary-card curated-card">
+                    <div class="flex-row align-center gap-lg">
+                        <div class="curated-stat-box">
+                            <div class="summary-label" x-text="block.vibe_type === 'tv' ? 'Episodes' : 'Movies'"></div>
+                            <div class="curated-count" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
+                        </div>
+
+                        <div class="grow-1" style="min-width: 0;">
+                            <div class="summary-label">AI Curated Mix</div>
+                            <div class="summary-content mb-sm">
+                                <!-- Loading State -->
+                                <template x-if="block._previewLoading">
+                                    <div class="text-subtle italic" style="font-size: 0.85rem;">Validating items in your library...</div>
+                                </template>
+                                
+                                <!-- Ready State -->
+                                <template x-if="!block._previewLoading">
+                                    <div class="curated-preview-text">
+                                        <div>
+                                            <template x-if="block._previewItems && block._previewItems.length > 0">
+                                                <div>
+                                                    <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_vprev_' + i">
+                                                        <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
+                                                    </template>
+                                                    <template x-if="block._previewCount > Math.min(block._previewItems.length, 3)">
+                                                        <span class="text-subtle"> + <span x-text="block._previewCount - Math.min(block._previewItems.length, 3)"></span> more</span>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                            <template x-if="!block._previewItems || block._previewItems.length === 0">
+                                                <span class="text-subtle italic">No matches found in library.</span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="flex-row flex-wrap gap-sm align-center">
+                                <span class="badge ai-chip">✨ AI Curated</span>
+                                <span class="badge badge-outline-subtle" x-text="block.vibe_type === 'tv' ? $store.mixer.getTvBlockSummary(block) : 'Filtered Selection'"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-md curated-footer">
+                        <p class="text-subtle italic m-0" style="font-size: 0.75rem;">This block is managed by AI and cannot be manually filtered.</p>
+                        <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
+                            <span x-html="$store.icons.list"></span> Full List
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </details>
+    </div>
+</template>

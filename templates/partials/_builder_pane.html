@@ -1,3 +1,4 @@
+<!-- templates/partials/_builder_pane.html -->
 <div id="mixed-pane" class="tab-pane active">
     <div class="container">
         <div class="preset-controls" x-data="{ presetMenuOpen: false }">
@@ -55,13 +56,17 @@
             <details>
                 <summary>Expand AI Block Builder</summary>
                 <div class="textarea-wrapper">
-                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., A block of 80s action movies followed by some episodes of Star Trek TNG and The Orville" x-model="$store.mixer.aiPrompt"></textarea>
+                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.mixer.aiPrompt"></textarea>
                     <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.mixer.aiPrompt.length > 0" @click="$store.mixer.clearAiPrompt()">
                         <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
-                <div class="ai-prompt-footer">
-                    <button id="generate-with-ai-btn" type="button" class="secondary" @click="$store.mixer.generateWithAi()" :disabled="$store.mixer.isAiGenerating">
+                <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                    <div class="badge badge-outline-subtle align-center gap-xs" style="font-size: 0.7rem; opacity: 0.8; font-weight: 600;">
+                        <span x-html="$store.icons.zap" style="color: var(--accent);"></span>
+                        <span x-text="$store.settings.ai_provider === 'ollama' ? 'OLLAMA: ' + $store.settings.ollama_model.toUpperCase() : 'GOOGLE GEMINI'"></span>
+                    </div>
+                    <button id="generate-with-ai-btn" type="button" class="secondary m-0" @click="$store.mixer.generateWithAi()" :disabled="$store.mixer.isAiGenerating">
                         <span x-text="$store.mixer.isAiGenerating ? 'Thinking...' : 'Generate with AI'"></span>
                     </button>
                 </div>
@@ -79,6 +84,7 @@
                     {% include 'partials/_tv_block.html' %}
                     {% include 'partials/_movie_block.html' %}
                     {% include 'partials/_music_block.html' %}
+                    {% include 'partials/_vibe_block.html' %}
                 </div>
             </template>
         </div>
@@ -118,6 +124,7 @@
                     <span class="pill-btn" :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
                 </div>
                 <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1">
+                    <option value="">-- Target --</option>
                     <option value="">-- Target --</option>
                     <template x-for="p in $store.mixer.userPlaylists" :key="p.Id"><option :value="p.Id" x-text="p.Name"></option></template>
                 </select>

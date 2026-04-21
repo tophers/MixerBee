@@ -1,5 +1,5 @@
 """
-app/movies.py - All movie-related logic.
+app/movies.py - All movie-related logic
 """
 
 import random
@@ -36,7 +36,8 @@ def find_movies(user_id: str, filters: Dict,
     base_params = {
         "IncludeItemTypes": "Movie",
         "Recursive": "true",
-        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios,People"
+        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios,People",
+        "Limit": 2000
     }
 
     if filters.get("parent_ids"):
@@ -53,14 +54,13 @@ def find_movies(user_id: str, filters: Dict,
     people_any = filters.get("people", [])
     people_all = filters.get("people_all", [])
     combined_people = people_any + people_all
-    
+
     if combined_people:
         person_ids = []
         person_names = []
         person_types = set()
 
         for p in combined_people:
-            # Handle both dicts and legacy string entries if they exist
             p_id = p.get("Id") if isinstance(p, dict) else None
             p_name = p.get("Name") if isinstance(p, dict) else (p if isinstance(p, str) else None)
 
@@ -90,7 +90,6 @@ def find_movies(user_id: str, filters: Dict,
         if exclude_person_ids:
             base_params["ExcludePersonIds"] = ",".join(exclude_person_ids)
 
-    # Use item-endpoint if filtering by people, otherwise user-endpoint is faster
     if "PersonIds" in base_params or "ExcludePersonIds" in base_params:
         base_params["UserId"] = user_id
         endpoint_url = f"{client.EMBY_URL}/Items"
@@ -105,16 +104,16 @@ def find_movies(user_id: str, filters: Dict,
     if people_all:
         required_ids = {p["Id"] for p in people_all if isinstance(p, dict) and p.get("Id")}
         required_names = {p["Name"].lower() for p in people_all if isinstance(p, dict) and not p.get("Id") and p.get("Name")}
-        
+
         filtered_by_people = []
         for m in all_movies:
             movie_people = m.get("People", [])
             movie_person_ids = {p.get("Id") for p in movie_people}
             movie_person_names = {p.get("Name", "").lower() for p in movie_people}
-            
+
             id_match = required_ids.issubset(movie_person_ids) if required_ids else True
             name_match = required_names.issubset(movie_person_names) if required_names else True
-            
+
             if id_match and name_match:
                 filtered_by_people.append(m)
         all_movies = filtered_by_people
@@ -162,8 +161,8 @@ def find_movies(user_id: str, filters: Dict,
     if sort_by == "Random":
         random.shuffle(final_list)
     else:
-        reverse = sort_by in ("PremiereDate", "DateCreated")
-        final_list.sort(key=lambda m: m.get(sort_by, ""), reverse=reverse)
+        reverse = (sort_by == "DateCreated")
+        final_list.sort(key=lambda m: m.get(sort_by) or "", reverse=reverse)
 
     target_duration_minutes = filters.get("duration_minutes")
     if target_duration_minutes:

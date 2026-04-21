@@ -1,5 +1,5 @@
 """
-app/client.py - Handles configuration, session management, and authentication.
+app/client.py - Handles configuration, session management, and authentication
 """
 
 import os
@@ -13,7 +13,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from dotenv import load_dotenv
+from app.logger import get_logger
 
+logger = get_logger("MixerBee.Client")
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -51,11 +53,19 @@ def test_connection(hdr: Dict[str, str]) -> Tuple[bool, int]:
     Returns (isValid: bool, statusCode: int).
     """
     if not EMBY_URL:
+        logger.warning("Connection test failed: Server URL is not configured.")
         return False, 0
     try:
+        logger.info(f"Testing server connection: {EMBY_URL}/System/Info")
         r = SESSION.get(f"{EMBY_URL}/System/Info", headers=hdr, timeout=5)
-        return r.status_code == 200, r.status_code
-    except requests.RequestException:
+        is_valid = r.status_code == 200
+        if is_valid:
+            logger.info("Connection test successful.")
+        else:
+            logger.warning(f"Connection test returned unexpected status: {r.status_code}")
+        return is_valid, r.status_code
+    except requests.RequestException as e:
+        logger.error(f"Connection test failed with exception: {e}")
         return False, 500 
 
 
@@ -67,6 +77,7 @@ def authenticate(username: str, password: str, url: str, server_type: str) -> Tu
     if not auth_url:
         raise ValueError("Server URL is not configured.")
 
+    logger.info(f"Authenticating user '{username}' with {server_type} server at {auth_url}...")
     endpoint = f"{auth_url}/Users/AuthenticateByName"
     payload = {"Username": username, "Pw": password}
 
@@ -79,9 +90,14 @@ def authenticate(username: str, password: str, url: str, server_type: str) -> Tu
 
     r = SESSION.post(endpoint, json=payload, headers=headers, timeout=10)
 
-    r.raise_for_status()
-    j = r.json()
-    return j["User"]["Id"], j["AccessToken"]
+    try:
+        r.raise_for_status()
+        j = r.json()
+        logger.info("Authentication successful. Token acquired.")
+        return j["User"]["Id"], j["AccessToken"]
+    except requests.RequestException as e:
+        logger.error(f"Authentication failed: {e}")
+        raise
 
 
 def auth_headers(token: str, user_id: str) -> Dict[str, str]:

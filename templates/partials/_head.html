@@ -1,3 +1,4 @@
+<!-- templates/partials/_head.html -->
 <head>
     <meta charset="utf-8">
     <title>MixerBee</title>
@@ -8,12 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
     <script src="static/js/header.js"></script>
-
+    <!-- ToDo: Consolidate Styles in CSS -->
     <style>
-        /* Force Icons to render with correct sizing regardless of parent class */
         svg.mb-icon,
-        .icon-btn svg, 
-        .dropdown-item svg, 
+        .icon-btn svg,
+        .dropdown-item svg,
         .align-center svg,
         .drag-handle svg,
         .header-user-display svg {
@@ -25,7 +25,7 @@
         }
         .small-icon svg { width: 0.9em; height: 0.9em; }
         .ai-badge-icon svg { color: var(--accent); }
-        
+
         .drag-handle { cursor: grab; }
         .drag-handle:active { cursor: grabbing; }
         .token {
@@ -64,6 +64,61 @@
         .token-logic-any { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb), 0.05); }
         .token-logic-all { border-color: #4ade80 !important; color: #4ade80 !important; background: rgba(74, 222, 128, 0.1); }
         .token-logic-exclude { border-color: #f87171 !important; color: #f87171 !important; background: rgba(248, 113, 113, 0.1); }
+
+        .vibe-block-curated {
+            border-left: 4px solid var(--accent) !important;
+            background: linear-gradient(to right, rgba(var(--accent-rgb), 0.05), transparent) !important;
+        }
+        .curated-card {
+            border: 1px solid rgba(var(--accent-rgb), 0.2) !important;
+            background: rgba(var(--accent-rgb), 0.02) !important;
+        }
+        .curated-stat-box {
+            background: rgba(var(--accent-rgb), 0.1);
+            padding: 0.75rem;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 90px;
+            border: 1px solid rgba(var(--accent-rgb), 0.1);
+        }
+        .curated-count {
+            font-size: 1.6rem;
+            font-weight: 800;
+            color: var(--accent);
+            line-height: 1;
+            margin-top: 4px;
+        }
+        .curated-preview-text {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-main);
+        }
+        .ai-chip {
+            background: var(--accent);
+            color: white;
+            border: none;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+            font-size: 0.65rem;
+            padding: 4px 8px;
+        }
+        .curated-footer {
+            border-top: 1px solid rgba(var(--accent-rgb), 0.1);
+            padding-top: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @keyframes pulse-subtle {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+        .pulse-icon {
+            animation: pulse-subtle 3s infinite ease-in-out;
+        }
     </style>
 
     <script>

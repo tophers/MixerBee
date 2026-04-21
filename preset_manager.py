@@ -1,5 +1,5 @@
 """
-presets_manager.py – Manages presets.
+presets_manager.py – Manages presets
 """
 
 import json

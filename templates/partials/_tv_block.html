@@ -1,3 +1,4 @@
+<!-- templates/partials/_tv_block.html -->
 <template x-if="block && block.type === 'tv'">
     <div x-data="{ editModalOpen: false }" x-init="$store.mixer.ensureBlockState(block)">
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
@@ -21,10 +22,26 @@
             <div class="mixed-block-body">
                 <div class="block-summary-card">
                     <div class="summary-label">Shows Included</div>
-                    <div class="summary-content" x-text="$store.mixer.getTvShowList(block)"></div>
-                    <div class="summary-footer mt-md">
+                    
+                    <div class="summary-content mb-sm">
+                        <template x-if="block.shows && block.shows.length > 0">
+                            <div style="font-size: 0.9rem; line-height: 1.4;">
+                                <template x-for="(show, i) in block.shows.slice(0, 3)" :key="block._uid + '_showprev_' + (show._uid || i)">
+                                    <span x-text="(show.name || 'Unknown') + (i < Math.min(block.shows.length, 3) - 1 ? ', ' : '')"></span>
+                                </template>
+                                <template x-if="block.shows.length > 3">
+                                    <span style="color: var(--text-subtle);"> + <span x-text="block.shows.length - 3"></span> more</span>
+                                </template>
+                            </div>
+                        </template>
+                        <template x-if="!block.shows || block.shows.length === 0">
+                            <div class="text-subtle italic" style="font-size: 0.85rem;">No shows selected</div>
+                        </template>
+                    </div>
+
+                    <div class="summary-footer mt-md" style="display: flex; align-items: center; justify-content: space-between;">
                         <span class="badge" x-text="$store.mixer.getTvBlockSummary(block)"></span>
-                        <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true" style="margin-left: auto;"><span x-html="$store.icons.edit"></span> Edit Shows</button>
+                        <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true"><span x-html="$store.icons.edit"></span> Edit Shows</button>
                     </div>
                 </div>
             </div>
@@ -61,18 +78,18 @@
                     <div class="tv-block-shows" x-sort:config="{ handle: '.show-drag-handle' }" x-sort="block.shows">
                         <template x-for="(show, rowIndex) in (block.shows || [])" :key="show._uid">
                             <div class="tv-block-show-row" x-sort:item :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowMenuOpen: false }" style="display: flex; align-items: flex-start; gap: 0.5rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
-                                
-                                <div class="drag-handle show-drag-handle" 
-                                     x-sort:handle 
-                                     @mousedown.stop 
+
+                                <div class="drag-handle show-drag-handle"
+                                     x-sort:handle
+                                     @mousedown.stop
                                      @touchstart.stop
-                                     style="margin-top: 8px; padding: 4px; color: var(--text-subtle);" 
+                                     style="margin-top: 8px; padding: 4px; color: var(--text-subtle);"
                                      x-html="$store.icons.move"></div>
 
                                 <div class="show-selector-area grow-1">
                                     <div class="show-input-wrapper">
-                                        <select class="w-full" 
-                                                :value="show.name" 
+                                        <select class="w-full"
+                                                :value="show.name"
                                                 @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show)">
                                             <option value="">-- Select a show --</option>
                                             <template x-for="s in $store.mixer.library.seriesData" :key="s.id">

@@ -1,3 +1,4 @@
+<!-- templates/partials/_scheduler_pane.html -->
 <div id="scheduler-pane" class="tab-pane hidden"
      x-data="{ jobModalOpen: null }">
     <div class="container">
@@ -6,7 +7,8 @@
                 <h2 class="m-0">Automated Jobs</h2>
                 <p class="m-0 text-subtle" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
             </div>
-            <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.addEntry()">
+            <!-- FIX: Use $nextTick to wait for the DOM to render the new block before opening the modal -->
+            <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
                 <span x-html="$store.icons.plus"></span> Add New Job
             </button>
         </div>

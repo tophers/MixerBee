@@ -1,8 +1,7 @@
 """
-app/items.py - Generic playlist, collection, and item management.
+app/items.py - Generic playlist, collection, and item management
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Any
 import random
@@ -14,17 +13,21 @@ from . import client
 from .movies import find_movies
 from .music import get_songs_by_artist, get_songs_by_album, find_songs
 from .tv import get_first_unwatched_episode, get_specific_episode
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Items")
 
 def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
     """Deletes a single Emby item by its ID. Returns True on success."""
     if not item_id:
         return False
     try:
+        logger.info(f"Deleting item {item_id} from server.")
         resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{item_id}", headers=hdr, timeout=10)
         resp.raise_for_status()
         return True
     except requests.RequestException:
-        logging.error(f"Failed to delete item with ID {item_id}", exc_info=True)
+        logger.error(f"Failed to delete item with ID {item_id}", exc_info=True)
         return False
 
 def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[Dict]:
@@ -64,24 +67,22 @@ def remove_item_from_collection(collection_id: str, item_id: str, hdr: Dict[str,
     Removes a specific item from an Emby/Jellyfin Collection (BoxSet).
     """
     try:
-        # Use the centralized client URL and Session for consistency
         url = f"{client.EMBY_URL}/Collections/{collection_id}/Items"
         params = {"Ids": item_id}
 
-        # Filter headers to remove internal mixerbee helper keys
         request_headers = {k: v for k, v in hdr.items() if not k.startswith("__")}
 
         response = client.SESSION.delete(url, headers=request_headers, params=params, timeout=10)
 
         if response.status_code in [200, 204]:
-            logging.info(f"Successfully removed item {item_id} from collection {collection_id}")
+            logger.info(f"Successfully removed item {item_id} from collection {collection_id}")
             return True
         else:
-            logging.error(f"Failed to remove item from collection. Status: {response.status_code}, Response: {response.text}")
+            logger.error(f"Failed to remove item from collection. Status: {response.status_code}, Response: {response.text}")
             return False
 
     except Exception as e:
-        logging.error(f"Error in remove_item_from_collection: {e}", exc_info=True)
+        logger.error(f"Error in remove_item_from_collection: {e}", exc_info=True)
         return False
 
 def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
@@ -114,16 +115,17 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
                 break
 
         if not playlist_item_id:
-            logging.warning(f"Could not find item {item_id_to_remove} in playlist {playlist_id} to get its PlaylistItemId.")
+            logger.warning(f"Could not find item {item_id_to_remove} in playlist {playlist_id} to get its PlaylistItemId.")
             return False
 
         delete_params = {"EntryIds": playlist_item_id}
         del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", params=delete_params, headers=hdr, timeout=10)
         del_resp.raise_for_status()
+        logger.info(f"Removed item {item_id_to_remove} from playlist {playlist_id}.")
         return True
 
     except requests.RequestException as e:
-        logging.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
+        logger.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         return False
 
 def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
@@ -136,9 +138,13 @@ def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]
         resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{pl['Id']}",
                                      headers=hdr, timeout=10)
         if resp.status_code in (200, 204):
-            log.append(f"Deleted existing playlist '{name}'.")
+            msg = f"Deleted existing playlist '{name}'."
+            logger.info(msg)
+            log.append(msg)
         else:
-            log.append(f"Failed deleting playlist '{name}': HTTP {resp.status_code}")
+            msg = f"Failed deleting playlist '{name}': HTTP {resp.status_code}"
+            logger.error(msg)
+            log.append(msg)
 
 def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]):
     """Helper to restore items in chunks during a rollback."""
@@ -154,16 +160,16 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
             )
             resp.raise_for_status()
         except requests.RequestException as e:
-            logging.error(f"Rollback chunk failed: {e}")
+            logger.error(f"Rollback chunk failed: {e}")
             failed_restores += len(chunk)
 
     if failed_restores > 0:
         msg = f"Rollback incomplete: {failed_restores} items could not be restored."
-        logging.error(msg)
+        logger.error(msg)
         log.append(msg)
     else:
         msg = "Rollback successful. Original items were restored to the playlist."
-        logging.info(msg)
+        logger.info(msg)
         log.append(msg)
 
 
@@ -186,7 +192,7 @@ def clear_playlist_items(
         items = r.json().get("Items", [])
     except requests.RequestException as e:
         msg = f"Failed to fetch items for playlist {playlist_id}: {e}"
-        logging.error(msg, exc_info=True)
+        logger.error(msg, exc_info=True)
         log.append(msg)
         return False
 
@@ -218,12 +224,12 @@ def clear_playlist_items(
                 successfully_removed_media_ids.extend(media_ids)
                 break
             except requests.RequestException as e:
-                logging.warning(f"Failed to delete chunk (Attempt {attempt + 1}/{max_attempts}): {e}")
+                logger.warning(f"Failed to delete chunk (Attempt {attempt + 1}/{max_attempts}): {e}")
                 time.sleep(1)
 
         if not chunk_success:
             error_msg = "Failed to clear playlist completely. Initiating rollback to restore removed items..."
-            logging.error(error_msg)
+            logger.error(error_msg)
             log.append(error_msg)
 
             if restore_on_failure and successfully_removed_media_ids:
@@ -254,10 +260,12 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
         except requests.RequestException as e:
             error_msg = f"Failed to add a chunk of items ({e}). Aborting to prevent duplicates."
             log.append(error_msg)
-            logging.error(error_msg)
+            logger.error(error_msg)
             return False
 
-    log.append(f"Successfully added {total_added} items to the playlist.")
+    msg = f"Successfully added {total_added} items to the playlist."
+    logger.info(msg)
+    log.append(msg)
     return True
 
 def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str], log: List[str]):
@@ -267,7 +275,9 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
 
     if target_playlist:
         playlist_id = target_playlist["Id"]
-        log.append(f"Playlist '{name}' already exists. Updating in-place (ID preserved).")
+        msg = f"Playlist '{name}' already exists. Updating in-place (ID preserved)."
+        logger.info(msg)
+        log.append(msg)
 
         try:
             r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
@@ -275,7 +285,9 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             r.raise_for_status()
             old_media_ids = [item.get("Id") for item in r.json().get("Items", []) if item.get("Id")]
         except requests.RequestException as e:
-            log.append("Failed to backup existing playlist items. Update aborted to prevent data loss.")
+            msg = "Failed to backup existing playlist items. Update aborted to prevent data loss."
+            logger.error(msg)
+            log.append(msg)
             return None
 
         if clear_playlist_items(playlist_id, user_id, hdr, log):
@@ -285,7 +297,9 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             if success:
                 return playlist_id
             else:
-                log.append("Addition phase failed. Rolling back to original playlist state...")
+                msg = "Addition phase failed. Rolling back to original playlist state..."
+                logger.error(msg)
+                log.append(msg)
 
                 clear_success = clear_playlist_items(playlist_id, user_id, hdr, log, restore_on_failure=False)
 
@@ -293,7 +307,7 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
                     _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
                 else:
                     msg = "CRITICAL: Could not wipe partial additions during rollback. Aborting restore to prevent a corrupted/mixed playlist."
-                    logging.error(msg)
+                    logger.error(msg)
                     log.append(msg)
 
                 return None
@@ -302,6 +316,7 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             return None
     else:
         first_chunk = ids[:50] if ids else []
+        logger.info(f"Creating new playlist '{name}' on server.")
         resp = client.SESSION.post(
             f"{client.EMBY_URL}/Playlists",
             headers=hdr,
@@ -311,23 +326,29 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
 
         if resp.ok:
             new_id = resp.json().get("Id")
-            log.append(f"Playlist '{name}' created successfully.")
+            msg = f"Playlist '{name}' created successfully."
+            logger.info(msg)
+            log.append(msg)
 
             if len(ids) > 50:
                 success = add_items_to_playlist_by_ids(new_id, ids[50:], user_id, hdr, log)
 
                 if not success:
-                    log.append("Failed to append all items. Rolling back by deleting incomplete playlist.")
+                    msg = "Failed to append all items. Rolling back by deleting incomplete playlist."
+                    logger.error(msg)
+                    log.append(msg)
                     delete_success = delete_item_by_id(new_id, hdr)
                     if not delete_success:
                         msg = f"CRITICAL: Failed to delete incomplete playlist (ID: {new_id}) during rollback. Orphaned playlist remains on server."
-                        logging.error(msg)
+                        logger.error(msg)
                         log.append(msg)
                     return None
 
             return new_id
         else:
-            log.append(f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}")
+            msg = f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}"
+            logger.error(msg)
+            log.append(msg)
             return None
 
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
@@ -389,7 +410,7 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
         return {"status": "error", "log": log}
     except Exception as e:
         log.append(f"An unexpected error occurred: {e}")
-        logging.error("Error in create_recently_added_playlist", exc_info=True)
+        logger.error("Error in create_recently_added_playlist", exc_info=True)
         return {"status": "error", "log": log}
 
 def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
@@ -660,9 +681,13 @@ def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[st
     for c in targets:
         resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{c['Id']}", headers=hdr, timeout=10)
         if resp.status_code in (200, 204):
-            log.append(f"Deleted existing collection '{name}'.")
+            msg = f"Deleted existing collection '{name}'."
+            logger.info(msg)
+            log.append(msg)
         else:
-            log.append(f"Failed deleting collection '{name}': HTTP {resp.status_code}")
+            msg = f"Failed deleting collection '{name}': HTTP {resp.status_code}"
+            logger.error(msg)
+            log.append(msg)
 
 def create_movie_collection(user_id: str, collection_name: str, filters: Dict, hdr: Dict[str, str]) -> Dict:
     """Creates a movie collection from a set of movie filters."""
@@ -691,15 +716,17 @@ def create_movie_collection(user_id: str, collection_name: str, filters: Dict, h
         r.raise_for_status()
 
         new_item_id = r.json().get("Id")
-        log.append(f"Successfully created collection '{collection_name}' with {len(item_ids)} items.")
+        msg = f"Successfully created collection '{collection_name}' with {len(item_ids)} items."
+        logger.info(msg)
+        log.append(msg)
         return {"status": "ok", "log": log, "new_item_id": new_item_id}
 
     except Exception as e:
         error_message = f"Failed to create collection: {e}"
         log.append(error_message)
-        logging.error(error_message)
+        logger.error(error_message)
         if hasattr(e, 'response') and e.response is not None:
-            logging.error(f"Response Body: {e.response.text}")
+            logger.error(f"Response Body: {e.response.text}")
         return {"status": "error", "log": log}
 
 def create_collection_from_ids(user_id: str, collection_name: str, item_ids: List[str], hdr: Dict[str, str], log: List[str]) -> str:
@@ -717,9 +744,11 @@ def create_collection_from_ids(user_id: str, collection_name: str, item_ids: Lis
         r.raise_for_status()
 
         new_id = r.json().get("Id")
-        log.append(f"Successfully created collection '{collection_name}'.")
+        msg = f"Successfully created collection '{collection_name}'."
+        logger.info(msg)
+        log.append(msg)
         return new_id
     except Exception as e:
         log.append(f"Failed to create collection: {e}")
-        logging.error(f"Failed to create collection from IDs: {e}", exc_info=True)
+        logger.error(f"Failed to create collection from IDs: {e}", exc_info=True)
         return None

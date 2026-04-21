@@ -7,7 +7,6 @@ import { settingsStore } from './settingsStore.js';
 import { schedulerStore } from './schedulerStore.js';
 import { managerStore } from './managerStore.js';
 
-/** Merges module logic into the shells defined in _head.html */
 const hydrateStores = () => {
     if (typeof Alpine === 'undefined') return;
 
@@ -123,6 +122,8 @@ async function initializeApp() {
             const sStore = Alpine.store('settings');
             sStore.version = config.version || '';
             sStore.server_type = config.server_type || 'emby';
+            sStore.ai_provider = config.ai_provider || 'gemini';
+            sStore.ollama_model = config.ollama_model || '';
 
             sStore.is_ai_configured = !!config.is_ai_configured;
 

@@ -1,9 +1,10 @@
 """
-app_state.py – Manages global configuration and runtime state.
+app_state.py – Manages global configuration
 """
 
 import os
 import logging
+import hashlib
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -21,34 +22,93 @@ CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 login_uid, token, HDR, is_configured = None, None, {}, False
 DEFAULT_USER_NAME, DEFAULT_UID = None, None
 GEMINI_API_KEY = None
-SERVER_TYPE = None
-SERVER_ID = None
+
+AI_PROVIDER = "gemini"
+OLLAMA_URL = "http://localhost:11434"
+OLLAMA_MODEL = "qwen2.5:7b"
+VERBOSE_LOGGING = False
+
 CACHE_REFRESH_MINUTES = 15
+SERVER_TYPE = "emby"
+SERVER_ID = None
+
+def get_env_hash():
+    """Calculates an MD5 hash of the .env file to detect manual changes."""
+    if not ENV_PATH.exists():
+        return ""
+    with open(ENV_PATH, "rb") as f:
+        return hashlib.md5(f.read()).hexdigest()
+
+def sync_env_to_db():
+    """
+    Checks if the .env file has changed since the last run.
+    If it has, we push the .env values into the database.
+    """
+    import database 
+    
+    current_hash = get_env_hash()
+    
+    with database.get_db_connection() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = 'env_hash'").fetchone()
+        stored_hash = row['value'] if row else ""
+        
+        if current_hash != stored_hash:
+            logging.info("SETTINGS: .env file change detected. Syncing to database...")
+            load_dotenv(ENV_PATH, override=True)
+            
+            keys_to_sync = [
+                "SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS",
+                "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY",
+                "VERBOSE_LOGGING"
+            ]
+            
+            for k in keys_to_sync:
+                val = os.environ.get(k, "")
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                    (k, val)
+                )
+            
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('env_hash', ?)", (current_hash,))
+            conn.commit()
+
+def load_settings_from_db():
+    """Hydrates runtime globals from the SQLite settings table."""
+    import database
+    
+    global SERVER_TYPE, AI_PROVIDER, OLLAMA_URL, OLLAMA_MODEL, GEMINI_API_KEY, VERBOSE_LOGGING
+    
+    with database.get_db_connection() as conn:
+        rows = conn.execute("SELECT key, value FROM settings").fetchall()
+        settings = {row['key']: row['value'] for row in rows}
+        
+        SERVER_TYPE = settings.get("SERVER_TYPE", "emby").lower()
+        core.EMBY_URL = settings.get("EMBY_URL", "").rstrip("/")
+        core.EMBY_USER = settings.get("EMBY_USER")
+        core.EMBY_PASS = settings.get("EMBY_PASS")
+        
+        AI_PROVIDER = settings.get("AI_PROVIDER", "gemini").lower()
+        OLLAMA_URL = settings.get("OLLAMA_URL", "http://localhost:11434")
+        OLLAMA_MODEL = settings.get("OLLAMA_MODEL", "qwen2.5:7b")
+        GEMINI_API_KEY = settings.get("GEMINI_API_KEY")
+        VERBOSE_LOGGING = str(settings.get("VERBOSE_LOGGING", "false")).lower() in ("true", "1", "t", "yes")
 
 def load_and_authenticate() -> bool:
-    """Loads config from .env and authenticates, setting global state. Returns True if successful."""
-    global login_uid, token, HDR, is_configured, DEFAULT_USER_NAME, DEFAULT_UID, GEMINI_API_KEY, SERVER_TYPE, SERVER_ID, CACHE_REFRESH_MINUTES
-
-    load_dotenv(ENV_PATH, override=True)
-
-    SERVER_TYPE = os.environ.get("SERVER_TYPE", "emby").lower()
-    core.EMBY_URL = os.environ.get("EMBY_URL", "").rstrip("/")
-    core.EMBY_USER = os.environ.get("EMBY_USER")
-    core.EMBY_PASS = os.environ.get("EMBY_PASS")
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    """Master startup sequence: Hash check -> DB Sync -> Hydrate -> Authenticate."""
+    global login_uid, token, HDR, is_configured, DEFAULT_USER_NAME, DEFAULT_UID, SERVER_ID
 
     try:
-        CACHE_REFRESH_MINUTES = int(os.environ.get("CACHE_REFRESH_MINUTES", 15))
-        if CACHE_REFRESH_MINUTES <= 0:
-            logging.warning("CACHE_REFRESH_MINUTES must be a positive integer. Falling back to default of 15 minutes.")
-            CACHE_REFRESH_MINUTES = 15
-    except (ValueError, TypeError):
-        logging.warning("Invalid CACHE_REFRESH_MINUTES value. Falling back to default of 15 minutes.")
-        CACHE_REFRESH_MINUTES = 15
+        sync_env_to_db()
+        load_settings_from_db()
 
-    try:
+        try:
+            from app.logger import refresh_logger_level
+            refresh_logger_level()
+        except ImportError:
+            pass
+
         if not all([core.EMBY_URL, core.EMBY_USER, core.EMBY_PASS]):
-            raise ValueError("Missing required Emby/Jellyfin credentials in environment.")
+            raise ValueError("Incomplete server configuration.")
 
         login_uid, token = core.authenticate(core.EMBY_USER, core.EMBY_PASS, core.EMBY_URL, SERVER_TYPE)
         HDR = core.auth_headers(token, login_uid)
@@ -59,16 +119,9 @@ def load_and_authenticate() -> bool:
 
         DEFAULT_USER_NAME = core.EMBY_USER
         DEFAULT_UID = login_uid
-
         is_configured = True
-        logging.info(f"Successfully loaded configuration and authenticated with {SERVER_TYPE.capitalize()}. Server ID: {SERVER_ID}")
-        logging.info(f"Library data cache refresh interval set to {CACHE_REFRESH_MINUTES} minutes.")
         return True
-
     except Exception as e:
-        login_uid, token, HDR, is_configured = None, None, {}, False
-        DEFAULT_USER_NAME, DEFAULT_UID = None, None
-        SERVER_TYPE = None
-        SERVER_ID = None
-        logging.warning(f"Configuration load or authentication failed: {e}")
+        is_configured = False
+        logging.warning(f"Auth failed: {e}")
         return False

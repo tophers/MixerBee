@@ -1,3 +1,4 @@
+<!-- templates/partials/_movie_block.html -->
 <template x-if="block && block.type === 'movie'">
     <div x-data="{
         filterModalOpen: false,
@@ -6,7 +7,7 @@
         personQuery: '',
         personSuggestions: [],
         personRole: 'Person',
-        
+
         getPreviewCount() {
             if (block._previewLoading) return '...';
             return block._previewCount ?? '0';
@@ -27,7 +28,7 @@
         }
     }"
     x-init="$store.mixer.ensureBlockState(block)">
-        
+
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             <summary>
                 <div class="mixed-block-header">
@@ -67,11 +68,11 @@
                             <div class="summary-content mb-sm">
                                 <template x-if="block._previewItems && block._previewItems.length > 0">
                                     <div style="font-size: 0.9rem; line-height: 1.4;">
-                                        <template x-for="(item, i) in block._previewItems" :key="block._uid + '_prev_' + i">
-                                            <span x-text="(item.name || item.Name || 'Unknown') + (i < block._previewItems.length - 1 ? ', ' : '')"></span>
+                                        <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_prev_' + i">
+                                            <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
                                         </template>
-                                        <template x-if="block._previewCount > (block._previewItems || []).length">
-                                            <span style="color: var(--text-subtle);"> + <span x-text="block._previewCount - (block._previewItems || []).length"></span> more</span>
+                                        <template x-if="block._previewCount > 3">
+                                            <span style="color: var(--text-subtle);"> + <span x-text="block._previewCount - 3"></span> more</span>
                                         </template>
                                     </div>
                                 </template>
@@ -161,6 +162,20 @@
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'exclude_people', block.filters.exclude_people.indexOf(p))">&times;</b>
                                 </span>
                             </template>
+                            <template x-for="s in (block.filters?.studios || [])" :key="block._uid + '_stany_' + s">
+                                <span class="token token-logic-any" @click="$store.mixer.cycleTokenState(block, 'studios', s)">
+                                    <span class="token-state-trigger">⊕</span>
+                                    <span class="token-label" x-text="s"></span>
+                                    <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'studios', block.filters.studios.indexOf(s))">&times;</b>
+                                </span>
+                            </template>
+                            <template x-for="s in (block.filters?.exclude_studios || [])" :key="block._uid + '_stex_' + s">
+                                <span class="token token-logic-exclude" @click="$store.mixer.cycleTokenState(block, 'exclude_studios', s)">
+                                    <span class="token-state-trigger">⊖</span>
+                                    <span class="token-label" x-text="s"></span>
+                                    <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'exclude_studios', block.filters.exclude_studios.indexOf(s))">&times;</b>
+                                </span>
+                            </template>
                         </div>
                     </fieldset>
 
@@ -179,22 +194,22 @@
                         <div class="token-container mt-sm">
                             <template x-for="g in (block.filters?.genres_any || [])" :key="block._uid + '_ga_' + g">
                                 <span class="token token-logic-any" @click="$store.mixer.cycleTokenState(block, 'genres_any', g)">
-                                    <span class="token-state-trigger">⊕</span> 
-                                    <span class="token-label" x-text="g"></span> 
+                                    <span class="token-state-trigger">⊕</span>
+                                    <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_any', block.filters.genres_any.indexOf(g))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="g in (block.filters?.genres_all || [])" :key="block._uid + '_gall_' + g">
                                 <span class="token token-logic-all" @click="$store.mixer.cycleTokenState(block, 'genres_all', g)">
-                                    <span class="token-state-trigger">✓</span> 
-                                    <span class="token-label" x-text="g"></span> 
+                                    <span class="token-state-trigger">✓</span>
+                                    <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_all', block.filters.genres_all.indexOf(g))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="g in (block.filters?.genres_exclude || [])" :key="block._uid + '_gex_' + g">
                                 <span class="token token-logic-exclude" @click="$store.mixer.cycleTokenState(block, 'genres_exclude', g)">
-                                    <span class="token-state-trigger">⊖</span> 
-                                    <span class="token-label" x-text="g"></span> 
+                                    <span class="token-state-trigger">⊖</span>
+                                    <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_exclude', block.filters.genres_exclude.indexOf(g))">&times;</b>
                                 </span>
                             </template>

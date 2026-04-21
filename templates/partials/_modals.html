@@ -1,3 +1,4 @@
+<!-- templates/partials/_modals.js -->
 <!-- Save Preset Modal -->
 <div id="save-preset-modal-overlay" class="modal-overlay hidden">
     <div class="modal-window">
@@ -186,41 +187,74 @@
             <button class="icon-btn" @click="$store.settings.hide()">&times;</button>
         </div>
         <div class="modal-body">
-            <p>Enter your server details. The page will reload automatically to apply your changes.</p>
+            <p class="mb-md">Configure your media server and AI preferences. Changes require a restart to apply.</p>
+            
             <div class="modal-form-layout">
-                <label class="control-item">
-                    <span>Server Type</span>
-                    <select x-model="$store.settings.server_type">
-                        <option value="emby">Emby</option>
-                        <option value="jellyfin">Jellyfin</option>
-                    </select>
-                </label>
-                <label class="control-item">
-                    <span>Server URL</span>
-                    <input type="text" x-model="$store.settings.emby_url" placeholder="e.g., http://localhost:8096">
-                </label>
-                <label class="control-item">
-                    <span>Username</span>
-                    <input type="text" x-model="$store.settings.emby_user" placeholder="Your username">
-                </label>
-                <label class="control-item">
-                    <span>Password</span>
-                    <input type="password" x-model="$store.settings.emby_pass" placeholder="Your password">
-                </label>
-                <label class="control-item">
-                    <span>Gemini API Key (Optional)</span>
-                    <div class="input-with-button">
-                        <input type="password" x-model="$store.settings.gemini_key" placeholder="Google Gemini API Key">
-                        <button type="button" class="secondary small" @click="$store.settings.removeGeminiKey()">Remove</button>
+                <fieldset class="filter-group">
+                    <legend>Server Connection</legend>
+                    <label class="control-item">
+                        <span>Server Type</span>
+                        <select x-model="$store.settings.server_type">
+                            <option value="emby">Emby</option>
+                            <option value="jellyfin">Jellyfin</option>
+                        </select>
+                    </label>
+                    <label class="control-item">
+                        <span>Server URL</span>
+                        <input type="text" x-model="$store.settings.emby_url" placeholder="e.g., http://localhost:8096">
+                    </label>
+                    <label class="control-item">
+                        <span>Username</span>
+                        <input type="text" x-model="$store.settings.emby_user" placeholder="Your username">
+                    </label>
+                    <label class="control-item">
+                        <span>Password</span>
+                        <input type="password" x-model="$store.settings.emby_pass" placeholder="Your password">
+                    </label>
+                </fieldset>
+
+                <fieldset class="filter-group mt-md">
+                    <legend>AI Configuration</legend>
+                    <label class="control-item">
+                        <span>AI Provider</span>
+                        <select x-model="$store.settings.ai_provider">
+                            <option value="gemini">Google Gemini (Cloud)</option>
+                            <option value="ollama">Ollama (Local)</option>
+                        </select>
+                    </label>
+
+                    <!-- Gemini Specific -->
+                    <div x-show="$store.settings.ai_provider === 'gemini'" x-transition>
+                        <label class="control-item">
+                            <span>Gemini API Key</span>
+                            <div class="input-with-button">
+                                <input type="password" x-model="$store.settings.gemini_key" placeholder="Google Gemini API Key">
+                                <button type="button" class="secondary small" @click="$store.settings.removeGeminiKey()">Clear</button>
+                            </div>
+                        </label>
                     </div>
-                </label>
+
+                    <!-- Ollama Specific -->
+                    <div x-show="$store.settings.ai_provider === 'ollama'" x-transition>
+                        <div class="flex-column gap-md">
+                            <label class="control-item">
+                                <span>Ollama Server URL</span>
+                                <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434">
+                            </label>
+                            <label class="control-item">
+                                <span>Model Name</span>
+                                <input type="text" x-model="$store.settings.ollama_model" placeholder="e.g., llama3.1, mistral">
+                            </label>
+                        </div>
+                    </div>
+                </fieldset>
             </div>
         </div>
         <div class="modal-footer">
             <span x-text="'v' + $store.settings.version" class="mr-auto" style="font-size: 0.85rem; color: var(--text-subtle); font-family: monospace;"></span>
-            <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($el)">Test Current Connection</button>
+            <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($el)">Test Connection</button>
             <button type="button" class="secondary" @click="$store.settings.hide()">Cancel</button>
-            <button type="button" @click="$store.settings.saveSettings($el)">Save</button>
+            <button type="button" @click="$store.settings.saveSettings($el)">Save & Restart</button>
         </div>
     </div>
 </div>

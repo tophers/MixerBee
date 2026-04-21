@@ -1,5 +1,5 @@
 """
-app/users.py - User-related functions.
+app/users.py - User-related functions
 """
 
 from typing import Dict, List, Optional
