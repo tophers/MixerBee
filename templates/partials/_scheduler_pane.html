@@ -1,17 +1,32 @@
 <!-- templates/partials/_scheduler_pane.html -->
 <div id="scheduler-pane" class="tab-pane hidden"
-     x-data="{ jobModalOpen: null }">
+      x-data="{ jobModalOpen: null }">
     <div class="container">
         <div class="manager-header flex-row justify-between align-center mb-md">
             <div>
                 <h2 class="m-0">Automated Jobs</h2>
                 <p class="m-0 text-subtle" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
             </div>
-            <!-- FIX: Use $nextTick to wait for the DOM to render the new block before opening the modal -->
             <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
                 <span x-html="$store.icons.plus"></span> Add New Job
             </button>
         </div>
+
+        <template x-if="$store.scheduler.isLoading">
+            <div class="flex-column align-center justify-center p-xl">
+                <div class="spinner mb-md"></div>
+                <p class="text-subtle">Loading schedule...</p>
+            </div>
+        </template>
+
+        <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
+            <div class="empty-state-card p-xl text-center">
+                <div class="empty-icon mb-md" style="font-size: 3rem; opacity: 0.2;" x-html="$store.icons.calendar"></div>
+                <h3>No scheduled jobs</h3>
+                <p class="text-subtle mb-lg">Create a job to automatically update your playlists on a recurring schedule.</p>
+                <button type="button" class="secondary" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">Create First Job</button>
+            </div>
+        </template>
 
         <div class="flex-column gap-md">
             <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
@@ -32,7 +47,7 @@
                                     <span style="opacity: 0.3;">|</span>
                                     <span x-text="entry.schedule_details?.time || '12:00'"></span>
                                     <template x-if="entry.preset_name">
-                                        <div class="flex-row align-center gap-md">
+                                        <div class="flex-row align-center gap-md" style="display: inline-flex;">
                                             <span style="opacity: 0.3;">|</span>
                                             <span style="color: var(--accent); opacity: 0.8;" x-text="entry.preset_name"></span>
                                         </div>
@@ -75,7 +90,7 @@
                                     <label class="field-label">Automation Preset</label>
                                     <select x-model="entry.preset_name" class="mixer-select w-full">
                                         <option value="">-- Select Builder Preset --</option>
-                                        <template x-for="(config, name) in $store.mixer.presets" :key="name">
+                                        <template x-for="name in $store.presets.availableNames" :key="name">
                                             <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
                                         </template>
                                     </select>
