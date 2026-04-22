@@ -6,16 +6,42 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 import random
 import time
+import re
 
 import requests
 
 from . import client
+import app_state
+from app.logger import get_logger
+
 from .movies import find_movies
 from .music import get_songs_by_artist, get_songs_by_album, find_songs
 from .tv import get_first_unwatched_episode, get_specific_episode
-from app.logger import get_logger
 
 logger = get_logger("MixerBee.Items")
+
+def sanitize_id(raw_id: Any) -> str:
+    """Helper to sanatize movie/tv id's on an item."""
+    if not raw_id:
+        return ""
+    s = str(raw_id).strip()
+    match = re.search(r'\b([a-fA-F0-9]{32}|\d+)\b', s)
+    if match:
+        return match.group(1)
+    return s.replace('[', '').replace(']', '')
+
+def construct_item_url(item_id: str) -> str:
+    """Helper to construct the correct Emby/Jellyfin URL for an item."""
+    if not item_id:
+        return None
+    base_url = client.EMBY_URL.rstrip("/")
+    if app_state.SERVER_TYPE == 'jellyfin':
+        return f"{base_url}/web/index.html#!/details?id={item_id}"
+    else:
+        url = f"{base_url}/web/index.html#!/item?id={item_id}"
+        if app_state.SERVER_ID:
+            url += f"&serverId={app_state.SERVER_ID}"
+        return url
 
 def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
     """Deletes a single Emby item by its ID. Returns True on success."""
@@ -40,7 +66,6 @@ def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[D
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
     r.raise_for_status()
     return r.json().get("Items", [])
-
 
 def get_manageable_items(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Fetches and combines playlists and collections for the Manager tab."""
@@ -69,18 +94,14 @@ def remove_item_from_collection(collection_id: str, item_id: str, hdr: Dict[str,
     try:
         url = f"{client.EMBY_URL}/Collections/{collection_id}/Items"
         params = {"Ids": item_id}
-
         request_headers = {k: v for k, v in hdr.items() if not k.startswith("__")}
-
         response = client.SESSION.delete(url, headers=request_headers, params=params, timeout=10)
-
         if response.status_code in [200, 204]:
             logger.info(f"Successfully removed item {item_id} from collection {collection_id}")
             return True
         else:
             logger.error(f"Failed to remove item from collection. Status: {response.status_code}, Response: {response.text}")
             return False
-
     except Exception as e:
         logger.error(f"Error in remove_item_from_collection: {e}", exc_info=True)
         return False
@@ -98,7 +119,6 @@ def get_playlists(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     r.raise_for_status()
     return r.json().get("Items", [])
 
-
 def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dict[str, str]) -> bool:
     """Removes a single item from a playlist without deleting the item itself."""
     user_id = hdr.get("X-Emby-User-Id")
@@ -107,44 +127,57 @@ def remove_item_from_playlist(playlist_id: str, item_id_to_remove: str, hdr: Dic
         r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", params=params, headers=hdr, timeout=10)
         r.raise_for_status()
         items = r.json().get("Items", [])
-
         playlist_item_id = None
         for item in items:
             if item.get("Id") == item_id_to_remove:
                 playlist_item_id = item.get("PlaylistItemId")
                 break
-
         if not playlist_item_id:
             logger.warning(f"Could not find item {item_id_to_remove} in playlist {playlist_id} to get its PlaylistItemId.")
             return False
-
         delete_params = {"EntryIds": playlist_item_id}
         del_resp = client.SESSION.delete(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items", params=delete_params, headers=hdr, timeout=10)
         del_resp.raise_for_status()
         logger.info(f"Removed item {item_id_to_remove} from playlist {playlist_id}.")
         return True
-
     except requests.RequestException as e:
         logger.error(f"Failed to remove item {item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         return False
 
+def _delete_item_by_name(name: str, item_types: str, user_id: str, hdr: Dict[str, str], log: List[str]):
+    """Internal helper to delete items of specific types by their name."""
+    params = {
+        "IncludeItemTypes": item_types,
+        "Recursive": "true",
+        "Fields": "Id,Name",
+        "_": int(time.time() * 1000)
+    }
+    try:
+        r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+        targets = [i for i in items if i.get("Name", "").strip().lower() == name.strip().lower()]
+        
+        if not targets:
+            return
+        
+        display_type = "collection" if "Collection" in item_types else "playlist"
+        for item in targets:
+            resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{item['Id']}", headers=hdr, timeout=10)
+            if resp.status_code in (200, 204):
+                msg = f"Deleted existing {display_type} '{name}'."
+                logger.info(msg)
+                log.append(msg)
+            else:
+                msg = f"Failed deleting {display_type} '{name}': HTTP {resp.status_code}"
+                logger.error(msg)
+                log.append(msg)
+    except Exception as e:
+        logger.error(f"Error in _delete_item_by_name for {name}: {e}", exc_info=True)
+
 def delete_playlist(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a playlist by its name."""
-    targets = [pl for pl in get_playlists(user_id, hdr)
-               if pl.get("Name") and pl.get("Name").strip().lower() == name.strip().lower()]
-    if not targets:
-        return
-    for pl in targets:
-        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{pl['Id']}",
-                                     headers=hdr, timeout=10)
-        if resp.status_code in (200, 204):
-            msg = f"Deleted existing playlist '{name}'."
-            logger.info(msg)
-            log.append(msg)
-        else:
-            msg = f"Failed deleting playlist '{name}': HTTP {resp.status_code}"
-            logger.error(msg)
-            log.append(msg)
+    _delete_item_by_name(name, "Playlist", user_id, hdr, log)
 
 def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]):
     """Helper to restore items in chunks during a rollback."""
@@ -162,7 +195,6 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
         except requests.RequestException as e:
             logger.error(f"Rollback chunk failed: {e}")
             failed_restores += len(chunk)
-
     if failed_restores > 0:
         msg = f"Rollback incomplete: {failed_restores} items could not be restored."
         logger.error(msg)
@@ -171,7 +203,6 @@ def _restore_items(playlist_id: str, media_ids: List[str], user_id: str, hdr: Di
         msg = "Rollback successful. Original items were restored to the playlist."
         logger.info(msg)
         log.append(msg)
-
 
 def clear_playlist_items(
     playlist_id: str,
@@ -195,22 +226,17 @@ def clear_playlist_items(
         logger.error(msg, exc_info=True)
         log.append(msg)
         return False
-
     playlist_entries = [{"media_id": item.get("Id"), "entry_id": item.get("PlaylistItemId")}
                         for item in items if item.get("PlaylistItemId")]
-
     if not playlist_entries:
         return True
-
     successfully_removed_media_ids = []
     chunk_size = 50
     max_attempts = 3
-
     for i in range(0, len(playlist_entries), chunk_size):
         chunk = playlist_entries[i:i + chunk_size]
         entry_ids = [c["entry_id"] for c in chunk]
         media_ids = [c["media_id"] for c in chunk]
-
         chunk_success = False
         for attempt in range(max_attempts):
             try:
@@ -226,32 +252,25 @@ def clear_playlist_items(
             except requests.RequestException as e:
                 logger.warning(f"Failed to delete chunk (Attempt {attempt + 1}/{max_attempts}): {e}")
                 time.sleep(1)
-
         if not chunk_success:
             error_msg = "Failed to clear playlist completely. Initiating rollback to restore removed items..."
             logger.error(error_msg)
             log.append(error_msg)
-
             if restore_on_failure and successfully_removed_media_ids:
                 _restore_items(playlist_id, successfully_removed_media_ids, user_id, hdr, log)
             return False
-
     return True
-
 
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:
     """Appends a list of item IDs to an existing playlist using safe chunks. Fails fast on network errors to prevent duplicates."""
     if not item_ids:
         log.append("No new items to add.")
         return True
-
     chunk_size = 50
     total_added = 0
-
     for i in range(0, len(item_ids), chunk_size):
         chunk = item_ids[i:i + chunk_size]
         params = {"UserId": user_id, "Ids": ",".join(chunk)}
-
         try:
             resp = client.SESSION.post(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
                                      params=params, headers=hdr, timeout=15)
@@ -262,7 +281,6 @@ def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id:
             log.append(error_msg)
             logger.error(error_msg)
             return False
-
     msg = f"Successfully added {total_added} items to the playlist."
     logger.info(msg)
     log.append(msg)
@@ -272,13 +290,11 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
     """Creates a new playlist, or updates an existing one in-place to preserve its ID, with full rollback protection."""
     existing_playlists = get_playlists(user_id, hdr)
     target_playlist = next((p for p in existing_playlists if p.get("Name", "").strip().lower() == name.strip().lower()), None)
-
     if target_playlist:
         playlist_id = target_playlist["Id"]
         msg = f"Playlist '{name}' already exists. Updating in-place (ID preserved)."
         logger.info(msg)
         log.append(msg)
-
         try:
             r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
                                    params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
@@ -289,27 +305,21 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             logger.error(msg)
             log.append(msg)
             return None
-
         if clear_playlist_items(playlist_id, user_id, hdr, log):
-
             success = add_items_to_playlist_by_ids(playlist_id, ids, user_id, hdr, log)
-
             if success:
                 return playlist_id
             else:
                 msg = "Addition phase failed. Rolling back to original playlist state..."
                 logger.error(msg)
                 log.append(msg)
-
                 clear_success = clear_playlist_items(playlist_id, user_id, hdr, log, restore_on_failure=False)
-
                 if clear_success:
                     _restore_items(playlist_id, old_media_ids, user_id, hdr, log)
                 else:
                     msg = "CRITICAL: Could not wipe partial additions during rollback. Aborting restore to prevent a corrupted/mixed playlist."
                     logger.error(msg)
                     log.append(msg)
-
                 return None
         else:
             log.append("Failed to clear existing playlist items. Update aborted.")
@@ -323,16 +333,13 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
             params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)},
             timeout=10
         )
-
         if resp.ok:
             new_id = resp.json().get("Id")
             msg = f"Playlist '{name}' created successfully."
             logger.info(msg)
             log.append(msg)
-
             if len(ids) > 50:
                 success = add_items_to_playlist_by_ids(new_id, ids[50:], user_id, hdr, log)
-
                 if not success:
                     msg = "Failed to append all items. Rolling back by deleting incomplete playlist."
                     logger.error(msg)
@@ -343,7 +350,6 @@ def create_playlist(name: str, user_id: str, ids: List[str], hdr: Dict[str, str]
                         logger.error(msg)
                         log.append(msg)
                     return None
-
             return new_id
         else:
             msg = f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}"
@@ -363,48 +369,39 @@ def create_recently_added_playlist(user_id: str, playlist_name: str, count: int,
             "Fields": "DateCreated,Id,SeriesId",
             "Limit": limit
         }
-
         movie_params = base_params.copy()
         movie_params["IncludeItemTypes"] = "Movie"
         r_movies = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=movie_params, headers=hdr, timeout=15)
         r_movies.raise_for_status()
         recent_movies = r_movies.json().get("Items", [])
         log.append(f"Found {len(recent_movies)} recent movies.")
-
         episode_params = base_params.copy()
         episode_params["IncludeItemTypes"] = "Episode"
         r_episodes = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=episode_params, headers=hdr, timeout=15)
         r_episodes.raise_for_status()
         recent_episodes = r_episodes.json().get("Items", [])
-
         recent_series_info = {}
         for ep in recent_episodes:
             series_id = ep.get("SeriesId")
             if series_id and series_id not in recent_series_info:
                 recent_series_info[series_id] = ep.get("DateCreated")
         log.append(f"Found {len(recent_series_info)} unique recent series.")
-
         next_up_episodes = []
         for series_id, date_created in recent_series_info.items():
             next_ep_data = get_first_unwatched_episode(series_id, user_id, hdr)
             if next_ep_data and next_ep_data.get("Id"):
                 next_ep_data["DateCreated"] = date_created
                 next_up_episodes.append(next_ep_data)
-
         combined_items = recent_movies + next_up_episodes
         if not combined_items:
             log.append("No recently added items found. Playlist not created.")
             return {"status": "ok", "log": log}
-
         combined_items.sort(key=lambda x: x.get("DateCreated", ""), reverse=True)
         final_items = combined_items[:count]
-
         item_ids = [item["Id"] for item in final_items]
-
         log.append(f"Creating playlist with the top {len(final_items)} most recently added items (using next-up for shows).")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=item_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -424,7 +421,6 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
         )
         all_series_resp.raise_for_status()
         all_series = all_series_resp.json().get("Items", [])
-
         unwatched_pilots = []
         for series in all_series:
             series_id = series["Id"]
@@ -435,7 +431,6 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
             )
             series_stats_resp.raise_for_status()
             unplayed_count = series_stats_resp.json().get("TotalRecordCount", 0)
-
             series_total_resp = client.SESSION.get(
                 f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                 params={"UserId": user_id, "Limit": 1},
@@ -443,24 +438,19 @@ def create_pilot_sampler_playlist(user_id: str, playlist_name: str, count: int, 
             )
             series_total_resp.raise_for_status()
             total_count = series_total_resp.json().get("TotalRecordCount", 0)
-
             if unplayed_count == total_count and total_count > 0:
                 pilot_ep = get_specific_episode(series_id, 1, 1, hdr)
                 if pilot_ep:
                     unwatched_pilots.append(pilot_ep)
-
         if not unwatched_pilots:
             log.append("No unstarted shows found. Playlist not created.")
             return {"status": "ok", "log": log}
-
         num_to_sample = min(count, len(unwatched_pilots))
         log.append(f"Found {len(unwatched_pilots)} unstarted shows. Creating playlist with {num_to_sample} random pilots.")
-
         selected_pilots = random.sample(unwatched_pilots, num_to_sample)
         pilot_ids = [ep["Id"] for ep in selected_pilots]
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=pilot_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An error occurred: {e}")
         return {"status": "error", "log": log}
@@ -478,11 +468,9 @@ def create_continue_watching_playlist(user_id: str, playlist_name: str, count: i
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items/Resume", params=resume_params, headers=hdr, timeout=15)
         r.raise_for_status()
         resume_items = r.json().get("Items", [])
-
         if not resume_items:
             log.append("Could not find any in-progress shows. Playlist not created.")
             return {"status": "ok", "log": log}
-
         in_progress_series_ids = []
         seen_ids = set()
         for item in resume_items:
@@ -490,23 +478,18 @@ def create_continue_watching_playlist(user_id: str, playlist_name: str, count: i
             if series_id and series_id not in seen_ids:
                 seen_ids.add(series_id)
                 in_progress_series_ids.append(series_id)
-
         series_to_process = in_progress_series_ids[:count]
         log.append(f"Found {len(series_to_process)} in-progress shows to process.")
-
         next_episode_ids = []
         for series_id in series_to_process:
             next_ep = get_first_unwatched_episode(series_id, user_id, hdr)
             if next_ep and next_ep.get("Id"):
                 next_episode_ids.append(next_ep["Id"])
-
         if not next_episode_ids:
             log.append("Found in-progress shows, but could not find any playable next episodes. Playlist not created.")
             return {"status": "ok", "log": log}
-
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=next_episode_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An error occurred: {e}")
         return {"status": "error", "log": log}
@@ -524,11 +507,9 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=20)
         r.raise_for_status()
         favorited_movies = r.json().get("Items", [])
-
         if not favorited_movies:
             log.append("No favorited movies found for this user. Playlist not created.")
             return {"status": "ok", "log": log}
-
         one_year_ago = datetime.now() - timedelta(days=365)
         forgotten_movies = []
         for movie in favorited_movies:
@@ -543,20 +524,16 @@ def create_forgotten_favorites_playlist(user_id: str, playlist_name: str, count:
                     continue
             else:
                 forgotten_movies.append(movie)
-
         if not forgotten_movies:
             log.append("Found favorite movies, but all have been watched recently. Playlist not created.")
             return {"status": "ok", "log": log}
-
         random.shuffle(forgotten_movies)
         num_to_select = min(count, len(forgotten_movies))
         selected_movies = forgotten_movies[:num_to_select]
         movie_ids = [m["Id"] for m in selected_movies]
-
         log.append(f"Found {len(forgotten_movies)} forgotten favorites. Creating a playlist with {len(selected_movies)} of them.")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -574,16 +551,13 @@ def create_movie_marathon_playlist(user_id: str, playlist_name: str, genre: str,
             "limit": count
         }
         found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
-
         if not found_movies:
             log.append(f"No unwatched movies found for genre '{genre}'. Playlist not created.")
             return {"status": "ok", "log": log}
-
         movie_ids = [m["Id"] for m in found_movies]
         log.append(f"Found {len(found_movies)} movies for your '{genre}' marathon.")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -595,16 +569,13 @@ def create_artist_spotlight_playlist(user_id: str, playlist_name: str, artist_id
     """Creates a playlist of top tracks for a specific artist."""
     try:
         top_songs = get_songs_by_artist(artist_id, hdr, sort="Top", limit=count)
-
         if not top_songs:
             log.append(f"No songs found for the selected artist. Playlist not created.")
             return {"status": "ok", "log": log}
-
         song_ids = [song["Id"] for song in top_songs]
         log.append(f"Found {len(top_songs)} top songs for your artist spotlight.")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -616,16 +587,13 @@ def create_album_playlist(user_id: str, playlist_name: str, album_id: str, hdr: 
     """Creates a playlist from all the songs in a given album."""
     try:
         album_songs = get_songs_by_album(album_id, hdr)
-
         if not album_songs:
             log.append(f"Could not find any songs for the selected album. Playlist not created.")
             return {"status": "ok", "log": log}
-
         song_ids = [song["Id"] for song in album_songs]
         log.append(f"Found {len(album_songs)} songs for album playlist.")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -642,16 +610,13 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
             "limit": count
         }
         found_songs = find_songs(user_id=user_id, filters=filters, hdr=hdr)
-
         if not found_songs:
             log.append(f"No songs found for genre '{genre}'. Playlist not created.")
             return {"status": "ok", "log": log}
-
         song_ids = [s["Id"] for s in found_songs]
         log.append(f"Found {len(found_songs)} songs for your '{genre}' genre sampler.")
         new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=song_ids, hdr=hdr, log=log)
         return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
-
     except requests.RequestException as e:
         log.append(f"An API error occurred: {e}")
         return {"status": "error", "log": log}
@@ -671,56 +636,35 @@ def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     r.raise_for_status()
     return r.json().get("Items", [])
 
-
 def delete_collection(name: str, user_id: str, hdr: Dict[str, str], log: List[str]):
     """Deletes a collection by its name, checking for both Emby and Jellyfin types."""
-    targets = [c for c in get_collections(user_id, hdr)
-               if c["Name"].strip().lower() == name.strip().lower()]
-    if not targets:
-        return
-    for c in targets:
-        resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{c['Id']}", headers=hdr, timeout=10)
-        if resp.status_code in (200, 204):
-            msg = f"Deleted existing collection '{name}'."
-            logger.info(msg)
-            log.append(msg)
-        else:
-            msg = f"Failed deleting collection '{name}': HTTP {resp.status_code}"
-            logger.error(msg)
-            log.append(msg)
+    _delete_item_by_name(name, "BoxSet,Collection", user_id, hdr, log)
 
 def create_movie_collection(user_id: str, collection_name: str, filters: Dict, hdr: Dict[str, str]) -> Dict:
     """Creates a movie collection from a set of movie filters."""
     log = []
     try:
         delete_collection(collection_name, user_id, hdr, log)
-
         found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
         if not found_movies:
             log.append("No movies found matching the specified filters. Collection not created.")
             return {"status": "ok", "log": log}
-
         item_ids = [movie["Id"] for movie in found_movies]
         log.append(f"Found {len(item_ids)} movies matching filters.")
-
         params = {
             "Name": collection_name,
             "Ids": ",".join(item_ids),
             "UserId": user_id,
         }
-
         request_headers = hdr.copy()
         request_headers["Content-Type"] = "application/json"
-
         r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
-
         new_item_id = r.json().get("Id")
         msg = f"Successfully created collection '{collection_name}' with {len(item_ids)} items."
         logger.info(msg)
         log.append(msg)
         return {"status": "ok", "log": log, "new_item_id": new_item_id}
-
     except Exception as e:
         error_message = f"Failed to create collection: {e}"
         log.append(error_message)
@@ -739,10 +683,8 @@ def create_collection_from_ids(user_id: str, collection_name: str, item_ids: Lis
         }
         request_headers = hdr.copy()
         request_headers["Content-Type"] = "application/json"
-
         r = client.SESSION.post(f"{client.EMBY_URL}/Collections", params=params, data="{}", headers=request_headers, timeout=15)
         r.raise_for_status()
-
         new_id = r.json().get("Id")
         msg = f"Successfully created collection '{collection_name}'."
         logger.info(msg)

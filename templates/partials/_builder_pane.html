@@ -8,10 +8,10 @@
                     <span>Load Preset</span>
                     <select id="load-preset-select"
                             class="w-full m-0"
-                            x-model="$store.mixer.currentPresetName"
-                            @change="$store.mixer.loadBlocks($store.mixer.presets[$el.value] || [])">
+                            x-model="$store.presets.currentName"
+                            @change="$store.presets.load($el.value)">
                         <option value="">-- Select a preset --</option>
-                        <template x-for="name in $store.mixer.availablePresets" :key="name">
+                        <template x-for="name in $store.presets.availableNames" :key="name">
                             <option :value="name" x-text="name"></option>
                         </template>
                     </select>
@@ -23,19 +23,19 @@
                     </button>
 
                     <div class="dropdown-menu" x-show="presetMenuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 100;">
-                        <a href="#" class="dropdown-item" x-show="$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.updateCurrentPreset()">
+                        <a href="#" class="dropdown-item" x-show="$store.presets.currentName" @click.prevent="presetMenuOpen = false; $store.presets.updateCurrent()">
                             <span class="dropdown-icon" x-html="$store.icons.save"></span> Save
                         </a>
-                        <a href="#" class="dropdown-item" x-show="!$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.savePreset()">
+                        <a href="#" class="dropdown-item" x-show="!$store.presets.currentName" @click.prevent="presetMenuOpen = false; $store.presets.saveAs()">
                             <span class="dropdown-icon" x-html="$store.icons.save"></span> Save as Preset...
                         </a>
-                        <a href="#" class="dropdown-item" @click.prevent="presetMenuOpen = false; $store.mixer.importPreset()">
+                        <a href="#" class="dropdown-item" @click.prevent="presetMenuOpen = false; $store.presets.import()">
                             <span class="dropdown-icon" x-html="$store.icons.download"></span> Import
                         </a>
-                        <a href="#" class="dropdown-item" :class="{ 'opacity-60': !$store.mixer.currentPresetName }" @click.prevent="if($store.mixer.currentPresetName) { presetMenuOpen = false; $store.mixer.exportPreset(); }">
+                        <a href="#" class="dropdown-item" :class="{ 'opacity-60': !$store.presets.currentName }" @click.prevent="if($store.presets.currentName) { presetMenuOpen = false; $store.presets.exportCurrent(); }">
                             <span class="dropdown-icon" x-html="$store.icons.upload"></span> Export
                         </a>
-                        <a href="#" class="dropdown-item danger-hover" style="color: var(--danger);" x-show="$store.mixer.currentPresetName" @click.prevent="presetMenuOpen = false; $store.mixer.deletePreset()">
+                        <a href="#" class="dropdown-item danger-hover" style="color: var(--danger);" x-show="$store.presets.currentName" @click.prevent="presetMenuOpen = false; $store.presets.deleteCurrent()">
                             <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete
                         </a>
                     </div>
@@ -43,11 +43,11 @@
             </div>
 
             <div class="preset-buttons button-group hide-mobile">
-                <button type="button" x-cloak x-show="$store.mixer.currentPresetName" @click="$store.mixer.updateCurrentPreset()">Save</button>
-                <button type="button" class="secondary" x-cloak x-show="!$store.mixer.currentPresetName" @click="$store.mixer.savePreset()">Save as Preset...</button>
-                <button type="button" class="secondary" x-cloak x-show="$store.mixer.currentPresetName" @click="$store.mixer.deletePreset()">Delete Preset</button>
-                <button type="button" class="secondary" @click="$store.mixer.importPreset()">Import</button>
-                <button type="button" class="secondary" :disabled="!$store.mixer.currentPresetName" @click="$store.mixer.exportPreset()">Export</button>
+                <button type="button" x-cloak x-show="$store.presets.currentName" @click="$store.presets.updateCurrent()">Save</button>
+                <button type="button" class="secondary" x-cloak x-show="!$store.presets.currentName" @click="$store.presets.saveAs()">Save as Preset...</button>
+                <button type="button" class="secondary" x-cloak x-show="$store.presets.currentName" @click="$store.presets.deleteCurrent()">Delete Preset</button>
+                <button type="button" class="secondary" @click="$store.presets.import()">Import</button>
+                <button type="button" class="secondary" :disabled="!$store.presets.currentName" @click="$store.presets.exportCurrent()">Export</button>
             </div>
         </div>
 
@@ -123,7 +123,6 @@
                     <span class="pill-btn" :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
                 </div>
                 <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1">
-                    <option value="">-- Target --</option>
                     <option value="">-- Target --</option>
                     <template x-for="p in $store.mixer.userPlaylists" :key="p.Id"><option :value="p.Id" x-text="p.Name"></option></template>
                 </select>

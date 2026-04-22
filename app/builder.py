@@ -7,6 +7,7 @@ import random
 from typing import Dict, List, Any, Optional
 from itertools import zip_longest
 
+from . import items as items_api
 from .items import create_playlist, add_items_to_playlist_by_ids
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
@@ -26,10 +27,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                     continue
 
                 show_name = raw_show.get("name")
-                sid = raw_show.get("id")
-
-                if sid:
-                    sid = str(sid).replace('[', '').replace(']', '').strip()
+                sid = items_api.sanitize_id(raw_show.get("id"))
 
                 if not sid and show_name:
                     sid = series_id(show_name, hdr)
@@ -82,17 +80,17 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
             raw_ids = filters["ids"]
             id_list = []
             if isinstance(raw_ids, list):
-                id_list = [str(x).replace('[', '').replace(']', '').strip() for x in raw_ids if x]
+                id_list = [items_api.sanitize_id(x) for x in raw_ids if x]
             else:
-                id_list = [str(raw_ids).replace('[', '').replace(']', '').strip()]
+                id_list = [items_api.sanitize_id(raw_ids)]
 
             if id_list:
                 id_filters = {"ids": id_list}
-                
+
                 limit_val = filters.get("limit")
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
-                    
+
                 items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
         else:
             items = find_movies(user_id=user_id, filters=filters, hdr=hdr)

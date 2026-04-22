@@ -92,18 +92,6 @@ def _get_random_music_block() -> Dict:
 
     return {"type": "music", "music": music_data}
 
-def _construct_item_url(item_id: str) -> str:
-    if not item_id:
-        return None
-    base_url = core.EMBY_URL.rstrip("/")
-    if app_state.SERVER_TYPE == 'jellyfin':
-        return f"{base_url}/web/index.html#!/details?id={item_id}"
-    else:
-        url = f"{base_url}/web/index.html#!/item?id={item_id}"
-        if app_state.SERVER_ID:
-            url += f"&serverId={app_state.SERVER_ID}"
-        return url
-
 @router.get("/api/builder/random_block", response_model=Dict)
 def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
     block_generators = {
@@ -221,7 +209,7 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
         )
 
     if new_item_id := result.get("new_item_id"):
-        result["newItemUrl"] = _construct_item_url(new_item_id)
+        result["newItemUrl"] = core.construct_item_url(new_item_id)
 
     return result
 

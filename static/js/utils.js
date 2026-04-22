@@ -91,11 +91,19 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
 
   if (showLoading && loadingOverlay) loadingOverlay.classList.remove('hidden');
 
-  return fetch(endpoint, {
-    method: method,
-    headers: { 'Content-Type': 'application/json' },
-    body: (method.toUpperCase() !== 'DELETE') ? JSON.stringify(body) : undefined
-  })
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const finalUrl = `${endpoint}${separator}_cb=${Date.now()}`;
+
+  const fetchOptions = {
+    method: method.toUpperCase(),
+    headers: { 'Content-Type': 'application/json' }
+  };
+
+  if (!['GET', 'HEAD', 'DELETE'].includes(fetchOptions.method) && body) {
+    fetchOptions.body = JSON.stringify(body);
+  }
+
+  return fetch(finalUrl, fetchOptions)
     .then(r => {
         if (!r.ok) {
             return r.json().catch(() => {
@@ -118,13 +126,13 @@ export function post(endpoint, body, eventOrElement = null, method = 'POST', sil
         }
         else if (res.status === 'error' || res.detail) {
             const errorMessage = res.log?.join(' • ') || res.detail || 'Unknown error';
-            toast('Error: ' + errorMessage, false);
+            if (!silent) toast('Error: ' + errorMessage, false);
         }
         return res;
     })
     .catch(err => {
         const errorMessage = err.log?.join(' • ') || err.detail || err.message || 'An unknown error occurred.';
-        toast('Error: ' + errorMessage, false);
+        if (!silent) toast('Error: ' + errorMessage, false);
         return { status: 'error', detail: errorMessage };
     })
     .finally(() => {
