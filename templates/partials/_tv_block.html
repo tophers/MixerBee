@@ -2,27 +2,13 @@
 <template x-if="block && block.type === 'tv'">
     <div x-data="{ editModalOpen: false }" x-init="$store.mixer.ensureBlockState(block)">
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
-            <summary>
-                <div class="mixed-block-header">
-                    <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
-                    <h3>
-                        <template x-if="block.is_ai_generated"><span class="ai-badge-icon" x-html="$store.icons.zap"></span></template>
-                        <span x-text="block.title || 'TV Block'"></span>
-                    </h3>
-                    <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
-                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
-                        <div class="dropdown-menu" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 1000;">
-                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.duplicateBlock(index)"><span class="dropdown-icon" x-html="$store.icons.copy"></span> Duplicate</a>
-                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.deleteBlock(index)" style="color: var(--danger);"><span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete</a>
-                        </div>
-                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;" x-html="$store.icons.chevronUp"></span>
-                    </div>
-                </div>
-            </summary>
+            {% set default_title = 'TV Block' %}
+            {% include 'partials/_block_header.html' %}
+            
             <div class="mixed-block-body">
                 <div class="block-summary-card">
                     <div class="summary-label">Shows Included</div>
-                    
+
                     <div class="summary-content mb-sm">
                         <template x-if="block.shows && block.shows.length > 0">
                             <div style="font-size: 0.9rem; line-height: 1.4;">

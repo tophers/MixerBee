@@ -22,20 +22,6 @@ QUICK_BUILD_MAP = {
     "genre_sampler": (core.create_music_genre_playlist, ['genre', 'count']),
 }
 
-def _construct_item_url(item_id: str) -> str:
-    """Helper to construct the correct Emby/Jellyfin URL for an item."""
-    if not item_id:
-        return None
-    base_url = core.EMBY_URL.rstrip("/")
-    if app_state.SERVER_TYPE == 'jellyfin':
-        return f"{base_url}/web/index.html#!/details?id={item_id}"
-    else:
-        url = f"{base_url}/web/index.html#!/item?id={item_id}"
-        if app_state.SERVER_ID:
-            url += f"&serverId={app_state.SERVER_ID}"
-        return url
-
-
 @router.post("/api/quick_builds")
 def api_quick_builds(req: models.QuickBuildRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     """Handles all 'Smart Build' requests from a single, unified endpoint."""
@@ -61,7 +47,7 @@ def api_quick_builds(req: models.QuickBuildRequest, auth_deps: dict = Depends(ge
         result = func_to_call(**kwargs)
 
         if new_item_id := result.get("new_item_id"):
-            result["newItemUrl"] = _construct_item_url(new_item_id)
+            result["newItemUrl"] = core.construct_item_url(new_item_id)
 
         return result
     except Exception as e:

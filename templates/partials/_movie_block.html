@@ -30,30 +30,8 @@
     x-init="$store.mixer.ensureBlockState(block)">
 
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
-            <summary>
-                <div class="mixed-block-header">
-                    <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
-                    <h3 class="flex-row align-center gap-xs">
-                        <template x-if="block.is_ai_generated">
-                            <span class="ai-badge-icon" x-html="$store.icons.zap"></span>
-                        </template>
-                        <span x-text="block.title || 'Movie Block'"></span>
-                    </h3>
-
-                    <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
-                        <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
-                        <div class="dropdown-menu" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%; z-index: 1000;">
-                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.duplicateBlock(index)">
-                                <span class="dropdown-icon" x-html="$store.icons.copy"></span> Duplicate
-                            </a>
-                            <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.deleteBlock(index)" style="color: var(--danger);">
-                                <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete
-                            </a>
-                        </div>
-                        <span class="icon-btn collapse-toggle-btn" style="margin-left: 0.5rem;" x-html="$store.icons.chevronUp"></span>
-                    </div>
-                </div>
-            </summary>
+            {% set default_title = 'Movie Block' %}
+            {% include 'partials/_block_header.html' %}
 
             <div class="mixed-block-body">
                 <div class="block-summary-card">
@@ -115,7 +93,6 @@
                 </div>
 
                 <div class="modal-body" style="overflow-y: auto; max-height: 70vh;">
-                    <!-- Logic Legend -->
                     <div class="flex-row align-center gap-md mb-md p-sm" style="background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);">
                         <span class="text-subtle" style="font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">Logic Key:</span>
                         <div class="flex-row gap-md" style="font-size: 0.8rem;">

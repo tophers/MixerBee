@@ -1,8 +1,9 @@
 // static/js/app.js
 
-import { toast } from './utils.js';
+import { toast, post } from './utils.js';
 import { initModals, confirmModal, toastHistoryModal, smartPlaylistModal, smartBuildModal, previewModal, resetWatchModal } from './modals.js';
 import { mixerStore } from './mixerStore.js';
+import { presetStore } from './presetStore.js';
 import { settingsStore } from './settingsStore.js';
 import { schedulerStore } from './schedulerStore.js';
 import { managerStore } from './managerStore.js';
@@ -11,6 +12,7 @@ const hydrateStores = () => {
     if (typeof Alpine === 'undefined') return;
 
     Object.assign(Alpine.store('mixer'), mixerStore);
+    Object.assign(Alpine.store('presets'), presetStore);
     Object.assign(Alpine.store('settings'), settingsStore);
     Object.assign(Alpine.store('scheduler'), schedulerStore);
     Object.assign(Alpine.store('manager'), managerStore);
@@ -24,6 +26,7 @@ const hydrateStores = () => {
     modalStore.history = toastHistoryModal;
 
     Alpine.store('mixer').init();
+    Alpine.store('presets').init();
 };
 
 async function initializeApp() {
@@ -75,16 +78,6 @@ async function initializeApp() {
             mainActionBar.classList.toggle('hidden', activeTab !== 'mixed');
         };
 
-        const apiFetch = (url) => {
-            const separator = url.includes('?') ? '&' : '?';
-            return fetch(`${url}${separator}_cb=${new Date().getTime()}`, {
-                cache: 'no-store'
-            }).then(r => {
-                if (!r.ok) throw new Error(`API call failed: ${r.status}`);
-                return r.json();
-            });
-        };
-
         applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
@@ -118,23 +111,31 @@ async function initializeApp() {
         });
 
         try {
-            const config = await apiFetch('api/config_status');
+            const config = await post('api/config_status', null, null, 'GET', true);
+            
+            if (!config || config.status === 'error') {
+                throw new Error(config?.detail || "Failed to contact backend.");
+            }
+
             const sStore = Alpine.store('settings');
             sStore.version = config.version || '';
             sStore.server_type = config.server_type || 'emby';
             sStore.ai_provider = config.ai_provider || 'gemini';
             sStore.ollama_model = config.ollama_model || '';
-
             sStore.is_ai_configured = !!config.is_ai_configured;
 
-            if (!config.is_configured) throw new Error("Not configured.");
+            if (!config.is_configured) {
+                notConfiguredWarning.classList.remove('hidden');
+                mainContent.classList.add('hidden');
+                return;
+            }
 
             notConfiguredWarning.classList.add('hidden');
             mainContent.classList.remove('hidden');
 
             const [defUser, libraryData] = await Promise.all([
-                apiFetch('api/default_user'),
-                apiFetch('api/library_data')
+                post('api/default_user', null, null, 'GET', true),
+                post('api/library_data', null, null, 'GET', true)
             ]);
 
             activeUserDisplay.textContent = defUser.name;
@@ -148,7 +149,8 @@ async function initializeApp() {
 
             const mStore = Alpine.store('mixer');
             Object.assign(mStore.library, libraryData);
-            await mStore.refreshPresets();
+
+            await Alpine.store('presets').refresh();
 
             switchTab('mixed');
 

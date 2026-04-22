@@ -9,7 +9,7 @@ export const schedulerStore = {
     async loadSchedule() {
         this.isLoading = true;
         try {
-            await Alpine.store('mixer').refreshPresets();
+            await Alpine.store('presets').refresh();
 
             const response = await fetch('api/schedules');
             if (response.ok) {

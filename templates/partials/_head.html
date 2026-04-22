@@ -9,7 +9,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
     <script src="static/js/header.js"></script>
-    <!-- ToDo: Consolidate Styles in CSS -->
     <style>
         svg.mb-icon,
         .icon-btn svg,
@@ -164,16 +163,14 @@
 
             Alpine.store('mixer', {
                 blocks: [],
-                currentPresetName: '',
-                availablePresets: [],
                 aiPrompt: '',
                 library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] },
                 getTvBlockSummary: () => '',
-                setupSortable: () => {},
                 ensureBlockState: () => {},
                 updatePreviewCount: () => {},
                 init: () => {}
             });
+            Alpine.store('presets', { currentName: '', availableNames: [], registry: {}, load: () => {}, refresh: () => {} });
             Alpine.store('scheduler', { schedule: [], isLoading: true, loadSchedule: () => {} });
             Alpine.store('manager', { items: [], searchQuery: '', sortColumn: 'Name', sortDirection: 'asc', filteredItems: [], contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, load: () => {} });
             Alpine.store('settings', { isOpen: false, version: '', server_type: 'emby', emby_url: '', emby_user: '', emby_pass: '', is_ai_configured: false, gemini_key: '', show: () => { Alpine.store('settings').isOpen = true; }, hide: () => { Alpine.store('settings').isOpen = false; } });

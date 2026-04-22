@@ -1,7 +1,7 @@
 /* static/js/mixerStore.js */
 
 import { post, toast, debounce } from './utils.js';
-import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, presetModal, importPresetModal, resetWatchModal } from './modals.js';
+import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
 export const mixerStore = {
@@ -14,9 +14,6 @@ export const mixerStore = {
         musicGenreData: [],
         studioData: [],
     },
-    presets: {},
-    availablePresets: [],
-    currentPresetName: '',
 
     buildMode: 'create',
     createAsCollection: false,
@@ -134,12 +131,11 @@ export const mixerStore = {
 
         showData._loadingTitle = true;
         try {
-            const res = await fetch(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`);
-            if (res.ok) {
-                const data = await res.json();
-                showData.previewTitle = data.name || `S${showData.season}E${showData.episode}`;
+            const res = await post(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`, null, null, 'GET', true);
+            if (res && res.name) {
+                showData.previewTitle = res.name;
             } else {
-                showData.previewTitle = 'Episode not found';
+                showData.previewTitle = `S${showData.season}E${showData.episode}`;
             }
         } catch (e) {
             showData.previewTitle = '';
@@ -155,12 +151,11 @@ export const mixerStore = {
 
         showData._loadingTitle = true;
         try {
-            const res = await fetch(`api/shows/${series.id}/first_unwatched?user_id=${uid}`);
-            if (res.ok) {
-                const ep = await res.json();
-                showData.season = ep.ParentIndexNumber;
-                showData.episode = ep.IndexNumber;
-                showData.previewTitle = ep.Name || `S${ep.ParentIndexNumber}E${ep.IndexNumber}`;
+            const res = await post(`api/shows/${series.id}/first_unwatched?user_id=${uid}`, null, null, 'GET', true);
+            if (res && res.Id) {
+                showData.season = res.ParentIndexNumber;
+                showData.episode = res.IndexNumber;
+                showData.previewTitle = res.Name || `S${res.ParentIndexNumber}E${res.IndexNumber}`;
             }
         } catch (e) {
         } finally {
@@ -194,15 +189,17 @@ export const mixerStore = {
                     .map(g => ({ type: 'genre', data: g, text: g.Name }));
             }
             if (type === 'person') {
-                const [pReq, sReq] = await Promise.all([
-                    fetch(`api/people?name=${encodeURIComponent(query)}`),
-                    fetch(`api/studios?name=${encodeURIComponent(query)}`)
+                const [people, studios] = await Promise.all([
+                    post(`api/people?name=${encodeURIComponent(query)}`, null, null, 'GET', true),
+                    post(`api/studios?name=${encodeURIComponent(query)}`, null, null, 'GET', true)
                 ]);
-                const people = await pReq.json();
-                const studios = await sReq.json();
                 const results = [];
-                people.forEach(p => results.push({ type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})` }));
-                studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
+                if (Array.isArray(people)) {
+                    people.forEach(p => results.push({ type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})` }));
+                }
+                if (Array.isArray(studios)) {
+                    studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
+                }
                 return results;
             }
         } catch (e) { return []; }
@@ -273,9 +270,6 @@ export const mixerStore = {
 
                 liveBlock._previewLoading = true;
 
-                const isMovie = (liveBlock.type === 'movie' || liveBlock.vibe_type === 'movie');
-                const isMusic = liveBlock.type === 'music';
-
                 try {
                     const itemsData = await post('api/builder/preview', {
                         user_id,
@@ -303,91 +297,18 @@ export const mixerStore = {
         this._previewDebouncers[block._uid](block._uid);
     },
 
-    async refreshPresets() {
-        try {
-            const res = await fetch('api/presets');
-            if (res.ok) {
-                this.presets = await res.json();
-                this.availablePresets = Object.keys(this.presets);
-            }
-        } catch (e) { }
-    },
-
     async refreshUserPlaylists() {
         const uid = document.getElementById('user-select')?.value;
         if (!uid) return;
         try {
-            this.userPlaylists = await (await fetch(`api/users/${uid}/playlists`)).json();
+            const res = await post(`api/users/${uid}/playlists`, null, null, 'GET', true);
+            if (Array.isArray(res)) {
+                this.userPlaylists = res;
+            }
         } catch (e) { }
     },
 
-    async savePreset() {
-        try {
-            const name = await presetModal.show(this.availablePresets);
-            const res = await post('api/presets', { name, data: this.blocks });
-            if (res.status === 'ok') {
-                await this.refreshPresets();
-                this.currentPresetName = name;
-                toast(`Preset "${name}" saved!`, true);
-            }
-        } catch (err) { }
-    },
-
-    async updateCurrentPreset() {
-        if (!this.currentPresetName) return;
-        const res = await post('api/presets', { name: this.currentPresetName, data: this.blocks });
-        if (res.status === 'ok') {
-            this.presets[this.currentPresetName] = JSON.parse(JSON.stringify(this.blocks));
-            toast(`Preset updated!`, true);
-        }
-    },
-
-    async deletePreset() {
-        if (!this.currentPresetName) return;
-        try {
-            await confirmModal.show({ title: 'Delete?', text: `Delete "${this.currentPresetName}"?`, confirmText: 'Delete' });
-            const res = await post(`api/presets/${this.currentPresetName}`, {}, null, 'DELETE');
-            if (res.status === 'ok') {
-                await this.refreshPresets();
-                this.currentPresetName = '';
-                await this.loadBlocks([]);
-            }
-        } catch (err) { }
-    },
-
-    async importPreset() {
-        try {
-            const { name, data } = await importPresetModal.show();
-            if (this.presets[name]) {
-                await confirmModal.show({ title: 'Overwrite?', text: `Preset exists. Overwrite?`, confirmText: 'Overwrite' });
-            }
-            const res = await post('api/presets', { name, data });
-            if (res.status === 'ok') {
-                await this.refreshPresets();
-                this.currentPresetName = name;
-                await this.loadBlocks(data);
-                toast(`Imported!`, true);
-            }
-        } catch (err) { }
-    },
-
-    exportPreset() {
-        if (!this.currentPresetName) return;
-        try {
-            const payload = JSON.stringify({ name: this.currentPresetName, data: this.presets[this.currentPresetName] });
-            const bytes = new TextEncoder().encode(payload);
-            const binString = Array.from(bytes, (byte) => String.fromCharCode(byte)).join("");
-            const code = btoa(binString);
-
-            navigator.clipboard.writeText(`MixerBee Preset: "${this.currentPresetName}"\n---\n${code}`).then(() => toast('Copied!', true));
-        } catch (e) {
-            console.error("Export failed:", e);
-            toast("Failed to encode preset data.", false);
-        }
-    },
-
     async loadBlocks(blocksData = []) {
-        console.log("[MixerBee] loadBlocks called with:", blocksData);
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
@@ -408,9 +329,8 @@ export const mixerStore = {
                         if (show.unwatched) {
                             const series = this.library.seriesData.find(s => s.name === show.name || s.id === show.id);
                             if (series) {
-                                const p = fetch(`api/shows/${series.id}/first_unwatched?user_id=${uid}`)
-                                    .then(r => r.ok ? r.json() : null)
-                                    .then(ep => { if (ep) {
+                                const p = post(`api/shows/${series.id}/first_unwatched?user_id=${uid}`, null, null, 'GET', true)
+                                    .then(ep => { if (ep && ep.Id) {
                                         show.season = ep.ParentIndexNumber;
                                         show.episode = ep.IndexNumber;
                                         show.previewTitle = ep.Name || '';
@@ -470,7 +390,7 @@ export const mixerStore = {
         try {
             await confirmModal.show({ title: 'Clear All?', text: 'Remove all blocks?', confirmText: 'Clear' });
             this.blocks.splice(0, this.blocks.length);
-            this.currentPresetName = '';
+            Alpine.store('presets').currentName = '';
         } catch (e) { }
     },
 
@@ -486,19 +406,10 @@ export const mixerStore = {
     async generateWithAi() {
         if (!this.aiPrompt.trim()) return toast('Prompt required.', false);
         this.isAiGenerating = true;
-        console.log("[MixerBee] generateWithAi prompt:", this.aiPrompt);
         try {
             const res = await post('api/create_from_text', { prompt: this.aiPrompt });
-            console.log("[MixerBee] AI Response received:", res);
-            
             if (res.status === 'ok' && Array.isArray(res.blocks)) {
-                res.blocks.forEach((b, i) => {
-                    const blockSnapshot = JSON.parse(JSON.stringify(b));
-                    console.log(`[MixerBee] Block ${i} structure:`, blockSnapshot);
-                });
                 await this.loadBlocks(res.blocks);
-            } else {
-                console.warn("[MixerBee] AI succeeded but returned no valid blocks array.");
             }
         } catch (e) {
             console.error("[MixerBee] generateWithAi failed:", e);
@@ -514,7 +425,6 @@ export const mixerStore = {
             if (blocksOverride && blocksOverride.length === 1) {
                 const cachedBlock = blocksOverride[0];
                 if (cachedBlock._previewItems && cachedBlock._previewItems.length > 0) {
-                    console.log("[MixerBee] Showing cached results in modal.");
                     return await previewModal.show(cachedBlock._previewItems);
                 }
             }
@@ -594,7 +504,7 @@ export const mixerStore = {
         const overlay = document.getElementById('loading-overlay');
         overlay?.classList.remove('hidden');
         try {
-            const res = await (await fetch(endpoint)).json();
+            const res = await post(endpoint, null, null, 'GET', true);
             overlay?.classList.add('hidden');
             if (type === 'artist_spotlight') {
                 await this.executeQuickBuild(type, { title: `Artist: ${res.Name}`, description: `Tracks by ${res.Name}.`, defaultName: `Spotlight: ${res.Name}`, defaultCount: 15, extraParams: { artist_id: res.Id } });
