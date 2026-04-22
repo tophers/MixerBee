@@ -9,7 +9,6 @@ export const schedulerStore = {
     async loadSchedule() {
         this.isLoading = true;
         try {
-            // Updated to reference the correct store and method
             await Alpine.store('presets').refresh();
 
             const response = await fetch('api/schedules');

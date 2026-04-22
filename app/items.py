@@ -3,7 +3,7 @@ app/items.py - Generic playlist, collection, and item management
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 import random
 import time
 import re
@@ -21,16 +21,17 @@ from .tv import get_first_unwatched_episode, get_specific_episode
 logger = get_logger("MixerBee.Items")
 
 def sanitize_id(raw_id: Any) -> str:
-    """Helper to sanatize movie/tv id's on an item."""
+    """Helper to sanitize movie/tv ids on an item."""
     if not raw_id:
         return ""
+ 
     s = str(raw_id).strip()
-    match = re.search(r'\b([a-fA-F0-9]{32}|\d+)\b', s)
-    if match:
-        return match.group(1)
-    return s.replace('[', '').replace(']', '')
+    s = s.lstrip('[').rstrip(']')
+    s = re.sub(r'^(id|item id|item)[:\s]+', '', s, flags=re.IGNORECASE)
+    
+    return s.strip()
 
-def construct_item_url(item_id: str) -> str:
+def construct_item_url(item_id: Optional[str]) -> Optional[str]:
     """Helper to construct the correct Emby/Jellyfin URL for an item."""
     if not item_id:
         return None
@@ -155,15 +156,17 @@ def _delete_item_by_name(name: str, item_types: str, user_id: str, hdr: Dict[str
     try:
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=10)
         r.raise_for_status()
-        items = r.json().get("Items", [])
-        targets = [i for i in items if i.get("Name", "").strip().lower() == name.strip().lower()]
+        
+        # Guard against {"Items": null} and filter for items that actually have an Id
+        items = r.json().get("Items") or []
+        targets = [i for i in items if i.get("Id") and i.get("Name", "").strip().lower() == name.strip().lower()]
         
         if not targets:
             return
         
         display_type = "collection" if "Collection" in item_types else "playlist"
         for item in targets:
-            resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{item['Id']}", headers=hdr, timeout=10)
+            resp = client.SESSION.delete(f"{client.EMBY_URL}/Items/{item.get('Id')}", headers=hdr, timeout=10)
             if resp.status_code in (200, 204):
                 msg = f"Deleted existing {display_type} '{name}'."
                 logger.info(msg)
