@@ -69,14 +69,14 @@ def run_playlist_job(**schedule_data) -> Dict:
                     logger.info(f"Resolved blocks for job {schedule_id} from preset '{preset_name}'")
 
             if not blocks:
-                logger.info(f"No blocks found for job {schedule_id}. Generating surprise block.")
+                logger.info(f"No blocks found for job {schedule_id}.")
                 
                 potential_options = [b for b in [_get_random_movie_block(), _get_random_tv_block()] if b is not None]
                 
                 if potential_options:
                     blocks = [random.choice(potential_options)]
                 else:
-                    msg = "Could not generate a surprise block; library appears to be empty."
+                    msg = "Could not generate a block; library appears to be empty."
                     logger.error(msg)
                     return {"status": "error", "log": [msg]}
 

@@ -105,7 +105,6 @@
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addSurpriseBlock($el)"><span class="dropdown-icon" x-html="$store.icons.gift"></span> Surprise Me</a>
                     </div>
                 </div>
                 <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.showSmartBuildMenu()"><span x-html="$store.icons.framer"></span> <span class="hide-mobile">Auto Playlists</span></button>
