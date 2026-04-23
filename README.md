@@ -24,9 +24,9 @@ MixerBee uses blocks to build media lists.
 - **Collections and Playlists**: Save output as a server playlist or as a collection/box set.
 
 ### AI Builder
-MixerBee supports both Google Gemini and local Ollama models.
+MixerBee supports both local Ollama and Google Gemini models.
 
-- Use either local AI (Ollama) or cloud AI (Gemini) in Settings
+- Use either local AI (preferred) or cloud AI in Settings
 - Use prompt-based search to build lists from themes, moods, or styles
 - Use AI in two ways:
   1. **Rule-Based**: AI fills in filters and settings for you
