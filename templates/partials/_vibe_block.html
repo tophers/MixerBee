@@ -9,16 +9,16 @@
             <div class="mixed-block-body">
                 <div class="block-summary-card curated-card">
                     <div class="flex-row align-center gap-lg">
-                        <div class="curated-stat-box">
+                        <div class="curated-stat-box shrink-0">
                             <div class="summary-label" x-text="block.vibe_type === 'tv' ? 'Episodes' : 'Movies'"></div>
                             <div class="curated-count" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
                         </div>
 
-                        <div class="grow-1" style="min-width: 0;">
+                        <div class="grow-1">
                             <div class="summary-label">AI Curated Mix</div>
                             <div class="summary-content mb-sm">
                                 <template x-if="block._previewLoading">
-                                    <div class="text-subtle italic" style="font-size: 0.85rem;">Validating items in your library...</div>
+                                    <div class="text-subtle italic curated-preview-text">Validating items in your library...</div>
                                 </template>
 
                                 <template x-if="!block._previewLoading">
@@ -50,7 +50,7 @@
                     </div>
 
                     <div class="mt-md curated-footer">
-                        <p class="text-subtle italic m-0" style="font-size: 0.75rem;">This block is managed by AI and cannot be manually filtered.</p>
+                        <p class="text-subtle italic m-0 curated-preview-text" style="font-size: 0.75rem;">This block is managed by AI and cannot be manually filtered.</p>
                         <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
                             <span x-html="$store.icons.list"></span> Full List
                         </button>

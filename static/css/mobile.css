@@ -7,43 +7,55 @@
 
     body {
         -webkit-text-size-adjust: 100%;
-        height: auto !important;
+        height: auto ;
         min-height: 100vh;
         overflow-x: hidden;
     }
 
-    button, select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
+    button,
+    select,
+    input[type="number"],
+    input[type="text"],
+    input[type="search"],
+    input[type="time"],
+    input[type="password"],
+    textarea {
         padding: .6rem .75rem;
         font-size: 1.1rem;
     }
 
-    .has-fixed-footer { padding-bottom: 280px !important; }
-    .tab-pane { padding-bottom: 40px !important; }
+    .has-fixed-footer {
+        padding-bottom: 280px ;
+    }
+
+   /* .tab-pane {
+        padding-bottom: 40px ;
+    }*/
 
     .modal-window {
         padding: 1rem;
-        width: calc(100% - 20px) !important;
+        width: calc(100% - 20px) ;
         max-width: 95vw;
         margin: 10px;
         box-sizing: border-box;
     }
 
     .modal-body {
-        overflow-x: hidden !important;
-        padding-right: 0 !important;
+        overflow-x: hidden ;
+        padding-right: 0 ;
     }
 
     .modal-footer {
         flex-direction: column;
         gap: 0.8rem;
-        padding: 1rem 0 0 0 !important;
+        padding: 1rem 0 0 0 ;
         width: 100%;
         box-sizing: border-box;
     }
 
     .modal-footer button {
-        width: 100% !important;
-        margin: 0 !important;
+        width: 100% ;
+        margin: 0 ;
         box-sizing: border-box;
     }
 
@@ -52,37 +64,103 @@
         text-align: center;
     }
 
-    .container, .action-bar-content {
+    .container,
+    .action-bar-content {
         padding-left: 0.8rem;
         padding-right: 0.8rem;
     }
 
-    .header-user-display { gap: 0.4rem; }
-    .header-user-display .theme-switcher::before { margin-right: 0; }
-    #active-user-display { display: none; }
+    .header-user-display {
+        gap: 0.4rem;
+    }
 
-    .preset-controls { flex-direction: column; align-items: stretch; gap: 0.8rem; }
-    .preset-controls > .control-item, .preset-controls > .preset-buttons { flex: initial; }
-    .preset-controls .button-group { flex-direction: column; align-items: stretch; }
-    .preset-controls .button-group button { width: 100%; text-align: center; }
+    .header-user-display .theme-switcher::before {
+        margin-right: 0;
+    }
 
-    #action-bar { padding: 0.5rem 0; }
+    /*#active-user-display {
+        display: none;
+    }*/
+
+    .preset-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.8rem;
+    }
+
+    .preset-controls > .control-item,
+    .preset-controls > .preset-buttons {
+        flex: initial;
+    }
+
+    .preset-controls .button-group {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .preset-controls .button-group button {
+        width: 100%;
+        text-align: center;
+    }
+
+    #action-bar {
+        padding: 0.5rem 0;
+    }
+
     .action-bar-content {
-        display: flex !important;
+        display: flex ;
         flex-direction: column;
         gap: 0.8rem;
     }
-    .action-bar-content .build-options-container { flex-basis: 100%; order: 1; gap: 0.8rem; }
-    .action-bar-content .build-options-container > select { flex-grow: 1; }
-    .action-bar-checkbox-label { flex-basis: 100%; order: 4; justify-content: center; margin-left: 0; padding: 0.5rem 0 0 0; border-top: 1px solid var(--border-color); }
-    #generate-mixed-playlist-btn { grid-column: span 2; order: 5; height: 50px; font-size: 1.1rem; margin-top: 0.5rem; }
-    #preview-playlist-btn { order: 3; }
-    .action-bar-pill { min-width: 120px; font-size: 0.8rem; }
 
-    .tv-block-show-row > .tv-block-season, .tv-block-show-row > .tv-block-episode {
-        padding: .6rem .3rem; font-size: 1.1rem;
+    .action-bar-content .build-options-container {
+        flex-basis: 100%;
+        order: 1;
+        gap: 0.8rem;
     }
 
-    table { font-size: 0.9rem; }
-    th, td { padding: 0.6rem 0.5rem; }
+    .action-bar-content .build-options-container > select {
+        flex-grow: 1;
+    }
+
+    .action-bar-checkbox-label {
+        flex-basis: 100%;
+        order: 4;
+        justify-content: center;
+        margin-left: 0;
+        padding: 0.5rem 0 0 0;
+        border-top: 1px solid var(--border-color);
+    }
+
+    #generate-mixed-playlist-btn {
+        grid-column: span 2;
+        order: 5;
+        height: 50px;
+        font-size: 1.1rem;
+        margin-top: 0.5rem;
+    }
+
+    #preview-playlist-btn {
+        order: 3;
+    }
+
+    .action-bar-pill {
+        min-width: 120px;
+        font-size: 0.8rem;
+    }
+
+    .tv-block-show-row > .tv-block-season,
+    .tv-block-show-row > .tv-block-episode {
+        padding: .6rem .3rem;
+        font-size: 1.1rem;
+    }
+
+    table {
+        font-size: 0.9rem;
+    }
+
+    th,
+    td {
+        padding: 0.6rem 0.5rem;
+    }
 }

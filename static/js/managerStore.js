@@ -20,7 +20,7 @@ export const managerStore = {
     },
 
     async load() {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         this.isLoading = true;
         try {
@@ -47,17 +47,17 @@ export const managerStore = {
             const q = this.searchQuery.toLowerCase().trim();
             list = list.filter(i => i.Name.toLowerCase().includes(q));
         }
-        
+
         const col = this.sortColumn;
         const dir = this.sortDirection === 'asc' ? 1 : -1;
 
         list.sort((a, b) => {
             const aVal = (a[col] ?? '').toString();
             const bVal = (b[col] ?? '').toString();
-            
-            return aVal.localeCompare(bVal, undefined, { 
-                numeric: true, 
-                sensitivity: 'accent' 
+
+            return aVal.localeCompare(bVal, undefined, {
+                numeric: true,
+                sensitivity: 'accent'
             }) * dir;
         });
 
@@ -75,7 +75,7 @@ export const managerStore = {
     },
 
     async viewContents(item) {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         this.contentsModal.parentItem = item;
         this.contentsModal.title = item.Name;
         this.contentsModal.isOpen = true;
@@ -93,8 +93,8 @@ export const managerStore = {
 
     async removeItem(childItem) {
         const parent = this.contentsModal.parentItem;
-        const uid = document.getElementById('user-select')?.value;
-        if (!parent || !childItem) return;
+        const uid = Alpine.store('settings').activeUserId;
+        if (!parent || !childItem || !uid) return;
 
         try {
             await confirmModal.show({
@@ -106,7 +106,7 @@ export const managerStore = {
 
             const isCollection = parent.Type === 'BoxSet' || parent.Type === 'Collection';
             const endpointType = isCollection ? 'collections' : 'playlists';
-            
+
             const res = await post(`api/${endpointType}/${parent.Id}/items/remove`, {
                 user_id: uid,
                 item_id_to_remove: childItem.Id || childItem.id
@@ -121,7 +121,7 @@ export const managerStore = {
     },
 
     async convertItem(item) {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         const targetType = item.Type === 'Playlist' ? 'Collection' : 'Playlist';
         try {
             await confirmModal.show({
@@ -138,7 +138,7 @@ export const managerStore = {
     },
 
     async deleteItem(item) {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         try {
             await confirmModal.show({
                 title: 'Delete Entire List?',

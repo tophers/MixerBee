@@ -36,26 +36,26 @@
             <div class="mixed-block-body">
                 <div class="block-summary-card">
                     <div class="flex-row align-start gap-lg">
-                        <div class="shrink-0" style="min-width: 85px;">
+                        <div class="shrink-0 curated-stat-box">
                             <div class="summary-label">Matches</div>
-                            <div style="font-size: 1.4rem; font-weight: 700; color: var(--accent);" x-text="getPreviewCount()"></div>
+                            <div class="curated-count" x-text="getPreviewCount()"></div>
                         </div>
 
-                        <div class="grow-1" style="min-width: 0;">
+                        <div class="grow-1">
                             <div class="summary-label">Selection Preview</div>
                             <div class="summary-content mb-sm">
                                 <template x-if="block._previewItems && block._previewItems.length > 0">
-                                    <div style="font-size: 0.9rem; line-height: 1.4;">
+                                    <div class="curated-preview-text">
                                         <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_prev_' + i">
                                             <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
                                         </template>
                                         <template x-if="block._previewCount > 3">
-                                            <span style="color: var(--text-subtle);"> + <span x-text="block._previewCount - 3"></span> more</span>
+                                            <span class="text-subtle"> + <span x-text="block._previewCount - 3"></span> more</span>
                                         </template>
                                     </div>
                                 </template>
                                 <template x-if="!block._previewItems || block._previewItems.length === 0">
-                                    <div class="text-subtle italic" style="font-size: 0.85rem;">No items matched these filters</div>
+                                    <div class="text-subtle italic">No items matched these filters</div>
                                 </template>
                             </div>
 
@@ -73,7 +73,7 @@
                         </div>
                     </div>
 
-                    <div class="mt-md" style="border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.8rem; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                    <div class="mt-md curated-footer">
                         <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
                             <span x-html="$store.icons.list"></span> Preview Block
                         </button>
@@ -85,27 +85,27 @@
             </div>
         </details>
 
-        <div class="modal-overlay" x-show="filterModalOpen" x-cloak style="z-index: 9999; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+        <div class="modal-overlay" x-show="filterModalOpen" x-cloak>
             <div class="modal-window wide" @click.outside="filterModalOpen = false">
                 <div class="modal-header">
                     <h2 x-text="(block.title || 'Movie') + ' Filters'"></h2>
                     <button type="button" class="icon-btn" @click="filterModalOpen = false">&times;</button>
                 </div>
 
-                <div class="modal-body" style="overflow-y: auto; max-height: 70vh;">
-                    <div class="flex-row align-center gap-md mb-md p-sm" style="background: rgba(255,255,255,0.03); border-radius: 6px; border: 1px dashed rgba(255,255,255,0.1);">
-                        <span class="text-subtle" style="font-size: 0.75rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">Logic Key:</span>
-                        <div class="flex-row gap-md" style="font-size: 0.8rem;">
-                            <span class="flex-row align-center gap-xs" style="color: var(--accent);"><b style="font-size: 1.1rem;">⊕</b> Any (OR)</span>
-                            <span class="flex-row align-center gap-xs" style="color: #4ade80;"><b style="font-size: 1.1rem;">✓</b> All (AND)</span>
-                            <span class="flex-row align-center gap-xs" style="color: #f87171;"><b style="font-size: 1.1rem;">⊖</b> Exclude (NOT)</span>
+                <div class="modal-body modal-body-scroll">
+                    <div class="flex-row align-center gap-md filter-logic-help">
+                        <span class="text-subtle bold opacity-80 uppercase">Logic Key:</span>
+                        <div class="flex-row gap-md curated-preview-text">
+                            <span class="flex-row align-center gap-xs" style="color: var(--accent);"><b class="token-state-trigger">⊕</b> Any (OR)</span>
+                            <span class="flex-row align-center gap-xs" style="color: var(--success);"><b class="token-state-trigger">✓</b> All (AND)</span>
+                            <span class="flex-row align-center gap-xs" style="color: var(--danger);"><b class="token-state-trigger">⊖</b> Exclude (NOT)</span>
                         </div>
                     </div>
 
                     <fieldset class="filter-group">
                         <legend>Cast, Crew & Studios</legend>
                         <div class="flex-row gap-sm mb-md">
-                            <select x-model="personRole" style="width: auto;"><option value="Person">Any Role</option><option value="Actor">Actor</option><option value="Director">Director</option></select>
+                            <select x-model="personRole" class="w-auto"><option value="Person">Any Role</option><option value="Actor">Actor</option><option value="Director">Director</option></select>
                             <div class="token-field-wrapper grow-1">
                                 <input type="search" class="token-input" placeholder="Search people or studios..." x-model="personQuery" @input.debounce.300ms="personSuggestions = await $store.mixer.fetchSuggestions('person', personQuery)">
                                 <div class="autocomplete-suggestions" x-show="personSuggestions.length > 0" x-cloak>
@@ -197,7 +197,7 @@
                         <legend>Libraries & Years</legend>
                         <div class="flex-row flex-wrap gap-xs mb-md">
                             <template x-for="lib in $store.mixer.library.libraryData" :key="block._uid + '_lib_sel_' + lib.Id">
-                                <button type="button" class="pill-btn" style="padding: 6px 12px; font-size: 0.85rem;" :class="(block.filters?.parent_ids || []).includes(lib.Id) ? 'active' : ''" @click="if(!block.filters.parent_ids) block.filters.parent_ids = []; if(block.filters.parent_ids.includes(lib.Id)) { block.filters.parent_ids = block.filters.parent_ids.filter(id => id !== lib.Id) } else { block.filters.parent_ids.push(lib.Id) }; $store.mixer.updatePreviewCount(block);" x-text="lib.Name"></button>
+                                <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;" :class="(block.filters?.parent_ids || []).includes(lib.Id) ? 'active' : ''" @click="if(!block.filters.parent_ids) block.filters.parent_ids = []; if(block.filters.parent_ids.includes(lib.Id)) { block.filters.parent_ids = block.filters.parent_ids.filter(id => id !== lib.Id) } else { block.filters.parent_ids.push(lib.Id) }; $store.mixer.updatePreviewCount(block);" x-text="lib.Name"></button>
                             </template>
                         </div>
                         <div class="movie-block-filter-grid">

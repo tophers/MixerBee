@@ -1,171 +1,199 @@
-<!-- templates/partials/_modals.js -->
+<!-- templates/partials/_modals.html -->
+
 <!-- Save Preset Modal -->
-<div id="save-preset-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
+<div class="modal-overlay" x-show="$store.modals.preset.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.presetAction.close(null, true)">
         <div class="modal-header">
             <h2>Save Preset</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <button class="icon-btn" @click="$store.modals.presetAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
-            <label for="preset-name-input" style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Preset Name</label>
-            <input type="text" id="preset-name-input" placeholder="e.g., Sci-Fi Favorites" style="width: 100%; box-sizing: border-box;">
-            <div id="preset-overwrite-warning" style="color: var(--danger); font-size: 0.9em; margin-top: 0.5rem; display: none;">
+            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Preset Name</label>
+            <input type="text" x-model="$store.modals.preset.name" placeholder="e.g., Sci-Fi Favorites" style="width: 100%; box-sizing: border-box;">
+            <div style="color: var(--danger); font-size: 0.9em; margin-top: 0.5rem;" x-show="($store.modals.preset.existingNames || []).includes($store.modals.preset.name.trim())">
                 Warning: A preset with this name already exists. Saving will overwrite it.
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel">Cancel</button>
-            <button id="save-preset-confirm-btn" type="button">Save</button>
+            <button type="button" class="secondary" @click="$store.modals.presetAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.presetAction.close($store.modals.preset.name)">Save</button>
         </div>
     </div>
 </div>
 
 <!-- Smart Playlist Modal -->
-<div id="smart-playlist-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
+<div class="modal-overlay" x-show="$store.modals.playlist.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.playlistAction.close(null, true)">
         <div class="modal-header">
-            <h2 id="smart-playlist-title">Create Playlist</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <h2 x-text="$store.modals.playlist.title"></h2>
+            <button class="icon-btn" @click="$store.modals.playlistAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
-            <p id="smart-playlist-description"></p>
+            <p x-text="$store.modals.playlist.description"></p>
             <div class="modal-form-layout">
                 <label class="control-item">
                     <span>Playlist Name</span>
-                    <input type="text" id="smart-playlist-name-input">
+                    <input type="text" x-model="$store.modals.playlist.playlistName">
                 </label>
-                <label class="control-item" id="smart-playlist-count-wrapper">
-                    <span id="smart-playlist-count-label">Number of Items</span>
-                    <input type="number" id="smart-playlist-count-input" min="1" value="10">
+                <label class="control-item" x-show="$store.modals.playlist.countInput">
+                    <span>Number of Items</span>
+                    <input type="number" x-model.number="$store.modals.playlist.count" min="1">
                 </label>
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel">Cancel</button>
-            <button id="smart-playlist-confirm-btn" type="button">Create</button>
+            <button type="button" class="secondary" @click="$store.modals.playlistAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.playlistAction.close({ playlistName: $store.modals.playlist.playlistName, count: $store.modals.playlist.count })">Create</button>
         </div>
     </div>
 </div>
 
 <!-- Import Preset Modal -->
-<div id="import-preset-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
+<div class="modal-overlay" x-show="$store.modals.import.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.importAction.close(null, true)">
         <div class="modal-header">
             <h2>Import Preset</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <button class="icon-btn" @click="$store.modals.importAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
             <div class="modal-form-layout">
                 <label class="control-item">
                     <span>Share Code</span>
-                    <textarea id="import-code-input" rows="4" placeholder="Paste share code here..."></textarea>
+                    <textarea x-model="$store.modals.import.code" rows="4" placeholder="Paste share code here..."></textarea>
                 </label>
                 <label class="control-item">
                     <span>New Preset Name</span>
-                    <input type="text" id="import-name-input" placeholder="e.g., Friend's Movie Mix">
+                    <input type="text" x-model="$store.modals.import.name" placeholder="e.g., Friend's Movie Mix">
                 </label>
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel">Cancel</button>
-            <button id="import-preset-confirm-btn" type="button">Import</button>
+            <button type="button" class="secondary" @click="$store.modals.importAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.importAction.performImport()">Import</button>
         </div>
     </div>
 </div>
 
 <!-- Smart Build Selection Modal -->
-<div id="smart-build-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
+<div class="modal-overlay" x-show="$store.modals.smartBuild.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.smartBuildAction.close(null, true)">
         <div class="modal-header">
             <h2>Build an Auto Playlist</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <button class="icon-btn" @click="$store.modals.smartBuildAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
             <p>Select a pre-configured playlist type to create.</p>
-            <ul id="smart-build-list" class="item-selection-list"></ul>
+            <ul class="item-selection-list">
+                <template x-for="item in ($store.modals.smartBuild.items || [])" :key="item.type">
+                    <li>
+                        <a href="#" @click.prevent="$store.modals.smartBuildAction.close(item.type)">
+                            <div class="item-name">
+                                <span class="dropdown-icon align-center" x-html="$store.icons[item.icon] || ''"></span>
+                                <span x-text="item.name"></span>
+                            </div>
+                            <div class="item-description" x-text="item.description"></div>
+                        </a>
+                    </li>
+                </template>
+            </ul>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel">Cancel</button>
-        </div>
-    </div>
-</div>
-
-<!-- Manager Contents Modal -->
-<div id="contents-modal-overlay" class="modal-overlay hidden">
-    <div class="modal-window">
-        <div class="modal-header">
-            <h2 id="contents-modal-title">Contents</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
-        </div>
-        <div class="modal-body" id="contents-modal-body"></div>
-        <div class="modal-footer">
-            <button class="js-modal-cancel" type="button">Close</button>
+            <button type="button" class="secondary" @click="$store.modals.smartBuildAction.close(null, true)">Cancel</button>
         </div>
     </div>
 </div>
 
 <!-- Playlist Preview Modal -->
-<div id="preview-modal-overlay" class="modal-overlay hidden">
+<div class="modal-overlay" x-show="$store.modals.preview.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
-            <h2 id="preview-modal-title">Playlist Preview</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <h2 x-text="$store.modals.preview.title"></h2>
+            <button class="icon-btn" @click="$store.modals.previewAction.close()">&times;</button>
         </div>
-        <div class="modal-body" id="preview-modal-body"></div>
+        <div class="modal-body">
+            <template x-if="!$store.modals.preview.items || $store.modals.preview.items.length === 0">
+                <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
+            </template>
+            <template x-if="($store.modals.preview.items || []).length > 0">
+                <ol class="preview-list">
+                    <template x-for="(item, index) in $store.modals.preview.items" :key="'preview-' + index">
+                        <li>
+                            <span class="item-name" x-text="item.name"></span>
+                            <template x-if="item.context">
+                                <span class="item-context" x-text="item.context"></span>
+                            </template>
+                        </li>
+                    </template>
+                </ol>
+            </template>
+        </div>
         <div class="modal-footer">
-            <button class="js-modal-cancel" type="button">Close</button>
+            <button type="button" @click="$store.modals.previewAction.close()">Close</button>
         </div>
     </div>
 </div>
 
 <!-- Reset Watch History Modal -->
-<div id="reset-watch-modal-overlay" class="modal-overlay hidden">
+<div class="modal-overlay" x-show="$store.modals.resetWatch.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
             <h2>Reset Watch History?</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <button class="icon-btn" @click="$store.modals.resetWatchAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
-            <p>You are about to erase your watch history for <strong id="reset-watch-show-name"></strong>. This cannot be undone.</p>
+            <p>You are about to erase your watch history for <strong x-text="$store.modals.resetWatch.showName"></strong>. This cannot be undone.</p>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel mr-auto">Cancel</button>
-            <button id="reset-season-btn" type="button" class="danger">Reset Season <span id="reset-season-num"></span></button>
-            <button id="reset-show-btn" type="button" class="danger">Reset Entire Show</button>
+            <button type="button" class="secondary mr-auto" @click="$store.modals.resetWatchAction.close(null, true)">Cancel</button>
+            <button type="button" class="danger" @click="$store.modals.resetWatchAction.close({ scope: 'season' })">Reset Season <span x-text="$store.modals.resetWatch.season"></span></button>
+            <button type="button" class="danger" @click="$store.modals.resetWatchAction.close({ scope: 'show' })">Reset Entire Show</button>
         </div>
     </div>
 </div>
 
 <!-- Generic Confirmation Modal -->
-<div id="confirm-modal-overlay" class="modal-overlay hidden">
+<div class="modal-overlay" x-show="$store.modals.confirm.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
-            <h2 id="confirm-modal-title">Are you sure?</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <h2 x-text="$store.modals.confirm.title"></h2>
+            <button class="icon-btn" @click="$store.modals.confirmAction.close(null, true)">&times;</button>
         </div>
         <div class="modal-body">
-            <p id="confirm-modal-text">This action cannot be undone.</p>
+            <p x-text="$store.modals.confirm.text"></p>
         </div>
         <div class="modal-footer">
-            <button type="button" class="secondary js-modal-cancel mr-auto">Cancel</button>
-            <button id="confirm-modal-confirm-btn" type="button" class="danger">Confirm</button>
+            <button type="button" class="secondary mr-auto" @click="$store.modals.confirmAction.close(null, true)">Cancel</button>
+            <button type="button" :class="$store.modals.confirm.isDanger ? 'danger' : ''" @click="$store.modals.confirmAction.close(true)" x-text="$store.modals.confirm.confirmText"></button>
         </div>
     </div>
 </div>
 
 <!-- Notification History Modal -->
-<div id="toast-history-modal-overlay" class="modal-overlay hidden">
+<div class="modal-overlay" x-show="$store.modals.history.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
             <h2>Notification History</h2>
-            <button class="icon-btn js-modal-close">&times;</button>
+            <button class="icon-btn" @click="$store.modals.historyAction.close()">&times;</button>
         </div>
         <div class="modal-body">
-            <ul class="contents-list" id="toast-history-list" style="list-style: none; padding-left: 0;"></ul>
+            <ul class="contents-list" style="list-style: none; padding-left: 0;">
+                <template x-if="($store.modals.history.toastHistory || []).length === 0">
+                    <li style="justify-content: center; color: var(--text-subtle); border-bottom: none;">No recent notifications.</li>
+                </template>
+                <template x-for="item in ($store.modals.history.toastHistory || [])">
+                    <li class="list-item-divider" style="align-items: flex-start; display: flex; gap: 10px;">
+                        <span :style="'color: ' + (item.isSuccess ? 'var(--success)' : 'var(--danger)') + '; margin-top: 2px;'">●</span>
+                        <div style="display: flex; flex-direction: column; flex-grow: 1;">
+                            <span style="font-size: 0.85rem; color: var(--text-subtle);" x-text="item.timestamp"></span>
+                            <span style="line-height: 1.4;" x-text="item.message"></span>
+                        </div>
+                    </li>
+                </template>
+            </ul>
         </div>
         <div class="modal-footer">
-            <button id="clear-toast-history-btn" type="button" class="secondary mr-auto">Clear History</button>
-            <button class="js-modal-cancel" type="button">Close</button>
+            <button type="button" class="secondary mr-auto" @click="$store.modals.historyAction.clear()">Clear History</button>
+            <button type="button" @click="$store.modals.historyAction.close()">Close</button>
         </div>
     </div>
 </div>
@@ -181,14 +209,14 @@
      x-transition.opacity
      x-cloak
      style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;">
-    <div class="modal-window" @click.outside="$store.settings.hide()">
+    <div class="modal-window" @click.outside="if(!$store.modals.ollamaModels.isOpen) $store.settings.hide()">
         <div class="modal-header">
             <h2>Settings</h2>
             <button class="icon-btn" @click="$store.settings.hide()">&times;</button>
         </div>
         <div class="modal-body">
             <p class="mb-md">Configure your media server and AI preferences. Changes require a restart to apply.</p>
-            
+
             <div class="modal-form-layout">
                 <fieldset class="filter-group">
                     <legend>Server Connection</legend>
@@ -217,13 +245,12 @@
                     <legend>AI Configuration</legend>
                     <label class="control-item">
                         <span>AI Provider</span>
-                        <select x-model="$store.settings.ai_provider">
+                        <select x-model="$store.settings.ai_provider" @change="if($el.value === 'ollama') $store.settings.fetchOllamaStatus()">
                             <option value="gemini">Google Gemini (Cloud)</option>
                             <option value="ollama">Ollama (Local)</option>
                         </select>
                     </label>
 
-                    <!-- Gemini Specific -->
                     <div x-show="$store.settings.ai_provider === 'gemini'" x-transition>
                         <label class="control-item">
                             <span>Gemini API Key</span>
@@ -234,16 +261,24 @@
                         </label>
                     </div>
 
-                    <!-- Ollama Specific -->
                     <div x-show="$store.settings.ai_provider === 'ollama'" x-transition>
                         <div class="flex-column gap-md">
                             <label class="control-item">
                                 <span>Ollama Server URL</span>
-                                <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434">
+                                <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434" @change="$store.settings.fetchOllamaStatus()">
                             </label>
+                            
                             <label class="control-item">
-                                <span>Model Name</span>
-                                <input type="text" x-model="$store.settings.ollama_model" placeholder="e.g., llama3.1, mistral">
+                                <span>Active Ollama Model</span>
+                                <div class="flex-row align-center gap-md">
+                                    <input type="text" x-model="$store.settings.ollama_model" readonly class="grow-1 opacity-70" style="cursor: default;">
+                                    <button type="button" class="secondary small" @click="$store.modals.ollamaAction.show()">Manage Models...</button>
+                                </div>
+                            </label>
+
+                            <label class="control-item">
+                                <span>Ollama Response Timeout (Seconds)</span>
+                                <input type="number" x-model.number="$store.settings.ollama_timeout" min="10" max="600">
                             </label>
                         </div>
                     </div>
@@ -255,6 +290,69 @@
             <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($el)">Test Connection</button>
             <button type="button" class="secondary" @click="$store.settings.hide()">Cancel</button>
             <button type="button" @click="$store.settings.saveSettings($el)">Save & Restart</button>
+        </div>
+    </div>
+</div>
+
+<!-- Ollama Model Management Sub-Modal -->
+<div class="modal-overlay sub-modal" x-show="$store.modals.ollamaModels.isOpen" x-cloak @click.stop>
+    <div class="modal-window wide" @click.outside="$store.modals.ollamaAction.close">
+        <div class="modal-header">
+            <h2>Manage Ollama Models</h2>
+            <button type="button" class="icon-btn" @click="$store.modals.ollamaAction.close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p>Select a model to use for AI generation. Star your favorites to make them available in the builder's quick-switcher.</p>
+            
+            <label class="control-item">
+                <div class="model-name-header">
+                    <span>Target Model Name</span>
+                    <div class="help-tooltip-container" title="Tool-calling capability is required. Models like Llama 3.1 or Qwen 2.5 are recommended. Smaller/older models often fail to generate valid block structures.">
+                        <span class="icon-subtle" x-html="$store.icons.alert"></span>
+                    </div>
+                </div>
+                <div class="input-with-button">
+                    <input type="text" x-model="$store.settings.ollama_model" placeholder="Select a model below or type name...">
+                    <button type="button" class="secondary small icon-only" @click="$store.settings.fetchOllamaStatus()" :disabled="$store.settings.is_loading_ollama">
+                        <span :class="$store.settings.is_loading_ollama ? 'spin' : ''" x-html="$store.icons.refresh"></span>
+                    </button>
+                </div>
+            </label>
+
+            <div class="ollama-discovery-area mt-lg">
+                <template x-if="$store.settings.is_loading_ollama">
+                    <div class="flex-row align-center gap-md p-md opacity-60">
+                        <div class="spinner small"></div>
+                        <span>Scanning Ollama server...</span>
+                    </div>
+                </template>
+
+                <template x-if="!$store.settings.is_loading_ollama && $store.settings.ollama_installed.length === 0">
+                    <div class="p-md text-subtle italic border-dashed">
+                        No models found. Check your Ollama URL or 'ollama serve' status.
+                    </div>
+                </template>
+
+                <div class="model-tag-cloud">
+                    <template x-for="m in $store.settings.ollama_installed" :key="'subtag-'+m.name">
+                        <div class="model-tag-item" :class="$store.settings.ollama_model === m.name ? 'active' : ''">
+                            <button type="button" class="model-tag-name" @click="$store.settings.ollama_model = m.name">
+                                <span class="running-indicator" x-show="$store.settings.ollama_running.includes(m.name)"></span>
+                                <span x-text="m.name"></span>
+                                <template x-if="m.name.includes('3.1') || m.name.includes('qwen') || m.name.includes('mistral') || m.name.includes('command-r')">
+                                    <span class="capability-tag">Tooling</span>
+                                </template>
+                            </button>
+                            <button type="button" class="model-tag-star" :class="$store.settings.starred_models.includes(m.name) ? 'starred' : ''" @click.stop="$store.settings.toggleStar(m.name)">
+                                ★
+                            </button>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="primary" @click="$store.modals.ollamaAction.close()">Done</button>
         </div>
     </div>
 </div>

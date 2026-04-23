@@ -5,7 +5,7 @@
 <body x-data="{}">
     {% include 'partials/_nav.html' %}
 
-    <div id="not-configured-warning" class="container">
+    <div id="not-configured-warning" class="container" x-show="!$store.settings.activeUserId" x-cloak>
         <div class="warning-box">
             <span x-html="$store.icons.alert"></span>
             <h3>Application Not Configured</h3>
@@ -14,10 +14,16 @@
         </div>
     </div>
 
-    <div id="main-content-area" class="hidden has-fixed-footer">
-        {% include 'partials/_builder_pane.html' %}
-        {% include 'partials/_scheduler_pane.html' %}
-        {% include 'partials/_manager_pane.html' %}
+    <div id="main-content-area" class="has-fixed-footer" x-show="$store.settings.activeUserId" x-cloak>
+        <div x-show="$store.ui.currentTab === 'mixed'">
+            {% include 'partials/_builder_pane.html' %}
+        </div>
+        <div x-show="$store.ui.currentTab === 'scheduler'">
+            {% include 'partials/_scheduler_pane.html' %}
+        </div>
+        <div x-show="$store.ui.currentTab === 'manager'">
+            {% include 'partials/_manager_pane.html' %}
+        </div>
     </div>
 
     {% include 'partials/_modals.html' %}

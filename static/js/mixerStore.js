@@ -146,7 +146,7 @@ export const mixerStore = {
 
     async syncNextUnwatched(showData) {
         const series = this.library.seriesData.find(s => s.name === showData.name || s.id === showData.id);
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         if (!series || !uid) return;
 
         showData._loadingTitle = true;
@@ -165,11 +165,12 @@ export const mixerStore = {
 
     async promptResetWatch(showData) {
         const series = this.library.seriesData.find(s => s.name === showData.name || s.id === showData.id);
-        if (!series) return toast("Select a show.", false);
+        const uid = Alpine.store('settings').activeUserId;
+        if (!series || !uid) return toast("Select a show.", false);
         try {
             const decision = await resetWatchModal.show({ showName: series.name, season: showData.season });
             const payload = {
-                user_id: document.getElementById('user-select').value,
+                user_id: uid,
                 season_number: decision.scope === 'season' ? showData.season : null
             };
             const res = await post(`api/shows/${series.id}/unplayed`, payload);
@@ -262,7 +263,7 @@ export const mixerStore = {
 
         if (!this._previewDebouncers[block._uid]) {
             this._previewDebouncers[block._uid] = debounce(async (targetUid) => {
-                const user_id = document.getElementById('user-select')?.value;
+                const user_id = Alpine.store('settings').activeUserId;
                 if (!user_id) return;
 
                 const liveBlock = this.blocks.find(b => b._uid === targetUid);
@@ -298,7 +299,7 @@ export const mixerStore = {
     },
 
     async refreshUserPlaylists() {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         try {
             const res = await post(`api/users/${uid}/playlists`, null, null, 'GET', true);
@@ -319,7 +320,7 @@ export const mixerStore = {
             }
 
             blocksData.forEach(b => this.ensureBlockState(b));
-            const uid = document.getElementById('user-select')?.value;
+            const uid = Alpine.store('settings').activeUserId;
             const promises = [];
 
             blocksData.forEach(block => {
@@ -418,6 +419,21 @@ export const mixerStore = {
         }
     },
 
+    async quickSwitchModel(modelName) {
+        const sStore = Alpine.store('settings');
+        if (sStore.ollama_model === modelName) return;
+        
+        try {
+            const res = await post('api/settings/model', { ollama_model: modelName }, null, 'POST', true, false);
+            if (res.status === 'ok') {
+                sStore.ollama_model = modelName;
+                toast(`AI Model switched to ${modelName}`, true);
+            }
+        } catch (e) {
+            toast('Failed to switch AI model.', false);
+        }
+    },
+
     clearAiPrompt() { this.aiPrompt = ''; },
 
     async previewPlaylist(btnEl, blocksOverride = null) {
@@ -425,17 +441,24 @@ export const mixerStore = {
             if (blocksOverride && blocksOverride.length === 1) {
                 const cachedBlock = blocksOverride[0];
                 if (cachedBlock._previewItems && cachedBlock._previewItems.length > 0) {
-                    return await previewModal.show(cachedBlock._previewItems);
+                    return await previewModal.show({
+                        items: cachedBlock._previewItems,
+                        title: `${cachedBlock.title || 'Block'} Preview`
+                    });
                 }
             }
 
             const targetBlocks = blocksOverride || this.blocks;
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
-            const uid = document.getElementById('user-select')?.value;
+            const uid = Alpine.store('settings').activeUserId;
             const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
+
             if (res.status === 'ok') {
-                await previewModal.show(res.data);
+                await previewModal.show({
+                    items: res.data,
+                    title: 'Full Playlist Preview'
+                });
             }
         } catch (err) {
             if (err.message !== 'Modal cancelled by user.') {
@@ -446,7 +469,7 @@ export const mixerStore = {
 
     async buildPlaylist(btnEl) {
         if (this.blocks.length === 0) return toast('Add a block.', false);
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         if (this.buildMode === 'add') {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
             await post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: this.blocks }, btnEl);
@@ -468,7 +491,7 @@ export const mixerStore = {
 
     async showSmartBuildMenu() {
         try {
-            const type = await smartBuildModal.show(SMART_BUILD_TYPES);
+            const type = await smartBuildModal.show({ items: SMART_BUILD_TYPES });
             await this.handleSmartBuildSelection(type);
         } catch (e) { }
     },
@@ -478,7 +501,7 @@ export const mixerStore = {
             recently_added: { title: 'Recently Added', description: 'New media.', defaultName: 'Recently Added', defaultCount: 25 },
             next_up: { title: 'Next Up', description: 'In-progress shows.', defaultName: 'Next Up' },
             pilot_sampler: { title: 'Pilot Sampler', description: 'Random pilots.', defaultName: 'Pilot Sampler' },
-            from_the_vault: { title: 'From the Vault', description: 'Forgotten favorites.', defaultName: 'Forgotten favorites.', defaultCount: 20 },
+            from_the_vault: { title: 'From the Vault', description: 'Favorite movies you haven\'t watched in a while.', defaultName: 'Forgotten favorites.', defaultCount: 20 },
         };
         if (config[type]) await this.executeQuickBuild(type, config[type]);
         else if (type === 'genre_roulette' || type === 'genre_sampler') {
@@ -490,7 +513,7 @@ export const mixerStore = {
     },
 
     async executeQuickBuild(type, { title, description, defaultName, showCount = true, defaultCount = 10, extraParams = {} }) {
-        const uid = document.getElementById('user-select')?.value;
+        const uid = Alpine.store('settings').activeUserId;
         try {
             const { playlistName, count } = await smartPlaylistModal.show({ title, description, defaultName, countInput: showCount, defaultCount });
             const options = { ...extraParams };

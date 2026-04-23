@@ -9,117 +9,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
     <script src="static/js/header.js"></script>
-    <style>
-        svg.mb-icon,
-        .icon-btn svg,
-        .dropdown-item svg,
-        .align-center svg,
-        .drag-handle svg,
-        .header-user-display svg {
-            width: 1.1em;
-            height: 1.1em;
-            vertical-align: middle;
-            display: inline-block;
-            pointer-events: none;
-        }
-        .small-icon svg { width: 0.9em; height: 0.9em; }
-        .ai-badge-icon svg { color: var(--accent); }
-
-        .drag-handle { cursor: grab; }
-        .drag-handle:active { cursor: grabbing; }
-        .token {
-            cursor: pointer;
-            user-select: none;
-            transition: all 0.15s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .token:hover {
-            filter: brightness(1.1);
-            transform: translateY(-1px);
-        }
-        .token:active {
-            transform: translateY(0);
-        }
-        .token-label {
-            pointer-events: none;
-        }
-        .token-state-trigger {
-            font-weight: bold;
-            font-size: 1.1rem;
-            pointer-events: none;
-        }
-        .token-remove {
-            padding: 0 4px;
-            margin-left: 4px;
-            border-radius: 4px;
-            cursor: pointer;
-            pointer-events: auto;
-        }
-        .token-remove:hover {
-            background: rgba(255,255,255,0.2);
-        }
-        .token-logic-any { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb), 0.05); }
-        .token-logic-all { border-color: #4ade80 !important; color: #4ade80 !important; background: rgba(74, 222, 128, 0.1); }
-        .token-logic-exclude { border-color: #f87171 !important; color: #f87171 !important; background: rgba(248, 113, 113, 0.1); }
-
-        .vibe-block-curated {
-            border-left: 4px solid var(--accent) !important;
-            background: linear-gradient(to right, rgba(var(--accent-rgb), 0.05), transparent) !important;
-        }
-        .curated-card {
-            border: 1px solid rgba(var(--accent-rgb), 0.2) !important;
-            background: rgba(var(--accent-rgb), 0.02) !important;
-        }
-        .curated-stat-box {
-            background: rgba(var(--accent-rgb), 0.1);
-            padding: 0.75rem;
-            border-radius: 12px;
-            text-align: center;
-            min-width: 90px;
-            border: 1px solid rgba(var(--accent-rgb), 0.1);
-        }
-        .curated-count {
-            font-size: 1.6rem;
-            font-weight: 800;
-            color: var(--accent);
-            line-height: 1;
-            margin-top: 4px;
-        }
-        .curated-preview-text {
-            font-size: 0.95rem;
-            line-height: 1.5;
-            color: var(--text-main);
-        }
-        .ai-chip {
-            background: var(--accent);
-            color: white;
-            border: none;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-            font-size: 0.65rem;
-            padding: 4px 8px;
-        }
-        .curated-footer {
-            border-top: 1px solid rgba(var(--accent-rgb), 0.1);
-            padding-top: 1rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        @keyframes pulse-subtle {
-            0% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.1); opacity: 1; }
-            100% { transform: scale(1); opacity: 0.8; }
-        }
-        .pulse-icon {
-            animation: pulse-subtle 3s infinite ease-in-out;
-        }
-    </style>
-
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.store('icons', {
@@ -161,6 +50,11 @@
                 externalLink: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg>`
             });
 
+            Alpine.store('ui', {
+                currentTab: 'mixed',
+                setTab: () => {}
+            });
+
             Alpine.store('mixer', {
                 blocks: [],
                 aiPrompt: '',
@@ -170,11 +64,52 @@
                 updatePreviewCount: () => {},
                 init: () => {}
             });
+
             Alpine.store('presets', { currentName: '', availableNames: [], registry: {}, load: () => {}, refresh: () => {} });
             Alpine.store('scheduler', { schedule: [], isLoading: true, loadSchedule: () => {} });
             Alpine.store('manager', { items: [], searchQuery: '', sortColumn: 'Name', sortDirection: 'asc', filteredItems: [], contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, load: () => {} });
-            Alpine.store('settings', { isOpen: false, version: '', server_type: 'emby', emby_url: '', emby_user: '', emby_pass: '', is_ai_configured: false, gemini_key: '', show: () => { Alpine.store('settings').isOpen = true; }, hide: () => { Alpine.store('settings').isOpen = false; } });
-            Alpine.store('modals', { confirm: { show: () => new Promise(() => {}) }, playlist: { show: () => new Promise(() => {}) }, smartBuild: { show: () => new Promise(() => {}) }, preview: { show: () => new Promise(() => {}) }, resetWatch: { show: () => new Promise(() => {}) }, history: { show: () => new Promise(() => {}) } });
+
+            Alpine.store('settings', {
+                isOpen: false,
+                activeUserId: '',
+                activeUserName: '',
+                version: '',
+                server_type: 'emby',
+                emby_url: '',
+                emby_user: '',
+                emby_pass: '',
+                is_ai_configured: false,
+                ai_provider: 'gemini',
+                ollama_url: '',
+                ollama_model: '',
+                ollama_timeout: 120,
+                ollama_installed: [],
+                ollama_running: [],
+                starred_models: [],
+                is_loading_ollama: false,
+                gemini_key: '',
+                show: () => {},
+                hide: () => {}
+            });
+
+            Alpine.store('modals', {
+                confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false },
+                preset: { isOpen: false, existingNames: [], name: '' },
+                playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
+                import: { isOpen: false, code: '', name: '' },
+                smartBuild: { isOpen: false, items: [] },
+                preview: { isOpen: false, items: [], title: 'Preview' },
+                resetWatch: { isOpen: false, showName: '', season: '' },
+                history: { isOpen: false, toastHistory: [] },
+                ollamaModels: { isOpen: false },
+                confirmAction: { show: () => new Promise(() => {}), close: () => {} },
+                playlistAction: { show: () => new Promise(() => {}), close: () => {} },
+                smartBuildAction: { show: () => new Promise(() => {}), close: () => {} },
+                previewAction: { show: () => new Promise(() => {}), close: () => {} },
+                resetWatchAction: { show: () => new Promise(() => {}), close: () => {} },
+                historyAction: { show: () => {}, close: () => {}, clear: () => {} },
+                importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} }
+            });
         });
     </script>
 </head>

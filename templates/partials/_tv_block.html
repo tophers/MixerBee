@@ -4,28 +4,28 @@
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             {% set default_title = 'TV Block' %}
             {% include 'partials/_block_header.html' %}
-            
+
             <div class="mixed-block-body">
                 <div class="block-summary-card">
                     <div class="summary-label">Shows Included</div>
 
                     <div class="summary-content mb-sm">
                         <template x-if="block.shows && block.shows.length > 0">
-                            <div style="font-size: 0.9rem; line-height: 1.4;">
+                            <div class="curated-preview-text">
                                 <template x-for="(show, i) in block.shows.slice(0, 3)" :key="block._uid + '_showprev_' + (show._uid || i)">
                                     <span x-text="(show.name || 'Unknown') + (i < Math.min(block.shows.length, 3) - 1 ? ', ' : '')"></span>
                                 </template>
                                 <template x-if="block.shows.length > 3">
-                                    <span style="color: var(--text-subtle);"> + <span x-text="block.shows.length - 3"></span> more</span>
+                                    <span class="text-subtle"> + <span x-text="block.shows.length - 3"></span> more</span>
                                 </template>
                             </div>
                         </template>
                         <template x-if="!block.shows || block.shows.length === 0">
-                            <div class="text-subtle italic" style="font-size: 0.85rem;">No shows selected</div>
+                            <div class="text-subtle italic">No shows selected</div>
                         </template>
                     </div>
 
-                    <div class="summary-footer mt-md" style="display: flex; align-items: center; justify-content: space-between;">
+                    <div class="summary-footer mt-md flex-row align-center justify-between">
                         <span class="badge" x-text="$store.mixer.getTvBlockSummary(block)"></span>
                         <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true"><span x-html="$store.icons.edit"></span> Edit Shows</button>
                     </div>
@@ -33,14 +33,14 @@
             </div>
         </details>
 
-        <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 9999; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+        <div class="modal-overlay" x-show="editModalOpen" x-cloak>
             <div class="modal-window wide" @click.outside="editModalOpen = false">
                 <div class="modal-header">
                     <h2 x-text="(block.title || 'TV') + ' Block Settings'"></h2>
                     <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <div class="modal-form-layout mb-lg">
+                    <div class="modal-form-layout modal-inner-form">
                         <label class="control-item"><span>Block Title</span><input type="text" x-model="block.title" placeholder="e.g., Evening Comedy"></label>
                         <div class="control-item">
                             <span>Episode Ordering</span>
@@ -56,20 +56,22 @@
                                     <template x-for="val in [2,3,4,5]"><span class="pill-btn grow-1 text-center" :class="block.count === val ? 'active' : ''" @click="block.count = val" x-text="val"></span></template>
                                     <span class="pill-btn grow-1 text-center" :class="![2,3,4,5].includes(block.count) ? 'active' : ''" @click="if([2,3,4,5].includes(block.count)) block.count = 6">Custom</span>
                                 </div>
-                                <div x-show="![2,3,4,5].includes(block.count)" class="flex-row align-center gap-md" style="margin-top: 4px;"><span class="text-subtle" style="font-size: 0.85rem;">Custom Count:</span><input type="number" x-model.number="block.count" min="1" max="100" class="m-0" style="width: 80px; height: 32px;"></div>
+                                <div x-show="![2,3,4,5].includes(block.count)" class="flex-row align-center gap-md mt-xs">
+                                    <span class="text-subtle">Custom Count:</span>
+                                    <input type="number" x-model.number="block.count" min="1" max="100" class="m-0 w-80">
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <div class="tv-block-shows" x-sort:config="{ handle: '.show-drag-handle' }" x-sort="block.shows">
                         <template x-for="(show, rowIndex) in (block.shows || [])" :key="show._uid">
-                            <div class="tv-block-show-row" x-sort:item :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowMenuOpen: false }" style="display: flex; align-items: flex-start; gap: 0.5rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color);">
+                            <div class="tv-show-row" x-sort:item :class="{ 'is-unwatched': show.unwatched }" x-data="{ rowMenuOpen: false }">
 
-                                <div class="drag-handle show-drag-handle"
+                                <div class="drag-handle show-drag-handle block-drag-handle"
                                      x-sort:handle
                                      @mousedown.stop
                                      @touchstart.stop
-                                     style="margin-top: 8px; padding: 4px; color: var(--text-subtle);"
                                      x-html="$store.icons.move"></div>
 
                                 <div class="show-selector-area grow-1">
@@ -83,22 +85,22 @@
                                             </template>
                                         </select>
                                     </div>
-                                    <div class="show-episode-config" x-show="show.name" style="margin-top: 0.75rem;">
+                                    <div class="show-episode-config mt-sm" x-show="show.name">
                                         <div class="toggle-pill mb-sm">
                                             <span class="pill-btn grow-1 text-center" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show)">Next Unwatched</span>
                                             <span class="pill-btn grow-1 text-center" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show)">Manual</span>
                                         </div>
-                                        <div class="episode-inputs flex-row gap-md align-center" x-show="!show.unwatched" style="margin-bottom: 0.5rem;">
-                                            <div class="flex-row align-center gap-xs"><span class="text-subtle" style="font-size: 0.85rem;">Season:</span><input type="number" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" style="width: 65px;"></div>
-                                            <div class="flex-row align-center gap-xs"><span class="text-subtle" style="font-size: 0.85rem;">Episode:</span><input type="number" x-model.number="show.episode" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" style="width: 65px;"></div>
+                                        <div class="episode-inputs flex-row gap-md align-center mb-sm" x-show="!show.unwatched">
+                                            <div class="flex-row align-center gap-xs"><span class="text-subtle">Season:</span><input type="number" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" class="w-65"></div>
+                                            <div class="flex-row align-center gap-xs"><span class="text-subtle">Episode:</span><input type="number" x-model.number="show.episode" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" class="w-65"></div>
                                         </div>
-                                        <div class="episode-title-preview" x-show="show.previewTitle" style="font-size: 0.9rem; opacity: 0.8;"><span>Episode Name: </span><i x-text="show.previewTitle"></i></div>
+                                        <div class="curated-preview-text opacity-80" x-show="show.previewTitle"><span>Episode Name: </span><i x-text="show.previewTitle"></i></div>
                                     </div>
                                 </div>
-                                <div class="row-actions flex-row gap-xs" style="margin-top: 6px;">
+                                <div class="row-actions flex-row gap-xs mt-sm">
                                     <div class="dropdown-container">
                                         <button type="button" class="icon-btn" @click="rowMenuOpen = !rowMenuOpen" @click.outside="rowMenuOpen = false" x-html="$store.icons.more"></button>
-                                        <div class="dropdown-menu" x-show="rowMenuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
+                                        <div class="dropdown-menu z-dropdown" x-show="rowMenuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
                                             <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.promptResetWatch(show)"><span class="dropdown-icon" x-html="$store.icons.refresh"></span> Reset Watch State</a>
                                         </div>
                                     </div>
@@ -107,7 +109,7 @@
                             </div>
                         </template>
                     </div>
-                    <button type="button" class="secondary align-center gap-xs" style="width: 100%; margin-top: 1rem; justify-content: center;" @click="$store.mixer.addShowRow(index)">
+                    <button type="button" class="secondary align-center gap-xs w-full mt-md justify-center" @click="$store.mixer.addShowRow(index)">
                         <span x-html="$store.icons.plus"></span> Add Series
                     </button>
                 </div>

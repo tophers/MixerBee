@@ -1,6 +1,12 @@
 /* static/css/forms.css */
 
-select, input[type="number"], input[type="text"], input[type="search"], input[type="time"], input[type="password"], textarea {
+select,
+input[type="number"],
+input[type="text"],
+input[type="search"],
+input[type="time"],
+input[type="password"],
+textarea {
     background: var(--input-bg);
     color: var(--text);
     border: 1px solid var(--border-color);
@@ -12,17 +18,20 @@ select, input[type="number"], input[type="text"], input[type="search"], input[ty
     font-family: inherit;
     margin-top: 0.5rem;
 }
+
 select {
     width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
 input[type="number"] {
     width: 100%;
     font-weight: 600;
     text-align: center;
 }
+
 .icon-btn {
     background: none;
     border: none;
@@ -34,17 +43,20 @@ input[type="number"] {
     opacity: .7;
     transition: .2s;
 }
+
 .icon-btn:hover {
     opacity: 1;
     color: var(--accent);
 }
+
 .drag-handle {
     cursor: grab;
     touch-action: none;
 }
+
 button {
     background: var(--accent);
-    color: #fff;
+    color: var(--button-text);
     border: none;
     border-radius: var(--radius);
     padding: .55rem 1rem;
@@ -58,51 +70,47 @@ button {
     gap: 0.5rem;
     margin-top: 0.5rem;
 }
+
 button:hover {
     background: var(--accent-dark);
 }
+
 .button-group {
     display: flex;
     gap: var(--gap);
     align-items: center;
 }
-button .feather {
-    stroke: var(--text-subtle);
-    width: 1.1em;
-    height: 1.1em;
-    stroke-width: 2.5;
-}
-button .feather.chevron {
-    width: 1em;
-    height: 1em;
-    stroke-width: 3;
-}
+
 .day-pill {
-    background: rgba(128, 128, 128, 0.1) !important;
-    color: var(--text-subtle) !important;
-    border: 1px solid var(--border-color) !important;
-    padding: 0.3rem 0.7rem !important;
-    font-size: 0.85rem !important;
-    margin-top: 0 !important;
-    box-shadow: none !important;
+    background: var(--day-pill-bg) ;
+    color: var(--text-subtle) ;
+    border: 1px solid var(--border-color) ;
+    padding: 0.3rem 0.7rem ;
+    font-size: 0.85rem ;
+    margin-top: 0 ;
+    box-shadow: none ;
     opacity: 0.6;
 }
+
 .day-pill.active {
-    background: var(--accent) !important;
-    color: #fff !important;
-    border-color: var(--accent) !important;
+    background: var(--accent) ;
+    color: var(--button-text) ;
+    border-color: var(--accent) ;
     opacity: 1;
-    box-shadow: var(--shadow) !important;
+    box-shadow: var(--shadow) ;
 }
+
 .day-pill:hover {
     opacity: 1;
-    background: rgba(128, 128, 128, 0.2) !important;
+    background: var(--day-pill-bg-hover) ;
 }
+
 .control-item {
     display: flex;
     flex-direction: column;
     gap: 0.3rem;
 }
+
 .control-item span {
     font-family: 'Poppins', sans-serif;
     font-size: 0.9rem;
@@ -110,6 +118,7 @@ button .feather.chevron {
     opacity: 0.8;
     padding-left: 0.2rem;
 }
+
 #ai-prompt-input {
     background: var(--input-bg);
     color: var(--text);
@@ -123,22 +132,23 @@ button .feather.chevron {
     width: 100%;
     resize: none;
 }
+
 #ai-prompt-input::placeholder {
     color: var(--text-placeholder);
     opacity: 0.8;
 }
+
 #ai-prompt-input:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.2);
+    box-shadow: var(--focus-ring);
 }
-body[data-theme='light'] #ai-prompt-input:focus {
-     box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3);
-}
+
 .textarea-wrapper {
     position: relative;
     width: 100%;
 }
+
 .textarea-wrapper .clear-btn {
     position: absolute;
     top: 50%;
@@ -147,13 +157,11 @@ body[data-theme='light'] #ai-prompt-input:focus {
     opacity: 0.6;
     z-index: 2;
 }
+
 .textarea-wrapper .clear-btn:hover {
     opacity: 1;
 }
-.textarea-wrapper .clear-btn .feather {
-    width: 1.2rem;
-    height: 1.2rem;
-}
+
 .theme-toggle-label {
     position: relative;
     display: flex;
@@ -161,12 +169,7 @@ body[data-theme='light'] #ai-prompt-input:focus {
     gap: 0.5rem;
     cursor: pointer;
 }
-.theme-toggle-label .feather {
-    color: var(--text-subtle);
-    width: 20px;
-    height: 20px;
-    transition: color 0.3s ease;
-}
+
 .theme-toggle-label .slider {
     position: relative;
     width: 50px;
@@ -176,6 +179,7 @@ body[data-theme='light'] #ai-prompt-input:focus {
     transition: .4s;
     border-radius: 28px;
 }
+
 .theme-toggle-label .slider:before {
     position: absolute;
     content: "";
@@ -187,63 +191,42 @@ body[data-theme='light'] #ai-prompt-input:focus {
     transition: .4s;
     border-radius: 50%;
 }
+
 #theme-toggle-cb {
     opacity: 0;
     width: 0;
     height: 0;
     position: absolute;
 }
+
 #theme-toggle-cb:checked + .slider {
     background-color: var(--accent);
 }
+
 #theme-toggle-cb:checked + .slider:before {
     transform: translateX(22px);
-    background-color: #fff;
+    background-color: var(--toggle-knob-active);
 }
-.theme-switcher .feather-moon {
-    color: var(--accent);
-}
-.theme-switcher .feather-sun {
-    color: var(--text-subtle);
-}
-body[data-theme="light"] .theme-switcher .feather-moon {
-    color: var(--text-subtle);
-}
-body[data-theme="light"] .theme-switcher .feather-sun {
-    color: var(--accent);
-}
-button.secondary {
-    background: transparent;
-    border: 1px solid var(--border-color);
-    margin-top: .5rem;
-    color: var(--text);
-    transition: all 0.2s ease;
-}
-button.secondary:hover {
-    border-color: var(--accent);
-    color: var(--accent);
-}
-.input-with-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
+
 .input-with-button input {
     flex-grow: 1;
 }
+
 .input-with-button button.small {
     padding: .35rem .7rem;
     font-size: .9rem;
     flex-shrink: 0;
 }
+
 .toggle-pill {
     display: flex;
-    background: rgba(0,0,0,0.3);
+    background: var(--toggle-pill-bg);
     border-radius: 24px;
     padding: 3px;
     border: 1px solid var(--border-color);
     height: 38px;
 }
+
 .pill-btn {
     flex: 1;
     text-align: center;
@@ -257,63 +240,61 @@ button.secondary:hover {
     align-items: center;
     justify-content: center;
 }
+
 .pill-btn.active {
     background: var(--accent);
-    color: #000 !important;
+    color: var(--text-on-accent-strong) ;
     font-weight: 700;
     box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
 }
+
 .day-btn {
     flex: 1;
     max-width: 42px;
     height: 38px;
     border: 1px solid var(--border-color);
-    background: rgba(255,255,255,0.03);
+    background: var(--day-btn-bg);
     color: var(--text-subtle);
     font-size: 0.8rem;
     border-radius: 8px;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
 .day-btn.active {
     background: var(--accent);
-    color: #000 !important;
+    color: var(--text-on-accent-strong) ;
     border-color: var(--accent);
     font-weight: 800;
     transform: translateY(-1px);
     box-shadow: 0 4px 10px rgba(var(--accent-rgb), 0.2);
 }
+
 .day-btn:hover:not(.active) {
     border-color: var(--accent);
     color: var(--accent);
     background: rgba(var(--accent-rgb), 0.08);
 }
-.playlist-active { border: 1px solid var(--accent); color: var(--accent); background: transparent; padding: 2px 10px; }
-.collection-active { background: var(--accent); color: #000; font-weight: 800; padding: 2px 10px; }
-.ghost-input:focus { border-bottom-color: var(--accent) !important; outline: none; }
-select, 
-.themed-input,
-.mixer-select {
-    background-color: #1a1a1a !important;
-    color: var(--text, #eeeeee) !important;
-    border: 1px solid var(--border-color, #333);
-    border-radius: 6px;
-    appearance: none;
-    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2224%22%20height%3D%2224%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23666%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%3E%3C%2Fpolyline%3E%3C%2Fsvg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px top 50%;
-    background-size: 16px;
-    cursor: pointer;
+
+.playlist-active {
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: transparent;
+    padding: 2px 10px;
 }
-select option {
-    background-color: #1a1a1a !important;
-    color: #eeeeee !important;
-    padding: 10px;
+
+.collection-active {
+    background: var(--accent);
+    color: var(--text-on-accent-strong);
+    font-weight: 800;
+    padding: 2px 10px;
 }
-input[type="time"],
-input[type="search"],
-input[type="text"].ghost-input {
-    background-color: rgba(255, 255, 255, 0.05);
-    color: var(--text);
-    border: 1px solid var(--border-color);
+
+.ghost-input:focus {
+    border-bottom-color: var(--accent) ;
+    outline: none;
+}
+
+select,
+.themed-input {
 }

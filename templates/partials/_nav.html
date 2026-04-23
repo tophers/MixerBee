@@ -1,14 +1,12 @@
 <!-- templates/partials/_nav.html -->
-<select id="user-select" class="hidden"></select>
-
 <div class="main-header-bar">
     <div class="header-user-display">
         <span x-html="$store.icons.user"></span>
-        <span id="active-user-display"></span>
+        <span x-text="$store.settings.activeUserName"></span>
 
-        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.history.show()">
+        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.historyAction.show()">
             <span x-html="$store.icons.bell"></span>
-            <span id="toast-badge" class="hidden">0</span>
+            <span id="toast-badge" class="hidden" @click.stop="$store.modals.historyAction.show(); $el.classList.add('hidden'); $el.textContent='0'">0</span>
         </button>
 
         <div class="theme-switcher">
@@ -35,7 +33,7 @@
 </div>
 
 <div class="tab-switcher">
-    <button id="mixed-tab-btn" class="tab-btn active">Builder</button>
-    <button id="scheduler-tab-btn" class="tab-btn">Scheduler</button>
-    <button id="manager-tab-btn" class="tab-btn">Manager</button>
+    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'mixed' }" @click="$store.ui.setTab('mixed')">Builder</button>
+    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'scheduler' }" @click="$store.ui.setTab('scheduler')">Scheduler</button>
+    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'manager' }" @click="$store.ui.setTab('manager')">Manager</button>
 </div>

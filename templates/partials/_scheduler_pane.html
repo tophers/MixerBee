@@ -1,11 +1,10 @@
 <!-- templates/partials/_scheduler_pane.html -->
-<div id="scheduler-pane" class="tab-pane hidden"
-      x-data="{ jobModalOpen: null }">
+<div id="scheduler-pane" x-data="{ jobModalOpen: null }">
     <div class="container">
         <div class="manager-header flex-row justify-between align-center mb-md">
             <div>
                 <h2 class="m-0">Automated Jobs</h2>
-                <p class="m-0 text-subtle" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
+                <p class="m-0 text-subtle curated-preview-text" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
             </div>
             <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
                 <span x-html="$store.icons.plus"></span> Add New Job
@@ -21,7 +20,7 @@
 
         <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
             <div class="empty-state-card p-xl text-center">
-                <div class="empty-icon mb-md" style="font-size: 3rem; opacity: 0.2;" x-html="$store.icons.calendar"></div>
+                <div class="empty-icon mb-md opacity-30" style="font-size: 3rem;" x-html="$store.icons.calendar"></div>
                 <h3>No scheduled jobs</h3>
                 <p class="text-subtle mb-lg">Create a job to automatically update your playlists on a recurring schedule.</p>
                 <button type="button" class="secondary" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">Create First Job</button>
@@ -31,9 +30,9 @@
         <div class="flex-column gap-md">
             <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
                 <div class="mixed-block">
-                    <div class="mixed-block-header" style="padding: 1rem;">
+                    <div class="mixed-block-header p-md">
                         <div class="flex-row align-center gap-lg grow-1">
-                            <div :style="entry.id ? 'color: var(--accent);' : 'color: var(--text-subtle);'" x-html="$store.icons.clock"></div>
+                            <div :class="entry.id ? 'color-accent' : 'text-subtle'" x-html="$store.icons.clock"></div>
 
                             <div class="grow-1">
                                 <div class="flex-row align-center gap-md">
@@ -42,14 +41,14 @@
                                           style="font-size: 0.7rem;"
                                           x-text="entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'"></span>
                                 </div>
-                                <div class="automation-details-row">
+                                <div class="automation-details-row curated-preview-text">
                                     <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
-                                    <span style="opacity: 0.3;">|</span>
+                                    <span class="opacity-30">|</span>
                                     <span x-text="entry.schedule_details?.time || '12:00'"></span>
                                     <template x-if="entry.preset_name">
                                         <div class="flex-row align-center gap-md" style="display: inline-flex;">
-                                            <span style="opacity: 0.3;">|</span>
-                                            <span style="color: var(--accent); opacity: 0.8;" x-text="entry.preset_name"></span>
+                                            <span class="opacity-30">|</span>
+                                            <span class="opacity-80" style="color: var(--accent);" x-text="entry.preset_name"></span>
                                         </div>
                                     </template>
                                 </div>
@@ -64,18 +63,18 @@
                     </div>
 
                     <!-- Automation Edit Modal -->
-                    <div class="modal-overlay" x-show="jobModalOpen === entry._uid" x-cloak style="z-index: 5000; position: fixed; top: 0; left: 0; width: 100%; height: 100%;">
+                    <div class="modal-overlay sub-modal" x-show="jobModalOpen === entry._uid" x-cloak>
                         <div class="modal-window wide" @click.outside="jobModalOpen = null">
                             <div class="modal-header">
                                 <h2>Edit Automation Task</h2>
                                 <button type="button" class="icon-btn" @click="jobModalOpen = null">&times;</button>
                             </div>
 
-                            <div class="modal-body scheduler-modal-inner">
+                            <div class="modal-body modal-inner-form">
                                 <div class="filter-grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem;">
                                     <div>
                                         <label class="field-label">Job Name</label>
-                                        <input type="text" x-model="entry.playlist_name" class="ghost-input w-full" style="border-bottom: 2px solid var(--border-color); font-size: 1.1rem; padding: 8px 0;">
+                                        <input type="text" x-model="entry.playlist_name" class="ghost-input w-full automation-config-item">
                                     </div>
                                     <div>
                                         <label class="field-label">Output Mode</label>
@@ -86,7 +85,7 @@
                                     </div>
                                 </div>
 
-                                <div style="margin-top: 1.5rem;">
+                                <div class="mt-lg">
                                     <label class="field-label">Automation Preset</label>
                                     <select x-model="entry.preset_name" class="mixer-select w-full">
                                         <option value="">-- Select Builder Preset --</option>
@@ -99,7 +98,7 @@
                                 <div class="automation-config-card" x-show="entry.schedule_details">
                                     <div class="flex-row justify-between align-center mb-md">
                                         <label class="field-label m-0">Execution Time</label>
-                                        <input type="time" x-model="entry.schedule_details.time" class="themed-input" style="width: auto;">
+                                        <input type="time" x-model="entry.schedule_details.time" class="themed-input w-auto">
                                     </div>
                                     <div class="flex-row justify-between gap-sm">
                                         <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">

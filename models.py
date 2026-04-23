@@ -1,5 +1,5 @@
 """
-models.py - Manages Pydantic models 
+models.py - Manages Pydantic models
 """
 
 from typing import List, Optional, Dict, Any
@@ -14,6 +14,11 @@ class SettingsRequest(BaseModel):
     ai_provider: Optional[str] = "gemini"
     ollama_url: Optional[str] = "http://localhost:11434"
     ollama_model: Optional[str] = "llama3.1"
+    ollama_timeout: int = 120
+    starred_models: Optional[List[str]] = Field(default_factory=list)
+
+class ModelUpdateRequest(BaseModel):
+    ollama_model: str
 
 class MovieFinderRequest(BaseModel):
     user_id: str

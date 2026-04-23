@@ -23,7 +23,7 @@ export const schedulerStore = {
                         _uid: generateUUID(),
                         job_type: entry.job_type || "builder",
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
-                        user_id: entry.user_id || document.getElementById('user-select')?.value || "",
+                        user_id: entry.user_id || Alpine.store('settings').activeUserId || "",
                         create_as_collection: !!entry.create_as_collection,
                         schedule_details: {
                             time: details.time || entry.time || "12:00",
@@ -44,11 +44,11 @@ export const schedulerStore = {
 
     async saveSchedule(entry, btnEl) {
         if (!entry) return;
-        const userSel = document.getElementById('user-select');
+        const uid = Alpine.store('settings').activeUserId;
         const frequency = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
 
         const payload = {
-            user_id: userSel.value,
+            user_id: uid,
             job_type: entry.job_type || "builder",
             playlist_name: entry.playlist_name || "Scheduled Mix",
             preset_name: entry.preset_name || "",
@@ -103,14 +103,14 @@ export const schedulerStore = {
     },
 
     addEntry() {
-        const userSel = document.getElementById('user-select');
+        const uid = Alpine.store('settings').activeUserId;
         const newEntry = {
             id: null,
             _uid: generateUUID(),
             job_type: "builder",
             playlist_name: "New Scheduled Mix",
             preset_name: "",
-            user_id: userSel.value,
+            user_id: uid,
             create_as_collection: false,
             schedule_details: {
                 time: "12:00",

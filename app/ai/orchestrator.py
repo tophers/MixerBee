@@ -229,7 +229,10 @@ def _call_ollama(messages: List[Dict], tools: list = None, json_schema: Dict = N
     if json_schema: payload["format"] = json_schema
 
     logger.info(f"--- OLLAMA REQUEST ({phase_name}) ---")
-    resp = requests.post(url, json=payload, timeout=120)
+
+    timeout_val = getattr(app_state, 'OLLAMA_TIMEOUT', 120)
+
+    resp = requests.post(url, json=payload, timeout=timeout_val)
     resp.raise_for_status()
     result = resp.json()
 

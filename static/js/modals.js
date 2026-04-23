@@ -2,361 +2,103 @@
 
 import { toast, toastHistory } from './utils.js';
 
-class BaseModal {
-    constructor(modalId) {
-        this.modalId = modalId;
-        this.overlay = document.getElementById(this.modalId);
-        if (!this.overlay) {
-            console.error(`Modal overlay with ID "${this.modalId}" not found.`);
-            return;
-        }
+const createModalLogic = (storeName) => {
+    return {
+        show(data = {}) {
+            const store = Alpine.store('modals')[storeName];
 
-        this.closeBtn = this.overlay.querySelector('.js-modal-close');
-        this.cancelBtn = this.overlay.querySelector('.js-modal-cancel');
+            const payload = Array.isArray(data) ? { items: data } : data;
 
-        this._resolvePromise = () => {};
-        this._rejectPromise = () => {};
+            Object.assign(store, payload, { isOpen: true });
 
-        this._handleKeyDown = this._onKeyDown.bind(this);
-
-        if (this.closeBtn) {
-            this.closeBtn.addEventListener('click', () => this.hide(true));
-        }
-        if (this.cancelBtn) {
-            this.cancelBtn.addEventListener('click', () => this.hide(true));
-        }
-    }
-
-    _onKeyDown(e) {
-        if (e.key === 'Escape') {
-            this.hide(true);
-        }
-    }
-
-    show() {
-        return new Promise((resolve, reject) => {
-            this._resolvePromise = resolve;
-            this._rejectPromise = reject;
-
-            this.overlay.classList.remove('hidden');
-            document.addEventListener('keydown', this._handleKeyDown);
-        });
-    }
-
-    hide(isCancel = false) {
-        if (this.overlay) {
-            this.overlay.classList.add('hidden');
-        }
-        document.removeEventListener('keydown', this._handleKeyDown);
-
-        if (isCancel) {
-            this._rejectPromise(new Error('Modal cancelled by user.'));
-        }
-    }
-}
-
-class PreviewModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.titleEl = this.overlay.querySelector('#preview-modal-title');
-        this.bodyEl = this.overlay.querySelector('#preview-modal-body');
-    }
-
-    show(items) {
-        this.bodyEl.innerHTML = '';
-
-        if (!items || items.length === 0) {
-            this.bodyEl.innerHTML = '<p style="text-align: center; color: var(--text-subtle);">No items were found for this configuration.</p>';
-        } else {
-            const list = document.createElement('ol');
-            list.className = 'preview-list';
-            items.forEach(item => {
-                const li = document.createElement('li');
-                const itemName = document.createElement('span');
-                itemName.className = 'item-name';
-                itemName.textContent = item.name;
-                li.appendChild(itemName);
-
-                if (item.context) {
-                    const itemContext = document.createElement('span');
-                    itemContext.className = 'item-context';
-                    itemContext.textContent = item.context;
-                    li.appendChild(itemContext);
-                }
-                list.appendChild(li);
+            return new Promise((resolve, reject) => {
+                store._resolve = resolve;
+                store._reject = reject;
             });
-            this.bodyEl.appendChild(list);
-            this.titleEl.textContent = `Playlist Preview (${items.length} Items)`;
-        }
-
-        return super.show();
-    }
-}
-
-class ConfirmationModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.titleEl = this.overlay.querySelector('#confirm-modal-title');
-        this.textEl = this.overlay.querySelector('#confirm-modal-text');
-        this.confirmBtn = this.overlay.querySelector('#confirm-modal-confirm-btn');
-
-        this.confirmBtn.addEventListener('click', () => {
-            this.hide(false);
-            this._resolvePromise();
-        });
-    }
-
-    show({ title, text, confirmText = 'Confirm' }) {
-        this.titleEl.textContent = title;
-        this.textEl.textContent = text;
-        this.confirmBtn.textContent = confirmText;
-        this.confirmBtn.focus();
-        return super.show();
-    }
-}
-
-class SavePresetModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.nameInput = this.overlay.querySelector('#preset-name-input');
-        this.warning = this.overlay.querySelector('#preset-overwrite-warning');
-        this.confirmBtn = this.overlay.querySelector('#save-preset-confirm-btn');
-        this.existingPresets = [];
-
-        this._checkOverwrite = () => {
-            this.warning.style.display = this.existingPresets.includes(this.nameInput.value.trim()) ? 'block' : 'none';
-        };
-
-        this.confirmBtn.addEventListener('click', () => {
-            const presetName = this.nameInput.value.trim();
-            if (presetName) {
-                this.hide(false);
-                this._resolvePromise(presetName);
+        },
+        close(value, isCancel = false) {
+            const store = Alpine.store('modals')[storeName];
+            store.isOpen = false;
+            if (isCancel) {
+                if (store._reject) store._reject(new Error('Modal cancelled by user.'));
             } else {
-                toast('Please enter a name for the preset.', false);
+                if (store._resolve) store._resolve(value);
             }
-        });
-
-        this.nameInput.addEventListener('input', this._checkOverwrite);
-    }
-
-    show(existingPresets = []) {
-        this.existingPresets = existingPresets;
-        this.nameInput.value = '';
-        this.warning.style.display = 'none';
-        this.nameInput.focus();
-        return super.show();
-    }
-}
-
-class SmartPlaylistModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.titleEl = this.overlay.querySelector('#smart-playlist-title');
-        this.descriptionEl = this.overlay.querySelector('#smart-playlist-description');
-        this.nameInput = this.overlay.querySelector('#smart-playlist-name-input');
-        this.countInput = this.overlay.querySelector('#smart-playlist-count-input');
-        this.countLabel = this.overlay.querySelector('#smart-playlist-count-label');
-        this.countWrapper = this.overlay.querySelector('#smart-playlist-count-wrapper');
-        this.confirmBtn = this.overlay.querySelector('#smart-playlist-confirm-btn');
-
-        this.confirmBtn.addEventListener('click', () => {
-            const playlistName = this.nameInput.value.trim();
-            const count = this.countWrapper.classList.contains('hidden') ? 1 : parseInt(this.countInput.value, 10);
-
-            if (playlistName && (this.countWrapper.classList.contains('hidden') || count > 0)) {
-                this.hide(false);
-                this._resolvePromise({ playlistName, count });
-            } else {
-                toast('Please provide a valid playlist name and number of items.', false);
-            }
-        });
-    }
-
-    hide(isCancel = false) {
-        this.confirmBtn.disabled = false;
-        super.hide(isCancel);
-    }
-
-    show({ title, description, countLabel, countInput = true, defaultCount, defaultName }) {
-        this.titleEl.textContent = title;
-        this.descriptionEl.textContent = description;
-        this.nameInput.value = defaultName;
-        this.confirmBtn.disabled = false;
-
-        this.countWrapper.classList.toggle('hidden', !countInput);
-        if (countInput) {
-            this.countLabel.textContent = countLabel;
-            this.countInput.value = defaultCount;
+            store._resolve = null;
+            store._reject = null;
         }
+    };
+};
 
-        this.nameInput.focus();
-        this.nameInput.select();
+export const confirmModal = createModalLogic('confirm');
+export const presetModal = createModalLogic('preset');
+export const smartPlaylistModal = createModalLogic('playlist');
+export const importPresetModal = createModalLogic('import');
+export const smartBuildModal = createModalLogic('smartBuild');
+export const previewModal = createModalLogic('preview');
+export const resetWatchModal = createModalLogic('resetWatch');
+export const ollamaModelsModal = createModalLogic('ollamaModels');
 
-        return super.show();
-    }
-}
-
-class ImportPresetModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.codeInput = this.overlay.querySelector('#import-code-input');
-        this.nameInput = this.overlay.querySelector('#import-name-input');
-        this.confirmBtn = this.overlay.querySelector('#import-preset-confirm-btn');
-
-        this.confirmBtn.addEventListener('click', () => {
-            const rawCode = this.codeInput.value.trim();
-            const name = this.nameInput.value.trim();
-            if (!rawCode || !name) {
-                toast('Please provide both a share code and a new name.', false);
-                return;
-            }
-            try {
-                const lines = rawCode.split('\n').filter(line => line.trim() !== '');
-                const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
-                if (!base64String) throw new Error("Could not find a valid code in the pasted text.");
-
-                const binString = atob(base64String);
-                const bytes = Uint8Array.from(binString, (c) => c.charCodeAt(0));
-                const jsonString = new TextDecoder().decode(bytes);
-
-                const sharePayload = JSON.parse(jsonString);
-
-                if (!sharePayload.data || !Array.isArray(sharePayload.data)) {
-                    throw new Error("The share code has an invalid format.");
-                }
-
-                this.hide(false);
-                this._resolvePromise({ name, data: sharePayload.data });
-            } catch (e) {
-                console.error("Failed to decode or parse preset:", e);
-                toast(`Invalid share code. Error: ${e.message}`, false);
-            }
-        });
-    }
-
+export const toastHistoryModal = {
     show() {
-        this.codeInput.value = '';
-        this.nameInput.value = '';
-        this.codeInput.focus();
-        return super.show();
+        const store = Alpine.store('modals').history;
+        store.toastHistory = [...toastHistory];
+        store.isOpen = true;
+    },
+    close() { Alpine.store('modals').history.isOpen = false; },
+    clear() {
+        toastHistory.length = 0;
+        Alpine.store('modals').history.toastHistory = [];
+        document.dispatchEvent(new CustomEvent('toast-cleared'));
     }
-}
+};
 
-class SmartBuildModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.list = this.overlay.querySelector('#smart-build-list');
+export const importAction = {
+    ...importPresetModal,
+    performImport() {
+        const store = Alpine.store('modals').import;
+        const rawCode = store.code || '';
+        const name = store.name || '';
 
-        this.list.addEventListener('click', (event) => {
-            event.preventDefault();
-            const target = event.target.closest('li a');
-            if (!target) return;
-
-            const type = target.dataset.type;
-            this.hide(false);
-            this._resolvePromise(type);
-        });
-    }
-
-    show(items) {
-        this.list.innerHTML = '';
-        // Look up icons from the Alpine store
-        const iconStore = typeof Alpine !== 'undefined' ? Alpine.store('icons') : {};
-
-        items.forEach(item => {
-            const li = document.createElement('li');
-            const iconSvg = iconStore[item.icon] || '';
-            li.innerHTML = `
-                <a href="#" data-type="${item.type}">
-                    <div class="item-name"><span class="dropdown-icon align-center">${iconSvg}</span> ${item.name}</div>
-                    <div class="item-description">${item.description}</div>
-                </a>
-            `;
-            this.list.appendChild(li);
-        });
-
-        return super.show();
-    }
-}
-
-class ToastHistoryModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.listEl = this.overlay.querySelector('#toast-history-list');
-        this.clearBtn = this.overlay.querySelector('#clear-toast-history-btn');
-
-        this.clearBtn.addEventListener('click', () => {
-            toastHistory.length = 0;
-            this.renderList();
-            document.dispatchEvent(new CustomEvent('toast-cleared'));
-        });
-    }
-
-    renderList() {
-        this.listEl.innerHTML = '';
-        if (toastHistory.length === 0) {
-            this.listEl.innerHTML = '<li style="justify-content: center; color: var(--text-subtle); border-bottom: none;">No recent notifications.</li>';
+        if (!rawCode.trim() || !name.trim()) {
+            toast('Please provide both a share code and a new name.', false);
             return;
         }
 
-        toastHistory.forEach(item => {
-            const li = document.createElement('li');
-            li.style.alignItems = 'flex-start';
-            const color = item.isSuccess ? 'var(--success)' : 'var(--danger)';
-            li.innerHTML = `
-                <span style="color: ${color}; margin-top: 2px;">●</span>
-                <div style="display: flex; flex-direction: column; flex-grow: 1;">
-                    <span style="font-size: 0.85rem; color: var(--text-subtle);">${item.timestamp}</span>
-                    <span style="line-height: 1.4;">${item.message}</span>
-                </div>
-            `;
-            this.listEl.appendChild(li);
-        });
+        try {
+            const lines = rawCode.split('\n').filter(line => line.trim() !== '');
+            const base64String = lines.length > 0 ? lines[lines.length - 1] : '';
+            if (!base64String) throw new Error("Could not find a valid code.");
+
+            const binString = atob(base64String);
+            const bytes = Uint8Array.from(binString, (c) => c.charCodeAt(0));
+            const jsonString = new TextDecoder().decode(bytes);
+            const payload = JSON.parse(jsonString);
+
+            if (!payload.data || !Array.isArray(payload.data)) {
+                throw new Error("Invalid format.");
+            }
+
+            this.close({ name, data: payload.data });
+        } catch (e) {
+            console.error("Import failed:", e);
+            toast(`Invalid share code.`, false);
+        }
     }
-
-    show() {
-        this.renderList();
-        return super.show();
-    }
-}
-
-class ResetWatchModal extends BaseModal {
-    constructor(modalId) {
-        super(modalId);
-        this.showNameEl = this.overlay.querySelector('#reset-watch-show-name');
-        this.seasonNumEl = this.overlay.querySelector('#reset-season-num');
-
-        this.resetSeasonBtn = this.overlay.querySelector('#reset-season-btn');
-        this.resetShowBtn = this.overlay.querySelector('#reset-show-btn');
-
-        this.resetSeasonBtn.addEventListener('click', () => {
-            this.hide(false);
-            this._resolvePromise({ scope: 'season' });
-        });
-
-        this.resetShowBtn.addEventListener('click', () => {
-            this.hide(false);
-            this._resolvePromise({ scope: 'show' });
-        });
-    }
-
-    show({ showName, season }) {
-        this.showNameEl.textContent = showName;
-        this.seasonNumEl.textContent = season;
-        return super.show();
-    }
-}
-
-export let presetModal, smartPlaylistModal, importPresetModal, confirmModal, smartBuildModal, previewModal, toastHistoryModal, resetWatchModal;
+};
 
 export function initModals() {
-    confirmModal = new ConfirmationModal('confirm-modal-overlay');
-    presetModal = new SavePresetModal('save-preset-modal-overlay');
-    smartPlaylistModal = new SmartPlaylistModal('smart-playlist-modal-overlay');
-    importPresetModal = new ImportPresetModal('import-preset-modal-overlay');
-    smartBuildModal = new SmartBuildModal('smart-build-modal-overlay');
-    previewModal = new PreviewModal('preview-modal-overlay');
-    toastHistoryModal = new ToastHistoryModal('toast-history-modal-overlay');
-    resetWatchModal = new ResetWatchModal('reset-watch-modal-overlay');
+    Alpine.store('modals', {
+        confirm: { isOpen: false, title: '', text: '', confirmText: 'Confirm', isDanger: false },
+        preset: { isOpen: false, name: '', existingNames: [] },
+        playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
+        import: { isOpen: false, code: '', name: '' },
+        smartBuild: { isOpen: false, items: [] },
+        preview: { isOpen: false, items: [], title: 'Playlist Preview' },
+        resetWatch: { isOpen: false, showName: '', season: '' },
+        history: { isOpen: false, toastHistory: [] },
+        ollamaModels: { isOpen: false }
+    });
+    
+    Alpine.store('modals').ollamaAction = ollamaModelsModal;
 }

@@ -1,5 +1,5 @@
 <!-- templates/partials/_builder_pane.html -->
-<div id="mixed-pane" class="tab-pane active">
+<div id="mixed-pane">
     <div class="container">
         <div class="preset-controls" x-data="{ presetMenuOpen: false }">
 
@@ -62,10 +62,41 @@
                     </button>
                 </div>
                 <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
-                    <div class="badge badge-outline-subtle align-center gap-xs" style="font-size: 0.7rem; opacity: 0.8; font-weight: 600;">
-                        <span x-html="$store.icons.zap" style="color: var(--accent);"></span>
-                        <span x-text="$store.settings.ai_provider === 'ollama' ? 'OLLAMA: ' + $store.settings.ollama_model.toUpperCase() : 'GOOGLE GEMINI'"></span>
+                    
+                    <div class="dropdown-container" x-data="{ modelMenuOpen: false }">
+                        <button type="button" class="badge badge-outline-subtle align-center gap-xs m-0" 
+                                style="font-size: 0.7rem; opacity: 0.9; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);"
+                                @click="modelMenuOpen = !modelMenuOpen" @click.outside="modelMenuOpen = false">
+                            <span x-html="$store.icons.zap" :style="$store.settings.ai_provider === 'ollama' ? 'color: var(--accent);' : 'color: #4285F4;'"></span>
+                            <span x-text="$store.settings.ai_provider === 'ollama' ? 'OLLAMA: ' + $store.settings.ollama_model.toUpperCase() : 'GOOGLE GEMINI'"></span>
+                            <span x-show="$store.settings.ai_provider === 'ollama'" x-html="$store.icons.chevronDown" style="font-size: 0.6rem; opacity: 0.5;"></span>
+                        </button>
+
+                        <div class="dropdown-menu dropdown-up" x-show="modelMenuOpen" x-cloak style="min-width: 200px;">
+                            <template x-if="$store.settings.ai_provider === 'gemini'">
+                                <div class="dropdown-item opacity-60 italic" style="font-size: 0.8rem;">Switching Gemini models requires Settings.</div>
+                            </template>
+                            
+                            <template x-if="$store.settings.ai_provider === 'ollama'">
+                                <div>
+                                    <template x-for="m in $store.settings.starred_models" :key="'quick-'+m">
+                                        <a href="#" class="dropdown-item flex-row justify-between align-center" @click.prevent="modelMenuOpen = false; $store.mixer.quickSwitchModel(m)">
+                                            <span class="flex-row align-center gap-xs">
+                                                <span class="running-indicator" x-show="$store.settings.ollama_running.includes(m)"></span>
+                                                <span x-text="m" :class="$store.settings.ollama_model === m ? 'bold color-accent' : ''"></span>
+                                            </span>
+                                            <span style="color: var(--accent); font-size: 0.7rem;">★</span>
+                                        </a>
+                                    </template>
+                                    <div class="divider"></div>
+                                    <a href="#" class="dropdown-item text-subtle" @click.prevent="modelMenuOpen = false; $store.settings.show()">
+                                        <span class="dropdown-icon" x-html="$store.icons.settings"></span> Manage Models...
+                                    </a>
+                                </div>
+                            </template>
+                        </div>
                     </div>
+
                     <button id="generate-with-ai-btn" type="button" class="secondary m-0" @click="$store.mixer.generateWithAi()" :disabled="$store.mixer.isAiGenerating">
                         <span x-text="$store.mixer.isAiGenerating ? 'Thinking...' : 'Generate with AI'"></span>
                     </button>
@@ -91,7 +122,7 @@
     </div>
 </div>
 
-<div id="action-bar">
+<div id="action-bar" x-show="$store.ui.currentTab === 'mixed'">
     <div class="action-bar-content action-bar-stack">
         <div class="action-bar-row">
             <div class="button-group flex-wrap grow-1">
