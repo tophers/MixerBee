@@ -1,6 +1,6 @@
 /* static/js/mixerStore.js */
 
-import { post, toast, debounce } from './utils.js';
+import { post, toast, debounce, generateUUID } from './utils.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
@@ -44,7 +44,7 @@ export const mixerStore = {
 
     ensureBlockState(block) {
         if (!block) return;
-        if (!block._uid) block._uid = crypto.randomUUID();
+        if (!block._uid) block._uid = generateUUID();
 
         if (block._previewCount === undefined) block._previewCount = 0;
         if (block._previewItems === undefined) block._previewItems = [];
@@ -89,7 +89,7 @@ export const mixerStore = {
         if (block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv')) {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
-                if (!s._uid) s._uid = crypto.randomUUID();
+                if (!s._uid) s._uid = generateUUID();
                 s.previewTitle = s.previewTitle ?? '';
                 s._loadingTitle = false;
             });
@@ -359,7 +359,7 @@ export const mixerStore = {
     addBlock(type) {
         let block;
         if (type === 'tv') {
-            const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: crypto.randomUUID() };
+            const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
             block = { type: 'tv', shows: [def], mode: 'count', count: 3, interleave: true };
         } else if (type === 'movie') {
             block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear() } };
@@ -368,7 +368,7 @@ export const mixerStore = {
         }
 
         if (block) {
-            block._uid = crypto.randomUUID();
+            block._uid = generateUUID();
             this.ensureBlockState(block);
             this.blocks.push(block);
             this.updatePreviewCount(block);
@@ -377,8 +377,8 @@ export const mixerStore = {
 
     duplicateBlock(index) {
         const copy = JSON.parse(JSON.stringify(this.blocks[index]));
-        copy._uid = crypto.randomUUID();
-        if (copy.shows) copy.shows.forEach(s => s._uid = crypto.randomUUID());
+        copy._uid = generateUUID();
+        if (copy.shows) copy.shows.forEach(s => s._uid = generateUUID());
         this.blocks.splice(index + 1, 0, copy);
     },
 
@@ -395,7 +395,7 @@ export const mixerStore = {
     },
 
     addShowRow(blockIndex) {
-        const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: crypto.randomUUID() };
+        const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
         this.blocks[blockIndex].shows.push(def);
     },
 

@@ -1,6 +1,6 @@
 /* static/js/schedulerStore.js */
 
-import { post, toast } from './utils.js';
+import { post, toast, generateUUID } from './utils.js';
 
 export const schedulerStore = {
     schedule: [],
@@ -20,7 +20,7 @@ export const schedulerStore = {
                     const details = entry.schedule_details || {};
                     return {
                         ...entry,
-                        _uid: crypto.randomUUID(),
+                        _uid: generateUUID(),
                         job_type: entry.job_type || "builder",
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
                         user_id: entry.user_id || document.getElementById('user-select')?.value || "",
@@ -106,7 +106,7 @@ export const schedulerStore = {
         const userSel = document.getElementById('user-select');
         const newEntry = {
             id: null,
-            _uid: crypto.randomUUID(),
+            _uid: generateUUID(),
             job_type: "builder",
             playlist_name: "New Scheduled Mix",
             preset_name: "",
