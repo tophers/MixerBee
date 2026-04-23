@@ -1,43 +1,53 @@
-# MixerBee 🐝
+# MixerBee
 
-**MixerBee** is a self-hosted automation hub for [Emby](https://emby.media/) and [Jellyfin](https://jellyfin.org). It turns your media library into a dynamic, "programmed" experience by allowing you to build smart playlists and collections by using metadata filters, either 100% local or "Cloud" AI and schedule whatever you create. All AI features are completely optional and are disabled when not configured.
+MixerBee is a self-hosted automation app for [Emby](https://emby.media/) and [Jellyfin](https://jellyfin.org). It lets you create playlists and collections from your media library using metadata filters, optional AI tools, and schedules.
 
-Whether you want to build a "90s Saturday Morning Cartoon" block with interleaved episodes or a "Neon-Drenched Cyberpunk" movie marathon curated by a Cloud(Gemini) or local LLM, MixerBee bridges the gap between your server and a broadcast experience.
+AI features are optional and stay disabled unless you configure them.
 
----
-
-## Key Features
-
-### The Builder
-Stack different media types into a single cohesive list using **Blocks**:
-* **TV Blocks**: Interleave episodes across multiple shows. Mix *The Office* and *Parks & Rec* for a custom comedy block, starting from specific episodes or automatically resuming from your **Next Unwatched**.
-* **Movie Blocks**: Fine-tune your selection by genre, production year, studio, cast, and watched status.
-* **Music Blocks**: Blend tracks by artist, specific albums, top tracks, or random genre samplers.
-* **Collections & Playlists**: Output your build as a native server **Playlist** or a permanent **Collection (BoxSet)**.
-
-### AI Orchestration (Gemini or Ollama)
-MixerBee features an AI Builder that supports both cloud-based **Google Gemini** and 100% local **Ollama** instances (Qwen, Mistral, etc.).
-* **Flexible**: Switch between cloud AI or private local AI in the UI settings.
-* **Vibe Search**: Powered by a local `ChromaDB` vector store, MixerBee understands abstract concepts. Prompt for "isolation in deep space" or "cozy rainy Sunday vibes," and the AI will map these feelings to your specific library summaries.
-* **Two Generation Modes**:
-    1.  **Rule-Based**: AI sets the sliders and dropdowns for you (e.g., "80s Action movies"), after which you can modify.
-    2.  **Curated Vibe Blocks**: AI picks specific IDs from your library based on semantic meaning, creating a LLM curated list.
-
-### Automation & Synchronization
-* **Scheduler**: Build configurations as **Presets** and schedule them to run daily or weekly. MixerBee can ensure your "Mix" is always ready when you sit down to watch.
-* **Live Webhooks**: MixerBee can listen for server events. Mark a show as watched on your TV, and the relevant scheduled playlists will rebuild automatically in the background within seconds.
-* **Delta Vector Indexing**: The library indexer is efficient and will performing differential syncs to only embed new or removed items, keeping the local "Vibe" database current without high CPU overhead.
-
-### Unified Management
-* **Manager Dashboard**: Sort, search, and delete playlists or collections across your entire server.
-* **One-Click Conversion**: Easily swap a Playlist into a permanent Collection (or vice versa) with a single click.
-* **Notification History**: A built-in log tracks every build and background job, so you always know what MixerBee is doing
-* **Verbose Logging**: Add "VERBOSE_LOGGING="true" to your .env to provide additional logs to see everything MixerBee is doing as well what it is sending and receiving from any AI.
+MixerBee can be used to:
+- build mixed TV, movie, and music lists
+- create playlists or collections
+- save builds as presets
+- schedule builds to run automatically
+- rebuild lists when library activity changes
 
 ---
 
-## Web Interface 
-(Screenshots are out of date, Mixerbee has had a lot of UI/UX tweaks for a better experience)
+## Features
+
+### Builder
+MixerBee uses blocks to build media lists.
+
+- **TV Blocks**: Combine episodes from multiple shows. You can start from specific episodes or continue from next unwatched episodes.
+- **Movie Blocks**: Filter movies by genre, year, studio, cast, and watched status.
+- **Music Blocks**: Build lists from artists, albums, top tracks, or genre-based selections.
+- **Collections and Playlists**: Save output as a server playlist or as a collection/box set.
+
+### AI Builder
+MixerBee supports both Google Gemini and local Ollama models.
+
+- Use either local AI (Ollama) or cloud AI (Gemini) in Settings
+- Use prompt-based search to build lists from themes, moods, or styles
+- Use AI in two ways:
+  1. **Rule-Based**: AI fills in filters and settings for you
+  2. **Curated Blocks**: AI selects specific media items from your library based on semantic matches
+
+### Automation
+- **Scheduler**: Save builds as presets and run them on a schedule
+- **Webhooks**: Rebuild lists automatically when watched status or other server events change
+- **Delta Indexing**: Only new or removed items are reprocessed for the local vector database
+
+### Management
+- **Manager Dashboard**: View, sort, search, and delete playlists or collections
+- **Conversion Tools**: Convert playlists to collections, or collections to playlists
+- **Notification History**: View build and background job history
+- **Verbose Logging**: Optional detailed logging through the `.env` file
+
+---
+
+## Web Interface
+
+(Screenshots may not match the current UI.)
 
 | Builder (Dark) | Builder (Light) |
 | :--- | :--- |
@@ -49,38 +59,39 @@ MixerBee features an AI Builder that supports both cloud-based **Google Gemini**
 
 ---
 
-## Installation & Setup
+## Installation and Setup
 
 ### Requirements
-* **Docker**: (Recommended) For easy deployment and database management.
-* **Python**: v3.12+ (if running on bare metal).
-* **Media Server**: Emby or Jellyfin with administrative access.
+- **Docker** recommended for deployment and database management
+- **Python** 3.12+ for bare-metal installs
+- **Emby or Jellyfin** with admin access
 
 ### Quick Start
-MixerBee is available via **Docker Hub** or GitHub:
-1.  Deploy the container: `docker pull trulytilted/mixerbee`
-2.  Access the UI at `http://your-ip:9000`.
-3.  Open **Settings** to configure your server URL, credentials, and preferred AI provider.
+MixerBee is available on Docker Hub and GitHub.
 
-See [INSTALL.md](INSTALL.md) for full configuration details.
+1. Pull the container: `docker pull trulytilted/mixerbee`
+2. Open the UI at `http://your-ip:9000`
+3. Go to **Settings** and enter your server URL, credentials, and AI provider if you want to use AI features
 
----
-
-## Understanding Vibe Search
-MixerBee doesn't just look at genres; it reads by using a **100% Local Vector Database** (ChromaDB). Powered by ChromaDB the app performs "Semantic Mapping."
-
-### The AI Pipeline:
-1.  **The Researcher**: When you prompt the AI, it first analyzes your library. If it detects a "mood" or "vibe," it queries your local ChromaDB for media that matches that description.
-2.  **The Architect**: It then builds a JSON schema of your request, ensuring that exact IDs and metadata are used to attempt to prevent "hallucinations."
-3.  **Privacy First**: Your library metadata never leaves your network for vectorization. All embeddings are generated and stored locally on your server's hardware. If you use a local Ollama model, no data leaves your network.
+See `INSTALL.md` for full setup details.
 
 ---
 
-## Pro-Tips for Best Results
-* **Descriptive Prompts**: The Vector DB engine prefer adjectives. Instead of "scary," you can use "psychological dread, claustrophobic, and atmospheric."
-* **Hybrid Requests**: You can combine instructions. *"Give me 3 episodes of Seinfeld followed by 2 movies that feel like a neon-drenched 80s fever dream."*
-* **Settings Sync**: All settings can be changed by the UI and are database backed. You can still  manually edit your `.env` file, the app detects the change and syncs the new values to the database on restart.
+## Mood-Based Search
+
+MixerBee can use a local ChromaDB database to match descriptive prompts against your library metadata.
+
+### How it works
+1. The app checks your prompt for themes, moods, or descriptive terms
+2. It searches your local vector database for matching media
+3. It builds results using your library metadata and media IDs
+
+Library metadata used for embeddings is stored locally. If you use a local Ollama model, requests also stay local.
 
 ---
 
-**Enjoy your media, different.**
+## Notes
+- More detailed prompts usually produce better results
+- You can combine filters and prompt-based requests
+- Settings changed in the UI are stored in the database
+- `.env` changes are synced back into the app on restart
