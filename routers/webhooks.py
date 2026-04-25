@@ -24,6 +24,9 @@ def trigger_relevant_schedules(user_id: str = None):
     triggered_count = 0
 
     for sched in schedules:
+        if sched.get("job_type") == "enrichment":
+            continue
+            
         if user_id is None or sched.get("user_id") == user_id:
             try:
                 logging.info(f"WEBHOOK: Triggering live update for schedule '{sched.get('playlist_name')}'")

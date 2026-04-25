@@ -44,12 +44,17 @@ class AddItemsRequest(BaseModel):
 
 class ScheduleDetails(BaseModel):
     frequency: str
-    time: str
+    time: Optional[str] = None
     days_of_week: Optional[List[int]] = None
+    interval_minutes: Optional[int] = None
 
 class QuickPlaylistScheduleData(BaseModel):
     quick_playlist_type: str
     options: Optional[Dict[str, Any]] = None
+
+class EnrichmentScheduleData(BaseModel):
+    batch_size: int = Field(default=15, ge=1, le=500)
+    timeout: int = Field(default=120, ge=10, le=600)
 
 class ScheduleRequest(BaseModel):
     job_type: str
@@ -59,6 +64,7 @@ class ScheduleRequest(BaseModel):
     preset_name: Optional[str] = None
     blocks: Optional[List[Dict[str, Any]]] = None
     quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
+    enrichment_data: Optional[EnrichmentScheduleData] = None
     create_as_collection: bool = False
 
 class AiPromptRequest(BaseModel):

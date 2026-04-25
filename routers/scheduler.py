@@ -27,17 +27,22 @@ def api_get_schedules():
 def api_create_schedule(req: models.ScheduleRequest):
     if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")
     try:
-        hour, minute = req.schedule_details.time.split(':')
-
-        if req.schedule_details.frequency == "weekly":
-            if not req.schedule_details.days_of_week:
-                raise ValueError("days_of_week must be provided for weekly frequency.")
-            days = ",".join(map(str, req.schedule_details.days_of_week))
-            crontab = f"{minute} {hour} * * {days}"
-        else: # Daily
-            crontab = f"{minute} {hour} * * *"
-
-        CronTrigger.from_crontab(crontab)
+        crontab = ""
+        if req.schedule_details.frequency == "interval":
+            if not req.schedule_details.interval_minutes or req.schedule_details.interval_minutes < 1:
+                raise ValueError("Interval minutes must be at least 1.")
+            crontab = f"interval:{req.schedule_details.interval_minutes}"
+        else:
+            hour, minute = req.schedule_details.time.split(':')
+            if req.schedule_details.frequency == "weekly":
+                if not req.schedule_details.days_of_week:
+                    raise ValueError("days_of_week must be provided for weekly frequency.")
+                days = ",".join(map(str, req.schedule_details.days_of_week))
+                crontab = f"{minute} {hour} * * {days}"
+            else:
+                crontab = f"{minute} {hour} * * *"
+            
+            CronTrigger.from_crontab(crontab)
 
         schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab
@@ -53,17 +58,22 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
     if not app_state.is_configured:
         raise HTTPException(status_code=400, detail="Not configured")
     try:
-        hour, minute = req.schedule_details.time.split(':')
-
-        if req.schedule_details.frequency == "weekly":
-            if not req.schedule_details.days_of_week:
-                raise ValueError("days_of_week must be provided for weekly frequency.")
-            days = ",".join(map(str, req.schedule_details.days_of_week))
-            crontab = f"{minute} {hour} * * {days}"
-        else:  # Daily
-            crontab = f"{minute} {hour} * * *"
-
-        CronTrigger.from_crontab(crontab)
+        crontab = ""
+        if req.schedule_details.frequency == "interval":
+            if not req.schedule_details.interval_minutes or req.schedule_details.interval_minutes < 1:
+                raise ValueError("Interval minutes must be at least 1.")
+            crontab = f"interval:{req.schedule_details.interval_minutes}"
+        else:
+            hour, minute = req.schedule_details.time.split(':')
+            if req.schedule_details.frequency == "weekly":
+                if not req.schedule_details.days_of_week:
+                    raise ValueError("days_of_week must be provided for weekly frequency.")
+                days = ",".join(map(str, req.schedule_details.days_of_week))
+                crontab = f"{minute} {hour} * * {days}"
+            else:
+                crontab = f"{minute} {hour} * * *"
+            
+            CronTrigger.from_crontab(crontab)
 
         schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save['crontab'] = crontab

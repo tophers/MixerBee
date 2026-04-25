@@ -12,7 +12,6 @@ from app.logger import get_logger, refresh_logger_level
 
 logger = get_logger("MixerBee.Vector")
 
-# DATABASE INITIALIZATION
 CHROMA_PATH = CONFIG_DIR / "chroma_db"
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
@@ -20,10 +19,59 @@ media_collection = chroma_client.get_or_create_collection(
     name="mixerbee_media"
 )
 
-# INDEXING & SEARCHING
+def migrate_enrichment_fields():
+    logger.info("VIBE INDEXER: Running schema migration check...")
+    try:
+        total = media_collection.count()
+        if total == 0: return
+
+        existing = media_collection.get(limit=total, include=["metadatas"])
+        if not existing or not existing.get('ids'): return
+        
+        updates = {'ids': [], 'metadatas': []}
+        for i, meta in enumerate(existing['metadatas']):
+            if meta is None: meta = {}
+            if 'is_enriched' not in meta:
+                meta['is_enriched'] = False
+                meta['vibe_tags'] = ""
+                if 'genres' not in meta: meta['genres'] = ""
+                if 'overview' not in meta: meta['overview'] = ""
+                updates['ids'].append(existing['ids'][i])
+                updates['metadatas'].append(meta)
+                
+        if updates['ids']:
+            logger.info(f"VIBE INDEXER: Migrating {len(updates['ids'])} items to new schema.")
+            for j in range(0, len(updates['ids']), 500):
+                media_collection.update(
+                    ids=updates['ids'][j:j+500],
+                    metadatas=updates['metadatas'][j:j+500]
+                )
+            logger.info("VIBE INDEXER: Migration complete.")
+    except Exception as e:
+        logger.error(f"Migration failed: {e}", exc_info=True)
+
+def calculate_library_iq() -> dict:
+    try:
+        total = media_collection.count()
+        if total == 0: return {"total": 0, "enriched": 0}
+        
+        all_data = media_collection.get(limit=total, include=["metadatas"])
+        
+        enriched_count = 0
+        if all_data and all_data.get('metadatas'):
+            for meta in all_data['metadatas']:
+                if meta and str(meta.get('is_enriched', 'False')).lower() == "true":
+                    enriched_count += 1
+                    
+        return {"total": total, "enriched": enriched_count}
+    except Exception as e:
+        logger.error(f"Stats calculation failed: {e}")
+        return {"total": 0, "enriched": 0}
+
 def index_library_for_vibes(user_id: str, hdr: dict):
     """Fetches metadata from Emby and embeds only new/missing items locally."""
     refresh_logger_level()
+    migrate_enrichment_fields()
     logger.info("--- VIBE INDEXER: CHECKING FOR LIBRARY UPDATES ---")
 
     try:
@@ -104,13 +152,17 @@ def index_library_for_vibes(user_id: str, hdr: dict):
                 if not overview: 
                     overview = "No summary available."
 
-                text_to_embed = f"Title: {title}. Year: {year_str}. Type: {item.get('Type')}. Genres: {genres}. Summary: {overview}"
+                text_to_embed = f"Title: {title}. Year: {year_str}. Type: {item.get('Type')}. Genres: {genres}. Style: . Summary: {overview}"
 
                 documents.append(text_to_embed)
                 metadatas.append({
                     "name": title,
                     "type": item.get("Type"),
-                    "year": year_str
+                    "year": year_str,
+                    "genres": genres,
+                    "overview": overview,
+                    "is_enriched": False,
+                    "vibe_tags": ""
                 })
                 upsert_ids.append(item["Id"])
 

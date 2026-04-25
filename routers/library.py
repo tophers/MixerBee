@@ -12,6 +12,7 @@ import app as core
 import models
 import app_state
 from app.cache import get_library_data
+from app.ai.vector_store import calculate_library_iq
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
@@ -26,6 +27,19 @@ def api_library_data(auth_deps: dict = Depends(get_current_auth_headers)) -> Dic
             detail="Library data is not yet available. The cache may still be warming up. Please try again in a moment."
         )
     return cached_data
+
+@router.get("/api/library/iq")
+def api_library_iq(auth_deps: dict = Depends(get_current_auth_headers)) -> JSONResponse:
+    """Returns total vs enriched media counts from ChromaDB without caching."""
+    stats = calculate_library_iq()
+    return JSONResponse(
+        content=stats, 
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
 
 @router.get("/api/default_user")
 def api_default_user(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, str]:

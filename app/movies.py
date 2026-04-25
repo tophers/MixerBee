@@ -4,6 +4,7 @@ app/movies.py - All movie-related logic
 
 import random
 import logging
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from . import client
@@ -46,8 +47,14 @@ def find_movies(user_id: str, filters: Dict,
     if filters.get("ids"):
         base_params["Ids"] = ",".join(filters["ids"])
 
-    if filters.get("year_from"):
+    # Relative Date Filter (Overrides year_from if set)
+    relative_days = filters.get("release_within_days")
+    if relative_days and int(relative_days) > 0:
+        start_date = datetime.now() - timedelta(days=int(relative_days))
+        base_params["MinPremiereDate"] = start_date.strftime("%Y-%m-%d")
+    elif filters.get("year_from"):
         base_params["MinPremiereDate"] = f"{filters['year_from']}-01-01"
+
     if filters.get("year_to"):
         base_params["MaxPremiereDate"] = f"{filters['year_to']}-12-31"
 

@@ -72,6 +72,7 @@ export const mixerStore = {
             block.filters.sort_by = block.filters.sort_by ?? 'Random';
             block.filters.year_from = block.filters.year_from ?? 1900;
             block.filters.year_to = block.filters.year_to ?? new Date().getFullYear() + 2;
+            block.filters.release_within_days = block.filters.release_within_days ?? 0;
             block.filters.ids = block.filters.ids ?? [];
 
             block._limitMode = block._limitMode ?? (block.filters.duration_minutes ? 'duration' : 'count');
@@ -363,7 +364,7 @@ export const mixerStore = {
             const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
             block = { type: 'tv', shows: [def], mode: 'count', count: 3, interleave: true };
         } else if (type === 'movie') {
-            block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear() } };
+            block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear(), release_within_days: 0 } };
         } else if (type === 'music') {
             block = { type: 'music', music: { mode: 'album', filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
         }

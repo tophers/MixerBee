@@ -25,9 +25,11 @@ export const schedulerStore = {
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
                         user_id: entry.user_id || Alpine.store('settings').activeUserId || "",
                         create_as_collection: !!entry.create_as_collection,
+                        enrichment_data: entry.enrichment_data || { batch_size: 15, timeout: 120 },
                         schedule_details: {
                             time: details.time || entry.time || "12:00",
                             frequency: details.frequency || entry.frequency || "daily",
+                            interval_minutes: details.interval_minutes || 30,
                             days_of_week: Array.isArray(details.days_of_week)
                                 ? details.days_of_week.map(Number)
                                 : [0, 1, 2, 3, 4, 5, 6]
@@ -45,7 +47,11 @@ export const schedulerStore = {
     async saveSchedule(entry, btnEl) {
         if (!entry) return;
         const uid = Alpine.store('settings').activeUserId;
-        const frequency = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
+        
+        let freq = entry.schedule_details.frequency;
+        if (freq !== 'interval') {
+            freq = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
+        }
 
         const payload = {
             user_id: uid,
@@ -53,10 +59,12 @@ export const schedulerStore = {
             playlist_name: entry.playlist_name || "Scheduled Mix",
             preset_name: entry.preset_name || "",
             quick_playlist_data: entry.quick_playlist_data || null,
+            enrichment_data: entry.enrichment_data || null,
             schedule_details: {
                 time: entry.schedule_details.time,
-                frequency: frequency,
-                days_of_week: entry.schedule_details.days_of_week
+                frequency: freq,
+                days_of_week: entry.schedule_details.days_of_week,
+                interval_minutes: parseInt(entry.schedule_details.interval_minutes) || 30
             },
             create_as_collection: !!entry.create_as_collection
         };
@@ -112,8 +120,11 @@ export const schedulerStore = {
             preset_name: "",
             user_id: uid,
             create_as_collection: false,
+            enrichment_data: { batch_size: 15, timeout: 120 },
             schedule_details: {
                 time: "12:00",
+                frequency: "daily",
+                interval_minutes: 30,
                 days_of_week: [0, 1, 2, 3, 4, 5, 6]
             }
         };

@@ -5,6 +5,10 @@
             <div class="flex-row items-baseline gap-sm">
                 <h2 class="m-0">Manager</h2>
                 <span class="badge opacity-60" x-text="'Total: ' + ($store.manager.items || []).length"></span>
+                <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Vibe Searches.">
+                    <span x-html="$store.icons.zap"></span>
+                    <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ')'"></span>
+                </span>
             </div>
             <div class="flex-row gap-md grow-1 max-w-500">
                 <input type="search" placeholder="Search by name..."

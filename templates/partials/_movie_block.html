@@ -7,6 +7,7 @@
         personQuery: '',
         personSuggestions: [],
         personRole: 'Person',
+        relativeDateCustom: false,
 
         getPreviewCount() {
             if (block._previewLoading) return '...';
@@ -25,9 +26,20 @@
             const sortMap = { 'Random': 'PremiereDate', 'PremiereDate': 'DateCreated', 'DateCreated': 'SortName', 'SortName': 'Random' };
             block.filters.sort_by = sortMap[block.filters.sort_by || 'Random'];
             $store.mixer.updatePreviewCount(block);
+        },
+
+        getRelativeDateLabel() {
+            const days = block.filters?.release_within_days;
+            if (!days || days == 0) return '';
+            if (days == 30) return 'Last 30 Days';
+            if (days == 90) return 'Last 90 Days';
+            if (days == 180) return 'Last 6 Months';
+            if (days == 365) return 'Last 12 Months';
+            if (days == 730) return 'Last 2 Years';
+            return 'Last ' + days + ' Days';
         }
     }"
-    x-init="$store.mixer.ensureBlockState(block)">
+    x-init="$store.mixer.ensureBlockState(block); if(block.filters?.release_within_days && ![0,30,90,180,365,730].includes(parseInt(block.filters.release_within_days))) relativeDateCustom = true;">
 
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
             {% set default_title = 'Movie Block' %}
@@ -63,7 +75,10 @@
                                 <template x-if="block.filters && block.filters.watched_status && block.filters.watched_status !== 'all'">
                                     <span class="badge" :class="block.filters.watched_status" x-text="block.filters.watched_status.toUpperCase()"></span>
                                 </template>
-                                <template x-if="block.filters && (block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear())">
+                                <template x-if="block.filters && block.filters.release_within_days > 0">
+                                    <span class="badge badge-accent" x-text="getRelativeDateLabel()"></span>
+                                </template>
+                                <template x-if="block.filters && (!block.filters.release_within_days || block.filters.release_within_days == 0) && (block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear())">
                                     <span class="badge" x-text="block.filters.year_from + ' - ' + block.filters.year_to"></span>
                                 </template>
                                 <template x-for="libId in (block.filters?.parent_ids || [])" :key="block._uid + '_lib_badge_' + libId">
@@ -194,7 +209,44 @@
                     </fieldset>
 
                     <fieldset class="filter-group">
-                        <legend>Libraries & Years</legend>
+                        <legend>Release Date & Libraries</legend>
+                        <div class="flex-column gap-md mb-md">
+                            <div class="flex-row align-center gap-md flex-wrap">
+                                <label class="field-label m-0">Release within:</label>
+                                <select x-model.number="block.filters.release_within_days" 
+                                        class="w-auto m-0"
+                                        @change="if($el.value != -1) { relativeDateCustom = false; $store.mixer.updatePreviewCount(block); } else { relativeDateCustom = true; }">
+                                    <option value="0">All Time (Use Year Range)</option>
+                                    <option value="30">Last 30 Days</option>
+                                    <option value="90">Last 90 Days</option>
+                                    <option value="180">Last 6 Months</option>
+                                    <option value="365">Last 12 Months</option>
+                                    <option value="730">Last 2 Years</option>
+                                    <option value="-1">Custom Days...</option>
+                                </select>
+                                <div x-show="relativeDateCustom" x-cloak class="flex-row align-center gap-xs">
+                                    <input type="number" x-model.number="block.filters.release_within_days" 
+                                           min="1" class="themed-input w-80 text-center m-0"
+                                           @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                    <span class="text-subtle">Days</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="range-slider-wrapper mb-md" :class="block.filters.release_within_days > 0 ? 'opacity-30 pointer-none' : ''">
+                            <div class="flex-row justify-between align-center mb-xs">
+                                <label class="field-label m-0">Year Range</label>
+                                <div class="range-slider-display" x-text="(block.filters?.year_from || 1920) + ' - ' + (block.filters?.year_to || 2025)"></div>
+                            </div>
+                            <div class="range-slider-container">
+                                <div class="range-slider-track"></div>
+                                <div class="range-slider-progress" :style="`left: ${(((block.filters?.year_from || 1920) - 1920) / (new Date().getFullYear() - 1920)) * 100}%; width: ${(((block.filters?.year_to || 2025) - (block.filters?.year_from || 1920)) / (new Date().getFullYear() - 1920)) * 100}%`"></div>
+                                <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_from" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_to" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                            </div>
+                            <p class="text-subtle mt-xs" style="font-size: 0.75rem;" x-show="block.filters.release_within_days > 0">Year Range is disabled while "Release Within" is active.</p>
+                        </div>
+
                         <div class="flex-row flex-wrap gap-xs mb-md">
                             <template x-for="lib in $store.mixer.library.libraryData" :key="block._uid + '_lib_sel_' + lib.Id">
                                 <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;" :class="(block.filters?.parent_ids || []).includes(lib.Id) ? 'active' : ''" @click="if(!block.filters.parent_ids) block.filters.parent_ids = []; if(block.filters.parent_ids.includes(lib.Id)) { block.filters.parent_ids = block.filters.parent_ids.filter(id => id !== lib.Id) } else { block.filters.parent_ids.push(lib.Id) }; $store.mixer.updatePreviewCount(block);" x-text="lib.Name"></button>
@@ -209,15 +261,6 @@
                                 <span x-html="(block.filters && block.filters.sort_by === 'PremiereDate') ? $store.icons.calendar : $store.icons.shuffle"></span>
                                 <span x-text="'Sort: ' + ((block.filters && block.filters.sort_by) || 'Random')"></span>
                             </button>
-                            <div class="range-slider-wrapper col-span-2">
-                                <div class="range-slider-display" x-text="(block.filters?.year_from || 1920) + ' - ' + (block.filters?.year_to || 2025)"></div>
-                                <div class="range-slider-container">
-                                    <div class="range-slider-track"></div>
-                                    <div class="range-slider-progress" :style="`left: ${(((block.filters?.year_from || 1920) - 1920) / (new Date().getFullYear() - 1920)) * 100}%; width: ${(((block.filters?.year_to || 2025) - (block.filters?.year_from || 1920)) / (new Date().getFullYear() - 1920)) * 100}%`"></div>
-                                    <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_from" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
-                                    <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_to" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
-                                </div>
-                            </div>
                         </div>
                     </fieldset>
                 </div>

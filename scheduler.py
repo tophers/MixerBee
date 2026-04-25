@@ -10,6 +10,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.jobstores.base import JobLookupError
 
 import app as core
@@ -22,7 +23,6 @@ from app.logger import get_logger
 
 logger = get_logger("MixerBee.Scheduler")
 
-# Put apscheduler logging behind the same verbosity gate
 import logging
 logging.getLogger('apscheduler').setLevel(logging.INFO if app_state.VERBOSE_LOGGING else logging.WARNING)
 
@@ -52,66 +52,75 @@ def run_playlist_job(**schedule_data) -> Dict:
     result = {}
 
     try:
-        import preset_manager as pm
-        from routers.builder import _get_random_movie_block, _get_random_tv_block
+        if job_type == "enrichment":
+            from app.ai import process_enrichment_queue
+            enrich_data = schedule_data.get("enrichment_data", {})
+            batch_size = enrich_data.get("batch_size", 15)
+            timeout = enrich_data.get("timeout", 120)
+            
+            result = process_enrichment_queue(batch_size=batch_size, timeout=timeout)
+            
+        else:
+            import preset_manager as pm
+            from routers.builder import _get_random_movie_block, _get_random_tv_block
 
-        auth_data = get_current_auth_headers()
-        hdr = core.auth_headers(auth_data["token"], user_id=user_id)
+            auth_data = get_current_auth_headers()
+            hdr = core.auth_headers(auth_data["token"], user_id=user_id)
 
-        if job_type == "builder":
-            blocks = schedule_data.get("blocks")
-            preset_name = schedule_data.get("preset_name")
+            if job_type == "builder":
+                blocks = schedule_data.get("blocks")
+                preset_name = schedule_data.get("preset_name")
 
-            if not blocks and preset_name:
-                all_presets = pm.preset_manager.get_all_presets()
-                blocks = all_presets.get(preset_name)
-                if blocks:
-                    logger.info(f"Resolved blocks for job {schedule_id} from preset '{preset_name}'")
+                if not blocks and preset_name:
+                    all_presets = pm.preset_manager.get_all_presets()
+                    blocks = all_presets.get(preset_name)
+                    if blocks:
+                        logger.info(f"Resolved blocks for job {schedule_id} from preset '{preset_name}'")
 
-            if not blocks:
-                logger.info(f"No blocks found for job {schedule_id}.")
-                
-                potential_options = [b for b in [_get_random_movie_block(), _get_random_tv_block()] if b is not None]
-                
-                if potential_options:
-                    blocks = [random.choice(potential_options)]
+                if not blocks:
+                    logger.info(f"No blocks found for job {schedule_id}.")
+                    
+                    potential_options = [b for b in [_get_random_movie_block(), _get_random_tv_block()] if b is not None]
+                    
+                    if potential_options:
+                        blocks = [random.choice(potential_options)]
+                    else:
+                        msg = "Could not generate a block; library appears to be empty."
+                        logger.error(msg)
+                        return {"status": "error", "log": [msg]}
+
+                create_as_collection = schedule_data.get("create_as_collection", False)
+
+                if create_as_collection:
+                    if len(blocks) != 1 or blocks[0].get("type") != "movie":
+                        msg = "Scheduled collections must consist of exactly one Movie block."
+                        logger.error(msg)
+                        return {"status": "error", "log": [msg]}
+
+                    result = items_api.create_movie_collection(
+                        user_id=user_id,
+                        collection_name=playlist_name,
+                        filters=blocks[0].get("filters", {}),
+                        hdr=hdr
+                    )
                 else:
-                    msg = "Could not generate a block; library appears to be empty."
-                    logger.error(msg)
-                    return {"status": "error", "log": [msg]}
+                    result = core.create_mixed_playlist(
+                        user_id=user_id,
+                        playlist_name=playlist_name,
+                        blocks=blocks,
+                        hdr=hdr
+                    )
 
-            create_as_collection = schedule_data.get("create_as_collection", False)
+            elif job_type == "quick_playlist":
+                quick_playlist_data = schedule_data.get("quick_playlist_data", {})
+                quick_playlist_type = quick_playlist_data.get("quick_playlist_type")
+                func_to_call = QUICK_PLAYLIST_MAP.get(quick_playlist_type)
 
-            if create_as_collection:
-                if len(blocks) != 1 or blocks[0].get("type") != "movie":
-                    msg = "Scheduled collections must consist of exactly one Movie block."
-                    logger.error(msg)
-                    return {"status": "error", "log": [msg]}
+                if not func_to_call:
+                    raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
 
-                result = items_api.create_movie_collection(
-                    user_id=user_id,
-                    collection_name=playlist_name,
-                    filters=blocks[0].get("filters", {}),
-                    hdr=hdr
-                )
-            else:
-                result = core.create_mixed_playlist(
-                    user_id=user_id,
-                    playlist_name=playlist_name,
-                    blocks=blocks,
-                    hdr=hdr
-                )
-
-        elif job_type == "quick_playlist":
-            quick_playlist_data = schedule_data.get("quick_playlist_data", {})
-            quick_playlist_type = quick_playlist_data.get("quick_playlist_type")
-            func_to_call = QUICK_PLAYLIST_MAP.get(quick_playlist_type)
-
-            if not func_to_call:
-                raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
-
-            options = quick_playlist_data.get("options", {})
-            result = func_to_call(user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options)
+                options = quick_playlist_data.get("options", {})
+                result = func_to_call(user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options)
 
         final_log = result.get("log", ["No log messages returned from build process."])
         final_status = result.get("status", "error")
@@ -138,6 +147,20 @@ class Scheduler:
     def __init__(self):
         self.scheduler = BackgroundScheduler(daemon=True)
         self.schedules: Dict[str, Dict] = {}
+
+    def _get_trigger(self, schedule_data: Dict):
+        details = schedule_data.get("schedule_details", {})
+        frequency = details.get("frequency")
+        
+        if frequency == "interval":
+            mins = details.get("interval_minutes", 30)
+            return IntervalTrigger(minutes=mins)
+        
+        crontab = schedule_data.get("crontab")
+        if crontab:
+            return CronTrigger.from_crontab(crontab)
+        
+        return None
 
     def _update_schedule_last_run(self, schedule_id: str, last_run_info: Dict):
         """Safely updates the last_run status in both the DB and in-memory cache."""
@@ -187,6 +210,7 @@ class Scheduler:
                     "preset_name": schedule_data.get("preset_name"),
                     "blocks": schedule_data.get("blocks"),
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
+                    "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
                     "create_as_collection": schedule_data.get("create_as_collection", False)
                 }
@@ -198,22 +222,29 @@ class Scheduler:
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         if not (schedule_data := self.schedules.get(schedule_id)): return None
 
-        result = run_playlist_job(**schedule_data)
-
-        final_status = result.get("status", "error")
-        final_log = result.get("log", ["An unknown error occurred during job execution."])
-
-        last_run_info = {
-            "timestamp": datetime.now().isoformat(),
-            "status": final_status,
-            "log": final_log
-        }
-        self._update_schedule_last_run(schedule_id, last_run_info)
-
-        return {
-            "status": final_status,
-            "log": final_log
-        }
+        job_id = f"manual_run_{schedule_id}_{int(datetime.now().timestamp())}"
+        
+        try:
+            self.scheduler.add_job(
+                func=scheduled_job_wrapper,
+                trigger='date',
+                run_date=datetime.now(),
+                kwargs=schedule_data,
+                id=job_id,
+                name=f"Manual Run: {schedule_data.get('playlist_name', 'Unnamed Schedule')}"
+            )
+            
+            logger.info(f"Successfully queued background run for schedule {schedule_id}")
+            return {
+                "status": "ok",
+                "log": [f"Execution started for '{schedule_data.get('playlist_name', 'Unnamed')}'."]
+            }
+        except Exception as e:
+            logger.error(f"Failed to queue run for {schedule_id}: {e}", exc_info=True)
+            return {
+                "status": "error",
+                "log": [f"Failed to queue background job: {str(e)}"]
+            }
 
     def start(self):
         self.scheduler.add_job(
@@ -227,10 +258,11 @@ class Scheduler:
 
         self.schedules = self._load_schedules()
         for schedule_id, schedule_data in self.schedules.items():
-            if 'crontab' in schedule_data:
+            trigger = self._get_trigger(schedule_data)
+            if trigger:
                 self.scheduler.add_job(
                     func=scheduled_job_wrapper,
-                    trigger=CronTrigger.from_crontab(schedule_data['crontab']),
+                    trigger=trigger,
                     kwargs=schedule_data,
                     id=schedule_id,
                     name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
@@ -254,12 +286,13 @@ class Scheduler:
                     "preset_name": schedule_data.get("preset_name"),
                     "blocks": schedule_data.get("blocks"),
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
+                    "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
                     "create_as_collection": schedule_data.get("create_as_collection", False)
                 }
                 conn.execute(
                     "INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data) VALUES (?, ?, ?, ?, ?, ?)",
-                    (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab"), json.dumps(config_payload))
+                    (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab", ""), json.dumps(config_payload))
                 )
                 conn.commit()
         except Exception as e:
@@ -267,9 +300,11 @@ class Scheduler:
             return None
 
         self.schedules[schedule_id] = schedule_data
+        
+        trigger = self._get_trigger(schedule_data)
         self.scheduler.add_job(
             func=scheduled_job_wrapper,
-            trigger=CronTrigger.from_crontab(schedule_data['crontab']),
+            trigger=trigger,
             kwargs=schedule_data,
             id=schedule_id,
             name=schedule_data.get('playlist_name', 'Unnamed Schedule')
@@ -286,6 +321,7 @@ class Scheduler:
                     "preset_name": schedule_data.get("preset_name"),
                     "blocks": schedule_data.get("blocks"),
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
+                    "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
                     "create_as_collection": schedule_data.get("create_as_collection", False)
                 }
@@ -299,7 +335,8 @@ class Scheduler:
                         schedule_data.get("playlist_name"),
                         schedule_data.get("user_id"),
                         schedule_data.get("job_type"),
-                        schedule_data.get("crontab"),
+                        # Ensure we store something descriptive even if it's not a real crontab
+                        schedule_data.get("crontab", ""),
                         json.dumps(config_payload),
                         schedule_id
                     )
@@ -307,9 +344,11 @@ class Scheduler:
                 conn.commit()
 
             schedule_data['id'] = schedule_id
+            
+            trigger = self._get_trigger(schedule_data)
             self.scheduler.add_job(
                 func=scheduled_job_wrapper,
-                trigger=CronTrigger.from_crontab(schedule_data['crontab']),
+                trigger=trigger,
                 kwargs=schedule_data,
                 id=schedule_id,
                 name=schedule_data.get('playlist_name', 'Unnamed Schedule'),

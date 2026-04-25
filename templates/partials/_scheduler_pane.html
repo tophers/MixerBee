@@ -37,15 +37,22 @@
                             <div class="grow-1">
                                 <div class="flex-row align-center gap-md">
                                     <h3 class="m-0" style="font-size: 1.1rem; letter-spacing: -0.01em;" x-text="entry.playlist_name || 'Unnamed Job'"></h3>
-                                    <span class="badge" :class="entry.create_as_collection ? 'collection-active' : 'playlist-active'"
+                                    <span class="badge" :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.create_as_collection ? 'collection-active' : 'playlist-active')"
                                           style="font-size: 0.7rem;"
-                                          x-text="entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'"></span>
+                                          x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST')"></span>
                                 </div>
                                 <div class="automation-details-row curated-preview-text">
-                                    <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
-                                    <span class="opacity-30">|</span>
-                                    <span x-text="entry.schedule_details?.time || '12:00'"></span>
-                                    <template x-if="entry.preset_name">
+                                    <template x-if="entry.schedule_details?.frequency === 'interval'">
+                                        <span x-text="'Every ' + entry.schedule_details.interval_minutes + ' minutes'"></span>
+                                    </template>
+                                    <template x-if="entry.schedule_details?.frequency !== 'interval'">
+                                        <div class="flex-row align-center gap-xs" style="display: inline-flex;">
+                                            <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
+                                            <span class="opacity-30">|</span>
+                                            <span x-text="entry.schedule_details?.time || '12:00'"></span>
+                                        </div>
+                                    </template>
+                                    <template x-if="entry.preset_name && entry.job_type !== 'enrichment'">
                                         <div class="flex-row align-center gap-md" style="display: inline-flex;">
                                             <span class="opacity-30">|</span>
                                             <span class="opacity-80" style="color: var(--accent);" x-text="entry.preset_name"></span>
@@ -71,44 +78,91 @@
                             </div>
 
                             <div class="modal-body modal-inner-form">
+                                <div class="mb-md">
+                                    <label class="field-label">Job Type</label>
+                                    <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'">
+                                        <option value="builder">Standard Playlist / Collection</option>
+                                        <option value="enrichment">Library Metadata Enrichment (AI)</option>
+                                    </select>
+                                </div>
+
                                 <div class="filter-grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem;">
                                     <div>
                                         <label class="field-label">Job Name</label>
                                         <input type="text" x-model="entry.playlist_name" class="ghost-input w-full automation-config-item">
                                     </div>
-                                    <div>
-                                        <label class="field-label">Output Mode</label>
-                                        <div class="toggle-pill">
-                                            <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
-                                            <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                    
+                                    <template x-if="entry.job_type !== 'enrichment'">
+                                        <div>
+                                            <label class="field-label">Output Mode</label>
+                                            <div class="toggle-pill">
+                                                <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
+                                                <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                            </div>
                                         </div>
-                                    </div>
+                                    </template>
                                 </div>
 
-                                <div class="mt-lg">
-                                    <label class="field-label">Automation Preset</label>
-                                    <select x-model="entry.preset_name" class="mixer-select w-full">
-                                        <option value="">-- Select Builder Preset --</option>
-                                        <template x-for="name in $store.presets.availableNames" :key="name">
-                                            <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
-                                        </template>
-                                    </select>
-                                </div>
+                                <template x-if="entry.job_type !== 'enrichment'">
+                                    <div class="mt-lg">
+                                        <label class="field-label">Automation Preset</label>
+                                        <select x-model="entry.preset_name" class="mixer-select w-full">
+                                            <option value="">-- Select Builder Preset --</option>
+                                            <template x-for="name in $store.presets.availableNames" :key="name">
+                                                <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                </template>
+
+                                <template x-if="entry.job_type === 'enrichment'">
+                                    <div class="filter-grid mt-lg" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+                                        <div>
+                                            <label class="field-label">Batch Size (Max: 500)</label>
+                                            <input type="number" x-model.number="entry.enrichment_data.batch_size" min="1" max="500" @change="entry.enrichment_data.batch_size = Math.min(Math.max($event.target.value, 1), 500)" class="w-full themed-input m-0">
+                                            <p class="text-subtle mt-xs" style="font-size: 0.75rem;">Items processed per run.</p>
+                                        </div>
+                                        <div>
+                                            <label class="field-label">AI Timeout (Max: 600)</label>
+                                            <input type="number" x-model.number="entry.enrichment_data.timeout" min="10" max="600" @change="entry.enrichment_data.timeout = Math.min(Math.max($event.target.value, 1), 600)" class="w-full themed-input m-0">
+                                            <p class="text-subtle mt-xs" style="font-size: 0.75rem;">Timeout in seconds to wait for AI response.</p>
+                                        </div>
+                                    </div>
+                                </template>
 
                                 <div class="automation-config-card" x-show="entry.schedule_details">
                                     <div class="flex-row justify-between align-center mb-md">
-                                        <label class="field-label m-0">Execution Time</label>
-                                        <input type="time" x-model="entry.schedule_details.time" class="themed-input w-auto">
+                                        <label class="field-label m-0">Execution Mode</label>
+                                        <div class="toggle-pill">
+                                            <span class="pill-btn" :class="entry.schedule_details.frequency !== 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'daily'">Fixed Time</span>
+                                            <span class="pill-btn" :class="entry.schedule_details.frequency === 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'interval'">Interval</span>
+                                        </div>
                                     </div>
-                                    <div class="flex-row justify-between gap-sm">
-                                        <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
-                                            <button type="button"
-                                                    class="day-btn grow-1"
-                                                    :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''"
-                                                    @click="$store.scheduler.toggleDay(entry, i)"
-                                                    x-text="day">
-                                            </button>
-                                        </template>
+
+                                    <div x-show="entry.schedule_details.frequency !== 'interval'" x-transition>
+                                        <div class="flex-row justify-between align-center mb-md">
+                                            <label class="field-label m-0">Execution Time</label>
+                                            <input type="time" x-model="entry.schedule_details.time" class="themed-input w-auto">
+                                        </div>
+                                        <div class="flex-row justify-between gap-sm">
+                                            <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
+                                                <button type="button"
+                                                        class="day-btn grow-1"
+                                                        :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''"
+                                                        @click="$store.scheduler.toggleDay(entry, i)"
+                                                        x-text="day">
+                                                </button>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="entry.schedule_details.frequency === 'interval'" x-transition>
+                                        <div class="flex-row align-center gap-md">
+                                            <label class="field-label m-0">Run Every</label>
+                                            <input type="number" x-model.number="entry.schedule_details.interval_minutes" min="1" class="themed-input w-80 text-center">
+                                            <span class="text-subtle">Minutes</span>
+                                        </div>
+                                        <p class="text-subtle mt-sm" style="font-size: 0.75rem;">Note: Playlists will refresh automatically at this interval regardless of server events.</p>
                                     </div>
                                 </div>
                             </div>

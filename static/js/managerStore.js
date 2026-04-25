@@ -11,6 +11,12 @@ export const managerStore = {
     sortDirection: 'asc',
     isLoading: false,
 
+    libraryIq: {
+        total: 0,
+        enriched: 0,
+        percentage: 0
+    },
+
     contentsModal: {
         isOpen: false,
         parentItem: null,
@@ -19,10 +25,26 @@ export const managerStore = {
         isLoading: false
     },
 
+    async loadIq() {
+        try {
+            // Append the timestamp to bust any reverse proxy/browser caching
+            const res = await fetch(`api/library/iq?_cb=${Date.now()}`);
+            if (res.ok) {
+                const data = await res.json();
+                this.libraryIq.total = data.total || 0;
+                this.libraryIq.enriched = data.enriched || 0;
+                this.libraryIq.percentage = data.total > 0 ? Math.round((data.enriched / data.total) * 100) : 0;
+            }
+        } catch (e) {
+            console.error("Failed to load Library IQ:", e);
+        }
+    },
+
     async load() {
         const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         this.isLoading = true;
+        this.loadIq();
         try {
             const res = await fetch(`api/manageable_items?user_id=${uid}`);
             if (res.ok) {

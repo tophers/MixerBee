@@ -13,10 +13,10 @@ from pydantic import BaseModel, Field, field_validator, AliasChoices
 import app_state
 from .tools import AVAILABLE_TOOLS
 from app.logger import get_logger, refresh_logger_level
+from .vector_store import media_collection
 
 logger = get_logger("MixerBee.AI")
 
-# Google GenAI SDK (Conditional)
 try:
     from google import genai
     from google.genai import types
@@ -35,13 +35,11 @@ class AIBlock(BaseModel):
         description="A creative title for this specific block."
     )
 
-    # TV Fields
     tv_shows: List[str] = Field(default=[], validation_alias=AliasChoices('tv_shows', 'shows', 'series_names', 'show_names'))
     tv_ids: List[str] = Field(default=[], validation_alias=AliasChoices('tv_ids', 'series_ids', 'show_ids'))
     tv_count: int = Field(default=3)
     tv_unwatched: bool = Field(default=False)
 
-    # Movie Fields
     movie_genres: List[str] = Field(default=[])
     movie_limit: int = Field(default=5)
     movie_year_from: int = Field(default=0)
@@ -52,7 +50,6 @@ class AIBlock(BaseModel):
     movie_ids: List[str] = Field(default=[], validation_alias=AliasChoices('movie_ids', 'ids', 'item_ids'))
     movie_unwatched: bool = Field(default=False)
 
-    # Music Fields
     music_mode: Literal["album", "artist_top", "artist_random", "genre"] = Field(default="genre")
     music_artist_id: str = Field(default="")
     music_genres: List[str] = Field(default=[])
@@ -71,7 +68,6 @@ class AIBlock(BaseModel):
     @field_validator('movie_ids', 'tv_ids', mode='before')
     @classmethod
     def coerce_ids_to_strings(cls, v):
-        """Ensures IDs are clean internal server IDs. Uses regex to extract valid Emby/Jellyfin IDs."""
         def clean(val):
             if val is None: return ""
             s = str(val).strip()
@@ -87,7 +83,8 @@ class AIBlock(BaseModel):
             return [c for p in parts if (c := clean(p))]
         return []
 
-# --- CONSOLIDATION LOGIC ---
+class EnrichmentResult(BaseModel):
+    tags: List[str]
 
 def _consolidate_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not blocks: return []
@@ -125,8 +122,6 @@ def _consolidate_blocks(blocks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if music_vibe: result.append(music_vibe)
     result.extend(others)
     return result
-
-# --- MAPPING HELPERS ---
 
 def _map_tv_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
     shows = []
@@ -199,8 +194,6 @@ def _map_to_frontend_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
     if any(x in bt for x in ["movie", "film"]): return _map_movie_block(ai_block)
     if any(x in bt for x in ["music", "audio"]): return _map_music_block(ai_block)
     return None
-
-# --- OLLAMA IMPLEMENTATION ---
 
 def _get_ollama_tool_schema(func) -> Dict:
     schema = {
@@ -376,3 +369,111 @@ def generate_smart_blocks(prompt: str) -> tuple[List[Dict[str, Any]], str]:
     refresh_logger_level()
     if app_state.AI_PROVIDER == "ollama": return _generate_with_ollama(prompt)
     return _generate_with_gemini(prompt)
+
+def process_enrichment_queue(batch_size: int, timeout: int) -> Dict[str, Any]:
+    """Pulls a batch of un-enriched media, calls the LLM for vibe tags, and updates the Vector DB."""
+    refresh_logger_level()
+    logger.info(f"--- STARTING METADATA ENRICHMENT (Batch: {batch_size}) ---")
+    
+    try:
+        unprocessed = media_collection.get(
+            where={"is_enriched": False},
+            limit=batch_size
+        )
+        
+        if not unprocessed or not unprocessed['ids']:
+            logger.info("Enrichment queue is empty. Library is 100% enriched.")
+            return {"status": "ok", "processed": 0, "success": 0, "log": ["Queue is empty. Library fully enriched."]}
+            
+        ids = unprocessed['ids']
+        metadatas = unprocessed['metadatas']
+        
+        success_count = 0
+        
+        for i, item_id in enumerate(ids):
+            meta = metadatas[i]
+            title = meta.get('name', 'Unknown')
+            overview = meta.get('overview', 'No summary available.')
+            
+            logger.info(f"Enriching [{i+1}/{len(ids)}]: {title}")
+           
+            prompt = f"Analyze Title: '{title}' Summary: '{overview}'. Return 5-12 highly specific vibe tags in English ONLY for visual style, emotional tone, and pacing. Avoid generic filler (e.g., 'action', 'intense', 'fast-paced') unless absolute defining traits. Focus on unique descriptors (e.g., 'noir', 'brutalist', 'melancholic'). If summary is brief, provide fewer tags. Output strictly as JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}."
+            
+            schema = {
+                "type": "object",
+                "properties": {
+                    "tags": {"type": "array", "items": {"type": "string"}}
+                },
+                "required": ["tags"]
+            }
+            
+            try:
+                vibe_tags_str = ""
+                
+                if app_state.AI_PROVIDER == "ollama":
+                    messages = [
+                        {"role": "system", "content": "You are a media tagging AI. Output only raw JSON."},
+                        {"role": "user", "content": prompt}
+                    ]
+                    
+                    url = f"{app_state.OLLAMA_URL}/api/chat"
+                    payload = {
+                        "model": app_state.OLLAMA_MODEL,
+                        "messages": messages,
+                        "stream": False,
+                        "format": schema,
+                        "options": {"temperature": 0.0}
+                    }
+                    
+                    resp = requests.post(url, json=payload, timeout=timeout)
+                    resp.raise_for_status()
+                    result = resp.json()
+                    content = result["message"]["content"]
+                    
+                    parsed = json.loads(content)
+                    vibe_tags_str = ", ".join(parsed.get("tags", []))
+                    
+                else:
+                    if not app_state.GEMINI_API_KEY:
+                        raise ValueError("Gemini API Key missing")
+                    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+                    client = genai.Client(api_key=app_state.GEMINI_API_KEY)
+                    resp = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            response_schema=EnrichmentResult,
+                            temperature=0.0
+                        )
+                    )
+                    if not resp or not resp.parsed:
+                        raise ValueError("Gemini returned empty or invalid response.")
+                    vibe_tags_str = ", ".join(resp.parsed.tags)
+                    
+                if not vibe_tags_str:
+                    raise ValueError("Empty tags returned")
+                    
+                meta['is_enriched'] = True
+                meta['vibe_tags'] = vibe_tags_str
+                
+                text_to_embed = f"Title: {title}. Year: {meta.get('year')}. Type: {meta.get('type')}. Genres: {meta.get('genres')}. Style: {vibe_tags_str}. Summary: {overview}"
+                
+                media_collection.update(
+                    ids=[item_id],
+                    metadatas=[meta],
+                    documents=[text_to_embed]
+                )
+                success_count += 1
+                logger.info(f"  -> Tags: {vibe_tags_str}")
+                
+            except Exception as e:
+                logger.error(f"  -> Failed to enrich {title}: {e}")
+                
+        log_msg = f"Enrichment batch complete. Successfully processed {success_count}/{len(ids)} items."
+        logger.info(log_msg)
+        return {"status": "ok", "processed": len(ids), "success": success_count, "log": [log_msg]}
+        
+    except Exception as e:
+        logger.error(f"Enrichment queue failed: {e}", exc_info=True)
+        return {"status": "error", "log": [str(e)]}

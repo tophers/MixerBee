@@ -8,6 +8,18 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <style>
+        .automation-config-card {
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            margin-top: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        .w-80 { width: 80px !important; }
+        .text-center { text-align: center; }
+        [x-cloak] { display: none !important; }
+    </style>
     <script src="static/js/header.js"></script>
     <script>
         document.addEventListener('alpine:init', () => {
@@ -67,7 +79,17 @@
 
             Alpine.store('presets', { currentName: '', availableNames: [], registry: {}, load: () => {}, refresh: () => {} });
             Alpine.store('scheduler', { schedule: [], isLoading: true, loadSchedule: () => {} });
-            Alpine.store('manager', { items: [], searchQuery: '', sortColumn: 'Name', sortDirection: 'asc', filteredItems: [], contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, load: () => {} });
+            
+            Alpine.store('manager', { 
+                items: [], 
+                searchQuery: '', 
+                sortColumn: 'Name', 
+                sortDirection: 'asc', 
+                filteredItems: [], 
+                libraryIq: { total: 0, enriched: 0, percentage: 0 },
+                contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, 
+                load: () => {} 
+            });
 
             Alpine.store('settings', {
                 isOpen: false,
