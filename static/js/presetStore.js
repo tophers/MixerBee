@@ -43,11 +43,17 @@ export const presetStore = {
         if (mixerBlocks.length === 0) return toast("No blocks to save.", false);
 
         try {
-            const name = await presetModal.show(this.availableNames);
-            const res = await post('api/presets', { name, data: mixerBlocks });
+            const name = await presetModal.show({ 
+                existingNames: this.availableNames,
+                name: '' 
+            });
+            
+            if (!name || !name.trim()) return;
+
+            const res = await post('api/presets', { name: name.trim(), data: mixerBlocks });
             if (res.status === 'ok') {
                 await this.refresh();
-                this.currentName = name;
+                this.currentName = name.trim();
                 toast(`Preset "${name}" saved!`, true);
             }
         } catch (err) {

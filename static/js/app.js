@@ -1,7 +1,7 @@
 // static/js/app.js
 
 import { toast, post } from './utils.js';
-import { initModals, confirmModal, toastHistoryModal, smartPlaylistModal, smartBuildModal, previewModal, resetWatchModal, importAction } from './modals.js';
+import { initModals, confirmModal, toastHistoryModal, smartPlaylistModal, smartBuildModal, previewModal, resetWatchModal, importAction, presetModal } from './modals.js';
 import { mixerStore } from './mixerStore.js';
 import { presetStore } from './presetStore.js';
 import { settingsStore } from './settingsStore.js';
@@ -29,6 +29,7 @@ const hydrateStores = () => {
     modalStore.resetWatchAction = resetWatchModal;
     modalStore.historyAction = toastHistoryModal;
     modalStore.importAction = importAction;
+    modalStore.presetAction = presetModal;
 
     Alpine.store('mixer').init();
     Alpine.store('presets').init();
