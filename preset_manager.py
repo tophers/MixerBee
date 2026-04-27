@@ -1,5 +1,5 @@
 """
-presets_manager.py – Manages presets
+presets_manager.py – Manages presets with per-item error handling
 """
 
 import json
@@ -16,7 +16,16 @@ class PresetManager:
             with database.get_db_connection() as conn:
                 rows = conn.execute("SELECT name, data FROM presets").fetchall()
                 for row in rows:
-                    presets[row['name']] = json.loads(row['data'])
+                    name = row['name']
+                    data_raw = row['data']
+                    try:
+                        # Attempt to load individual presets
+                        # This prevents one bad JSON string from breaking the whole list
+                        presets[name] = json.loads(data_raw)
+                    except json.JSONDecodeError as json_err:
+                        logging.error(f"PRESET_MGR: Skipping corrupted preset '{name}'. Invalid JSON: {json_err}")
+                    except Exception as e:
+                        logging.error(f"PRESET_MGR: Unexpected error loading preset '{name}': {e}")
             return presets
         except Exception as e:
             logging.error(f"PRESET_MGR: Error loading presets from database: {e}", exc_info=True)

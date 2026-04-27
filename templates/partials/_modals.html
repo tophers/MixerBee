@@ -283,13 +283,29 @@
                         </div>
                     </div>
                 </fieldset>
+
+                <fieldset class="filter-group mt-md">
+                    <legend>Integrations</legend>
+                    <label class="control-item">
+                        <span>External API Key</span>
+                        <div class="input-with-button">
+                            <input :type="$store.settings.is_external_key_visible ? 'text' : 'password'" x-model="$store.settings.external_api_key" placeholder="Set a key for external integrations">
+                            <button type="button" class="secondary small" @click="$store.settings.toggleExternalKeyVisibility()">
+                                <span x-html="$store.settings.is_external_key_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                            </button>
+                        </div>
+                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
+                            Use this key in the <code>X-MixerBee-Key</code> header for external API access.
+                        </p>
+                    </label>
+                </fieldset>
             </div>
         </div>
         <div class="modal-footer">
             <span x-text="'v' + $store.settings.version" class="mr-auto" style="font-size: 0.85rem; color: var(--text-subtle); font-family: monospace;"></span>
-            <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($el)">Test Connection</button>
+            <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($event.currentTarget)">Test Connection</button>
             <button type="button" class="secondary" @click="$store.settings.hide()">Cancel</button>
-            <button type="button" @click="$store.settings.saveSettings($el)">Save & Restart</button>
+            <button type="button" @click="$store.settings.saveSettings($event.currentTarget)">Save & Restart</button>
         </div>
     </div>
 </div>

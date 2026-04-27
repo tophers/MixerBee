@@ -30,6 +30,7 @@ OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_TIMEOUT = 120
 STARRED_MODELS = []
 VERBOSE_LOGGING = False
+EXTERNAL_API_KEY = None
 
 CACHE_REFRESH_MINUTES = 15
 SERVER_TYPE = "emby"
@@ -62,7 +63,7 @@ def sync_env_to_db():
             keys_to_sync = [
                 "SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS",
                 "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY",
-                "VERBOSE_LOGGING"
+                "VERBOSE_LOGGING", "EXTERNAL_API_KEY"
             ]
 
             for k in keys_to_sync:
@@ -79,7 +80,7 @@ def load_settings_from_db():
     """Hydrates runtime globals from the SQLite settings table."""
     import database
 
-    global SERVER_TYPE, AI_PROVIDER, OLLAMA_URL, OLLAMA_MODEL, GEMINI_API_KEY, VERBOSE_LOGGING, STARRED_MODELS
+    global SERVER_TYPE, AI_PROVIDER, OLLAMA_URL, OLLAMA_MODEL, GEMINI_API_KEY, VERBOSE_LOGGING, STARRED_MODELS, EXTERNAL_API_KEY
 
     with database.get_db_connection() as conn:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
@@ -101,6 +102,8 @@ def load_settings_from_db():
             STARRED_MODELS = []
             
         VERBOSE_LOGGING = str(settings.get("VERBOSE_LOGGING", "false")).lower() in ("true", "1", "t", "yes")
+        
+        EXTERNAL_API_KEY = settings.get("EXTERNAL_API_KEY")
 
 def load_and_authenticate() -> bool:
     """Master startup sequence: Hash check -> DB Sync -> Hydrate -> Authenticate."""

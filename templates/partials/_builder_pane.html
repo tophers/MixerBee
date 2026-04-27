@@ -5,7 +5,10 @@
 
             <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-grow: 1;">
                 <label class="control-item grow-1 m-0" for="load-preset-select">
-                    <span>Load Preset</span>
+                    <div class="flex-row justify-between">
+                        <span>Load Preset</span>
+                        <span class="badge badge-outline-subtle" style="font-size: 0.65rem;" x-text="$store.presets.availableNames.length + ' saved'"></span>
+                    </div>
                     <select id="load-preset-select"
                             class="w-full m-0"
                             x-model="$store.presets.currentName"

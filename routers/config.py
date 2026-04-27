@@ -1,5 +1,5 @@
 """
-routers/config.py – APIRouter
+routers/config.py – APIRouter for configuration and settings management.
 """
 
 import logging
@@ -52,6 +52,7 @@ def api_get_settings():
         "ollama_url": app_state.OLLAMA_URL or "http://localhost:11434",
         "ollama_model": app_state.OLLAMA_MODEL or "qwen2.5:7b",
         "starred_models": app_state.STARRED_MODELS,
+        "external_api_key": app_state.EXTERNAL_API_KEY or "",
         "version": core.CLIENT_VERSION
     }
 
@@ -121,7 +122,8 @@ def api_save_settings(req: models.SettingsRequest):
         "OLLAMA_URL": req.ollama_url.strip(),
         "OLLAMA_MODEL": req.ollama_model.strip(),
         "GEMINI_API_KEY": req.gemini_key.strip() if req.gemini_key else "",
-        "STARRED_MODELS": json.dumps(req.starred_models or [])
+        "STARRED_MODELS": json.dumps(req.starred_models or []),
+        "EXTERNAL_API_KEY": req.external_api_key.strip() if req.external_api_key else ""
     }
 
     try:
@@ -131,7 +133,7 @@ def api_save_settings(req: models.SettingsRequest):
             for k, v in settings_dict.items():
                 conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (k, v))
 
-            env_keys = ["SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS", "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY"]
+            env_keys = ["SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS", "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY", "EXTERNAL_API_KEY"]
             env_content = "\n".join([f'{k}="{settings_dict[k]}"' for k in env_keys if settings_dict.get(k) is not None])
 
             with open(app_state.ENV_PATH, "w") as f:

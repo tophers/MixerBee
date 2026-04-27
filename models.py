@@ -16,6 +16,7 @@ class SettingsRequest(BaseModel):
     ollama_model: Optional[str] = "llama3.1"
     ollama_timeout: int = 120
     starred_models: Optional[List[str]] = Field(default_factory=list)
+    external_api_key: Optional[str] = None
 
 class ModelUpdateRequest(BaseModel):
     ollama_model: str
@@ -94,3 +95,11 @@ class ConvertItemRequest(BaseModel):
 class ResetWatchRequest(BaseModel):
     user_id: str
     season_number: Optional[int] = None
+
+class ExternalPromptRequest(BaseModel):
+    prompt: str
+    preset_name: str
+
+class ExternalBuildRequest(BaseModel):
+    preset_name: str
+    playlist_name: str

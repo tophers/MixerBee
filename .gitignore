@@ -31,3 +31,4 @@ venv/
 
 # Other
 .DS_Store
+.aider*

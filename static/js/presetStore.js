@@ -14,10 +14,16 @@ export const presetStore = {
 
     async refresh() {
         try {
-            const response = await fetch('api/presets');
+            const response = await fetch(`api/presets?_cb=${Date.now()}`);
             if (!response.ok) throw new Error('Failed to fetch presets');
-            this.registry = await response.json();
-            this.availableNames = Object.keys(this.registry);
+            
+            const data = await response.json();
+            
+            this.registry = data;
+            
+            this.availableNames.splice(0, this.availableNames.length, ...Object.keys(data));
+            
+            await Alpine.nextTick();
         } catch (error) {
             console.error('Error populating presets:', error);
             toast('Could not load presets from server.', false);

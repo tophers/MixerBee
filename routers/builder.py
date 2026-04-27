@@ -12,6 +12,7 @@ import models
 import app_state
 from app.cache import get_library_data
 from app.ai import generate_smart_blocks
+from preset_manager import preset_manager
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
@@ -226,4 +227,37 @@ def api_add_items_to_playlist(playlist_id: str, req: models.AddItemsRequest, aut
         return result
     except Exception as e:
         logging.error(f"Error adding items to playlist {playlist_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/external/build_preset", response_model=Dict)
+def api_external_build_preset(req: models.ExternalBuildRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    """
+    External API Endpoint: Loads a preset and creates a mixed playlist.
+    """
+    try:
+        # Load preset
+        all_presets = preset_manager.get_all_presets()
+        blocks = all_presets.get(req.preset_name)
+        
+        if not blocks:
+            raise HTTPException(status_code=404, detail=f"Preset '{req.preset_name}' not found.")
+
+        user_specific_hdr = core.auth_headers(auth_deps["token"], auth_deps["login_uid"])
+        
+        result = core.create_mixed_playlist(
+            user_id=auth_deps["login_uid"],
+            playlist_name=req.playlist_name,
+            blocks=blocks,
+            hdr=user_specific_hdr
+        )
+
+        if new_item_id := result.get("new_item_id"):
+            result["newItemUrl"] = core.construct_item_url(new_item_id)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"External build_preset failed for preset '{req.preset_name}'", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

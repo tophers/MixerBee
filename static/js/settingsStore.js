@@ -17,6 +17,8 @@ export const settingsStore = {
     ollama_timeout: 120,
     starred_models: [],
     version: '',
+    external_api_key: '',
+    is_external_key_visible: false,
 
     // Local UI state
     ollama_installed: [],
@@ -39,6 +41,7 @@ export const settingsStore = {
                 this.ollama_timeout = data.ollama_timeout || 120;
                 this.starred_models = data.starred_models || [];
                 this.version = data.version;
+                this.external_api_key = data.external_api_key || '';
 
                 if (this.ai_provider === 'ollama') {
                     this.fetchOllamaStatus();
@@ -83,6 +86,10 @@ export const settingsStore = {
         toast('Gemini API key has been cleared. Click Save to finalize.', true);
     },
 
+    toggleExternalKeyVisibility() {
+        this.is_external_key_visible = !this.is_external_key_visible;
+    },
+
     async testConnection(btnEl) {
         const payload = {
             server_type: this.server_type,
@@ -123,7 +130,8 @@ export const settingsStore = {
             ollama_url: this.ollama_url.trim(),
             ollama_model: this.ollama_model.trim(),
             ollama_timeout: parseInt(this.ollama_timeout),
-            starred_models: this.starred_models
+            starred_models: this.starred_models,
+            external_api_key: this.external_api_key.trim()
         };
 
         if (!payload.emby_url || !payload.emby_user) {

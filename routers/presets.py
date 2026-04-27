@@ -1,20 +1,30 @@
 """
-routers/presets.py – APIRouter
+routers/presets.py – APIRouter with Cache Control
 """
 
 import logging
 from typing import Dict, List
-from fastapi import APIRouter, HTTPException, status, Body
+from fastapi import APIRouter, HTTPException, status, Body, Depends
+from fastapi.responses import JSONResponse
 
 import preset_manager as pm
-from models import MixedPlaylistRequest 
+from models import MixedPlaylistRequest, ExternalPromptRequest
+from .dependencies import get_current_auth_headers
 
 router = APIRouter()
 
-@router.get("/api/presets", response_model=Dict[str, List[Dict]])
+@router.get("/api/presets")
 def api_get_presets():
-    """Returns all saved presets."""
-    return pm.preset_manager.get_all_presets()
+    """Returns all saved presets with no-cache headers to ensure external API updates show up."""
+    data = pm.preset_manager.get_all_presets()
+    return JSONResponse(
+        content=data,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        }
+    )
 
 @router.post("/api/presets", status_code=status.HTTP_201_CREATED)
 def api_save_preset(payload: Dict = Body(...)):
@@ -39,3 +49,28 @@ def api_delete_preset(preset_name: str):
         return {"status": "ok", "log": [f"Preset '{preset_name}' deleted."]}
     
     return {"status": "ok", "log": [f"Preset '{preset_name}' not found or already deleted."]}
+
+@router.post("/api/external/prompt_to_preset", status_code=status.HTTP_201_CREATED)
+def api_external_prompt_to_preset(req: ExternalPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    """
+    External API Endpoint: Generates blocks from a prompt and saves them as a preset.
+    """
+    try:
+        from app.ai import generate_smart_blocks
+        
+        blocks, model_used = generate_smart_blocks(req.prompt)
+        
+        success = pm.preset_manager.save_preset(req.preset_name, blocks)
+        
+        if success:
+            return {
+                "status": "ok", 
+                "log": [f"Preset '{req.preset_name}' created from prompt using {model_used}."],
+                "blocks": blocks
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to save preset to database.")
+            
+    except Exception as e:
+        logging.error("External prompt_to_preset failed", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
