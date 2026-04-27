@@ -22,25 +22,28 @@ def get_current_auth_headers(x_mixerbee_key: str = Header(None)) -> dict:
     """
     global _last_token_check
 
-    # Check for External API Key first
-    if x_mixerbee_key and app_state.EXTERNAL_API_KEY and x_mixerbee_key == app_state.EXTERNAL_API_KEY:
-        # Bypass standard auth, use default admin user
-        if not app_state.DEFAULT_UID:
-            # If default user isn't loaded yet, try to load config
-            if not app_state.is_configured:
-                if not app_state.load_and_authenticate():
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="Application is not configured. Please provide server details in settings."
-                    )
-        
+    if x_mixerbee_key:
+        if not app_state.EXTERNAL_API_KEY or x_mixerbee_key != app_state.EXTERNAL_API_KEY:
+            logging.warning(f"Unauthorized External API attempt with key: {x_mixerbee_key[:4]}...")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or unconfigured External API Key."
+            )
+
+        if not app_state.is_configured or not app_state.DEFAULT_UID:
+            logging.info("External API call triggered hydration/authentication.")
+            if not app_state.load_and_authenticate():
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Application is not authenticated with the media server."
+                )
+
         return {
             "hdr": app_state.HDR,
             "token": app_state.token,
             "login_uid": app_state.DEFAULT_UID
         }
 
-    # Standard Browser/Cookie Auth Logic
     if not app_state.is_configured:
         logging.warning("Auth dependency called but app_state is not configured. Attempting to recover...")
         if not app_state.load_and_authenticate():
@@ -50,7 +53,7 @@ def get_current_auth_headers(x_mixerbee_key: str = Header(None)) -> dict:
             )
 
     now = time.time()
-    
+
     if (now - _last_token_check) < TOKEN_TTL_SECONDS:
         return {
             "hdr": app_state.HDR,
