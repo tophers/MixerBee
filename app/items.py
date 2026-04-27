@@ -157,7 +157,6 @@ def _delete_item_by_name(name: str, item_types: str, user_id: str, hdr: Dict[str
         r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=10)
         r.raise_for_status()
         
-        # Guard against {"Items": null} and filter for items that actually have an Id
         items = r.json().get("Items") or []
         targets = [i for i in items if i.get("Id") and i.get("Name", "").strip().lower() == name.strip().lower()]
         

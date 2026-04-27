@@ -19,8 +19,6 @@ class PresetManager:
                     name = row['name']
                     data_raw = row['data']
                     try:
-                        # Attempt to load individual presets
-                        # This prevents one bad JSON string from breaking the whole list
                         presets[name] = json.loads(data_raw)
                     except json.JSONDecodeError as json_err:
                         logging.error(f"PRESET_MGR: Skipping corrupted preset '{name}'. Invalid JSON: {json_err}")

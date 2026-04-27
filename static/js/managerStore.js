@@ -27,7 +27,6 @@ export const managerStore = {
 
     async loadIq() {
         try {
-            // Append the timestamp to bust any reverse proxy/browser caching
             const res = await fetch(`api/library/iq?_cb=${Date.now()}`);
             if (res.ok) {
                 const data = await res.json();

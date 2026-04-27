@@ -335,7 +335,6 @@ class Scheduler:
                         schedule_data.get("playlist_name"),
                         schedule_data.get("user_id"),
                         schedule_data.get("job_type"),
-                        # Ensure we store something descriptive even if it's not a real crontab
                         schedule_data.get("crontab", ""),
                         json.dumps(config_payload),
                         schedule_id
