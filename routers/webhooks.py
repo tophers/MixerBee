@@ -13,10 +13,6 @@ from scheduler import scheduler_manager
 router = APIRouter()
 
 def trigger_relevant_schedules(user_id: str = None):
-    """
-    Background worker that iterates through existing schedules and runs them.
-    If a user_id is provided by the webhook, it only updates that user's playlists.
-    """
     if not app_state.is_configured:
         return
 
@@ -39,21 +35,25 @@ def trigger_relevant_schedules(user_id: str = None):
 
 @router.post("/api/webhook")
 async def handle_media_webhook(request: Request):
-    """
-    Receives JSON payloads from the Emby/Jellyfin Webhook plugin.
-    Returns 200 immediately and processes the updates via a debounced background job.
-    """
+    # Log the hit immediately so we know Emby is actually reaching the server
+    user_agent = request.headers.get("user-agent", "UNKNOWN").lower()
+    logging.info(f"WEBHOOK HIT: Request received from {request.client.host} | User-Agent: '{user_agent}'")
+
     if not app_state.is_configured:
+        logging.warning("WEBHOOK: App not configured. Ignoring.")
         return {"status": "ignored", "reason": "App not configured"}
+
     try:
         payload: Dict[str, Any] = await request.json()
-    except Exception:
+    except Exception as e:
+        logging.warning(f"WEBHOOK: Failed to parse JSON. Error: {e}")
         return {"status": "ignored", "reason": "Empty or invalid JSON payload"}
 
     event_type = payload.get("Event", "")
     event_type_lower = event_type.lower()
 
     if not event_type_lower:
+        logging.info(f"WEBHOOK: Payload received but no 'Event' key found. Keys present: {list(payload.keys())}")
         return {"status": "ignored", "reason": "No Event type provided in payload"}
 
     user_id = None
@@ -61,6 +61,8 @@ async def handle_media_webhook(request: Request):
         user_id = payload["User"].get("Id")
     elif "UserId" in payload:
         user_id = payload.get("UserId")
+
+    logging.info(f"WEBHOOK: Parsed Event='{event_type}', UserID='{user_id}'")
 
     relevant_keywords = [
         "stop",
@@ -77,7 +79,7 @@ async def handle_media_webhook(request: Request):
         run_time = datetime.now() + timedelta(seconds=10)
         job_id = f"webhook_debounce_{user_id}"
 
-        logging.info(f"WEBHOOK: Received '{event_type}'. Scheduling/Delaying rebuild for 10 seconds.")
+        logging.info(f"WEBHOOK: Event matches triggers! Scheduling debounce rebuild for 10s from now.")
 
         scheduler_manager.scheduler.add_job(
             func=trigger_relevant_schedules,
@@ -91,4 +93,5 @@ async def handle_media_webhook(request: Request):
 
         return {"status": "accepted", "message": f"Playlist rebuild queued for {run_time.strftime('%H:%M:%S')}."}
 
+    logging.info(f"WEBHOOK: Event '{event_type}' ignored (not in relevant keywords).")
     return {"status": "ignored", "reason": f"Event '{event_type}' does not require playlist updates."}

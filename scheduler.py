@@ -64,7 +64,7 @@ def run_playlist_job(**schedule_data) -> Dict:
             import preset_manager as pm
             from routers.builder import _get_random_movie_block, _get_random_tv_block
 
-            auth_data = get_current_auth_headers()
+            auth_data = get_current_auth_headers(None)
             hdr = core.auth_headers(auth_data["token"], user_id=user_id)
 
             if job_type == "builder":
