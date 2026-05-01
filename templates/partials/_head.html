@@ -19,6 +19,102 @@
         .w-80 { width: 80px !important; }
         .text-center { text-align: center; }
         [x-cloak] { display: none !important; }
+        
+        .flex-basis-sync {
+            flex: 1 1 160px !important;
+        }
+
+        .job-row-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem !important;
+            gap: 1rem;
+        }
+
+        .job-title-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .compact-block {
+            margin-bottom: 0.75rem !important;
+        }
+
+        .job-icon-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            flex-shrink: 0;
+        }
+
+        .badge-align {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 20px;
+            padding-top: 0;
+            padding-bottom: 0;
+            line-height: 1;
+        }
+
+        /* AI Tweak Modal Styles */
+        .tweak-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.25rem;
+        }
+        .tweak-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        .tweak-label-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .tweak-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+        .tweak-value {
+            font-family: monospace;
+            font-size: 0.85rem;
+            color: var(--accent);
+            background: rgba(var(--accent-rgb), 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .tweak-description {
+            font-size: 0.75rem;
+            color: var(--text-subtle);
+            line-height: 1.3;
+        }
+
+        /* Danger Zone Styles for Maintenance */
+        .danger-zone {
+            border: 1px solid rgba(var(--danger-rgb), 0.2) !important;
+            background: rgba(var(--danger-rgb), 0.03);
+        }
+        .danger-zone legend {
+            color: var(--danger);
+            opacity: 0.8;
+            font-weight: bold;
+        }
+        .btn-danger-outline {
+            border: 1px solid rgba(var(--danger-rgb), 0.3) !important;
+            color: var(--danger) !important;
+            background: transparent !important;
+        }
+        .btn-danger-outline:hover {
+            background: var(--danger) !important;
+            color: white !important;
+        }
     </style>
     <script src="static/js/header.js"></script>
     <script>
@@ -42,7 +138,7 @@
                 plus: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='12' y1='5' x2='12' y2='19'></line><line x1='5' y1='12' x2='19' y2='12'></line></svg>`,
                 clock: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'></circle><polyline points='12 6 12 12 16 14'></polyline></svg>`,
                 play: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>`,
-                settings: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'></circle><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'></path></svg>`,
+                settings: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='3'></circle><path d='M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z'></path></svg>`,
                 save: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z'></path><polyline points='17 21 17 13 7 13 7 21'></polyline><polyline points='7 3 7 8 15 8'></polyline></svg>`,
                 download: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='7 10 12 15 17 10'></polyline><line x1='12' y1='15' x2='12' y2='3'></line></svg>`,
                 upload: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='17 8 12 3 7 8'></polyline><line x1='12' y1='3' x2='12' y2='15'></line></svg>`,
@@ -58,6 +154,7 @@
                 framer: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 16V9h14V2H5l14 14h-7m-7 0l7 7v-7H5z'></path></svg>`,
                 search: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line></svg>`,
                 refresh: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='23 4 23 10 17 10'></polyline><polyline points='1 20 1 14 7 14'></polyline><path d='M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'></path></svg>`,
+                archive: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='21 8 21 21 3 21 3 8'></polyline><rect x='1' y='3' width='22' height='5'></rect><line x1='10' y1='12' x2='14' y2='12'></line></svg>`,
                 alert: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'></path><line x1='12' y1='9' x2='12' y2='13'></line><line x1='12' y1='17' x2='12.01' y2='17'></line></svg>`,
                 externalLink: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'></path><polyline points='15 3 21 3 21 9'></polyline><line x1='10' y1='14' x2='21' y2='3'></line></svg>`
             });
@@ -70,6 +167,7 @@
             Alpine.store('mixer', {
                 blocks: [],
                 aiPrompt: '',
+                aiTweaks: { threshold: 0.65, limit: 25, strictness: 'genre_verified', temperature: 0.2, target_size: 10 },
                 library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] },
                 getTvBlockSummary: () => '',
                 ensureBlockState: () => {},
@@ -110,6 +208,7 @@
                 starred_models: [],
                 is_loading_ollama: false,
                 gemini_key: '',
+                vector_space: 'cosine',
                 show: () => {},
                 hide: () => {}
             });
@@ -124,6 +223,7 @@
                 resetWatch: { isOpen: false, showName: '', season: '' },
                 history: { isOpen: false, toastHistory: [] },
                 ollamaModels: { isOpen: false },
+                aiTweaks: { isOpen: false },
                 confirmAction: { show: () => new Promise(() => {}), close: () => {} },
                 playlistAction: { show: () => new Promise(() => {}), close: () => {} },
                 smartBuildAction: { show: () => new Promise(() => {}), close: () => {} },
@@ -131,7 +231,8 @@
                 previewAction: { show: () => new Promise(() => {}), close: () => {} },
                 resetWatchAction: { show: () => new Promise(() => {}), close: () => {} },
                 historyAction: { show: () => {}, close: () => {}, clear: () => {} },
-                importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} }
+                importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} },
+                aiTweaksAction: { show: () => new Promise(() => {}), close: () => {} }
             });
         });
     </script>

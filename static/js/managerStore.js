@@ -134,7 +134,6 @@ export const managerStore = {
             });
 
             if (res.status === 'ok') {
-                toast("Item removed", true);
                 await this.viewContents(parent);
                 await this.load();
             }
@@ -154,7 +153,7 @@ export const managerStore = {
                 item_id: item.Id, user_id: uid, target_type: targetType,
                 new_name: item.Name, delete_original: true
             });
-            if (res.status === 'ok') { toast(`Converted!`, true); await this.load(); }
+            if (res.status === 'ok') { await this.load(); }
         } catch (e) { }
     },
 
@@ -168,7 +167,7 @@ export const managerStore = {
                 isDanger: true
             });
             const res = await post(`api/delete_item`, { item_id: item.Id, user_id: uid });
-            if (res.status === 'ok') { toast("Deleted", true); await this.load(); }
+            if (res.status === 'ok') { await this.load(); }
         } catch (e) { }
     }
 };

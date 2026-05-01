@@ -38,6 +38,7 @@ export const smartBuildModal = createModalLogic('smartBuild');
 export const previewModal = createModalLogic('preview');
 export const resetWatchModal = createModalLogic('resetWatch');
 export const ollamaModelsModal = createModalLogic('ollamaModels');
+export const aiTweaksModal = createModalLogic('aiTweaks');
 
 export const toastHistoryModal = {
     show() {
@@ -88,7 +89,7 @@ export const importAction = {
 };
 
 export function initModals() {
-    Alpine.store('modals', {
+     Alpine.store('modals', {
         confirm: { isOpen: false, title: '', text: '', confirmText: 'Confirm', isDanger: false },
         preset: { isOpen: false, name: '', existingNames: [] },
         playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
@@ -97,8 +98,10 @@ export function initModals() {
         preview: { isOpen: false, items: [], title: 'Playlist Preview' },
         resetWatch: { isOpen: false, showName: '', season: '' },
         history: { isOpen: false, toastHistory: [] },
-        ollamaModels: { isOpen: false }
+        ollamaModels: { isOpen: false },
+        aiTweaks: { isOpen: false }
     });
     
     Alpine.store('modals').ollamaAction = ollamaModelsModal;
+    Alpine.store('modals').aiTweaksAction = aiTweaksModal;
 }

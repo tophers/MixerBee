@@ -9,6 +9,8 @@ import { schedulerStore } from './schedulerStore.js';
 import { managerStore } from './managerStore.js';
 import { uiStore } from './uiStore.js';
 
+let isAppInitialized = false;
+
 const hydrateStores = () => {
     if (typeof Alpine === 'undefined') return;
 
@@ -36,6 +38,9 @@ const hydrateStores = () => {
 };
 
 async function initializeApp() {
+    if (isAppInitialized) return;
+    isAppInitialized = true;
+
     const loadingOverlay = document.getElementById('loading-overlay');
     try {
         const themeToggle = document.getElementById('theme-toggle-cb');
@@ -77,7 +82,8 @@ async function initializeApp() {
                 ai_provider: config.ai_provider || 'gemini',
                 ollama_model: config.ollama_model || '',
                 is_ai_configured: !!config.is_ai_configured,
-                starred_models: config.starred_models || []
+                starred_models: config.starred_models || [],
+                vector_space: config.vector_space || 'cosine'
             });
 
             if (!config.is_configured) return;

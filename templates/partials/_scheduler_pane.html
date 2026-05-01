@@ -1,181 +1,178 @@
-<!-- templates/partials/_scheduler_pane.html -->
 <div id="scheduler-pane" x-data="{ jobModalOpen: null }">
     <div class="container">
-        <div class="manager-header flex-row justify-between align-center mb-md">
-            <div>
+        <div class="flex-row justify-between align-center gap-md mb-sm">
+            <div class="flex-row items-baseline gap-sm">
                 <h2 class="m-0">Automated Jobs</h2>
-                <p class="m-0 text-subtle curated-preview-text" style="font-size: 0.85rem;">Automation for your MixerBee presets</p>
             </div>
             <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
                 <span x-html="$store.icons.plus"></span> Add New Job
             </button>
         </div>
 
-        <template x-if="$store.scheduler.isLoading">
-            <div class="flex-column align-center justify-center p-xl">
-                <div class="spinner mb-md"></div>
-                <p class="text-subtle">Loading schedule...</p>
-            </div>
-        </template>
-
-        <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
-            <div class="empty-state-card p-xl text-center">
-                <div class="empty-icon mb-md opacity-30" style="font-size: 3rem;" x-html="$store.icons.calendar"></div>
-                <h3>No scheduled jobs</h3>
-                <p class="text-subtle mb-lg">Create a job to automatically update your playlists on a recurring schedule.</p>
-                <button type="button" class="secondary" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">Create First Job</button>
-            </div>
-        </template>
-
-        <div class="flex-column gap-md">
-            <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
-                <div class="mixed-block">
-                    <div class="mixed-block-header p-md">
-                        <div class="flex-row align-center gap-lg grow-1">
-                            <div :class="entry.id ? 'color-accent' : 'text-subtle'" x-html="$store.icons.clock"></div>
-
-                            <div class="grow-1">
-                                <div class="flex-row align-center gap-md">
-                                    <h3 class="m-0" style="font-size: 1.1rem; letter-spacing: -0.01em;" x-text="entry.playlist_name || 'Unnamed Job'"></h3>
-                                    <span class="badge" :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.create_as_collection ? 'collection-active' : 'playlist-active')"
-                                          style="font-size: 0.7rem;"
-                                          x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST')"></span>
+        <div class="table-container card">
+            <table class="manager-table w-full">
+                <thead>
+                    <tr class="table-header-row">
+                        <th class="table-cell text-left">Job Name</th>
+                        <th class="table-cell text-left">Type</th>
+                        <th class="table-cell text-left">Execution</th>
+                        <th class="table-cell text-left">Source</th>
+                        <th class="table-cell text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-if="$store.scheduler.isLoading">
+                        <tr><td colspan="5" class="table-loading">Loading schedule...</td></tr>
+                    </template>
+                    <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
+                        <tr><td colspan="5" class="table-loading">No scheduled jobs found.</td></tr>
+                    </template>
+                    <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
+                        <tr class="table-row">
+                            <td class="table-cell">
+                                <div class="flex-row align-center gap-sm">
+                                    <span class="job-icon-status" :class="entry.id ? 'color-accent' : 'text-subtle'" x-html="$store.icons.clock"></span>
+                                    <span class="job-name bold" x-text="entry.playlist_name || 'Unnamed Job'"></span>
                                 </div>
-                                <div class="automation-details-row curated-preview-text">
+                            </td>
+                            
+                            <td class="table-cell">
+                                <span class="badge badge-align" 
+                                      :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.create_as_collection ? 'collection-active' : 'playlist-active')"
+                                      x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST')"></span>
+                            </td>
+
+                            <td class="table-cell">
+                                <div class="schedule-summary-cell">
                                     <template x-if="entry.schedule_details?.frequency === 'interval'">
-                                        <span x-text="'Every ' + entry.schedule_details.interval_minutes + ' minutes'"></span>
+                                        <div class="time-part" x-text="'Every ' + entry.schedule_details.interval_minutes + 'm'"></div>
                                     </template>
                                     <template x-if="entry.schedule_details?.frequency !== 'interval'">
-                                        <div class="flex-row align-center gap-xs" style="display: inline-flex;">
-                                            <span x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
-                                            <span class="opacity-30">|</span>
-                                            <span x-text="entry.schedule_details?.time || '12:00'"></span>
-                                        </div>
-                                    </template>
-                                    <template x-if="entry.preset_name && entry.job_type !== 'enrichment'">
-                                        <div class="flex-row align-center gap-md" style="display: inline-flex;">
-                                            <span class="opacity-30">|</span>
-                                            <span class="opacity-80" style="color: var(--accent);" x-text="entry.preset_name"></span>
-                                        </div>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="flex-row gap-sm align-center">
-                            <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
-                            <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Change Schedule" x-html="$store.icons.settings"></button>
-                            <button type="button" class="secondary small icon-only btn-danger-outline" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Schedule" x-html="$store.icons.trash"></button>
-                        </div>
-                    </div>
-
-                    <!-- Automation Edit Modal -->
-                    <div class="modal-overlay sub-modal" x-show="jobModalOpen === entry._uid" x-cloak>
-                        <div class="modal-window wide" @click.outside="jobModalOpen = null">
-                            <div class="modal-header">
-                                <h2>Edit Automation Task</h2>
-                                <button type="button" class="icon-btn" @click="jobModalOpen = null">&times;</button>
-                            </div>
-
-                            <div class="modal-body modal-inner-form">
-                                <div class="mb-md">
-                                    <label class="field-label">Job Type</label>
-                                    <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'">
-                                        <option value="builder">Standard Playlist / Collection</option>
-                                        <option value="enrichment">Library Metadata Enrichment (AI)</option>
-                                    </select>
-                                </div>
-
-                                <div class="filter-grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem;">
-                                    <div>
-                                        <label class="field-label">Job Name</label>
-                                        <input type="text" x-model="entry.playlist_name" class="ghost-input w-full automation-config-item">
-                                    </div>
-                                    
-                                    <template x-if="entry.job_type !== 'enrichment'">
                                         <div>
-                                            <label class="field-label">Output Mode</label>
-                                            <div class="toggle-pill">
-                                                <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
-                                                <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                            <span class="time-part" x-text="entry.schedule_details?.time || '12:00'"></span>
+                                            <span class="freq-part" x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </td>
+
+                            <td class="table-cell">
+                                <span class="text-subtle" style="font-size: 0.9rem;" x-text="entry.preset_name || '-'"></span>
+                            </td>
+
+                            <td class="table-cell text-right">
+                                <div class="flex-row justify-end gap-sm">
+                                    <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
+                                    <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Edit Job" x-html="$store.icons.settings"></button>
+                                    <button type="button" class="secondary small icon-only danger-hover" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Job" x-html="$store.icons.trash"></button>
+                                </div>
+
+                                <div class="modal-overlay sub-modal" x-show="jobModalOpen === entry._uid" x-cloak>
+                                    <div class="modal-window wide" @click.outside="jobModalOpen = null">
+                                        <div class="modal-header">
+                                            <h2>Edit Automation Task</h2>
+                                            <button type="button" class="icon-btn" @click="jobModalOpen = null">&times;</button>
+                                        </div>
+                                        <div class="modal-body modal-inner-form text-left">
+                                            <div class="mb-md">
+                                                <label class="field-label">Job Type</label>
+                                                <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'">
+                                                    <option value="builder">Standard Playlist / Collection</option>
+                                                    <option value="enrichment">Library Metadata Enrichment (AI)</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="filter-grid" style="grid-template-columns: 1.5fr 1fr; gap: 2rem;">
+                                                <div>
+                                                    <label class="field-label">Job Name</label>
+                                                    <input type="text" x-model="entry.playlist_name" class="ghost-input w-full automation-config-item">
+                                                </div>
+                                                <template x-if="entry.job_type !== 'enrichment'">
+                                                    <div>
+                                                        <label class="field-label">Output Mode</label>
+                                                        <div class="toggle-pill">
+                                                            <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
+                                                            <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+
+                                            <template x-if="entry.job_type !== 'enrichment'">
+                                                <div class="mt-lg">
+                                                    <label class="field-label">Automation Preset</label>
+                                                    <select x-model="entry.preset_name" class="mixer-select w-full">
+                                                        <option value="">-- Select Builder Preset --</option>
+                                                        <template x-for="name in $store.presets.availableNames" :key="name">
+                                                            <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
+                                                        </template>
+                                                    </select>
+                                                </div>
+                                            </template>
+
+                                            <template x-if="entry.job_type === 'enrichment'">
+                                                <div class="filter-grid mt-lg" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
+                                                    <div>
+                                                        <label class="field-label">Batch Size (Max: 500)</label>
+                                                        <input type="number" 
+                                                               x-model.number="entry.enrichment_data.batch_size" 
+                                                               min="1" 
+                                                               max="500" 
+                                                               @change="entry.enrichment_data.batch_size = Math.min(Math.max($event.target.value, 1), 500)"
+                                                               class="w-full themed-input m-0">
+                                                    </div>
+                                                    <div>
+                                                        <label class="field-label">AI Timeout (Max: 600)</label>
+                                                        <input type="number" 
+                                                               x-model.number="entry.enrichment_data.timeout" 
+                                                               min="10" 
+                                                               max="600" 
+                                                               @change="entry.enrichment_data.timeout = Math.min(Math.max($event.target.value, 10), 600)"
+                                                               class="w-full themed-input m-0">
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div class="automation-config-card" x-show="entry.schedule_details">
+                                                <div class="flex-row justify-between align-center mb-md">
+                                                    <label class="field-label m-0">Execution Mode</label>
+                                                    <div class="toggle-pill">
+                                                        <span class="pill-btn" :class="entry.schedule_details.frequency !== 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'daily'">Fixed Time</span>
+                                                        <span class="pill-btn" :class="entry.schedule_details.frequency === 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'interval'">Interval</span>
+                                                    </div>
+                                                </div>
+                                                <div x-show="entry.schedule_details.frequency !== 'interval'" x-transition>
+                                                    <div class="flex-row justify-between align-center mb-md">
+                                                        <label class="field-label m-0">Execution Time</label>
+                                                        <input type="time" x-model="entry.schedule_details.time" class="themed-input w-auto">
+                                                    </div>
+                                                    <div class="flex-row justify-between gap-sm">
+                                                        <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
+                                                            <button type="button" class="day-btn grow-1" :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''" @click="$store.scheduler.toggleDay(entry, i)" x-text="day"></button>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                                <div x-show="entry.schedule_details.frequency === 'interval'" x-transition>
+                                                    <div class="flex-row align-center gap-md">
+                                                        <label class="field-label m-0">Run Every</label>
+                                                        <input type="number" x-model.number="entry.schedule_details.interval_minutes" min="1" class="themed-input w-80 text-center">
+                                                        <span class="text-subtle">Minutes</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </template>
-                                </div>
-
-                                <template x-if="entry.job_type !== 'enrichment'">
-                                    <div class="mt-lg">
-                                        <label class="field-label">Automation Preset</label>
-                                        <select x-model="entry.preset_name" class="mixer-select w-full">
-                                            <option value="">-- Select Builder Preset --</option>
-                                            <template x-for="name in $store.presets.availableNames" :key="name">
-                                                <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
-                                            </template>
-                                        </select>
-                                    </div>
-                                </template>
-
-                                <template x-if="entry.job_type === 'enrichment'">
-                                    <div class="filter-grid mt-lg" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
-                                        <div>
-                                            <label class="field-label">Batch Size (Max: 500)</label>
-                                            <input type="number" x-model.number="entry.enrichment_data.batch_size" min="1" max="500" @change="entry.enrichment_data.batch_size = Math.min(Math.max($event.target.value, 1), 500)" class="w-full themed-input m-0">
-                                            <p class="text-subtle mt-xs" style="font-size: 0.75rem;">Items processed per run.</p>
+                                        <div class="modal-footer">
+                                            <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
+                                                <span x-html="$store.icons.save"></span> Save Automation
+                                            </button>
                                         </div>
-                                        <div>
-                                            <label class="field-label">AI Timeout (Max: 600)</label>
-                                            <input type="number" x-model.number="entry.enrichment_data.timeout" min="10" max="600" @change="entry.enrichment_data.timeout = Math.min(Math.max($event.target.value, 1), 600)" class="w-full themed-input m-0">
-                                            <p class="text-subtle mt-xs" style="font-size: 0.75rem;">Timeout in seconds to wait for AI response.</p>
-                                        </div>
-                                    </div>
-                                </template>
-
-                                <div class="automation-config-card" x-show="entry.schedule_details">
-                                    <div class="flex-row justify-between align-center mb-md">
-                                        <label class="field-label m-0">Execution Mode</label>
-                                        <div class="toggle-pill">
-                                            <span class="pill-btn" :class="entry.schedule_details.frequency !== 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'daily'">Fixed Time</span>
-                                            <span class="pill-btn" :class="entry.schedule_details.frequency === 'interval' ? 'active' : ''" @click="entry.schedule_details.frequency = 'interval'">Interval</span>
-                                        </div>
-                                    </div>
-
-                                    <div x-show="entry.schedule_details.frequency !== 'interval'" x-transition>
-                                        <div class="flex-row justify-between align-center mb-md">
-                                            <label class="field-label m-0">Execution Time</label>
-                                            <input type="time" x-model="entry.schedule_details.time" class="themed-input w-auto">
-                                        </div>
-                                        <div class="flex-row justify-between gap-sm">
-                                            <template x-for="(day, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i">
-                                                <button type="button"
-                                                        class="day-btn grow-1"
-                                                        :class="(entry.schedule_details?.days_of_week || []).includes(i) ? 'active' : ''"
-                                                        @click="$store.scheduler.toggleDay(entry, i)"
-                                                        x-text="day">
-                                                </button>
-                                            </template>
-                                        </div>
-                                    </div>
-
-                                    <div x-show="entry.schedule_details.frequency === 'interval'" x-transition>
-                                        <div class="flex-row align-center gap-md">
-                                            <label class="field-label m-0">Run Every</label>
-                                            <input type="number" x-model.number="entry.schedule_details.interval_minutes" min="1" class="themed-input w-80 text-center">
-                                            <span class="text-subtle">Minutes</span>
-                                        </div>
-                                        <p class="text-subtle mt-sm" style="font-size: 0.75rem;">Note: Playlists will refresh automatically at this interval regardless of server events.</p>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div class="modal-footer">
-                                <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
-                                    <span x-html="$store.icons.save"></span> Save Automation
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </template>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

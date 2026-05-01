@@ -68,8 +68,16 @@ class ScheduleRequest(BaseModel):
     enrichment_data: Optional[EnrichmentScheduleData] = None
     create_as_collection: bool = False
 
+class AiTweaks(BaseModel):
+    threshold: float = 0.65
+    limit: int = 25
+    strictness: str = "genre_verified"
+    temperature: float = 0.2
+    target_size: int = 10
+
 class AiPromptRequest(BaseModel):
     prompt: str
+    tweaks: Optional[AiTweaks] = None
 
 class QuickBuildRequest(BaseModel):
     user_id: str
@@ -103,3 +111,6 @@ class ExternalPromptRequest(BaseModel):
 class ExternalBuildRequest(BaseModel):
     preset_name: str
     playlist_name: str
+
+class ResetVectorDbRequest(BaseModel):
+    preserve_enrichments: bool = True

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import threading
-from app.ai.vector_store import index_library_for_vibes
+from app.ai.vector_store import index_library_for_vibes, ensure_cosine_similarity
 
 import scheduler
 import app_state
@@ -34,6 +34,8 @@ async def lifespan(app: FastAPI):
     app_state.load_and_authenticate()
 
     if app_state.is_configured:
+        ensure_cosine_similarity()
+
         auth_details = {
             "token": app_state.token,
             "login_uid": app_state.login_uid
