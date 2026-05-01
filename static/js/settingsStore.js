@@ -1,6 +1,5 @@
-// static/js/settingsStore.js
-
 import { post, toast } from './utils.js';
+import { confirmModal } from './modals.js';
 
 export const settingsStore = {
     isOpen: false,
@@ -19,6 +18,7 @@ export const settingsStore = {
     version: '',
     external_api_key: '',
     is_external_key_visible: false,
+    vector_space: 'cosine',
 
     // Local UI state
     ollama_installed: [],
@@ -42,6 +42,7 @@ export const settingsStore = {
                 this.starred_models = data.starred_models || [];
                 this.version = data.version;
                 this.external_api_key = data.external_api_key || '';
+                this.vector_space = data.vector_space || 'cosine';
 
                 if (this.ai_provider === 'ollama') {
                     this.fetchOllamaStatus();
@@ -88,6 +89,30 @@ export const settingsStore = {
 
     toggleExternalKeyVisibility() {
         this.is_external_key_visible = !this.is_external_key_visible;
+    },
+
+    async resetVectorDb(preserveEnrichments = true) {
+        const title = preserveEnrichments ? 'Wipe & Re-Index?' : 'FULL Semantic Wipe?';
+        const text = preserveEnrichments
+            ? 'This will clear all AI search data and rebuild it from your library. Your existing AI "Mood Tags" will be saved and restored. Re-indexing large libraries takes time.'
+            : 'DANGER: This will permanently delete ALL AI semantic data AND all "Mood Tags" generated for your library. You will have to run enrichment again.';
+
+        try {
+            await confirmModal.show({
+                title,
+                text,
+                confirmText: preserveEnrichments ? 'Re-Index' : 'Nuclear Wipe',
+                isDanger: !preserveEnrichments
+            });
+
+            const res = await post('api/settings/reset_vector_db', { preserve_enrichments: preserveEnrichments });
+            if (res.status === 'ok') {
+                this.hide();
+                toast(res.log.join(' '), true);
+            }
+        } catch (e) {
+            // Cancelled or error
+        }
     },
 
     async testConnection(btnEl) {

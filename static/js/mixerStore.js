@@ -1,7 +1,7 @@
 /* static/js/mixerStore.js */
 
 import { post, toast, debounce, generateUUID } from './utils.js';
-import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
+import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal, aiTweaksModal } from './modals.js';
 import { SMART_BUILD_TYPES } from './definitions.js';
 
 export const mixerStore = {
@@ -23,6 +23,15 @@ export const mixerStore = {
     aiPrompt: '',
     isAiGenerating: false,
     autosaveKey: 'mixerbee_autosave',
+
+    aiTweaks: {
+        threshold: 0.65,
+        limit: 25,
+        strictness: 'genre_verified',
+        temperature: 0.2,
+        target_size: 10,
+        only_unwatched: false
+    },
 
     _previewDebouncers: {},
 
@@ -83,7 +92,7 @@ export const mixerStore = {
         }
 
         if (block.type === 'music') {
-            if (!block.music) block.music = { mode: 'album' };
+            if (!block.music) block.music = { mode: 'album', count: 10 };
             if (!block.music.filters) block.music.filters = { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' };
         }
 
@@ -91,6 +100,15 @@ export const mixerStore = {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
                 if (!s._uid) s._uid = generateUUID();
+                
+                if (!s.name && s.id) {
+                    const seriesMatch = this.library.seriesData.find(ls => String(ls.id) === String(s.id));
+                    if (seriesMatch) s.name = seriesMatch.name;
+                }
+                
+                if (s.season === undefined) s.season = 1;
+                if (s.episode === undefined) s.episode = 1;
+
                 s.previewTitle = s.previewTitle ?? '';
                 s._loadingTitle = false;
             });
@@ -135,6 +153,8 @@ export const mixerStore = {
             const res = await post(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`, null, null, 'GET', true);
             if (res && res.name) {
                 showData.previewTitle = res.name;
+                if (res.season !== undefined) showData.season = res.season;
+                if (res.episode !== undefined) showData.episode = res.episode;
             } else {
                 showData.previewTitle = `S${showData.season}E${showData.episode}`;
             }
@@ -366,7 +386,7 @@ export const mixerStore = {
         } else if (type === 'movie') {
             block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear(), release_within_days: 0 } };
         } else if (type === 'music') {
-            block = { type: 'music', music: { mode: 'album', filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
+            block = { type: 'music', music: { mode: 'album', count: 10, filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
         }
 
         if (block) {
@@ -409,7 +429,10 @@ export const mixerStore = {
         if (!this.aiPrompt.trim()) return toast('Prompt required.', false);
         this.isAiGenerating = true;
         try {
-            const res = await post('api/create_from_text', { prompt: this.aiPrompt });
+            const res = await post('api/create_from_text', {
+                prompt: this.aiPrompt,
+                tweaks: this.aiTweaks
+            });
             if (res.status === 'ok' && Array.isArray(res.blocks)) {
                 await this.loadBlocks(res.blocks);
             }
@@ -423,7 +446,7 @@ export const mixerStore = {
     async quickSwitchModel(modelName) {
         const sStore = Alpine.store('settings');
         if (sStore.ollama_model === modelName) return;
-        
+
         try {
             const res = await post('api/settings/model', { ollama_model: modelName }, null, 'POST', true, false);
             if (res.status === 'ok') {
@@ -453,7 +476,7 @@ export const mixerStore = {
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
             const uid = Alpine.store('settings').activeUserId;
-            const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
+            const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl, 'POST', true);
 
             if (res.status === 'ok') {
                 await previewModal.show({
@@ -503,14 +526,25 @@ export const mixerStore = {
             next_up: { title: 'Next Up', description: 'In-progress shows.', defaultName: 'Next Up' },
             pilot_sampler: { title: 'Pilot Sampler', description: 'Random pilots.', defaultName: 'Pilot Sampler' },
             from_the_vault: { title: 'From the Vault', description: 'Favorite movies you haven\'t watched in a while.', defaultName: 'Forgotten favorites.', defaultCount: 20 },
+            genre_roulette: { title: 'Genre Roulette', description: 'A movie marathon from a random genre.', defaultName: 'Genre Roulette', defaultCount: 10 },
         };
-        if (config[type]) await this.executeQuickBuild(type, config[type]);
-        else if (type === 'genre_roulette' || type === 'genre_sampler') {
-            const data = type === 'genre_roulette' ? this.library.movieGenreData : this.library.musicGenreData;
-            if (!data?.length) return toast("Empty.", false);
-            const randomGenre = data[Math.floor(Math.random() * data.length)];
-            await this.executeQuickBuild(type, { title: `Roulette: ${randomGenre.Name}`, description: `Random ${randomGenre.Name}.`, defaultName: `Mix: ${randomGenre.Name}`, defaultCount: 10, extraParams: { genre: randomGenre.Name } });
-        } else await this.fetchThenExecuteQuickBuild(type);
+
+        if (config[type]) {
+            if (type === 'genre_roulette') {
+                const data = this.library.movieGenreData;
+                if (!data?.length) return toast("Genre data not loaded.", false);
+                const randomGenre = data[Math.floor(Math.random() * data.length)];
+                await this.executeQuickBuild(type, {
+                    title: `Roulette: ${randomGenre.Name}`,
+                    description: `Random ${randomGenre.Name} movies.`,
+                    defaultName: `Mix: ${randomGenre.Name}`,
+                    defaultCount: 10,
+                    extraParams: { genre: randomGenre.Name }
+                });
+            } else {
+                await this.executeQuickBuild(type, config[type]);
+            }
+        }
     },
 
     async executeQuickBuild(type, { title, description, defaultName, showCount = true, defaultCount = 10, extraParams = {} }) {
@@ -521,20 +555,5 @@ export const mixerStore = {
             if (showCount) options.count = count;
             await post('api/quick_builds', { user_id: uid, playlist_name: playlistName, quick_build_type: type, options });
         } catch (err) { }
-    },
-
-    async fetchThenExecuteQuickBuild(type) {
-        const endpoint = type === 'artist_spotlight' ? 'api/music/random_artist' : 'api/music/random_album';
-        const overlay = document.getElementById('loading-overlay');
-        overlay?.classList.remove('hidden');
-        try {
-            const res = await post(endpoint, null, null, 'GET', true);
-            overlay?.classList.add('hidden');
-            if (type === 'artist_spotlight') {
-                await this.executeQuickBuild(type, { title: `Artist: ${res.Name}`, description: `Tracks by ${res.Name}.`, defaultName: `Spotlight: ${res.Name}`, defaultCount: 15, extraParams: { artist_id: res.Id } });
-            } else {
-                await this.executeQuickBuild(type, { title: `Album: ${res.Name}`, description: `By ${res.ArtistItems?.[0]?.Name || 'Unknown'}.`, defaultName: `Album: ${res.Name}`, showCount: false, extraParams: { album_id: res.Id } });
-            }
-        } catch (e) { overlay?.classList.add('hidden'); toast("Failed.", false); }
     }
 };

@@ -33,7 +33,7 @@ def api_library_iq(auth_deps: dict = Depends(get_current_auth_headers)) -> JSONR
     """Returns total vs enriched media counts from ChromaDB without caching."""
     stats = calculate_library_iq()
     return JSONResponse(
-        content=stats, 
+        content=stats,
         headers={
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
@@ -46,11 +46,27 @@ def api_default_user(auth_deps: dict = Depends(get_current_auth_headers)) -> Dic
     return {"id": app_state.DEFAULT_UID, "name": app_state.DEFAULT_USER_NAME}
 
 @router.get("/api/episode_lookup")
-def api_episode_lookup(series_id: str, season: int, episode: int, auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, str]:
+def api_episode_lookup(series_id: str, season: int, episode: int, auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
     ep_data = core.get_specific_episode(series_id, season, episode, auth_deps["hdr"])
-    if not ep_data:
-        raise HTTPException(status_code=404, detail="Specific episode not found.")
-    return {"name": ep_data.get("Name", "Unknown Episode")}
+    if ep_data:
+        return {
+            "name": ep_data.get("Name", "Unknown Episode"),
+            "season": season,
+            "episode": episode
+        }
+    
+    # Smart fallback: if the UI asked for S1E1 (the default) and it doesn't exist,
+    # find the actual first available episode in the library (e.g., S9E1)
+    if season == 1 and episode == 1:
+        first_ep = core.get_first_available_episode(series_id, auth_deps["login_uid"], auth_deps["hdr"])
+        if first_ep:
+            return {
+                "name": first_ep.get("Name", "Unknown Episode"),
+                "season": first_ep.get("ParentIndexNumber"),
+                "episode": first_ep.get("IndexNumber")
+            }
+
+    raise HTTPException(status_code=404, detail="Specific episode not found.")
 
 @router.get("/api/shows/{series_id}/first_unwatched")
 def api_get_first_unwatched(series_id: str, user_id: str, auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:

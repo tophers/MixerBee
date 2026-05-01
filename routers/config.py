@@ -9,13 +9,15 @@ import threading
 import time
 import requests
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 
 import app as core
 import models
 import app_state
 import database
+from app.ai.vector_store import get_vector_space, reset_media_collection, index_library_for_vibes
+from .dependencies import get_current_auth_headers
 
 router = APIRouter()
 
@@ -36,7 +38,8 @@ def api_config_status():
         "version": core.CLIENT_VERSION,
         "ai_provider": app_state.AI_PROVIDER,
         "ollama_model": app_state.OLLAMA_MODEL,
-        "starred_models": app_state.STARRED_MODELS
+        "starred_models": app_state.STARRED_MODELS,
+        "vector_space": get_vector_space()
     }
 
 @router.get("/api/settings")
@@ -53,7 +56,8 @@ def api_get_settings():
         "ollama_model": app_state.OLLAMA_MODEL or "qwen2.5:7b",
         "starred_models": app_state.STARRED_MODELS,
         "external_api_key": app_state.EXTERNAL_API_KEY or "",
-        "version": core.CLIENT_VERSION
+        "version": core.CLIENT_VERSION,
+        "vector_space": get_vector_space()
     }
 
 @router.get("/api/ollama/status")
@@ -149,3 +153,24 @@ def api_save_settings(req: models.SettingsRequest):
     except Exception as e:
         logging.error(f"Save failed: {e}")
         raise HTTPException(status_code=400, detail=f"Failed to authenticate or save: {str(e)}")
+
+@router.post("/api/settings/reset_vector_db")
+def api_reset_vector_db(req: models.ResetVectorDbRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    """Triggers a manual reset of the vector database."""
+    try:
+        reset_media_collection(preserve_enrichments=req.preserve_enrichments)
+        
+        threading.Thread(
+            target=index_library_for_vibes,
+            args=(auth_deps["login_uid"], auth_deps["hdr"]),
+            daemon=True
+        ).start()
+
+        msg = "AI Database has been reset. Library re-indexing started in background."
+        if req.preserve_enrichments:
+            msg += " Previous AI tags will be restored automatically."
+            
+        return {"status": "ok", "log": [msg]}
+    except Exception as e:
+        logging.error(f"Manual DB Reset failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

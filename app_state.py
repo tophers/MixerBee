@@ -36,6 +36,8 @@ CACHE_REFRESH_MINUTES = 15
 SERVER_TYPE = "emby"
 SERVER_ID = None
 
+ENRICHMENT_BACKUP = {}
+
 def get_env_hash():
     """Calculates an MD5 hash of the .env file to detect manual changes."""
     if not ENV_PATH.exists():

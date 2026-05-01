@@ -36,25 +36,4 @@ export const SMART_BUILD_TYPES = [
         description: 'A movie marathon from a random genre.',
         schedulable: false
     },
-    {
-        type: 'artist_spotlight',
-        name: 'Artist Spotlight',
-        icon: 'star',
-        description: 'Popular tracks from a random artist.',
-        schedulable: false
-    },
-    {
-        type: 'album_roulette',
-        name: 'Album Roulette',
-        icon: 'disc',
-        description: 'A full playlist from a random album.',
-        schedulable: false
-    },
-    {
-        type: 'genre_sampler',
-        name: 'Music Genre Sampler',
-        icon: 'git-merge',
-        description: 'A mix of songs from a random music genre.',
-        schedulable: false
-    },
 ];

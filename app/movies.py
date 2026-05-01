@@ -3,15 +3,17 @@ app/movies.py - All movie-related logic
 """
 
 import random
-import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 from . import client
+from app.logger import get_logger
 
+logger = get_logger("MixerBee.Movies")
 
 def get_movie_libraries(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all movie libraries (folders) a specific user can see."""
+    logger.info(f"Fetching movie libraries for user {user_id}...")
     r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Views", headers=hdr, timeout=10)
     r.raise_for_status()
     all_views = r.json().get("Items", [])
@@ -20,20 +22,25 @@ def get_movie_libraries(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str
         for f in all_views
         if f.get("CollectionType") == "movies"
     ]
+    logger.info(f"Found {len(movie_folders)} movie libraries.")
     return movie_folders
-
 
 def get_movie_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Fetches all movie genres available to a specific user."""
-    params = {"IncludeItemTypes": "Movie", "UserId": user_id}
+    logger.info(f"Fetching movie genres for user {user_id} using native endpoint...")
+    params = {"IncludeItemTypes": "Movie", "UserId": user_id, "SortBy": "SortName"}
     r = client.SESSION.get(f"{client.EMBY_URL}/Genres",
                            params=params, headers=hdr, timeout=10)
     r.raise_for_status()
-    return r.json().get("Items", [])
+    genres = r.json().get("Items", [])
+    logger.info(f"Found {len(genres)} movie genres.")
+    return genres
 
 def find_movies(user_id: str, filters: Dict,
                 hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Finds movies based on a set of filters."""
+    logger.info(f"Finding movies for user {user_id} with filters: {filters}")
+    
     base_params = {
         "IncludeItemTypes": "Movie",
         "Recursive": "true",
@@ -47,7 +54,6 @@ def find_movies(user_id: str, filters: Dict,
     if filters.get("ids"):
         base_params["Ids"] = ",".join(filters["ids"])
 
-    # Relative Date Filter (Overrides year_from if set)
     relative_days = filters.get("release_within_days")
     if relative_days and int(relative_days) > 0:
         start_date = datetime.now() - timedelta(days=int(relative_days))
@@ -57,6 +63,20 @@ def find_movies(user_id: str, filters: Dict,
 
     if filters.get("year_to"):
         base_params["MaxPremiereDate"] = f"{filters['year_to']}-12-31"
+
+    watched_status = filters.get("watched_status")
+    if watched_status == "unplayed":
+        base_params["IsPlayed"] = "false"
+    elif watched_status == "played":
+        base_params["IsPlayed"] = "true"
+
+    sort_by = filters.get("sort_by", "Random")
+    if sort_by == "Random":
+        base_params["SortBy"] = "Random"
+    else:
+        base_params["SortBy"] = sort_by
+        if sort_by == "DateCreated":
+            base_params["SortOrder"] = "Descending"
 
     people_any = filters.get("people", [])
     people_all = filters.get("people_all", [])
@@ -139,11 +159,6 @@ def find_movies(user_id: str, filters: Dict,
         exclude_studios = {s.lower() for s in studios_to_exclude}
         all_movies = [m for m in all_movies if not get_movie_studio_set(m).intersection(exclude_studios)]
 
-    watched_status = filters.get("watched_status")
-    if watched_status and watched_status != "all":
-        is_played_target = (watched_status == "played")
-        all_movies = [m for m in all_movies if m.get("UserData", {}).get("Played", False) == is_played_target]
-
     def get_movie_genre_set(movie):
         return {g.lower() for g in movie.get("Genres", [])}
 
@@ -163,13 +178,7 @@ def find_movies(user_id: str, filters: Dict,
         all_movies = [m for m in all_movies if not get_movie_genre_set(m).intersection(exclude_genres)]
 
     final_list = all_movies
-
-    sort_by = filters.get("sort_by", "Random")
-    if sort_by == "Random":
-        random.shuffle(final_list)
-    else:
-        reverse = (sort_by == "DateCreated")
-        final_list.sort(key=lambda m: m.get(sort_by) or "", reverse=reverse)
+    logger.info(f"Local filtering complete. {len(final_list)} movies match criteria.")
 
     target_duration_minutes = filters.get("duration_minutes")
     if target_duration_minutes:

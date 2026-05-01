@@ -10,45 +10,22 @@ logger = get_logger("MixerBee.Studios")
 
 def aggregate_all_studios(user_id: str, hdr: Dict[str, str]) -> List[str]:
     """Called by the background cache refresher to get all studios."""
-    logger.info(f"Aggregating movie studios for user {user_id}. Using pagination to optimize payload...")
+    logger.info(f"Fetching all movie studios for user {user_id} using native endpoint...")
     
-    all_studio_names = set()
-    start_index = 0
-    limit = 5000
-    total_movies_processed = 0
-
     try:
-        while True:
-            params = {
-                "IncludeItemTypes": "Movie",
-                "Recursive": "true",
-                "Fields": "Studios",
-                "UserId": user_id,
-                "StartIndex": start_index,
-                "Limit": limit
-            }
-            
-            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=60)
-            r.raise_for_status()
-            
-            movies_batch = r.json().get("Items", [])
-            if not movies_batch:
-                break 
-                
-            for movie in movies_batch:
-                for studio in (movie.get("Studios") or []):
-                    if name := studio.get("Name"):
-                        all_studio_names.add(name)
-                        
-            total_movies_processed += len(movies_batch)
-            
-            if len(movies_batch) < limit:
-                break  
-                
-            start_index += limit
-
-        logger.info(f"Successfully aggregated {len(all_studio_names)} unique studios across {total_movies_processed} movies.")
-        return sorted(list(all_studio_names))
+        params = {
+            "UserId": user_id,
+            "Limit": 5000 
+        }
+        
+        r = client.SESSION.get(f"{client.EMBY_URL}/Studios", params=params, headers=hdr, timeout=30)
+        r.raise_for_status()
+        
+        studios_batch = r.json().get("Items", [])
+        studio_names = [s.get("Name") for s in studios_batch if s.get("Name")]
+        
+        logger.info(f"Successfully fetched {len(studio_names)} unique studios.")
+        return sorted(studio_names)
         
     except Exception as e:
         logger.error(f"Failed to aggregate studios: {e}", exc_info=True)
@@ -62,9 +39,9 @@ def get_studios(name: str, library_data: Dict[str, Any]) -> List[Dict[str, str]]
     cached_studios = library_data.get("studioData", [])
 
     if not name:
-        return [{"Name": s} for s in cached_studios[:20]]
+        return [{"Name": s} for s in cached_studios[:100]]
 
     search_name = name.lower()
     matching_studios = [s for s in cached_studios if search_name in s.lower()]
 
-    return [{"Name": s} for s in matching_studios[:20]]
+    return [{"Name": s} for s in matching_studios[:100]]

@@ -1,23 +1,15 @@
 <!-- templates/partials/_manager_pane.html -->
 <div id="manager-pane">
     <div class="container">
-        <div class="flex-row justify-between align-center mb-md gap-md">
+        <div class="flex-row justify-between align-center gap-md mb-sm">
             <div class="flex-row items-baseline gap-sm">
                 <h2 class="m-0">Manager</h2>
-                <span class="badge opacity-60" x-text="'Total: ' + ($store.manager.items || []).length"></span>
-                <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Vibe Searches.">
-                    <span x-html="$store.icons.zap"></span>
-                    <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ')'"></span>
-                </span>
             </div>
             <div class="flex-row gap-md grow-1 max-w-500">
                 <input type="search" placeholder="Search by name..."
                        x-model="$store.manager.searchQuery"
                        @input.debounce.250ms="$store.manager.applyFilters()"
                        class="grow-1 m-0">
-                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.load()">
-                    <span x-html="$store.icons.refresh"></span> Refresh
-                </button>
             </div>
         </div>
 
@@ -32,9 +24,6 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-if="$store.manager.isLoading">
-                        <tr><td colspan="4" class="table-loading">Loading...</td></tr>
-                    </template>
                     <template x-if="!$store.manager.isLoading && ($store.manager.filtered || []).length === 0">
                         <tr><td colspan="4" class="table-loading">No items found.</td></tr>
                     </template>
@@ -70,6 +59,13 @@
                     </template>
                 </tbody>
             </table>
+        </div>
+
+        <div class="flex-row items-baseline gap-sm mt-md">
+            <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Mood Searches.">
+                <span x-html="$store.icons.zap"></span>
+                <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ')'"></span>
+            </span>
         </div>
     </div>
 

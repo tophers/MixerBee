@@ -125,7 +125,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="AI Provider is not correctly configured.")
 
     try:
-        blocks, model_used = generate_smart_blocks(req.prompt)
+        blocks, model_used = generate_smart_blocks(req.prompt, req.tweaks)
 
         for block in blocks:
             if block.get("type") == "movie" and "filters" in block:
@@ -235,7 +235,6 @@ def api_external_build_preset(req: models.ExternalBuildRequest, auth_deps: dict 
     External API Endpoint: Loads a preset and creates a mixed playlist.
     """
     try:
-        # Load preset
         all_presets = preset_manager.get_all_presets()
         blocks = all_presets.get(req.preset_name)
         

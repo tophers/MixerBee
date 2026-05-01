@@ -198,6 +198,102 @@
     </div>
 </div>
 
+<!-- AI Advanced Tweaks Modal -->
+<div class="modal-overlay" x-show="$store.modals.aiTweaks.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.aiTweaksAction.close()">
+        <div class="modal-header">
+            <h2>AI Advanced Tweaks</h2>
+            <button class="icon-btn" @click="$store.modals.aiTweaksAction.close()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="tweak-grid">
+                <!-- Migration Warning Badge -->
+                <div class="warning-box compact-block" x-show="$store.settings.vector_space === 'l2'" x-cloak>
+                    <div class="flex-row align-center gap-sm color-danger mb-xs">
+                        <span x-html="$store.icons.alert"></span>
+                        <span class="bold">Database Re-Index Required</span>
+                    </div>
+                    <p class="text-subtle" style="font-size: 0.8rem;">Your library is indexed using L2 (Euclidean) distance. AI "Vibes" and Relevancy Thresholds will not function correctly until the database is converted to Cosine similarity. This should happen automatically on restart.</p>
+                </div>
+
+                <!-- Relevancy Threshold -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Relevancy (Radius Lock)</span>
+                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.threshold.toFixed(2)"></span>
+                    </div>
+                    <div class="toggle-pill">
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.50 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.50">Strict</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.65 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.65">Balanced</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.80 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.80">Relaxed</span>
+                    </div>
+                    <p class="tweak-description">Lower is stricter. Strict only allows high-confidence matches. Relaxed allows more experimental results.</p>
+                </div>
+
+                <!-- Dig Depth -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Dig Depth (Search Limit)</span>
+                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.limit"></span>
+                    </div>
+                    <div class="toggle-pill">
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 10 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 10">Shallow</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 25 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 25">Medium</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 50 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 50">Deep</span>
+                    </div>
+                    <p class="tweak-description">How many candidates ChromaDB pulls before the AI curates them. Deep is better for large libraries.</p>
+                </div>
+
+                <!-- AI Strictness -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Curation Mode</span>
+                    </div>
+                    <div class="toggle-pill">
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.strictness === 'vibe_first' ? 'active' : ''" @click="$store.mixer.aiTweaks.strictness = 'vibe_first'">Vibe First</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.strictness === 'genre_verified' ? 'active' : ''" @click="$store.mixer.aiTweaks.strictness = 'genre_verified'">Genre Verified</span>
+                    </div>
+                    <p class="tweak-description">Genre Verified forces the AI to check metadata tags. Vibe First trusts the vector store's mathematical similarity.</p>
+                </div>
+
+                <!-- Temperature -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Creativity (Temperature)</span>
+                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.temperature"></span>
+                    </div>
+                    <input type="range" min="0" max="1" step="0.1" x-model.number="$store.mixer.aiTweaks.temperature" style="width: 100%;">
+                    <p class="tweak-description">0.0 is very predictable. 1.0 allows for more chaos and creative connections.</p>
+                </div>
+
+                <!-- Block Size -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Target Block Size</span>
+                    </div>
+                    <input type="number" min="1" max="50" x-model.number="$store.mixer.aiTweaks.target_size" class="themed-input" style="width: 100%;">
+                    <p class="tweak-description">Tells the AI exactly how many items you want in the final block output.</p>
+                </div>
+
+                <!-- Global Watch Status -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">AI Watch Status Override</span>
+                    </div>
+                    <div class="toggle-pill">
+                        <span class="pill-btn" :class="!$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = false">Allow Watched</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = true">Only Unwatched</span>
+                    </div>
+                    <p class="tweak-description">If 'Only Unwatched' is selected, every AI-generated block will automatically filter out played media.</p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" @click="$store.modals.aiTweaksAction.close()">Done</button>
+        </div>
+    </div>
+</div>
+
 <!-- Global Loading Overlay -->
 <div id="loading-overlay" class="hidden">
     <div class="spinner"></div>
@@ -267,7 +363,7 @@
                                 <span>Ollama Server URL</span>
                                 <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434" @change="$store.settings.fetchOllamaStatus()">
                             </label>
-                            
+
                             <label class="control-item">
                                 <span>Active Ollama Model</span>
                                 <div class="flex-row align-center gap-md">
@@ -299,6 +395,27 @@
                         </p>
                     </label>
                 </fieldset>
+
+                <!-- NEW: Danger Zone for Vector DB Resets -->
+                <fieldset class="filter-group mt-md danger-zone">
+                    <legend>Maintenance & Recovery</legend>
+                    <div class="flex-column gap-sm">
+                        <div class="flex-row justify-between align-center gap-md">
+                            <div class="grow-1">
+                                <div class="bold" style="font-size: 0.9rem;">Reset AI Database</div>
+                                <div class="text-subtle" style="font-size: 0.75rem;">Clear semantic search data and re-scan library. Use if searches go "off the rails".</div>
+                            </div>
+                        </div>
+                        <div class="flex-row gap-sm mt-xs">
+                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(true)">
+                                Wipe & Re-Index (Save Tags)
+                            </button>
+                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(false)">
+                                Full Nuclear Reset
+                            </button>
+                        </div>
+                    </div>
+                </fieldset>
             </div>
         </div>
         <div class="modal-footer">
@@ -319,7 +436,7 @@
         </div>
         <div class="modal-body">
             <p>Select a model to use for AI generation. Star your favorites to make them available in the builder's quick-switcher.</p>
-            
+
             <label class="control-item">
                 <div class="model-name-header">
                     <span>Target Model Name</span>

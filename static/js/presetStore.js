@@ -60,7 +60,6 @@ export const presetStore = {
             if (res.status === 'ok') {
                 await this.refresh();
                 this.currentName = name.trim();
-                toast(`Preset "${name}" saved!`, true);
             }
         } catch (err) {
             // Cancelled
@@ -74,7 +73,6 @@ export const presetStore = {
         const res = await post('api/presets', { name: this.currentName, data: mixerBlocks });
         if (res.status === 'ok') {
             this.registry[this.currentName] = JSON.parse(JSON.stringify(mixerBlocks));
-            toast(`Preset "${this.currentName}" updated!`, true);
         }
     },
 
@@ -93,7 +91,6 @@ export const presetStore = {
                 const deletedName = this.currentName;
                 this.currentName = '';
                 await Alpine.store('mixer').loadBlocks([]);
-                toast(`Preset "${deletedName}" deleted.`, true);
             }
         } catch (err) {
             // Cancelled
@@ -116,7 +113,6 @@ export const presetStore = {
                 await this.refresh();
                 this.currentName = name;
                 await Alpine.store('mixer').loadBlocks(data);
-                toast(`Imported "${name}" successfully!`, true);
             }
         } catch (err) {
             // Cancelled
