@@ -4,6 +4,7 @@ app/ai/vector_store.py - Vector DB init and config.
 
 import json
 import time
+import threading
 from typing import List, Dict, Optional
 import chromadb
 
@@ -16,10 +17,36 @@ logger = get_logger("MixerBee.Vector")
 CHROMA_PATH = CONFIG_DIR / "chroma_db"
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
+_active_collection: Optional[chromadb.Collection] = None
+
+def get_media_collection() -> chromadb.Collection:
+    """
+    Always returns the currently active 'mixerbee_media' collection handle.
+    """
+    global _active_collection
+    if _active_collection is None:
+        _active_collection = chroma_client.get_or_create_collection(
+            name="mixerbee_media",
+            metadata={"hnsw:space": "cosine"}
+        )
+    return _active_collection
+
+class CollectionProxy:
+    """
+    A transparent proxy for the ChromaDB collection.
+    """
+    def __getattr__(self, name):
+        return getattr(get_media_collection(), name)
+
+    def __repr__(self):
+        return repr(get_media_collection())
+
+media_collection = CollectionProxy()
+
 def get_vector_space() -> str:
     """Returns the distance metric currently used by the collection."""
     try:
-        col = chroma_client.get_collection(name="mixerbee_media")
+        col = get_media_collection()
         meta = col.metadata or {}
         return meta.get("hnsw:space", "l2")
     except:
@@ -28,13 +55,13 @@ def get_vector_space() -> str:
 def reset_media_collection(preserve_enrichments: bool = True):
     """
     Manually resets the ChromaDB collection.
-    If preserve_enrichments is True, it backs up vibe_tags before deleting.
     """
     import app_state
+    global _active_collection
     enriched_backups = {}
 
     try:
-        col = chroma_client.get_collection(name="mixerbee_media")
+        col = get_media_collection()
         if preserve_enrichments:
             logger.info("RESET: Backing up AI enrichments before wipe...")
             existing = col.get(where={"is_enriched": True}, include=["metadatas"])
@@ -51,11 +78,9 @@ def reset_media_collection(preserve_enrichments: bool = True):
         logger.warning(f"RESET: Collection may not exist or error during wipe: {e}")
 
     logger.info("RESET: Recreating collection with Cosine similarity...")
-    global media_collection
-    media_collection = chroma_client.get_or_create_collection(
-        name="mixerbee_media",
-        metadata={"hnsw:space": "cosine"}
-    )
+    
+    _active_collection = None
+    get_media_collection() 
 
     if preserve_enrichments and enriched_backups:
         app_state.ENRICHMENT_BACKUP = enriched_backups
@@ -75,31 +100,28 @@ def ensure_cosine_similarity():
 
     reset_media_collection(preserve_enrichments=True)
 
-media_collection = chroma_client.get_or_create_collection(
-    name="mixerbee_media",
-    metadata={"hnsw:space": "cosine"}
-)
-
 TYPE_COUNT_CACHE = {}
 LAST_CACHE_TIME = 0
+CACHE_LOCK = threading.Lock()
 
 def get_dynamic_limit(media_type: str) -> int:
     """Calculates a proportional limit based on the actual size of the user's library."""
     global TYPE_COUNT_CACHE, LAST_CACHE_TIME
 
-    if time.time() - LAST_CACHE_TIME > 300:
-        TYPE_COUNT_CACHE.clear()
-        LAST_CACHE_TIME = time.time()
+    with CACHE_LOCK:
+        if time.time() - LAST_CACHE_TIME > 300:
+            TYPE_COUNT_CACHE.clear()
+            LAST_CACHE_TIME = time.time()
 
-    if media_type not in TYPE_COUNT_CACHE:
-        try:
-            res = media_collection.get(where={"type": media_type}, include=[])
-            TYPE_COUNT_CACHE[media_type] = len(res.get('ids', []))
-        except Exception as e:
-            logger.error(f"Failed to count {media_type}s: {e}")
-            TYPE_COUNT_CACHE[media_type] = 0
+        if media_type not in TYPE_COUNT_CACHE:
+            try:
+                res = media_collection.get(where={"type": media_type}, include=[])
+                TYPE_COUNT_CACHE[media_type] = len(res.get('ids', []))
+            except Exception as e:
+                logger.error(f"Failed to count {media_type}s: {e}")
+                TYPE_COUNT_CACHE[media_type] = 0
 
-    total_items = TYPE_COUNT_CACHE[media_type]
+        total_items = TYPE_COUNT_CACHE[media_type]
 
     if total_items == 0:
         return 12
@@ -301,11 +323,13 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
         query = kwargs.get("vibe") or kwargs.get("concept") or kwargs.get("description")
     if not query: return []
 
-    from .orchestrator import active_ai_tweaks
-    if threshold is None and active_ai_tweaks:
-        threshold = active_ai_tweaks.threshold
-    if limit is None and active_ai_tweaks:
-        limit = active_ai_tweaks.limit
+    from .orchestrator import ai_tweaks_context
+    active_tweaks = ai_tweaks_context.get()
+
+    if threshold is None and active_tweaks:
+        threshold = active_tweaks.threshold
+    if limit is None and active_tweaks:
+        limit = active_tweaks.limit
 
     current_threshold = threshold if threshold is not None else 0.72
 

@@ -1,5 +1,3 @@
-// static/js/settingsStore.js
-
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 
@@ -94,8 +92,8 @@ export const settingsStore = {
     },
 
     async resetVectorDb(preserveEnrichments = true) {
-        const title = preserve_enrichments ? 'Wipe & Re-Index?' : 'FULL Semantic Wipe?';
-        const text = preserveEnrichments 
+        const title = preserveEnrichments ? 'Wipe & Re-Index?' : 'FULL Semantic Wipe?';
+        const text = preserveEnrichments
             ? 'This will clear all AI search data and rebuild it from your library. Your existing AI "Mood Tags" will be saved and restored. Re-indexing large libraries takes time.'
             : 'DANGER: This will permanently delete ALL AI semantic data AND all "Mood Tags" generated for your library. You will have to run enrichment again.';
 

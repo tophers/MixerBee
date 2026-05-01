@@ -9,6 +9,7 @@ import requests
 import time
 from typing import List, Dict, Optional, Literal, Any
 from pydantic import BaseModel, Field, field_validator, AliasChoices
+from contextvars import ContextVar
 
 import app_state
 from .tools import AVAILABLE_TOOLS
@@ -18,7 +19,7 @@ from models import AiTweaks
 
 logger = get_logger("MixerBee.AI")
 
-active_ai_tweaks: Optional[AiTweaks] = None
+ai_tweaks_context: ContextVar[Optional[AiTweaks]] = ContextVar("ai_tweaks", default=None)
 
 try:
     from google import genai
@@ -346,7 +347,7 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     Transform the specific research findings provided into a structured JSON block list.
 
     ### QUANTITY MANDATE (CRITICAL) ###
-    You MUST aim for EXACTLY {tweaks.target_size} total items per media type block (Movies/TV).
+    You MUST aim for EXACTLY {tweaks.target_size} total items per media type (Movies/TV).
     
     ### TV BLOCK LOGIC (IMPORTANT) ###
     - For TV, you will provide a list of Series IDs in 'tv_ids'. 
@@ -498,17 +499,16 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
 
 def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None) -> tuple[List[Dict[str, Any]], str]:
     refresh_logger_level()
-    global active_ai_tweaks
     
     actual_tweaks = tweaks or AiTweaks()
-    active_ai_tweaks = actual_tweaks
+    token = ai_tweaks_context.set(actual_tweaks)
     
     try:
         if app_state.AI_PROVIDER == "ollama": 
             return _generate_with_ollama(prompt, actual_tweaks)
         return _generate_with_gemini(prompt, actual_tweaks)
     finally:
-        active_ai_tweaks = None
+        ai_tweaks_context.reset(token)
 
 def process_enrichment_queue(batch_size: int, timeout: int) -> Dict[str, Any]:
     """Pulls a batch of un-enriched media, calls the LLM for vibe tags, and updates the Vector DB."""
