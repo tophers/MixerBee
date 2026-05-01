@@ -7,11 +7,12 @@ import random
 from typing import Dict, List, Any, Optional
 from itertools import zip_longest
 
+from . import client
 from . import items as items_api
 from .items import create_playlist, add_items_to_playlist_by_ids
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
-from .tv import episodes, get_first_unwatched_episode, series_id
+from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_episode, get_first_available_episode, series_id
 
 
 def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
@@ -35,22 +36,33 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 if not sid:
                     continue
 
-                s, e = None, None
+                # Trust the UI's selected season/episode unconditionally to guarantee stability
+                s = raw_show.get("season")
+                e = raw_show.get("episode")
                 is_unwatched = raw_show.get("unwatched", False)
 
-                if is_unwatched:
-                    ep_info = get_first_unwatched_episode(sid, user_id, hdr)
-                    if ep_info:
-                        s = ep_info.get("ParentIndexNumber")
-                        e = ep_info.get("IndexNumber")
-                else:
-                    s = int(raw_show.get("season", 1))
-                    e = int(raw_show.get("episode", 1))
+                if s is not None: s = int(s)
+                if e is not None: e = int(e)
 
+                # ONLY run smart resolution if the payload is missing S/E data
                 if s is None or e is None:
-                    continue
+                    if is_unwatched:
+                        ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                        if ep_info:
+                            s = ep_info.get("ParentIndexNumber")
+                            e = ep_info.get("IndexNumber")
+                    
+                    if s is None or e is None:
+                        first_ep = get_first_available_episode(sid, user_id, hdr)
+                        if first_ep:
+                            s = first_ep.get("ParentIndexNumber")
+                            e = first_ep.get("IndexNumber")
+                        else:
+                            s, e = 1, 1
 
+                # Fetch episodes sequentially starting from strictly locked S/E
                 eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
+
                 if eps:
                     groups.append(eps)
             except Exception as inner_e:
@@ -90,6 +102,10 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
                 limit_val = filters.get("limit")
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
+                    
+                # Preserve sort properties if UI provided them
+                if "sort_by" in filters:
+                    id_filters["sort_by"] = filters["sort_by"]
 
                 items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
         else:

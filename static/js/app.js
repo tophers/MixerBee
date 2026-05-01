@@ -71,6 +71,13 @@ async function initializeApp() {
             }
         });
 
+        document.addEventListener('toast-cleared', () => {
+            if (toastBadge) {
+                toastBadge.textContent = '0';
+                toastBadge.classList.add('hidden');
+            }
+        });
+
         try {
             const config = await post('api/config_status', null, null, 'GET', true);
             if (!config || config.status === 'error') throw new Error(config?.detail || "Backend failure.");

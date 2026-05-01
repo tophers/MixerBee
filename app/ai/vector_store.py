@@ -78,9 +78,9 @@ def reset_media_collection(preserve_enrichments: bool = True):
         logger.warning(f"RESET: Collection may not exist or error during wipe: {e}")
 
     logger.info("RESET: Recreating collection with Cosine similarity...")
-    
+
     _active_collection = None
-    get_media_collection() 
+    get_media_collection()
 
     if preserve_enrichments and enriched_backups:
         app_state.ENRICHMENT_BACKUP = enriched_backups
@@ -333,6 +333,13 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
 
     current_threshold = threshold if threshold is not None else 0.72
 
+    FORMAT_TERMS = ["animated", "anime", "comedy", "drama", "documentary"]
+    query_lower = query.lower().strip()
+
+    if query_lower in FORMAT_TERMS or len(query_lower) < 10:
+        current_threshold += 0.10
+        logger.info(f"Broad term detected, relaxing radius to {current_threshold:.2f}.")
+
     try:
         where_clause = {}
         mt_normalized = ""
@@ -354,7 +361,7 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
         logger.warning(f"Failed to parse limit/type, defaulting to 15: {e}")
         final_limit = 15
 
-    logger.info(f"Vibe Search Request: '{query}' | Threshold: {current_threshold} | Limit: {final_limit}")
+    logger.info(f"Vibe Search Request: '{query}' | Threshold: {current_threshold:.2f} | Limit: {final_limit}")
 
     try:
         results = media_collection.query(

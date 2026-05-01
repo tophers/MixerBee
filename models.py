@@ -74,6 +74,7 @@ class AiTweaks(BaseModel):
     strictness: str = "genre_verified"
     temperature: float = 0.2
     target_size: int = 10
+    only_unwatched: bool = False
 
 class AiPromptRequest(BaseModel):
     prompt: str

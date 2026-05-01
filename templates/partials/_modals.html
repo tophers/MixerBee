@@ -274,6 +274,18 @@
                     <input type="number" min="1" max="50" x-model.number="$store.mixer.aiTweaks.target_size" class="themed-input" style="width: 100%;">
                     <p class="tweak-description">Tells the AI exactly how many items you want in the final block output.</p>
                 </div>
+
+                <!-- Global Watch Status -->
+                <div class="tweak-item">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">AI Watch Status Override</span>
+                    </div>
+                    <div class="toggle-pill">
+                        <span class="pill-btn" :class="!$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = false">Allow Watched</span>
+                        <span class="pill-btn" :class="$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = true">Only Unwatched</span>
+                    </div>
+                    <p class="tweak-description">If 'Only Unwatched' is selected, every AI-generated block will automatically filter out played media.</p>
+                </div>
             </div>
         </div>
         <div class="modal-footer">
@@ -351,7 +363,7 @@
                                 <span>Ollama Server URL</span>
                                 <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434" @change="$store.settings.fetchOllamaStatus()">
                             </label>
-                            
+
                             <label class="control-item">
                                 <span>Active Ollama Model</span>
                                 <div class="flex-row align-center gap-md">
@@ -424,7 +436,7 @@
         </div>
         <div class="modal-body">
             <p>Select a model to use for AI generation. Star your favorites to make them available in the builder's quick-switcher.</p>
-            
+
             <label class="control-item">
                 <div class="model-name-header">
                     <span>Target Model Name</span>

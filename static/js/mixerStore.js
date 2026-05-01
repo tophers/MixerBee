@@ -29,7 +29,8 @@ export const mixerStore = {
         limit: 25,
         strictness: 'genre_verified',
         temperature: 0.2,
-        target_size: 10
+        target_size: 10,
+        only_unwatched: false
     },
 
     _previewDebouncers: {},
@@ -99,6 +100,15 @@ export const mixerStore = {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
                 if (!s._uid) s._uid = generateUUID();
+                
+                if (!s.name && s.id) {
+                    const seriesMatch = this.library.seriesData.find(ls => String(ls.id) === String(s.id));
+                    if (seriesMatch) s.name = seriesMatch.name;
+                }
+                
+                if (s.season === undefined) s.season = 1;
+                if (s.episode === undefined) s.episode = 1;
+
                 s.previewTitle = s.previewTitle ?? '';
                 s._loadingTitle = false;
             });
@@ -143,6 +153,8 @@ export const mixerStore = {
             const res = await post(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`, null, null, 'GET', true);
             if (res && res.name) {
                 showData.previewTitle = res.name;
+                if (res.season !== undefined) showData.season = res.season;
+                if (res.episode !== undefined) showData.episode = res.episode;
             } else {
                 showData.previewTitle = `S${showData.season}E${showData.episode}`;
             }
@@ -417,7 +429,7 @@ export const mixerStore = {
         if (!this.aiPrompt.trim()) return toast('Prompt required.', false);
         this.isAiGenerating = true;
         try {
-            const res = await post('api/create_from_text', { 
+            const res = await post('api/create_from_text', {
                 prompt: this.aiPrompt,
                 tweaks: this.aiTweaks
             });
@@ -434,7 +446,7 @@ export const mixerStore = {
     async quickSwitchModel(modelName) {
         const sStore = Alpine.store('settings');
         if (sStore.ollama_model === modelName) return;
-        
+
         try {
             const res = await post('api/settings/model', { ollama_model: modelName }, null, 'POST', true, false);
             if (res.status === 'ok') {
@@ -464,7 +476,7 @@ export const mixerStore = {
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
             const uid = Alpine.store('settings').activeUserId;
-            const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl);
+            const res = await post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl, 'POST', true);
 
             if (res.status === 'ok') {
                 await previewModal.show({
@@ -522,12 +534,12 @@ export const mixerStore = {
                 const data = this.library.movieGenreData;
                 if (!data?.length) return toast("Genre data not loaded.", false);
                 const randomGenre = data[Math.floor(Math.random() * data.length)];
-                await this.executeQuickBuild(type, { 
-                    title: `Roulette: ${randomGenre.Name}`, 
-                    description: `Random ${randomGenre.Name} movies.`, 
-                    defaultName: `Mix: ${randomGenre.Name}`, 
-                    defaultCount: 10, 
-                    extraParams: { genre: randomGenre.Name } 
+                await this.executeQuickBuild(type, {
+                    title: `Roulette: ${randomGenre.Name}`,
+                    description: `Random ${randomGenre.Name} movies.`,
+                    defaultName: `Mix: ${randomGenre.Name}`,
+                    defaultCount: 10,
+                    extraParams: { genre: randomGenre.Name }
                 });
             } else {
                 await this.executeQuickBuild(type, config[type]);

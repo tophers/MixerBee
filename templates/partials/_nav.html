@@ -4,7 +4,7 @@
         <span x-html="$store.icons.user"></span>
         <span x-text="$store.settings.activeUserName"></span>
 
-        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.historyAction.show()">
+        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.historyAction.show(); const badge = document.getElementById('toast-badge'); if(badge) { badge.classList.add('hidden'); badge.textContent='0'; }">
             <span x-html="$store.icons.bell"></span>
             <span id="toast-badge" class="hidden" @click.stop="$store.modals.historyAction.show(); $el.classList.add('hidden'); $el.textContent='0'">0</span>
         </button>

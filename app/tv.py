@@ -36,7 +36,6 @@ def search_series(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     logger.info(f"Found {len(items)} matches for '{name}'.")
     return [{"Id": it["Id"], "Name": it["Name"]} for it in items]
 
-
 def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
     """Finds the exact series ID for a given name."""
     r = client.SESSION.get(f"{client.EMBY_URL}/Items",
@@ -47,7 +46,6 @@ def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
         if it["Name"].lower() == name.lower():
             return it["Id"]
     return None
-
 
 def episodes(sid: str, season: int, episode: int, count: int,
              hdr: Dict[str, str], user_id: str, end_season: Optional[int] = None,
@@ -60,7 +58,7 @@ def episodes(sid: str, season: int, episode: int, count: int,
         "UserId": user_id,
         "Fields": "UserData,ParentIndexNumber,IndexNumber"
     }
-    
+
     if only_unwatched:
         params["IsPlayed"] = "false"
 
@@ -68,7 +66,7 @@ def episodes(sid: str, season: int, episode: int, count: int,
         r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{sid}/Episodes",
                                params=params, headers=hdr, timeout=10)
         r.raise_for_status()
-        
+
         all_eps = sorted(r.json()["Items"],
                          key=lambda x: (x.get("ParentIndexNumber") or 0,
                                         x.get("IndexNumber") or 0))
@@ -85,15 +83,14 @@ def episodes(sid: str, season: int, episode: int, count: int,
                           if ep.get("ParentIndexNumber", 0) < end_season
                           or (ep.get("ParentIndexNumber", 0) == end_season
                               and ep.get("IndexNumber", 0) <= end_episode)]
-            
+
             return ranged_eps
         else:
             return start_eps[:count]
-            
+
     except Exception as e:
         logger.warning(f"TV: Failed to fetch episodes for series {sid}: {e}")
         return []
-
 
 def get_specific_episode(series_id: str, season: int,
                          episode: int, hdr: Dict[str, str]) -> Optional[Dict]:
@@ -113,6 +110,30 @@ def get_specific_episode(series_id: str, season: int,
         pass
     return None
 
+def get_first_available_episode(series_id: str, user_id: str, hdr: Dict[str, str]) -> Optional[Dict]:
+    """Finds the very first available episode for a series in the user's library (e.g. if they only have S9)."""
+    params = {
+        "UserId": user_id,
+        "Fields": "Name,ParentIndexNumber,IndexNumber"
+    }
+    try:
+        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
+                               params=params, headers=hdr, timeout=15)
+        r.raise_for_status()
+
+        all_eps = sorted(r.json().get("Items", []),
+                         key=lambda x: (x.get("ParentIndexNumber") or 0,
+                                        x.get("IndexNumber") or 0))
+
+        for ep in all_eps:
+            if ep.get("ParentIndexNumber", 0) > 0:
+                return ep
+
+    except Exception as e:
+        logger.warning(f"TV: Failed to find first available episode for series {series_id}: {e}")
+
+    return None
+
 def get_first_unwatched_episode(series_id: str, user_id: str,
                                 hdr: Dict[str, str]) -> Optional[Dict]:
     """Finds the first unwatched episode for a series for a given user."""
@@ -125,11 +146,11 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
         r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                                params=params, headers=hdr, timeout=15)
         r.raise_for_status()
-        
+
         all_eps = sorted(r.json().get("Items", []),
                          key=lambda x: (x.get("ParentIndexNumber") or 0,
                                         x.get("IndexNumber") or 0))
-        
+
         for ep in all_eps:
             if ep.get("ParentIndexNumber", 0) > 0:
                 return ep
@@ -154,23 +175,23 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
                                params=params, headers=hdr, timeout=15)
         r.raise_for_status()
         all_eps = r.json().get("Items", [])
-        
+
         valid_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
-        
+
         if valid_eps:
-            random_ep = valid_eps[0] 
+            random_ep = valid_eps[0]
             return {
                 "season": random_ep.get("ParentIndexNumber", 1),
                 "episode": random_ep.get("IndexNumber", 1)
             }
-            
+
         params.pop("IsPlayed")
         r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
                                params=params, headers=hdr, timeout=15)
         r.raise_for_status()
         all_eps = r.json().get("Items", [])
         valid_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
-        
+
         if valid_eps:
             random_ep = valid_eps[0]
             return {
@@ -180,7 +201,7 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
 
     except Exception as e:
         logger.warning(f"TV: Failed to find random episode for series {series_id}: {e}")
-        
+
     return None
 
 def mark_unplayed(series_id: str, user_id: str, hdr: Dict[str, str], season_number: Optional[int] = None) -> bool:
@@ -193,12 +214,12 @@ def mark_unplayed(series_id: str, user_id: str, hdr: Dict[str, str], season_numb
                                    params={"UserId": user_id}, headers=hdr, timeout=10)
             r.raise_for_status()
             seasons = r.json().get("Items", [])
-            
+
             for s in seasons:
                 if s.get("IndexNumber") == season_number:
                     target_id = s.get("Id")
                     break
-                    
+
             if target_id == series_id:
                 return False
         except Exception:

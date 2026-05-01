@@ -21,6 +21,7 @@ from .tv import (
     get_all_series,
     search_series,
     get_specific_episode,
+    get_first_available_episode,
     get_first_unwatched_episode,
     get_random_unwatched_episode,
     mark_unplayed
