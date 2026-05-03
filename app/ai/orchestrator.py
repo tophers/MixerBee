@@ -146,7 +146,6 @@ def _map_tv_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
     elif ai_block.tv_shows:
         shows = [{"name": n, "season": 1, "episode": 1, "unwatched": is_unwatched} for n in ai_block.tv_shows if n and str(n).strip()]
 
-    # If the LLM generated an empty block, drop it entirely instead of returning a blank row
     if not shows:
         return None
 
@@ -166,7 +165,7 @@ def _map_movie_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
 
     filters: Dict[str, Any] = {
         "watched_status": "unplayed" if is_unwatched else "all",
-        "sort_by": "PremiereDate", # Switched from Random to PremiereDate to keep AI ID ordering stable on preview
+        "sort_by": "PremiereDate",
     }
 
     if ai_block.movie_ids:
@@ -293,8 +292,6 @@ def _run_ollama_researcher(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str
             args = call["function"].get("arguments", {})
             if func_name in tool_map:
                 try:
-                    # LLMs often hallucinate a 'limit' or 'count' param if the user asked for a specific number.
-                    # Delete it so we always get a deep pool of candidates from the Vector DB for the Architect to filter!
                     args.pop("limit", None)
                     args.pop("count", None)
 

@@ -96,6 +96,21 @@ export const mixerStore = {
             if (!block.music.filters) block.music.filters = { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' };
         }
 
+        if (block.type === 'mirror') {
+            if (!block.filters) block.filters = {};
+            
+            if (block.seedId && (!block.filters.seeds_positive || block.filters.seeds_positive.length === 0)) {
+                block.filters.seeds_positive = [{ Id: block.seedId, Name: block.seedName }];
+                delete block.seedId;
+                delete block.seedName;
+            }
+
+            block.filters.seeds_positive = block.filters.seeds_positive ?? [];
+            block.filters.seeds_negative = block.filters.seeds_negative ?? [];
+            block.limit = block.limit ?? 10;
+            block.threshold = block.threshold ?? 0.65;
+        }
+
         if (block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv')) {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
@@ -212,8 +227,8 @@ export const mixerStore = {
             }
             if (type === 'person') {
                 const [people, studios] = await Promise.all([
-                    post(`api/people?name=${encodeURIComponent(query)}`, null, null, 'GET', true),
-                    post(`api/studios?name=${encodeURIComponent(query)}`, null, null, 'GET', true)
+                    post(`api/people?name=${encodeURIComponent(query)}`, null, null, 'GET', true, false),
+                    post(`api/studios?name=${encodeURIComponent(query)}`, null, null, 'GET', true, false)
                 ]);
                 const results = [];
                 if (Array.isArray(people)) {
@@ -223,6 +238,13 @@ export const mixerStore = {
                     studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
                 }
                 return results;
+            }
+            if (type === 'media') {
+                 const res = await post(`api/media/search?query=${encodeURIComponent(query)}`, null, null, 'GET', true, false);
+                 if (Array.isArray(res)) {
+                     return res.map(m => ({ type: 'media', data: m, text: `${m.Name} (${m.Year || '?'})` }));
+                 }
+                 return [];
             }
         } catch (e) { return []; }
     },
@@ -275,6 +297,20 @@ export const mixerStore = {
         if (nextKey) {
             block.filters[nextKey].push(clonedItem);
         }
+        this.updatePreviewCount(block);
+    },
+
+    cycleEchoToken(block, key, item) {
+        if (!block || !item) return;
+        const sourceArray = block.filters[key];
+        const index = sourceArray.indexOf(item);
+        if (index === -1) return;
+
+        const clonedItem = JSON.parse(JSON.stringify(item));
+        sourceArray.splice(index, 1);
+
+        const nextKey = (key === 'seeds_positive') ? 'seeds_negative' : 'seeds_positive';
+        block.filters[nextKey].push(clonedItem);
         this.updatePreviewCount(block);
     },
 
@@ -387,6 +423,8 @@ export const mixerStore = {
             block = { type: 'movie', filters: { watched_status: 'all', sort_by: 'Random', parent_ids: this.library.libraryData.map(l => l.Id), year_from: 1920, year_to: new Date().getFullYear(), release_within_days: 0 } };
         } else if (type === 'music') {
             block = { type: 'music', music: { mode: 'album', count: 10, filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
+        } else if (type === 'mirror') {
+            block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [] }, limit: 10, threshold: 0.65 };
         }
 
         if (block) {

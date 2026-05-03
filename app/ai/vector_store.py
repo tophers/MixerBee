@@ -1,5 +1,5 @@
 """
-app/ai/vector_store.py - Vector DB init and config.
+app/ai/vector_store.py - Vector DB init and config with robust similarity search.
 """
 
 import json
@@ -7,6 +7,7 @@ import time
 import threading
 from typing import List, Dict, Optional
 import chromadb
+import numpy as np
 
 import app.client as client
 from app_state import CONFIG_DIR
@@ -311,12 +312,6 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
     """
     Searches the library for media matching a specific vibe, mood, theme, or description.
     Includes a 'Radius Lock' to filter out mathematically irrelevant results.
-
-    Args:
-        query: The conceptual vibe or theme to search for (e.g., "gritty cyberpunk", "90s sitcom").
-        media_type: Optional. Filter strictly by format: use 'Movie' or 'Series'.
-        limit: Optional override for search depth.
-        threshold: Optional override for relevancy strictness (0.0 to 1.0).
     """
     refresh_logger_level()
     if not query:
@@ -371,7 +366,7 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
             include=["metadatas", "distances"]
         )
 
-        if not results['ids'] or not results['ids'][0]:
+        if not results or not results.get('ids') or len(results['ids'][0]) == 0:
             return []
 
         matched_items = []
@@ -400,3 +395,81 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
     except Exception as e:
         logger.error(f"Vibe search failed: {e}")
         return []
+
+def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit: int = 10, threshold: float = 0.65):
+    """
+    Finds items similar to a weighted average of multiple seed items, minus negative seeds.
+    """
+    refresh_logger_level()
+    all_ids = positive_ids + negative_ids
+    if not positive_ids:
+        return []
+
+    try:
+        res = media_collection.get(ids=all_ids, include=["embeddings", "metadatas"])
+        
+        if not res or res.get('embeddings') is None or len(res['embeddings']) == 0:
+            logger.warning("Composite Search: Could not find embeddings for requested seeds.")
+            return []
+
+        vectors = {res['ids'][i]: np.array(res['embeddings'][i]) for i in range(len(res['ids']))}
+        id_to_type = {res['ids'][i]: res['metadatas'][i].get("type") for i in range(len(res['ids']))}
+
+        pos_vectors = [vectors[pid] for pid in positive_ids if pid in vectors]
+        if not pos_vectors:
+            return []
+        
+        composite_vector = np.mean(pos_vectors, axis=0)
+
+        neg_vectors = [vectors[nid] for nid in negative_ids if nid in vectors]
+        for neg_vec in neg_vectors:
+            composite_vector = composite_vector - (neg_vec * 0.4)
+
+        target_type = id_to_type.get(positive_ids[0])
+
+        results = media_collection.query(
+            query_embeddings=[composite_vector.tolist()],
+            n_results=limit + len(all_ids) + 5,
+            where={"type": target_type} if target_type else None,
+            include=["metadatas", "distances"]
+        )
+
+        if not results or not results.get('ids') or len(results['ids'][0]) == 0:
+            return []
+
+        matched_items = []
+        seed_id_set = set(all_ids)
+
+        for i in range(len(results['ids'][0])):
+            cid = results['ids'][0][i]
+            if cid in seed_id_set:
+                continue
+
+            name = results['metadatas'][0][i]["name"]
+            distance = results['distances'][0][i] if results['distances'] else 0.0
+
+            if distance > threshold:
+                logger.info(f"   [COMP-SKIP] {name} | Distance: {distance:.4f} (Too far)")
+                continue
+
+            matched_items.append({
+                "Id": cid,
+                "Name": name,
+                "Type": results['metadatas'][0][i]["type"],
+                "Year": results['metadatas'][0][i].get("year", "Unknown"),
+                "Genres": results['metadatas'][0][i].get("genres", ""),
+                "Distance": distance
+            })
+            logger.info(f"   [COMP-MATCH] {name} | Distance: {distance:.4f}")
+
+        return matched_items[:limit]
+
+    except Exception as e:
+        logger.error(f"Composite similarity search failed: {e}", exc_info=True)
+        return []
+
+def search_by_similarity(item_id: str, limit: int = 10, threshold: float = 0.65) -> List[Dict[str, str]]:
+    """
+    Finds items mathematically similar to a specific seed item.
+    """
+    return search_by_composite_similarity(positive_ids=[item_id], negative_ids=[], limit=limit, threshold=threshold)
