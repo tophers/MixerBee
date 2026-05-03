@@ -12,7 +12,7 @@ import app as core
 import models
 import app_state
 from app.cache import get_library_data
-from app.ai.vector_store import calculate_library_iq
+from app.ai.vector_store import calculate_library_iq, media_collection
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
@@ -55,8 +55,6 @@ def api_episode_lookup(series_id: str, season: int, episode: int, auth_deps: dic
             "episode": episode
         }
     
-    # Smart fallback: if the UI asked for S1E1 (the default) and it doesn't exist,
-    # find the actual first available episode in the library (e.g., S9E1)
     if season == 1 and episode == 1:
         first_ep = core.get_first_available_episode(series_id, auth_deps["login_uid"], auth_deps["hdr"])
         if first_ep:
@@ -103,6 +101,40 @@ def api_get_studios(name: str = "", auth_deps: dict = Depends(get_current_auth_h
     """Searches for studios by name using the cached library data."""
     library_data = get_library_data()
     return core.get_studios(name, library_data)
+
+@router.get("/api/media/search")
+def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_headers)) -> List[Dict[str, Any]]:
+    """Global search for any media (movies/shows) in the vector store."""
+    try:
+        res = media_collection.get(
+            include=["metadatas"]
+        )
+        
+        if not res or not res.get('ids'):
+            return []
+
+        search_term = query.lower()
+        results = []
+
+        for i, item_id in enumerate(res['ids']):
+            meta = res['metadatas'][i]
+            name = meta.get("name", "Unknown")
+
+            if search_term in name.lower():
+                results.append({
+                    "Id": item_id,
+                    "Name": name,
+                    "Year": meta.get("year", ""),
+                    "Type": meta.get("type", "")
+                })
+
+                if len(results) >= 15:
+                    break
+
+        return results
+    except Exception as e:
+        logging.error(f"Media search failed: {e}")
+        return []
 
 @router.get("/api/music/random_artist")
 def api_get_random_artist(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, str]:

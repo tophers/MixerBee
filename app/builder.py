@@ -1,5 +1,5 @@
 """
-app/builder.py - Logic for building mixed playlists from blocks
+app/builder.py - Logic for building mixed playlists from blocks with randomized Echo sampling.
 """
 
 import logging
@@ -36,7 +36,6 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 if not sid:
                     continue
 
-                # Trust the UI's selected season/episode unconditionally to guarantee stability
                 s = raw_show.get("season")
                 e = raw_show.get("episode")
                 is_unwatched = raw_show.get("unwatched", False)
@@ -44,7 +43,6 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 if s is not None: s = int(s)
                 if e is not None: e = int(e)
 
-                # ONLY run smart resolution if the payload is missing S/E data
                 if s is None or e is None:
                     if is_unwatched:
                         ep_info = get_first_unwatched_episode(sid, user_id, hdr)
@@ -60,7 +58,6 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                         else:
                             s, e = 1, 1
 
-                # Fetch episodes sequentially starting from strictly locked S/E
                 eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
 
                 if eps:
@@ -103,7 +100,6 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
                     
-                # Preserve sort properties if UI provided them
                 if "sort_by" in filters:
                     id_filters["sort_by"] = filters["sort_by"]
 
@@ -115,6 +111,67 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
         logging.error(f"Error processing Movie block {block_index}: {e}", exc_info=True)
     return items
 
+def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    """
+    Handles logic for the Echo (Mirror) block.
+    """
+    items = []
+    try:
+        from .ai.vector_store import search_by_composite_similarity
+        
+        filters = block.get("filters", {})
+        seeds_pos = [s['Id'] for s in filters.get("seeds_positive", [])]
+        seeds_neg = [s['Id'] for s in filters.get("seeds_negative", [])]
+        mixed_echo = filters.get("mixed_echo", False)
+        
+        target_limit = int(block.get("limit", 10))
+        threshold = float(block.get("threshold", 0.65))
+
+        if not seeds_pos:
+            return []
+
+        pool_size = max(40, target_limit * 4)
+        similar_pool = search_by_composite_similarity(
+            positive_ids=seeds_pos, 
+            negative_ids=seeds_neg, 
+            limit=pool_size, 
+            threshold=threshold,
+            mixed_echo=mixed_echo
+        )
+        
+        if not similar_pool:
+            return []
+
+        sampled_matches = random.sample(similar_pool, min(target_limit, len(similar_pool)))
+
+        movie_ids = []
+        series_ids = []
+
+        for match in sampled_matches:
+            m_type = match.get("Type")
+            m_id = match.get("Id")
+            if m_type == "Movie":
+                movie_ids.append(m_id)
+            elif m_type == "Series":
+                series_ids.append(m_id)
+
+        if movie_ids:
+            resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
+            items.extend(resolved_movies)
+
+        for sid in series_ids:
+            next_ep = get_first_unwatched_episode(sid, user_id, hdr)
+            if not next_ep:
+                next_ep = get_first_available_episode(sid, user_id, hdr)
+            
+            if next_ep:
+                items.append(next_ep)
+
+        random.shuffle(items)
+
+    except Exception as e:
+        logging.error(f"Error processing Echo block {block_index}: {e}", exc_info=True)
+    return items
 
 def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     items = []
@@ -159,6 +216,8 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: 
             master_items_list.extend(_process_movie_block(block, user_id, hdr, log_messages, i))
         elif block_type == "music":
             master_items_list.extend(_process_music_block(block, user_id, hdr, log_messages, i))
+        elif block_type == "mirror" or block_type == "echo":
+            master_items_list.extend(_process_mirror_block(block, user_id, hdr, log_messages, i))
 
     return master_items_list
 

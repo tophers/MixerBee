@@ -116,6 +116,7 @@
                     {% include 'partials/_movie_block.html' %}
                     {% include 'partials/_music_block.html' %}
                     {% include 'partials/_vibe_block.html' %}
+                    {% include 'partials/_mirror_block.html' %}
                 </div>
             </template>
         </div>
@@ -135,6 +136,7 @@
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span> Echo Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
                     </div>
                 </div>
