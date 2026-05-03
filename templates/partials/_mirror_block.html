@@ -1,8 +1,8 @@
 <!-- templates/partials/_mirror_block.html -->
 <template x-if="block && block.type === 'mirror'">
-    <div x-data="{ 
-        editModalOpen: false, 
-        searchQuery: '', 
+    <div x-data="{
+        editModalOpen: false,
+        searchQuery: '',
         suggestions: [],
         async performSearch(blk) {
             if (this.searchQuery.length < 2) {
@@ -14,10 +14,10 @@
                 const res = await fetch('api/media/search?query=' + encodeURIComponent(this.searchQuery) + '&_cb=' + Date.now());
                 const data = await res.json();
                 if (Array.isArray(data)) {
-                    this.suggestions = data.map(m => ({ 
-                        type: 'media', 
-                        data: m, 
-                        text: m.Name + ' (' + (m.Year || '?') + ')' 
+                    this.suggestions = data.map(m => ({
+                        type: 'media',
+                        data: m,
+                        text: m.Name + ' (' + (m.Year || '?') + ')'
                     }));
                 } else {
                     this.suggestions = [];
@@ -46,7 +46,7 @@
                                 <template x-if="block.filters && block.filters.seeds_positive.length > 0">
                                     <div class="curated-preview-text">
                                         <span class="bold color-accent" x-text="block.filters.seeds_positive.map(s => s.Name).join(', ')"></span>
-                                        
+
                                         <template x-if="block.filters.seeds_negative.length > 0">
                                             <span class="text-subtle"> (minus <span x-text="block.filters.seeds_negative.map(s => s.Name).join(', ')"></span>)</span>
                                         </template>
@@ -68,7 +68,7 @@
                                                 </template>
                                             </span>
                                         </template>
-                                        
+
                                         <!-- No Matches Found -->
                                         <template x-if="!block._previewLoading && (!block._previewItems || block._previewItems.length === 0)">
                                             <span class="text-subtle italic"> — No echoes found at this depth</span>
@@ -84,6 +84,9 @@
                                 <span class="badge ai-chip">Echo</span>
                                 <template x-if="block.filters && block.filters.seeds_positive.length > 0">
                                     <span class="badge badge-outline-subtle" x-text="block.limit + ' matches • ' + (block.threshold < 0.6 ? 'Strict' : (block.threshold > 0.75 ? 'Discovery' : 'Balanced'))"></span>
+                                    <template x-if="block.filters.mixed_echo">
+                                        <span class="badge badge-outline-accent">Mixed Format</span>
+                                    </template>
                                 </template>
                             </div>
                         </div>
@@ -111,8 +114,38 @@
                     <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-subtle mb-md">Select one or more items to use as “seeds.” MixerBee will find media that matches their combined feel. Use negative seeds to exclude specific concepts</p>
-                    
+                    <p class="text-subtle mb-md">Search for  one or more items to use as seeds. MixerBee will find media that matches their combined feel. Use negative seeds to exclude specific concepts</p>
+
+                    <!-- Search Input -->
+                    <div class="mb-lg" style="position: relative; width: 100%; display: block;">
+                        <label class="field-label">Search Library</label>
+                        <div style="position: relative; width: 100%;">
+                            <input type="search"
+                                    style="width: 100% !important; margin: 0; display: block; box-sizing: border-box;"
+                                    placeholder="Type a movie or show name..."
+                                    x-model="searchQuery"
+                                    @input.debounce.300ms="performSearch(block)">
+
+                            <div x-show="block._previewLoading" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;" x-cloak>
+                                <div class="spinner small"></div>
+                            </div>
+                        </div>
+
+                        <div class="autocomplete-suggestions"
+                             style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
+                             x-show="suggestions.length > 0"
+                             x-cloak>
+                            <ul style="margin: 0; padding: 0; list-style: none;">
+                                <template x-for="s in suggestions" :key="block._uid + '_mir_' + s.data.Id">
+                                    <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ffffff;"
+                                        class="dropdown-item-hover"
+                                        @click="if(!block.filters.seeds_positive.some(x => x.Id === s.data.Id)) block.filters.seeds_positive.push({ Id: s.data.Id, Name: s.data.Name }); searchQuery = ''; suggestions = []; $store.mixer.updatePreviewCount(block)"
+                                        x-text="s.text"></li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+
                     <!-- Selection Indicator -->
                     <div class="mb-lg">
                         <label class="field-label">Active Seeds</label>
@@ -141,39 +174,9 @@
                         </div>
                     </div>
 
-                    <!-- Search Input -->
-                    <div class="mb-lg" style="position: relative; width: 100%; display: block;">
-                        <label class="field-label">Search Library</label>
-                        <div style="position: relative; width: 100%;">
-                            <input type="search" 
-                                    style="width: 100% !important; margin: 0; display: block; box-sizing: border-box;"
-                                    placeholder="Type a movie or show name..." 
-                                    x-model="searchQuery" 
-                                    @input.debounce.300ms="performSearch(block)">
-                            
-                            <div x-show="block._previewLoading" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); pointer-events: none;" x-cloak>
-                                <div class="spinner small"></div>
-                            </div>
-                        </div>
-                        
-                        <div class="autocomplete-suggestions" 
-                             style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
-                             x-show="suggestions.length > 0" 
-                             x-cloak>
-                            <ul style="margin: 0; padding: 0; list-style: none;">
-                                <template x-for="s in suggestions" :key="block._uid + '_mir_' + s.data.Id">
-                                    <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ffffff;"
-                                        class="dropdown-item-hover"
-                                        @click="if(!block.filters.seeds_positive.some(x => x.Id === s.data.Id)) block.filters.seeds_positive.push({ Id: s.data.Id, Name: s.data.Name }); searchQuery = ''; suggestions = []; $store.mixer.updatePreviewCount(block)" 
-                                        x-text="s.text"></li>
-                                </template>
-                            </ul>
-                        </div>
-                    </div>
-
                     <fieldset class="filter-group">
                         <legend>Similarity Tuning</legend>
-                        
+
                         <div class="tweak-item mb-md">
                             <div class="tweak-label-row">
                                 <span class="tweak-title">Match Limit</span>
@@ -182,7 +185,7 @@
                             <input type="range" min="1" max="50" step="1" style="width: 100%;" x-model.number="block.limit" @change="$store.mixer.updatePreviewCount(block)">
                         </div>
 
-                        <div class="tweak-item">
+                        <div class="tweak-item mb-md">
                             <div class="tweak-label-row">
                                 <span class="tweak-title">Exploration Depth</span>
                                 <span class="tweak-value" x-text="block.threshold.toFixed(2)"></span>
@@ -193,6 +196,17 @@
                                 <span class="pill-btn grow-1 text-center" :class="block.threshold === 0.85 ? 'active' : ''" @click="block.threshold = 0.85; $store.mixer.updatePreviewCount(block)">Discovery</span>
                             </div>
                             <p class="tweak-description mt-xs">"Discovery" allows items that share a deeper thematic bond even if the genres differ.</p>
+                        </div>
+
+                        <div class="tweak-item">
+                            <div class="tweak-label-row">
+                                <span class="tweak-title">Format Matching</span>
+                            </div>
+                            <div class="toggle-pill w-full">
+                                <span class="pill-btn grow-1 text-center" :class="!block.filters.mixed_echo ? 'active' : ''" @click="block.filters.mixed_echo = false; $store.mixer.updatePreviewCount(block)">Same Type</span>
+                                <span class="pill-btn grow-1 text-center" :class="block.filters.mixed_echo ? 'active' : ''" @click="block.filters.mixed_echo = true; $store.mixer.updatePreviewCount(block)">Mixed Echo</span>
+                            </div>
+                            <p class="tweak-description mt-xs">"Mixed Echo" allows results to include both Movies and Series regardless of your seed types.</p>
                         </div>
                     </fieldset>
                 </div>

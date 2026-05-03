@@ -114,8 +114,6 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
 def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """
     Handles logic for the Echo (Mirror) block.
-    Uses 'Deep Pool Sampling' to keep the results fresh and non-deterministic.
-    Now supports Composite Vector searches with positive and negative seeds.
     """
     items = []
     try:
@@ -124,6 +122,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
         filters = block.get("filters", {})
         seeds_pos = [s['Id'] for s in filters.get("seeds_positive", [])]
         seeds_neg = [s['Id'] for s in filters.get("seeds_negative", [])]
+        mixed_echo = filters.get("mixed_echo", False)
         
         target_limit = int(block.get("limit", 10))
         threshold = float(block.get("threshold", 0.65))
@@ -136,7 +135,8 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
             positive_ids=seeds_pos, 
             negative_ids=seeds_neg, 
             limit=pool_size, 
-            threshold=threshold
+            threshold=threshold,
+            mixed_echo=mixed_echo
         )
         
         if not similar_pool:

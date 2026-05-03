@@ -377,7 +377,7 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
             distance = results['distances'][0][i] if results['distances'] else 0.0
 
             if distance > current_threshold:
-                logger.info(f"   [SKIPPED] {name} ({year}) | Cosine Distance: {distance:.4f} (Outside Radius)")
+                logger.info(f"    [SKIPPED] {name} ({year}) | Cosine Distance: {distance:.4f} (Outside Radius)")
                 continue
 
             matched_items.append({
@@ -389,14 +389,14 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
                 "Distance": distance
             })
 
-            logger.info(f"   [KEEP] {name} ({year}) [ID: {item_id}] | Cosine Distance: {distance:.4f}")
+            logger.info(f"    [KEEP] {name} ({year}) [ID: {item_id}] | Cosine Distance: {distance:.4f}")
 
         return matched_items
     except Exception as e:
         logger.error(f"Vibe search failed: {e}")
         return []
 
-def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit: int = 10, threshold: float = 0.65):
+def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit: int = 10, threshold: float = 0.65, mixed_echo: bool = False):
     """
     Finds items similar to a weighted average of multiple seed items, minus negative seeds.
     """
@@ -425,7 +425,7 @@ def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit
         for neg_vec in neg_vectors:
             composite_vector = composite_vector - (neg_vec * 0.4)
 
-        target_type = id_to_type.get(positive_ids[0])
+        target_type = id_to_type.get(positive_ids[0]) if not mixed_echo else None
 
         results = media_collection.query(
             query_embeddings=[composite_vector.tolist()],
@@ -440,27 +440,38 @@ def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit
         matched_items = []
         seed_id_set = set(all_ids)
 
-        for i in range(len(results['ids'][0])):
-            cid = results['ids'][0][i]
-            if cid in seed_id_set:
-                continue
+        def build_matches(current_threshold):
+            items = []
+            for i in range(len(results['ids'][0])):
+                cid = results['ids'][0][i]
+                if cid in seed_id_set:
+                    continue
 
-            name = results['metadatas'][0][i]["name"]
-            distance = results['distances'][0][i] if results['distances'] else 0.0
+                name = results['metadatas'][0][i]["name"]
+                distance = results['distances'][0][i] if results['distances'] else 0.0
 
-            if distance > threshold:
-                logger.info(f"   [COMP-SKIP] {name} | Distance: {distance:.4f} (Too far)")
-                continue
+                if distance > current_threshold:
+                    continue
 
-            matched_items.append({
-                "Id": cid,
-                "Name": name,
-                "Type": results['metadatas'][0][i]["type"],
-                "Year": results['metadatas'][0][i].get("year", "Unknown"),
-                "Genres": results['metadatas'][0][i].get("genres", ""),
-                "Distance": distance
-            })
-            logger.info(f"   [COMP-MATCH] {name} | Distance: {distance:.4f}")
+                items.append({
+                    "Id": cid,
+                    "Name": name,
+                    "Type": results['metadatas'][0][i]["type"],
+                    "Year": results['metadatas'][0][i].get("year", "Unknown"),
+                    "Genres": results['metadatas'][0][i].get("genres", ""),
+                    "Distance": distance
+                })
+            return items
+
+        matched_items = build_matches(threshold)
+
+        if not matched_items:
+            fallback_threshold = threshold + 0.10
+            logger.info(f"Composite Search: No items within threshold {threshold:.2f}. Retrying with fallback {fallback_threshold:.2f}...")
+            matched_items = build_matches(fallback_threshold)
+
+        for item in matched_items:
+            logger.info(f"   [COMP-MATCH] {item['Name']} | Distance: {item['Distance']:.4f}")
 
         return matched_items[:limit]
 

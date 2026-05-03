@@ -98,7 +98,7 @@ export const mixerStore = {
 
         if (block.type === 'mirror') {
             if (!block.filters) block.filters = {};
-            
+
             if (block.seedId && (!block.filters.seeds_positive || block.filters.seeds_positive.length === 0)) {
                 block.filters.seeds_positive = [{ Id: block.seedId, Name: block.seedName }];
                 delete block.seedId;
@@ -107,6 +107,7 @@ export const mixerStore = {
 
             block.filters.seeds_positive = block.filters.seeds_positive ?? [];
             block.filters.seeds_negative = block.filters.seeds_negative ?? [];
+            block.filters.mixed_echo = block.filters.mixed_echo ?? false;
             block.limit = block.limit ?? 10;
             block.threshold = block.threshold ?? 0.65;
         }
@@ -115,12 +116,12 @@ export const mixerStore = {
             if (!block.shows) block.shows = [];
             block.shows.forEach(s => {
                 if (!s._uid) s._uid = generateUUID();
-                
+
                 if (!s.name && s.id) {
                     const seriesMatch = this.library.seriesData.find(ls => String(ls.id) === String(s.id));
                     if (seriesMatch) s.name = seriesMatch.name;
                 }
-                
+
                 if (s.season === undefined) s.season = 1;
                 if (s.episode === undefined) s.episode = 1;
 
@@ -424,7 +425,7 @@ export const mixerStore = {
         } else if (type === 'music') {
             block = { type: 'music', music: { mode: 'album', count: 10, filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
         } else if (type === 'mirror') {
-            block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [] }, limit: 10, threshold: 0.65 };
+            block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [], mixed_echo: false }, limit: 10, threshold: 0.65 };
         }
 
         if (block) {

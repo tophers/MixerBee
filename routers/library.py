@@ -109,16 +109,17 @@ def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_head
         res = media_collection.get(
             include=["metadatas"]
         )
-        if not res or not res['ids']:
-            return []
         
+        if not res or not res.get('ids'):
+            return []
+
         search_term = query.lower()
         results = []
-        
+
         for i, item_id in enumerate(res['ids']):
             meta = res['metadatas'][i]
             name = meta.get("name", "Unknown")
-            
+
             if search_term in name.lower():
                 results.append({
                     "Id": item_id,
@@ -126,10 +127,10 @@ def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_head
                     "Year": meta.get("year", ""),
                     "Type": meta.get("type", "")
                 })
-            
-            if len(results) >= 15:
-                break
-                
+
+                if len(results) >= 15:
+                    break
+
         return results
     except Exception as e:
         logging.error(f"Media search failed: {e}")
