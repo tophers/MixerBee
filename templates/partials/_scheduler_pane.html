@@ -21,9 +21,6 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-if="$store.scheduler.isLoading">
-                        <tr><td colspan="5" class="table-loading">Loading schedule...</td></tr>
-                    </template>
                     <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
                         <tr><td colspan="5" class="table-loading">No scheduled jobs found.</td></tr>
                     </template>
@@ -35,13 +32,11 @@
                                     <span class="job-name bold" x-text="entry.playlist_name || 'Unnamed Job'"></span>
                                 </div>
                             </td>
-                            
                             <td class="table-cell">
                                 <span class="badge badge-align" 
                                       :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.create_as_collection ? 'collection-active' : 'playlist-active')"
                                       x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST')"></span>
                             </td>
-
                             <td class="table-cell">
                                 <div class="schedule-summary-cell">
                                     <template x-if="entry.schedule_details?.frequency === 'interval'">
