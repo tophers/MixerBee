@@ -33,6 +33,11 @@ export const mixerStore = {
         only_unwatched: false
     },
 
+    moodPool: [],
+    activeMoods: [],
+    samplePrompt: '',
+    isMoodLoading: false,
+
     _previewDebouncers: {},
 
     init() {
@@ -46,6 +51,17 @@ export const mixerStore = {
             }
         } catch (e) {
             console.error("Autosave restore failed:", e);
+        }
+
+         Alpine.watch(() => Alpine.store('settings').activeUserId, (uid) => {
+            if (uid && this.moodPool.length === 0 && !this.isMoodLoading) {
+                this.fetchMoodDiscovery();
+            }
+        });
+
+        const sStore = Alpine.store('settings');
+        if (sStore && sStore.activeUserId) {
+            this.fetchMoodDiscovery();
         }
 
         Alpine.watch(() => JSON.stringify(this.blocks), () => this.persistToLocalStorage());
@@ -473,7 +489,15 @@ export const mixerStore = {
                 tweaks: this.aiTweaks
             });
             if (res.status === 'ok' && Array.isArray(res.blocks)) {
-                await this.loadBlocks(res.blocks);
+                if (res.blocks.length === 0) {
+                    const failMsg = res.log?.[0] || "No items matched your library.";
+                    toast(`${failMsg} Try Relaxing Relevancy in AI Tweaks.`, false, {
+                        actionText: "Tweaks",
+                        actionCallback: () => aiTweaksModal.show()
+                    });
+                } else {
+                    await this.loadBlocks(res.blocks);
+                }
             }
         } catch (e) {
             console.error("[MixerBee] generateWithAi failed:", e);
@@ -498,6 +522,93 @@ export const mixerStore = {
     },
 
     clearAiPrompt() { this.aiPrompt = ''; },
+
+    async fetchMoodDiscovery() {
+        if (this.isMoodLoading) return;
+        this.isMoodLoading = true;
+        try {
+            const res = await post('api/library/mood_discovery', null, null, 'GET', true, false);
+            if (res && res.tags && res.tags.length > 0) {
+                this.moodPool = res.tags;
+                this.refreshMoodSlots();
+                this.refreshSamplePrompt();
+            } else {
+                console.warn("[MixerBee] Mood Discovery: API returned no tags.");
+            }
+        } catch (e) {
+            console.error("[MixerBee] Mood Discovery: Network or server error:", e);
+        } finally {
+            this.isMoodLoading = false;
+        }
+    },
+
+    refreshMoodSlots() {
+        if (this.moodPool.length === 0) {
+            return;
+        }
+        
+        const shuffled = [...this.moodPool].sort(() => 0.5 - Math.random());
+        const count = Math.min(shuffled.length, 3);
+        
+        this.activeMoods = shuffled.slice(0, count);
+    },
+
+    refreshSamplePrompt() {
+        if (this.moodPool.length === 0) return;
+        
+        const count = Math.min(this.moodPool.length, 2);
+        const tags = [...this.moodPool].sort(() => 0.5 - Math.random()).slice(0, count);
+       
+
+        const structures = count > 1 ? [
+            `A mix of ${tags[0]} and ${tags[1]} movies with some hints of ${tags[0]}`,
+            `${tags[0].charAt(0).toUpperCase() + tags[0].slice(1)} cinema with a touch of ${tags[1]}`,
+            `Highly ${tags[0]} shows, followed by something ${tags[1]}`,
+            `A ${tags[0]} marathon`,
+            `A block of ${tags[0]} and ${tags[1]} movies.`,
+            `Explore ${tags[0]} vibes blended with ${tags[1]}`,
+            `A deep dive into ${tags[0]} themes and ${tags[1]} atmosphere`,
+            `Curate a ${tags[0]} and ${tags[1]} experience`,
+            `Show me ${tags[0]} movies, but make them ${tags[1]}`,
+            `The best of ${tags[0]} paired with ${tags[1]}`
+        ] : [
+            `A ${tags[0]} marathon`,
+            `${tags[0].charAt(0).toUpperCase() + tags[0].slice(1)} vibes only`,
+            `Pure ${tags[0]} cinema`,
+            `The ultimate ${tags[0]} collection`
+        ];
+        
+        this.samplePrompt = structures[Math.floor(Math.random() * structures.length)];
+    }, 
+
+    useSamplePrompt() {
+        this.aiPrompt = this.samplePrompt;
+        this.refreshSamplePrompt();
+    },
+
+    appendMood(index) {
+        const mood = this.activeMoods[index];
+        if (!mood) return;
+
+        const current = this.aiPrompt.trim();
+        if (!current) {
+            this.aiPrompt = mood.charAt(0).toUpperCase() + mood.slice(1);
+        } else {
+            const lastChar = current.slice(-1);
+            const separator = (lastChar === ',' || lastChar === '.') ? ' ' : ', ';
+            this.aiPrompt = current + separator + mood;
+        }
+
+        const usedTags = new Set(this.activeMoods);
+        const available = this.moodPool.filter(t => !usedTags.has(t));
+        
+        if (available.length > 0) {
+            const newTag = available[Math.floor(Math.random() * available.length)];
+            const updated = [...this.activeMoods];
+            updated[index] = newTag;
+            this.activeMoods = updated;
+        }
+    },
 
     async previewPlaylist(btnEl, blocksOverride = null) {
         try {

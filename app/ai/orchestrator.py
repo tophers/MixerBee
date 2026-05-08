@@ -309,7 +309,7 @@ def _run_ollama_researcher(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str
                                 item_type = r.get("Type", "Movie")
                                 if item_id:
                                     id_type_map[item_id] = item_type
-                                all_tool_results.append(r)
+                                    all_tool_results.append(r)
                             elif isinstance(r, str):
                                 all_tool_results.append({"Id": "", "Name": r, "Type": "Series", "Year": "Unknown", "Genres": ""})
 
@@ -334,14 +334,17 @@ def _run_ollama_researcher(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str
 
     return finding_groups, id_type_map
 
-def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str]:
+def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str, List[str]]:
     logger.info(f"--- STARTING DIVIDE-AND-CONQUER GENERATION: '{prompt}' ---")
 
     finding_groups, id_type_map = _run_ollama_researcher(prompt, tweaks)
+    
+    logs = [f"Researcher initialized for: '{prompt}'"]
 
     if not finding_groups:
-        logger.warning("Researcher found no groups. Returning empty.")
-        return [], f"ollama:{app_state.OLLAMA_MODEL}"
+        msg = "Researcher found no items in your library matching that prompt within the current Relevancy Threshold."
+        logger.warning(f"Researcher empty: {msg}")
+        return [], f"ollama:{app_state.OLLAMA_MODEL}", [msg]
 
     strictness_rule = ""
     if tweaks.strictness == "genre_verified":
@@ -452,14 +455,21 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
 
     final_list = _consolidate_blocks(all_generated_blocks, target_size=tweaks.target_size)
 
-    logger.info(f"--- SUCCESS: Generated {len(final_list)} consolidated blocks ---")
-    return final_list, f"ollama:{app_state.OLLAMA_MODEL}"
+    if not final_list:
+        logs.append("No matches were validated for the final block list.")
+    else:
+        logs.append(f"Successfully generated {len(final_list)} consolidated blocks.")
 
-def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str]:
+    logger.info(f"--- SUCCESS: Generated {len(final_list)} consolidated blocks ---")
+    return final_list, f"ollama:{app_state.OLLAMA_MODEL}", logs
+
+def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str, List[str]]:
     if not app_state.GEMINI_API_KEY: raise ValueError("Gemini key missing.")
     client = genai.Client(api_key=app_state.GEMINI_API_KEY)
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     logger.info(f"--- STARTING GEMINI GENERATION: '{prompt}' ---")
+    
+    logs = [f"Gemini processing request: '{prompt}'"]
 
     strictness_rule = ""
     if tweaks.strictness == "genre_verified":
@@ -492,6 +502,12 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     )
     research_response = chat.send_message(prompt)
     logger.info(f"--- GEMINI FINDINGS ---\n{research_response.text}")
+    
+    # Simple heuristic to see if research found nothing
+    if not any(char.isdigit() for char in research_response.text):
+        msg = "Researcher found no matching IDs in your library. Try Relaxing Relevancy."
+        return [], model_name, [msg]
+
     builder_response = client.models.generate_content(
         model=model_name,
         contents=f"User Request: {prompt}\n\nContext: {research_response.text}",
@@ -501,11 +517,20 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
             temperature=0.0
         )
     )
-    if not builder_response or not builder_response.parsed: raise ValueError("Gemini failed.")
-    valid_blocks = [fb for b in builder_response.parsed if (fb := _map_to_frontend_block(b)) is not None]
-    return _consolidate_blocks(valid_blocks, target_size=tweaks.target_size), model_name
+    if not builder_response or builder_response.parsed is None:
+        return [], model_name, ["Architect failed to parse results."]
 
-def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None) -> tuple[List[Dict[str, Any]], str]:
+    valid_blocks = [fb for b in builder_response.parsed if (fb := _map_to_frontend_block(b)) is not None]
+    final_list = _consolidate_blocks(valid_blocks, target_size=tweaks.target_size)
+    
+    if not final_list:
+        logs.append("No library items were close enough to the request to be included.")
+    else:
+        logs.append(f"Successfully generated {len(final_list)} blocks.")
+
+    return final_list, model_name, logs
+
+def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None) -> tuple[List[Dict[str, Any]], str, List[str]]:
     refresh_logger_level()
     actual_tweaks = tweaks or AiTweaks()
     token = ai_tweaks_context.set(actual_tweaks)

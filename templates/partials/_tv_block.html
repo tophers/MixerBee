@@ -57,7 +57,7 @@
                                     <span class="pill-btn grow-1 text-center" :class="![2,3,4,5].includes(block.count) ? 'active' : ''" @click="if([2,3,4,5].includes(block.count)) block.count = 6">Custom</span>
                                 </div>
                                 <div x-show="![2,3,4,5].includes(block.count)" class="flex-row align-center gap-md mt-xs">
-                                    <span class="text-subtle">Custom Count:</span>
+                                    <span class="text-subtle">Count:</span>
                                     <input type="number" x-model.number="block.count" min="1" max="100" class="m-0 w-80">
                                 </div>
                             </div>

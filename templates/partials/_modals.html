@@ -311,10 +311,46 @@
             <button class="icon-btn" @click="$store.settings.hide()">&times;</button>
         </div>
         <div class="modal-body">
-            <p class="mb-md">Configure your media server and AI preferences. Changes require a restart to apply.</p>
-
+            <p class="mb-md">Configure your media server and AI preferences. Some changes will require a restart to apply.</p>
             <div class="modal-form-layout">
                 <fieldset class="filter-group">
+                    <legend>App</legend>
+                    <div class="flex-column gap-md">
+                        <!-- User Display -->
+                        <div class="flex-row align-center justify-between">
+                            <label class="field-label m-0">Connected User</label>
+                            <div class="flex-row align-center gap-sm bold">
+                                <span x-html="$store.icons.user"></span>
+                                <span x-text="$store.settings.activeUserName"></span>
+                            </div>
+                        </div>
+
+                        <!-- Theme Pill Switcher -->
+                        <label class="control-item">
+                            <span>Appearance</span>
+                            <div class="toggle-pill w-full">
+                                <span class="pill-btn" 
+                                      :class="$store.settings.theme === 'dark' ? 'active' : ''" 
+                                      @click="$store.settings.updateTheme('dark')">Dark</span>
+                                <span class="pill-btn" 
+                                      :class="$store.settings.theme === 'light' ? 'active' : ''" 
+                                      @click="$store.settings.updateTheme('light')">Light</span>
+                            </div>
+                        </label>
+
+                        <!-- Notifications Button -->
+                        <label class="control-item">
+                            <span>System Notifications</span>
+                            <button type="button" class="secondary align-center gap-xs w-full" @click="$store.modals.historyAction.show()">
+                                <span x-html="$store.icons.bell"></span> 
+                                View History 
+                                <span id="toast-badge" class="badge badge-accent hidden" style="margin-left:auto">0</span>
+                            </button>
+                        </label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="filter-group mt-md">
                     <legend>Server Connection</legend>
                     <label class="control-item">
                         <span>Server Type</span>
@@ -396,7 +432,6 @@
                     </label>
                 </fieldset>
 
-                <!-- NEW: Danger Zone for Vector DB Resets -->
                 <fieldset class="filter-group mt-md danger-zone">
                     <legend>Maintenance & Recovery</legend>
                     <div class="flex-column gap-sm">

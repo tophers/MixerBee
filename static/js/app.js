@@ -43,24 +43,15 @@ async function initializeApp() {
 
     const loadingOverlay = document.getElementById('loading-overlay');
     try {
-        const themeToggle = document.getElementById('theme-toggle-cb');
         const body = document.body;
         const toastBadge = document.getElementById('toast-badge');
 
         hydrateStores();
 
-        const applyTheme = (theme) => {
-            body.dataset.theme = theme;
-            localStorage.setItem('mixerbeeTheme', theme);
-            if (themeToggle) themeToggle.checked = (theme === 'light');
-        };
+        const sStore = Alpine.store('settings');
+        body.dataset.theme = sStore.theme;
 
-        applyTheme(localStorage.getItem('mixerbeeTheme') || 'dark');
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
-
-        if (themeToggle) {
-            themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked ? 'light' : 'dark'));
-        }
 
         document.addEventListener('toast-added', () => {
             const modals = Alpine.store('modals');
@@ -82,7 +73,6 @@ async function initializeApp() {
             const config = await post('api/config_status', null, null, 'GET', true);
             if (!config || config.status === 'error') throw new Error(config?.detail || "Backend failure.");
 
-            const sStore = Alpine.store('settings');
             Object.assign(sStore, {
                 version: config.version || '',
                 server_type: config.server_type || 'emby',

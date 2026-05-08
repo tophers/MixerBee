@@ -5,6 +5,7 @@ app/ai/vector_store.py - Vector DB init and config with robust similarity search
 import json
 import time
 import threading
+import random
 from typing import List, Dict, Optional
 import chromadb
 import numpy as np
@@ -183,6 +184,45 @@ def calculate_library_iq() -> dict:
     except Exception as e:
         logger.error(f"Stats calculation failed: {e}")
         return {"total": 0, "enriched": 0}
+
+def get_discovery_tags(limit: int = 60) -> List[str]:
+    """
+    Extracts and aggregates unique vibe_tags from all enriched media.
+    Checks both boolean and string variants to be safe.
+    """
+    try:
+        enriched_data = media_collection.get(
+            where={"is_enriched": True},
+            include=["metadatas"],
+            limit=2000
+        )
+        
+        all_metadatas = enriched_data.get('metadatas', [])
+        
+        if not all_metadatas:
+            enriched_data = media_collection.get(
+                where={"is_enriched": "True"},
+                include=["metadatas"],
+                limit=2000
+            )
+            all_metadatas = enriched_data.get('metadatas', [])
+
+        if not all_metadatas:
+            return []
+            
+        all_tags = set()
+        for meta in all_metadatas:
+            tag_str = meta.get('vibe_tags', '')
+            if tag_str:
+                parts = [t.strip().lower() for t in tag_str.split(',') if t.strip()]
+                all_tags.update(parts)
+        
+        tag_list = list(all_tags)
+        random.shuffle(tag_list)
+        return tag_list[:limit]
+    except Exception as e:
+        logger.error(f"Failed to aggregate discovery tags: {e}")
+        return []
 
 def index_library_for_vibes(user_id: str, hdr: dict):
     """Fetches metadata from Emby and embeds locally. Restores AI tags from backup if available."""
@@ -471,7 +511,7 @@ def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit
             matched_items = build_matches(fallback_threshold)
 
         for item in matched_items:
-            logger.info(f"   [COMP-MATCH] {item['Name']} | Distance: {item['Distance']:.4f}")
+            logger.info(f"    [COMP-MATCH] {item['Name']} | Distance: {item['Distance']:.4f}")
 
         return matched_items[:limit]
 
