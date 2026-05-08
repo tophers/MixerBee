@@ -12,7 +12,7 @@ import app as core
 import models
 import app_state
 from app.cache import get_library_data
-from app.ai.vector_store import calculate_library_iq, media_collection
+from app.ai.vector_store import calculate_library_iq, media_collection, get_discovery_tags
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
@@ -40,6 +40,12 @@ def api_library_iq(auth_deps: dict = Depends(get_current_auth_headers)) -> JSONR
             "Expires": "0",
         }
     )
+
+@router.get("/api/library/mood_discovery")
+def api_mood_discovery(auth_deps: dict = Depends(get_current_auth_headers)):
+    """Returns a random sampling of vibe tags from the enriched library."""
+    tags = get_discovery_tags(limit=60)
+    return {"status": "ok", "tags": tags}
 
 @router.get("/api/default_user")
 def api_default_user(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, str]:

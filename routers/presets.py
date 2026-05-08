@@ -58,8 +58,11 @@ def api_external_prompt_to_preset(req: ExternalPromptRequest, auth_deps: dict = 
     try:
         from app.ai import generate_smart_blocks
         
-        blocks, model_used = generate_smart_blocks(req.prompt)
+        blocks, model_used, logs = generate_smart_blocks(req.prompt)
         
+        if not blocks and logs:
+            raise HTTPException(status_code=404, detail=logs[0])
+
         success = pm.preset_manager.save_preset(req.preset_name, blocks)
         
         if success:
@@ -71,6 +74,8 @@ def api_external_prompt_to_preset(req: ExternalPromptRequest, auth_deps: dict = 
         else:
             raise HTTPException(status_code=500, detail="Failed to save preset to database.")
             
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error("External prompt_to_preset failed", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

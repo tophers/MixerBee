@@ -1,8 +1,10 @@
+// static/js/settingsStore.js
 import { post, toast } from './utils.js';
 import { confirmModal } from './modals.js';
 
 export const settingsStore = {
     isOpen: false,
+    theme: localStorage.getItem('mixerbeeTheme') || 'dark',
     activeUserId: '',
     activeUserName: '',
     server_type: 'emby',
@@ -52,6 +54,12 @@ export const settingsStore = {
             console.error("Failed to hydrate settings:", err);
         }
         this.isOpen = true;
+    },
+
+    updateTheme(newTheme) {
+        this.theme = newTheme;
+        document.body.dataset.theme = newTheme;
+        localStorage.setItem('mixerbeeTheme', newTheme);
     },
 
     async fetchOllamaStatus() {

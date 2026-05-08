@@ -48,15 +48,42 @@
 
         <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.is_ai_configured" x-cloak>
             <legend>AI Block Builder</legend>
-            <details>
-                <summary>Expand AI Block Builder</summary>
+            <details x-init="$store.mixer.fetchMoodDiscovery()">
+                <summary>Expand</summary>
                 <div class="textarea-wrapper">
                     <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.mixer.aiPrompt"></textarea>
                     <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.mixer.aiPrompt.length > 0" @click="$store.mixer.clearAiPrompt()">
                         <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
-                <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+               
+                <!-- Mood Discovery Slots -->
+                <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.mixer.activeMoods.length > 0" x-transition>
+                    <span class="text-subtle mr-xs hide-mobile" "font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
+                    <div class="flex-row gap-xs grow-1 overflow-hidden">
+                        <template x-for="(mood, i) in $store.mixer.activeMoods" :key="'mood-'+i">
+                            <button type="button" 
+                                    class="mood-slot-btn" 
+                                    @click="$store.mixer.appendMood(i)"
+                                    title="Click to add to prompt">
+                                <span class="mood-slot-text" x-text="mood"></span>
+                            </button>
+                        </template>
+                    </div>
+                    <button type="button" 
+                            class="icon-btn mood-refresh-btn" 
+                            @click="$store.mixer.refreshMoodSlots()" 
+                            :class="$store.mixer.isMoodLoading ? 'spin' : ''"
+                            title="Refresh Moods">
+                        <span x-html="$store.icons.refresh" style="--icon-size: 14px;"></span>
+                    </button>
+                </div>
+                <div class="prompt-starter-overlay" x-show="$store.mixer.aiPrompt.length === 0 && $store.mixer.samplePrompt" x-transition x-cloak>
+                    <span class="text-subtle hide-mobile" "font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Try: </span>
+                    <button type="button" class="link-btn mood-discovery-bar" @click="$store.mixer.useSamplePrompt()" x-text="$store.mixer.samplePrompt"></button>
+                </div> 
+
+                <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
                     
                     <div class="dropdown-container" x-data="{ modelMenuOpen: false }">
                         <button type="button" class="badge badge-outline-subtle align-center gap-xs m-0" 

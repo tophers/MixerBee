@@ -1,23 +1,6 @@
 <!-- templates/partials/_nav.html -->
 <div class="main-header-bar">
     <div class="header-user-display">
-        <span x-html="$store.icons.user"></span>
-        <span x-text="$store.settings.activeUserName"></span>
-
-        <button id="toast-history-btn" type="button" class="icon-btn" title="Notifications" style="position: relative;" @click="$store.modals.historyAction.show(); const badge = document.getElementById('toast-badge'); if(badge) { badge.classList.add('hidden'); badge.textContent='0'; }">
-            <span x-html="$store.icons.bell"></span>
-            <span id="toast-badge" class="hidden" @click.stop="$store.modals.historyAction.show(); $el.classList.add('hidden'); $el.textContent='0'">0</span>
-        </button>
-
-        <div class="theme-switcher">
-            <label for="theme-toggle-cb" class="theme-toggle-label">
-                <span x-html="$store.icons.moon"></span>
-                <input type="checkbox" id="theme-toggle-cb">
-                <span class="slider"></span>
-                <span x-html="$store.icons.sun"></span>
-            </label>
-        </div>
-
         <button id="settings-btn" type="button" class="icon-btn" title="Settings" @click="$store.settings.show()">
             <span x-html="$store.icons.settings"></span>
         </button>

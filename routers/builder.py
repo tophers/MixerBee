@@ -125,7 +125,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
         raise HTTPException(status_code=501, detail="AI Provider is not correctly configured.")
 
     try:
-        blocks, model_used = generate_smart_blocks(req.prompt, req.tweaks)
+        blocks, model_used, logs = generate_smart_blocks(req.prompt, req.tweaks)
 
         for block in blocks:
             if block.get("type") == "movie" and "filters" in block:
@@ -144,7 +144,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
             "status": "ok",
             "blocks": blocks,
             "model_used": model_used,
-            "log": [f"Successfully generated using {model_used}."]
+            "log": logs if logs else [f"Successfully generated using {model_used}."]
         }
     except Exception as e:
         logging.error("Failed to generate from text", exc_info=True)
