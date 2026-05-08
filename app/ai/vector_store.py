@@ -191,21 +191,19 @@ def get_discovery_tags(limit: int = 60) -> List[str]:
     Checks both boolean and string variants to be safe.
     """
     try:
-        # Fetch a large chunk to get a good variety of tags
         enriched_data = media_collection.get(
             where={"is_enriched": True},
             include=["metadatas"],
-            limit=1000
+            limit=2000
         )
         
         all_metadatas = enriched_data.get('metadatas', [])
         
-        # Fallback: check if they were stored as strings
         if not all_metadatas:
             enriched_data = media_collection.get(
                 where={"is_enriched": "True"},
                 include=["metadatas"],
-                limit=1000
+                limit=2000
             )
             all_metadatas = enriched_data.get('metadatas', [])
 
@@ -216,7 +214,6 @@ def get_discovery_tags(limit: int = 60) -> List[str]:
         for meta in all_metadatas:
             tag_str = meta.get('vibe_tags', '')
             if tag_str:
-                # Clean up and split
                 parts = [t.strip().lower() for t in tag_str.split(',') if t.strip()]
                 all_tags.update(parts)
         

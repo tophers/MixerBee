@@ -517,7 +517,7 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
             temperature=0.0
         )
     )
-    if not builder_response or not builder_response.parsed: 
+    if not builder_response or builder_response.parsed is None:
         return [], model_name, ["Architect failed to parse results."]
 
     valid_blocks = [fb for b in builder_response.parsed if (fb := _map_to_frontend_block(b)) is not None]

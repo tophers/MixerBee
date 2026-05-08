@@ -59,7 +59,7 @@
                
                 <!-- Mood Discovery Slots -->
                 <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.mixer.activeMoods.length > 0" x-transition>
-                    <span class="text-subtle mr-xs hide-mobile" "font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
+                    <span class="text-subtle mr-xs hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
                     <div class="flex-row gap-xs grow-1 overflow-hidden">
                         <template x-for="(mood, i) in $store.mixer.activeMoods" :key="'mood-'+i">
                             <button type="button" 
