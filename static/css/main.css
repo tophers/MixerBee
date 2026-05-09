@@ -409,16 +409,16 @@ button.secondary:hover { background: var(--panel-alt); border-color: var(--accen
   border-bottom-color: var(--accent);
 }
 
-.btn-danger-outline {
-  color: var(--danger);
-  border: 1px solid var(--danger-outline-border);
-  background: transparent;
-}
-
 .btn-danger-outline:hover {
   background: var(--danger-outline-hover-bg);
+  color: var(--danger) !important;
+  border: 1px solid var(--danger-outline-border) !important;
 }
-
+.danger-hover:hover {
+  background: var(--danger-outline-hover-bg);
+  color: var(--danger) !important;
+  border: 1px solid var(--danger-outline-border) !important;
+}
 .theme-toggle-label {
   position: relative;
   display: flex;

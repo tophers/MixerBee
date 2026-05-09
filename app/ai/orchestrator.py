@@ -268,12 +268,13 @@ def _run_ollama_researcher(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str
     """
     Runs the Researcher phase and returns grouped results plus a strict ID-Type map.
     """
-    system = """You are the MixerBee Concierge. Your job is to query the local database to find media matching the user's request.
+    custom_prompt = f"\n\nUSER DIRECTIVE: {tweaks.system_prompt}" if tweaks.system_prompt else ""
+    system = f"""You are the MixerBee Concierge. Your job is to query the local database to find media matching the user's request.
 
     RULES:
     1. SPLIT YOUR QUERIES: If the user asks for multiple distinct concepts (e.g. "cyberpunk movies" AND "90s sitcoms"), you MUST make MULTIPLE SEPARATE tool calls. Do not combine them into one search.
     2. USE EXACT FILTERS: When calling search_by_vibe, use the 'media_type' argument to specify 'Movie' or 'Series' if the user asks for a specific format.
-    3. KEEP IT SIMPLE: For the query string, only pass the core vibe/theme (e.g. "gritty cyberpunk" or "90s sitcom").
+    3. KEEP IT SIMPLE: For the query string, only pass the core vibe/theme (e.g. "gritty cyberpunk" or "90s sitcom").{custom_prompt}
     """
 
     messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
@@ -352,6 +353,7 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     else:
         strictness_rule = "4. VIBE FIRST CURATION: Trust the 'Found via' labels in the findings. If it was found for this group, keep it."
 
+    custom_prompt = f"\n\nUSER DIRECTIVE: {tweaks.system_prompt}" if tweaks.system_prompt else ""
     builder_system = f"""You are the MixerBee Master Architect.
     Transform the specific research findings provided into a structured JSON block list.
 
@@ -365,7 +367,7 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     1. BLOCK GROUPING: Group all movies into ONE block. Group all TV shows into ONE block.
     2. QUANTITY: If the user requests a specific number of shows/movies, pick exactly that many from the findings.
     {strictness_rule}
-    5. REASONING: Briefly explain your choices.
+    5. REASONING: Briefly explain your choices.{custom_prompt}
 
     Respond ONLY with raw JSON."""
 
@@ -477,6 +479,7 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     else:
         strictness_rule = "4. VIBE FIRST: Trust the 'Found via' labels. If an item is labeled as found via the requested vibe, keep it regardless of standard genre tags."
 
+    custom_prompt = f"\n\nUSER DIRECTIVE: {tweaks.system_prompt}" if tweaks.system_prompt else ""
     system_instruction = f"""You are a Research assistant and Master Architect.
 
     ### TV BLOCK LOGIC ###
@@ -489,7 +492,7 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     3. QUANTITY: If the user requests a specific number of shows/movies, pick exactly that many from the findings.
     4. TYPE MATCHING: "Type: Series" -> "tv" block (tv_ids). "Type: Movie" -> "movie" block (movie_ids).
     {strictness_rule}
-    6. POPULATE IDs: You MUST output the raw numeric IDs in the 'movie_ids' or 'tv_ids' arrays. DO NOT put titles in the ID arrays!
+    6. POPULATE IDs: You MUST output the raw numeric IDs in the 'movie_ids' or 'tv_ids' arrays. DO NOT put titles in the ID arrays!{custom_prompt}
     """
 
     chat = client.chats.create(
@@ -503,7 +506,6 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     research_response = chat.send_message(prompt)
     logger.info(f"--- GEMINI FINDINGS ---\n{research_response.text}")
     
-    # Simple heuristic to see if research found nothing
     if not any(char.isdigit() for char in research_response.text):
         msg = "Researcher found no matching IDs in your library. Try Relaxing Relevancy."
         return [], model_name, [msg]

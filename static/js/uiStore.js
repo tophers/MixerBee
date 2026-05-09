@@ -2,6 +2,7 @@
 
 export const uiStore = {
     currentTab: 'mixed',
+    showAiBuilder: false,
     
     setTab(tab) {
         this.currentTab = tab;

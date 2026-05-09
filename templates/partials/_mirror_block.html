@@ -87,6 +87,9 @@
                                     <template x-if="block.filters.mixed_echo">
                                         <span class="badge badge-outline-accent">Mixed Format</span>
                                     </template>
+                                    <template x-if="block.filters.include_seeds">
+                                        <span class="badge badge-accent">Seeds Included</span>
+                                    </template>
                                 </template>
                             </div>
                         </div>
@@ -114,7 +117,7 @@
                     <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-subtle mb-md">Search for  one or more items to use as seeds. MixerBee will find media that matches their combined feel. Use negative seeds to exclude specific concepts</p>
+                    <p class="text-subtle mb-md">Search for one or more items to use as seeds. MixerBee will find media that matches their combined feel. Use negative seeds to exclude specific concepts</p>
 
                     <!-- Search Input -->
                     <div class="mb-lg" style="position: relative; width: 100%; display: block;">
@@ -176,6 +179,17 @@
 
                     <fieldset class="filter-group">
                         <legend>Similarity Tuning</legend>
+
+                        <div class="tweak-item mb-md">
+                            <div class="tweak-label-row">
+                                <span class="tweak-title">Playlist Content</span>
+                            </div>
+                            <div class="toggle-pill w-full">
+                                <span class="pill-btn grow-1 text-center" :class="!block.filters.include_seeds ? 'active' : ''" @click="block.filters.include_seeds = false; $store.mixer.updatePreviewCount(block)">Echoes Only</span>
+                                <span class="pill-btn grow-1 text-center" :class="block.filters.include_seeds ? 'active' : ''" @click="block.filters.include_seeds = true; $store.mixer.updatePreviewCount(block)">Seed & Echo</span>
+                            </div>
+                            <p class="tweak-description mt-xs">"Seed & Echo" places your positive seeds at the very beginning of the playlist block.</p>
+                        </div>
 
                         <div class="tweak-item mb-md">
                             <div class="tweak-label-row">

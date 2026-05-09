@@ -1,7 +1,7 @@
 <!-- templates/partials/_modals.html -->
 
 <!-- Save Preset Modal -->
-<div class="modal-overlay" x-show="$store.modals.preset.isOpen" x-cloak>
+<div class="modal-overlay sub-modal" x-show="$store.modals.preset.isOpen" x-cloak>
     <div class="modal-window" @click.outside="$store.modals.presetAction.close(null, true)">
         <div class="modal-header">
             <h2>Save Preset</h2>
@@ -22,7 +22,7 @@
 </div>
 
 <!-- Smart Playlist Modal -->
-<div class="modal-overlay" x-show="$store.modals.playlist.isOpen" x-cloak>
+<div class="modal-overlay sub-modal" x-show="$store.modals.playlist.isOpen" x-cloak>
     <div class="modal-window" @click.outside="$store.modals.playlistAction.close(null, true)">
         <div class="modal-header">
             <h2 x-text="$store.modals.playlist.title"></h2>
@@ -49,7 +49,7 @@
 </div>
 
 <!-- Import Preset Modal -->
-<div class="modal-overlay" x-show="$store.modals.import.isOpen" x-cloak>
+<div class="modal-overlay sub-modal" x-show="$store.modals.import.isOpen" x-cloak>
     <div class="modal-window" @click.outside="$store.modals.importAction.close(null, true)">
         <div class="modal-header">
             <h2>Import Preset</h2>
@@ -115,26 +115,78 @@
                 <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
             </template>
             <template x-if="($store.modals.preview.items || []).length > 0">
-                <ol class="preview-list">
-                    <template x-for="(item, index) in $store.modals.preview.items" :key="'preview-' + index">
-                        <li>
-                            <span class="item-name" x-text="item.name"></span>
-                            <template x-if="item.context">
-                                <span class="item-context" x-text="item.context"></span>
-                            </template>
+                <ol class="preview-list" x-sort="$store.modals.preview.items" x-sort:config="{ handle: '.drag-handle' }">
+                    <template x-for="(item, index) in $store.modals.preview.items" :key="item.Id || index">
+                        <li x-sort:item class="flex-row align-center gap-md">
+                            <div class="drag-handle opacity-60" x-sort:handle x-html="$store.icons.move"></div>
+                            <div class="grow-1">
+                                <span class="item-name" x-text="item.name"></span>
+                                <template x-if="item.context">
+                                    <span class="item-context" x-text="item.context"></span>
+                                </template>
+                            </div>
                         </li>
                     </template>
                 </ol>
             </template>
         </div>
         <div class="modal-footer">
-            <button type="button" @click="$store.modals.previewAction.close()">Close</button>
+            <button type="button" class="secondary mr-auto" @click="$store.modals.previewAction.close()">Close</button>
+            <button type="button" class="primary" @click="$store.mixer.buildFromPreview($el)" x-show="($store.modals.preview.items || []).length > 0">Build This Order</button>
+        </div>
+    </div>
+</div>
+
+<!-- Manager Item Contents Modal -->
+<div class="modal-overlay" x-show="$store.manager.contentsModal.isOpen" x-cloak>
+    <div class="modal-window wide" @click.outside="if(!$store.manager.contentsModal.hasChanges) $store.manager.contentsModal.isOpen = false">
+        <div class="modal-header">
+            <h2 x-text="$store.manager.contentsModal.title"></h2>
+            <button type="button" class="icon-btn" @click="$store.manager.contentsModal.isOpen = false">&times;</button>
+        </div>
+        <div class="modal-body-scroll">
+            <template x-if="$store.manager.contentsModal.isLoading">
+                <p class="text-center p-xl">Loading contents...</p>
+            </template>
+            <ul class="no-list" 
+                x-sort="$store.manager.contentsModal.items" 
+                x-sort:config="{ handle: '.drag-handle' }" 
+                @sort="$store.manager.contentsModal.hasChanges = true">
+                <template x-for="c in ($store.manager.contentsModal.items || [])" :key="c.Id">
+                    <li x-sort:item class="list-item-divider flex-row justify-between align-center" :data-id="c.Id || c.id">
+                        <div class="flex-row align-center gap-md grow-1">
+                            <div class="drag-handle opacity-60" x-sort:handle x-html="$store.icons.move"></div>
+                            <div>
+                                <div class="bold" x-text="c.Name || c.name"></div>
+                                <div class="text-subtle curated-preview-text" style="font-size: 0.8rem;">
+                                    <span x-text="c.Type || c.type"></span>
+                                    <template x-if="c.SeriesName"><span x-text="' • ' + c.SeriesName"></span></template>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="button"
+                                class="secondary small icon-only btn-danger-outline"
+                                @click="$store.manager.removeItem(c)"
+                                title="Remove from list"
+                                x-html="$store.icons.trash">
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary mr-auto" @click="$store.manager.contentsModal.isOpen = false">Close</button>
+            <button type="button" class="primary" 
+                    :disabled="!$store.manager.contentsModal.hasChanges" 
+                    @click="$store.manager.saveContentOrder($el)">
+                Save Order
+            </button>
         </div>
     </div>
 </div>
 
 <!-- Reset Watch History Modal -->
-<div class="modal-overlay" x-show="$store.modals.resetWatch.isOpen" x-cloak>
+<div class="modal-overlay sub-modal" x-show="$store.modals.resetWatch.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
             <h2>Reset Watch History?</h2>
@@ -152,7 +204,7 @@
 </div>
 
 <!-- Generic Confirmation Modal -->
-<div class="modal-overlay" x-show="$store.modals.confirm.isOpen" x-cloak>
+<div class="modal-overlay sub-modal" x-show="$store.modals.confirm.isOpen" x-cloak>
     <div class="modal-window">
         <div class="modal-header">
             <h2 x-text="$store.modals.confirm.title"></h2>
@@ -182,7 +234,7 @@
                 </template>
                 <template x-for="item in ($store.modals.history.toastHistory || [])">
                     <li class="list-item-divider" style="align-items: flex-start; display: flex; gap: 10px;">
-                        <span :style="'color: ' + (item.isSuccess ? 'var(--success)' : 'var(--danger)') + '; margin-top: 2px;'">●</span>
+                        <span :style="'color: ' + (item.isSuccess ? 'var(--success)' : 'var(--danger)') + '; margin-top: 2px;' ">●</span>
                         <div style="display: flex; flex-direction: column; flex-grow: 1;">
                             <span style="font-size: 0.85rem; color: var(--text-subtle);" x-text="item.timestamp"></span>
                             <span style="line-height: 1.4;" x-text="item.message"></span>
@@ -214,6 +266,15 @@
                         <span class="bold">Database Re-Index Required</span>
                     </div>
                     <p class="text-subtle" style="font-size: 0.8rem;">Your library is indexed using L2 (Euclidean) distance. AI "Vibes" and Relevancy Thresholds will not function correctly until the database is converted to Cosine similarity. This should happen automatically on restart.</p>
+                </div>
+
+                <!-- Custom System Prompt -->
+                <div class="tweak-item mb-md">
+                    <div class="tweak-label-row">
+                        <span class="tweak-title">Custom System Prompt</span>
+                    </div>
+                    <textarea x-model="$store.mixer.aiTweaks.system_prompt" rows="3" class="w-full" placeholder="e.g. Always prioritize 80s media unless specified otherwise..."></textarea>
+                    <p class="tweak-description">Inject specific instructions into the AI's core behavior.</p>
                 </div>
 
                 <!-- Relevancy Threshold -->

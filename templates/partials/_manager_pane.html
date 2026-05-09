@@ -68,41 +68,4 @@
             </span>
         </div>
     </div>
-
-    <!-- Item Contents Modal -->
-    <div class="modal-overlay" x-show="$store.manager.contentsModal.isOpen" x-cloak>
-        <div class="modal-window wide" @click.outside="$store.manager.contentsModal.isOpen = false">
-            <div class="modal-header">
-                <h2 x-text="$store.manager.contentsModal.title"></h2>
-                <button type="button" class="icon-btn" @click="$store.manager.contentsModal.isOpen = false">&times;</button>
-            </div>
-            <div class="modal-body-scroll">
-                <template x-if="$store.manager.contentsModal.isLoading">
-                    <p class="text-center p-xl">Loading contents...</p>
-                </template>
-                <ul class="no-list">
-                    <template x-for="c in ($store.manager.contentsModal.items || [])" :key="c.Id">
-                        <li class="list-item-divider flex-row justify-between align-center">
-                            <div>
-                                <div class="bold" x-text="c.Name || c.name"></div>
-                                <div class="text-subtle curated-preview-text" style="font-size: 0.8rem;">
-                                    <span x-text="c.Type || c.type"></span>
-                                    <template x-if="c.SeriesName"><span x-text="' • ' + c.SeriesName"></span></template>
-                                </div>
-                            </div>
-                            <button type="button"
-                                    class="secondary small icon-only btn-danger-outline"
-                                    @click="$store.manager.removeItem(c)"
-                                    title="Remove from list"
-                                    x-html="$store.icons.trash">
-                            </button>
-                        </li>
-                    </template>
-                </ul>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="primary" @click="$store.manager.contentsModal.isOpen = false">Close</button>
-            </div>
-        </div>
-    </div>
 </div>

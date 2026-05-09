@@ -176,6 +176,52 @@ def api_get_item_children(item_id: str, user_id: str, auth_deps: dict = Depends(
         logging.error(f"Error fetching children for item {item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/api/items/{item_id}/reorder")
+def api_reorder_item_children(item_id: str, req: models.ReorderItemsRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    """
+    Reorders children of a playlist or collection. 
+    It clears existing items and re-adds them in the new order.
+    """
+    action_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+    log = []
+    
+    try:
+        params = {"Ids": item_id, "UserId": req.user_id}
+        r = core.client.SESSION.get(f"{core.client.EMBY_URL}/Users/{req.user_id}/Items", params=params, headers=action_hdr, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+        if not items:
+            raise HTTPException(404, "Parent item not found.")
+        
+        parent_item = items[0]
+        parent_type = parent_item.get("Type")
+        parent_name = parent_item.get("Name")
+        
+        if parent_type == "Playlist":
+            if core.items.clear_playlist_items(item_id, req.user_id, action_hdr, log):
+                success = core.items.add_items_to_playlist_by_ids(item_id, req.item_ids, req.user_id, action_hdr, log)
+                if not success:
+                    raise HTTPException(500, "Failed to re-add items to playlist.")
+            else:
+                raise HTTPException(500, "Failed to clear playlist for reordering.")
+        elif parent_type in ["BoxSet", "Collection"]:
+            if core.delete_item_by_id(item_id, action_hdr):
+                new_id = core.items.create_collection_from_ids(req.user_id, parent_name, req.item_ids, action_hdr, log)
+                if not new_id:
+                    raise HTTPException(500, "Failed to recreate collection with new order.")
+            else:
+                raise HTTPException(500, "Failed to delete collection for reordering.")
+        else:
+            raise HTTPException(400, f"Unsupported item type for reordering: {parent_type}")
+
+        return {"status": "ok", "log": ["Items reordered successfully."]}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error reordering item {item_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/api/delete_item")
 def api_delete_item(req: models.DeleteItemRequest, auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
     try:
