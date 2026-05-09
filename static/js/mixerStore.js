@@ -30,7 +30,8 @@ export const mixerStore = {
         strictness: 'genre_verified',
         temperature: 0.2,
         target_size: 10,
-        only_unwatched: false
+        only_unwatched: false,
+        system_prompt: ''
     },
 
     moodPool: [],
@@ -124,6 +125,7 @@ export const mixerStore = {
             block.filters.seeds_positive = block.filters.seeds_positive ?? [];
             block.filters.seeds_negative = block.filters.seeds_negative ?? [];
             block.filters.mixed_echo = block.filters.mixed_echo ?? false;
+            block.filters.include_seeds = block.filters.include_seeds ?? false;
             block.limit = block.limit ?? 10;
             block.threshold = block.threshold ?? 0.65;
         }
@@ -297,6 +299,8 @@ export const mixerStore = {
         if (index === -1) return;
 
         const clonedItem = JSON.parse(JSON.stringify(item));
+        clonedItem.Id = clonedItem.Id || clonedItem.id; // Normalize just in case
+
         sourceArray.splice(index, 1);
 
         let nextKey;
@@ -383,7 +387,7 @@ export const mixerStore = {
         } catch (e) { }
     },
 
-    async loadBlocks(blocksData = []) {
+    async loadBlocks(blocksData = [], append = false) {
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
@@ -421,7 +425,12 @@ export const mixerStore = {
             });
 
             await Promise.all(promises);
-            this.blocks.splice(0, this.blocks.length, ...blocksData);
+            
+            if (append) {
+                this.blocks.push(...blocksData);
+            } else {
+                this.blocks.splice(0, this.blocks.length, ...blocksData);
+            }
 
         } catch (e) {
             console.error("[MixerBee] loadBlocks failed:", e);
@@ -441,7 +450,7 @@ export const mixerStore = {
         } else if (type === 'music') {
             block = { type: 'music', music: { mode: 'album', count: 10, filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
         } else if (type === 'mirror') {
-            block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [], mixed_echo: false }, limit: 10, threshold: 0.65 };
+            block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [], mixed_echo: false, include_seeds: false }, limit: 10, threshold: 0.65 };
         }
 
         if (block) {
@@ -496,7 +505,7 @@ export const mixerStore = {
                         actionCallback: () => aiTweaksModal.show()
                     });
                 } else {
-                    await this.loadBlocks(res.blocks);
+                    await this.loadBlocks(res.blocks, true);
                 }
             }
         } catch (e) {
@@ -558,7 +567,7 @@ export const mixerStore = {
         
         const count = Math.min(this.moodPool.length, 2);
         const tags = [...this.moodPool].sort(() => 0.5 - Math.random()).slice(0, count);
-       
+        
 
         const structures = count > 1 ? [
             `A mix of ${tags[0]} and ${tags[1]} movies with some hints of ${tags[0]}`,
@@ -661,6 +670,32 @@ export const mixerStore = {
                 await post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: this.blocks, create_as_collection: this.createAsCollection }, btnEl);
             } catch (err) { }
         }
+    },
+
+    async buildFromPreview(btnEl) {
+        const previewItems = Alpine.store('modals').preview.items;
+        if (!previewItems || previewItems.length === 0) return;
+
+        const uid = Alpine.store('settings').activeUserId;
+        const itemIds = previewItems.map(i => i.Id || i.id);
+
+        try {
+            const { playlistName } = await smartPlaylistModal.show({
+                title: 'Name Custom Order',
+                description: 'Build playlist from this preview order.',
+                countInput: false,
+                defaultName: 'Custom Preview Mix'
+            });
+
+            await post('api/create_mixed_playlist', {
+                user_id: uid,
+                playlist_name: playlistName,
+                item_ids: itemIds,
+                create_as_collection: false
+            }, btnEl);
+
+            previewModal.close();
+        } catch (e) { }
     },
 
     async showSmartBuildMenu() {

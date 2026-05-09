@@ -123,6 +123,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
         seeds_pos = [s['Id'] for s in filters.get("seeds_positive", [])]
         seeds_neg = [s['Id'] for s in filters.get("seeds_negative", [])]
         mixed_echo = filters.get("mixed_echo", False)
+        include_seeds = filters.get("include_seeds", False)
         
         target_limit = int(block.get("limit", 10))
         threshold = float(block.get("threshold", 0.65))
@@ -130,6 +131,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
         if not seeds_pos:
             return []
 
+        # 1. Fetch echoes from the vector store
         pool_size = max(40, target_limit * 4)
         similar_pool = search_by_composite_similarity(
             positive_ids=seeds_pos, 
@@ -139,35 +141,59 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
             mixed_echo=mixed_echo
         )
         
-        if not similar_pool:
-            return []
+        if similar_pool:
+            sampled_matches = random.sample(similar_pool, min(target_limit, len(similar_pool)))
 
-        sampled_matches = random.sample(similar_pool, min(target_limit, len(similar_pool)))
+            movie_ids = []
+            series_ids = []
 
-        movie_ids = []
-        series_ids = []
+            for match in sampled_matches:
+                m_type = match.get("Type")
+                m_id = match.get("Id")
+                if m_type == "Movie":
+                    movie_ids.append(m_id)
+                elif m_type == "Series":
+                    series_ids.append(m_id)
 
-        for match in sampled_matches:
-            m_type = match.get("Type")
-            m_id = match.get("Id")
-            if m_type == "Movie":
-                movie_ids.append(m_id)
-            elif m_type == "Series":
-                series_ids.append(m_id)
+            if movie_ids:
+                resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
+                items.extend(resolved_movies)
 
-        if movie_ids:
-            resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
-            items.extend(resolved_movies)
+            for sid in series_ids:
+                next_ep = get_first_unwatched_episode(sid, user_id, hdr)
+                if not next_ep:
+                    next_ep = get_first_available_episode(sid, user_id, hdr)
+                
+                if next_ep:
+                    items.append(next_ep)
 
-        for sid in series_ids:
-            next_ep = get_first_unwatched_episode(sid, user_id, hdr)
-            if not next_ep:
-                next_ep = get_first_available_episode(sid, user_id, hdr)
+            random.shuffle(items)
+
+        # 2. Optionally include Master seeds at the front
+        if include_seeds:
+            master_items = []
+            from .ai.vector_store import media_collection
             
-            if next_ep:
-                items.append(next_ep)
-
-        random.shuffle(items)
+            # Use ChromaDB to get the type and name for the seeds
+            seed_data = media_collection.get(ids=seeds_pos, include=["metadatas"])
+            
+            if seed_data and seed_data.get("ids"):
+                for i, sid in enumerate(seed_data["ids"]):
+                    meta = seed_data["metadatas"][i]
+                    m_type = meta.get("type")
+                    
+                    if m_type == "Movie":
+                        # Resolve full metadata for movie
+                        m_list = find_movies(user_id=user_id, filters={"ids": [sid]}, hdr=hdr)
+                        if m_list: master_items.append(m_list[0])
+                    elif m_type == "Series":
+                        # Resolve first unwatched or first available episode
+                        next_ep = get_first_unwatched_episode(sid, user_id, hdr)
+                        if not next_ep:
+                            next_ep = get_first_available_episode(sid, user_id, hdr)
+                        if next_ep: master_items.append(next_ep)
+            
+            items = master_items + items
 
     except Exception as e:
         logging.error(f"Error processing Echo block {block_index}: {e}", exc_info=True)
@@ -225,6 +251,7 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: 
 def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     formatted_list = []
     for item in items:
+        item_id = item.get("Id")
         item_type = item.get("Type")
         name = item.get("Name", "Unknown")
         context = ""
@@ -245,7 +272,7 @@ def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]
             elif artist:
                 context = artist
 
-        formatted_list.append({"name": name, "context": context})
+        formatted_list.append({"Id": item_id, "name": name, "context": context})
 
     return formatted_list
 

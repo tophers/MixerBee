@@ -46,17 +46,22 @@
             </div>
         </div>
 
-        <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.is_ai_configured" x-cloak>
-            <legend>AI Block Builder</legend>
-            <details x-init="$store.mixer.fetchMoodDiscovery()">
-                <summary>Expand</summary>
+        <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.is_ai_configured && $store.ui.showAiBuilder" x-transition x-cloak>
+            <div class="flex-row justify-between align-center mb-sm">
+                <legend class="m-0" style="padding: 0; margin-left: 0.5rem;">AI Block Builder</legend>
+                <button type="button" class="icon-btn" @click="$store.ui.showAiBuilder = false" title="Close AI Builder" style="font-size: 1.5rem;">
+                    &times;
+                </button>
+            </div>
+            
+            <div x-init="$store.mixer.fetchMoodDiscovery()">
                 <div class="textarea-wrapper">
                     <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.mixer.aiPrompt"></textarea>
                     <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.mixer.aiPrompt.length > 0" @click="$store.mixer.clearAiPrompt()">
                         <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
-               
+                
                 <!-- Mood Discovery Slots -->
                 <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.mixer.activeMoods.length > 0" x-transition>
                     <span class="text-subtle mr-xs hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
@@ -79,7 +84,7 @@
                     </button>
                 </div>
                 <div class="prompt-starter-overlay" x-show="$store.mixer.aiPrompt.length === 0 && $store.mixer.samplePrompt" x-transition x-cloak>
-                    <span class="text-subtle hide-mobile" "font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Try: </span>
+                    <span class="text-subtle hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Try: </span>
                     <button type="button" class="link-btn mood-discovery-bar" @click="$store.mixer.useSamplePrompt()" x-text="$store.mixer.samplePrompt"></button>
                 </div> 
 
@@ -128,7 +133,7 @@
                         </button>
                     </div>
                 </div>
-            </details>
+            </div>
         </fieldset>
 
         <div id="mixed-playlist-blocks" x-sort:config="{ handle: '.block-drag-handle' }" x-sort="$store.mixer.blocks">
@@ -156,17 +161,20 @@
             <div class="button-group flex-wrap grow-1">
                 <div class="dropdown-container" x-data="{ open: false }">
                     <button class="secondary m-0 align-center gap-xs" @click="open = !open" @click.outside="open = false">
-                        <span x-html="$store.icons.plus"></span>
-                        <span class="hide-mobile">Add Block</span>
-                        <span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
+                        <span x-html="$store.icons.plus"></span><span class="hide-mobile">Add Block</span><span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
                     </button>
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span> Echo Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span> Echo Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
                     </div>
                 </div>
+                
+                <button type="button" class="secondary m-0 align-center gap-xs" x-show="$store.settings.is_ai_configured" @click="$store.ui.showAiBuilder = !$store.ui.showAiBuilder">
+                    <span x-html="$store.icons.zap"></span> <span class="hide-mobile">AI Builder</span>
+                </button>
+                
                 <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.showSmartBuildMenu()"><span x-html="$store.icons.framer"></span> <span class="hide-mobile">Auto Playlists</span></button>
                 <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.previewPlaylist($el)"><span x-html="$store.icons.search"></span> <span class="hide-mobile">Preview</span></button>
             </div>

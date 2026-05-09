@@ -188,7 +188,18 @@ def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Dep
 def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
     result = {}
-    if req.create_as_collection:
+    
+    if req.item_ids:
+        new_item_id = core.create_playlist(
+            name=req.playlist_name,
+            user_id=req.user_id,
+            ids=req.item_ids,
+            hdr=user_specific_hdr,
+            log=[]
+        )
+        result = {"status": "ok" if new_item_id else "error", "new_item_id": new_item_id, "log": ["Playlist created from custom order."]}
+    
+    elif req.create_as_collection:
         if not req.blocks or len(req.blocks) != 1 or (req.blocks[0].get("type") != "movie" and req.blocks[0].get("vibe_type") != "movie"):
             raise HTTPException(400, "Collections can only be created from a single movie block.")
 

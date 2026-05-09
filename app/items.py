@@ -219,6 +219,7 @@ def clear_playlist_items(
     and returns False.
     """
     try:
+        # Request with minimal fields to ensure PlaylistItemId is present in root of response items
         r = client.SESSION.get(f"{client.EMBY_URL}/Playlists/{playlist_id}/Items",
                                params={"UserId": user_id, "Fields": "Id"}, headers=hdr, timeout=10)
         r.raise_for_status()
@@ -228,10 +229,16 @@ def clear_playlist_items(
         logger.error(msg, exc_info=True)
         log.append(msg)
         return False
+
     playlist_entries = [{"media_id": item.get("Id"), "entry_id": item.get("PlaylistItemId")}
                         for item in items if item.get("PlaylistItemId")]
+    
     if not playlist_entries:
+        logger.info(f"Clear Playlist: No items with PlaylistItemId found in playlist {playlist_id}. Assuming it is already empty.")
         return True
+    
+    logger.info(f"Clear Playlist: Identified {len(playlist_entries)} entries to remove from playlist {playlist_id}.")
+    
     successfully_removed_media_ids = []
     chunk_size = 50
     max_attempts = 3
@@ -261,6 +268,8 @@ def clear_playlist_items(
             if restore_on_failure and successfully_removed_media_ids:
                 _restore_items(playlist_id, successfully_removed_media_ids, user_id, hdr, log)
             return False
+            
+    logger.info(f"Clear Playlist: Successfully removed all {len(successfully_removed_media_ids)} items.")
     return True
 
 def add_items_to_playlist_by_ids(playlist_id: str, item_ids: List[str], user_id: str, hdr: Dict[str, str], log: List[str]) -> bool:

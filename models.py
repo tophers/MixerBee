@@ -33,11 +33,16 @@ class MixedPlaylistRequest(BaseModel):
     user_id: str
     playlist_name: str
     blocks: Optional[List[Dict[str, Any]]] = None
+    item_ids: Optional[List[str]] = None
     create_as_collection: bool = False
 
 class BuilderPreviewRequest(BaseModel):
     user_id: str
     blocks: List[Dict[str, Any]]
+
+class ReorderItemsRequest(BaseModel):
+    user_id: str
+    item_ids: List[str]
 
 class AddItemsRequest(BaseModel):
     user_id: str
@@ -75,6 +80,7 @@ class AiTweaks(BaseModel):
     temperature: float = 0.2
     target_size: int = 10
     only_unwatched: bool = False
+    system_prompt: str = ""
 
 class AiPromptRequest(BaseModel):
     prompt: str

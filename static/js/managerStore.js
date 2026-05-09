@@ -22,7 +22,8 @@ export const managerStore = {
         parentItem: null,
         title: '',
         items: [],
-        isLoading: false
+        isLoading: false,
+        hasChanges: false
     },
 
     async loadIq() {
@@ -45,7 +46,7 @@ export const managerStore = {
         this.isLoading = true;
         this.loadIq();
         try {
-            const res = await fetch(`api/manageable_items?user_id=${uid}`);
+            const res = await fetch(`api/manageable_items?user_id=${uid}&_cb=${Date.now()}`);
             if (res.ok) {
                 const data = await res.json();
                 const rawList = Array.isArray(data) ? data : (data.Items || []);
@@ -101,15 +102,39 @@ export const managerStore = {
         this.contentsModal.title = item.Name;
         this.contentsModal.isOpen = true;
         this.contentsModal.isLoading = true;
+        this.contentsModal.hasChanges = false;
         this.contentsModal.items = [];
         try {
-            const res = await fetch(`api/items/${item.Id}/children?user_id=${uid}`);
+            const res = await fetch(`api/items/${item.Id}/children?user_id=${uid}&_cb=${Date.now()}`);
             if (res.ok) {
                 const data = await res.json();
                 this.contentsModal.items = Array.isArray(data) ? data : (data.Items || []);
             }
         } catch (e) { toast("Load failed", false); }
         finally { this.contentsModal.isLoading = false; }
+    },
+
+    async saveContentOrder(btnEl) {
+        const parent = this.contentsModal.parentItem;
+        const uid = Alpine.store('settings').activeUserId;
+        if (!parent || !uid) return;
+
+        const itemNodes = document.querySelectorAll('.modal-window.wide ul.no-list li[data-id]');
+        const itemIds = Array.from(itemNodes).map(node => node.getAttribute('data-id'));
+
+        try {
+            const res = await post(`api/items/${parent.Id}/reorder`, {
+                user_id: uid,
+                item_ids: itemIds
+            }, btnEl);
+
+            if (res.status === 'ok') {
+                this.contentsModal.hasChanges = false;
+                await this.load();
+            }
+        } catch (e) {
+            toast("Failed to update order", false);
+        }
     },
 
     async removeItem(childItem) {
