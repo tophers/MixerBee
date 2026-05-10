@@ -49,7 +49,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                         if ep_info:
                             s = ep_info.get("ParentIndexNumber")
                             e = ep_info.get("IndexNumber")
-                    
+
                     if s is None or e is None:
                         first_ep = get_first_available_episode(sid, user_id, hdr)
                         if first_ep:
@@ -95,15 +95,16 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
 
             if id_list:
                 id_filters = {"ids": id_list}
-
                 limit_val = filters.get("limit")
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
-                    
-                if "sort_by" in filters:
-                    id_filters["sort_by"] = filters["sort_by"]
 
-                items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
+                # Resolve and force the order provided by the frontend
+                resolved_items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
+                item_map = {item.get("Id"): item for item in resolved_items}
+                for rid in id_list:
+                    if rid in item_map:
+                        items.append(item_map[rid])
         else:
             items = find_movies(user_id=user_id, filters=filters, hdr=hdr)
 
@@ -118,29 +119,54 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
     items = []
     try:
         from .ai.vector_store import search_by_composite_similarity
-        
+
         filters = block.get("filters", {})
+        
+        # If specific IDs are provided (cached from frontend preview), resolve them in exact order
+        if "ids" in filters and filters["ids"]:
+            target_ids = filters["ids"]
+            resolved_map = {}
+            
+            # 1. Resolve as movies first
+            resolved_movies = find_movies(user_id=user_id, filters={"ids": target_ids}, hdr=hdr)
+            for m in resolved_movies:
+                resolved_map[m["Id"]] = m
+            
+            # 2. Resolve remaining IDs as generic items (episodes)
+            remaining_ids = [tid for tid in target_ids if tid not in resolved_map]
+            for rid in remaining_ids:
+                item_info = items_api.get_item(rid, hdr)
+                if item_info:
+                    resolved_map[rid] = item_info
+            
+            # 3. Reconstruct the list in the exact order requested by the frontend
+            ordered_items = []
+            for tid in target_ids:
+                if tid in resolved_map:
+                    ordered_items.append(resolved_map[tid])
+            
+            return ordered_items
+
         seeds_pos = [s['Id'] for s in filters.get("seeds_positive", [])]
         seeds_neg = [s['Id'] for s in filters.get("seeds_negative", [])]
         mixed_echo = filters.get("mixed_echo", False)
         include_seeds = filters.get("include_seeds", False)
-        
+
         target_limit = int(block.get("limit", 10))
         threshold = float(block.get("threshold", 0.65))
 
         if not seeds_pos:
             return []
 
-        # 1. Fetch echoes from the vector store
         pool_size = max(40, target_limit * 4)
         similar_pool = search_by_composite_similarity(
-            positive_ids=seeds_pos, 
-            negative_ids=seeds_neg, 
-            limit=pool_size, 
+            positive_ids=seeds_pos,
+            negative_ids=seeds_neg,
+            limit=pool_size,
             threshold=threshold,
             mixed_echo=mixed_echo
         )
-        
+
         if similar_pool:
             sampled_matches = random.sample(similar_pool, min(target_limit, len(similar_pool)))
 
@@ -163,36 +189,30 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
                 next_ep = get_first_unwatched_episode(sid, user_id, hdr)
                 if not next_ep:
                     next_ep = get_first_available_episode(sid, user_id, hdr)
-                
                 if next_ep:
                     items.append(next_ep)
 
             random.shuffle(items)
 
-        # 2. Optionally include Master seeds at the front
         if include_seeds:
             master_items = []
             from .ai.vector_store import media_collection
-            
-            # Use ChromaDB to get the type and name for the seeds
             seed_data = media_collection.get(ids=seeds_pos, include=["metadatas"])
-            
+
             if seed_data and seed_data.get("ids"):
                 for i, sid in enumerate(seed_data["ids"]):
                     meta = seed_data["metadatas"][i]
                     m_type = meta.get("type")
-                    
+
                     if m_type == "Movie":
-                        # Resolve full metadata for movie
                         m_list = find_movies(user_id=user_id, filters={"ids": [sid]}, hdr=hdr)
                         if m_list: master_items.append(m_list[0])
                     elif m_type == "Series":
-                        # Resolve first unwatched or first available episode
                         next_ep = get_first_unwatched_episode(sid, user_id, hdr)
                         if not next_ep:
                             next_ep = get_first_available_episode(sid, user_id, hdr)
                         if next_ep: master_items.append(next_ep)
-            
+
             items = master_items + items
 
     except Exception as e:

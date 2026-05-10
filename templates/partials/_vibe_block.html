@@ -1,8 +1,8 @@
 <!-- templates/partials/_vibe_block.html -->
 <template x-if="block && block.type === 'vibe'">
-    <div x-data="{ }" x-init="$store.mixer.ensureBlockState(block)">
+    <div x-data="{ isOpen: index === $store.mixer.blocks.length - 1 }" x-init="$store.mixer.ensureBlockState(block)">
 
-        <details class="mixed-block vibe-block-curated" :open="index === $store.mixer.blocks.length - 1">
+        <details class="mixed-block vibe-block-curated" :open="isOpen" @toggle="isOpen = $el.open">
             {% set default_title = 'AI Vibes' %}
             {% include 'partials/_block_header.html' %}
 

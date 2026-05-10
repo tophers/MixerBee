@@ -1,32 +1,45 @@
 <!-- templates/partials/_tv_block.html -->
 <template x-if="block && block.type === 'tv'">
-    <div x-data="{ editModalOpen: false }" x-init="$store.mixer.ensureBlockState(block)">
-        <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
+    <div x-data="{ editModalOpen: false, isOpen: index === $store.mixer.blocks.length - 1 }" x-init="$store.mixer.ensureBlockState(block)">
+        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
             {% set default_title = 'TV Block' %}
             {% include 'partials/_block_header.html' %}
 
             <div class="mixed-block-body">
                 <div class="block-summary-card">
-                    <div class="summary-label">Shows Included</div>
+                    <div class="flex-row align-center gap-lg">
+                        <div class="curated-stat-box shrink-0">
+                            <div class="summary-label">Matches</div>
+                            <div class="curated-count" x-text="block._previewCount ?? '0'"></div>
+                        </div>
 
-                    <div class="summary-content mb-sm">
-                        <template x-if="block.shows && block.shows.length > 0">
-                            <div class="curated-preview-text">
-                                <template x-for="(show, i) in block.shows.slice(0, 3)" :key="block._uid + '_showprev_' + (show._uid || i)">
-                                    <span x-text="(show.name || 'Unknown') + (i < Math.min(block.shows.length, 3) - 1 ? ', ' : '')"></span>
+                        <div class="grow-1">
+                            <div class="summary-label">Shows Included</div>
+                            <div class="summary-content mb-sm">
+                                <template x-if="block.shows && block.shows.length > 0">
+                                    <div class="curated-preview-text">
+                                        <template x-for="(show, i) in block.shows.slice(0, 3)" :key="block._uid + '_showprev_' + (show._uid || i)">
+                                            <span x-text="(show.name || 'Unknown') + (i < Math.min(block.shows.length, 3) - 1 ? ', ' : '')"></span>
+                                        </template>
+                                        <template x-if="block.shows.length > 3">
+                                            <span class="text-subtle"> + <span x-text="block.shows.length - 3"></span> more</span>
+                                        </template>
+                                    </div>
                                 </template>
-                                <template x-if="block.shows.length > 3">
-                                    <span class="text-subtle"> + <span x-text="block.shows.length - 3"></span> more</span>
+                                <template x-if="!block.shows || block.shows.length === 0">
+                                    <div class="text-subtle italic">No shows selected</div>
                                 </template>
                             </div>
-                        </template>
-                        <template x-if="!block.shows || block.shows.length === 0">
-                            <div class="text-subtle italic">No shows selected</div>
-                        </template>
+                            <div class="flex-row flex-wrap gap-sm align-center">
+                                <span class="badge" x-text="$store.mixer.getTvBlockSummary(block)"></span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="summary-footer mt-md flex-row align-center justify-between">
-                        <span class="badge" x-text="$store.mixer.getTvBlockSummary(block)"></span>
+                    <div class="mt-md curated-footer">
+                        <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
+                            <span x-html="$store.icons.list"></span> Preview Block
+                        </button>
                         <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true"><span x-html="$store.icons.edit"></span> Edit Shows</button>
                     </div>
                 </div>
@@ -53,12 +66,12 @@
                             <span>Episodes per show</span>
                             <div class="flex-column gap-sm">
                                 <div class="toggle-pill w-full">
-                                    <template x-for="val in [2,3,4,5]"><span class="pill-btn grow-1 text-center" :class="block.count === val ? 'active' : ''" @click="block.count = val" x-text="val"></span></template>
-                                    <span class="pill-btn grow-1 text-center" :class="![2,3,4,5].includes(block.count) ? 'active' : ''" @click="if([2,3,4,5].includes(block.count)) block.count = 6">Custom</span>
+                                    <template x-for="val in [2,3,4,5]"><span class="pill-btn grow-1 text-center" :class="block.count === val ? 'active' : ''" @click="block.count = val; $store.mixer.updatePreviewCount(block)" x-text="val"></span></template>
+                                    <span class="pill-btn grow-1 text-center" :class="![2,3,4,5].includes(block.count) ? 'active' : ''" @click="if([2,3,4,5].includes(block.count)) block.count = 6; $store.mixer.updatePreviewCount(block)">Custom</span>
                                 </div>
                                 <div x-show="![2,3,4,5].includes(block.count)" class="flex-row align-center gap-md mt-xs">
                                     <span class="text-subtle">Count:</span>
-                                    <input type="number" x-model.number="block.count" min="1" max="100" class="m-0 w-80">
+                                    <input type="number" x-model.number="block.count" min="1" max="100" class="m-0 w-80" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
                                 </div>
                             </div>
                         </div>
@@ -78,7 +91,7 @@
                                     <div class="show-input-wrapper">
                                         <select class="w-full"
                                                 :value="show.name"
-                                                @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show)">
+                                                @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">
                                             <option value="">-- Select a show --</option>
                                             <template x-for="s in $store.mixer.library.seriesData" :key="s.id">
                                                 <option :value="s.name" x-text="s.name" :selected="s.name === show.name"></option>
@@ -87,8 +100,8 @@
                                     </div>
                                     <div class="show-episode-config mt-sm" x-show="show.name">
                                         <div class="toggle-pill mb-sm">
-                                            <span class="pill-btn grow-1 text-center" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show)">Next Unwatched</span>
-                                            <span class="pill-btn grow-1 text-center" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show)">Manual</span>
+                                            <span class="pill-btn grow-1 text-center" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show); $store.mixer.updatePreviewCount(block)">Next Unwatched</span>
+                                            <span class="pill-btn grow-1 text-center" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">Manual</span>
                                         </div>
                                         <div class="episode-inputs flex-row gap-md align-center mb-sm" x-show="!show.unwatched">
                                             <div class="flex-row align-center gap-xs"><span class="text-subtle">Season:</span><input type="number" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show)" class="w-65"></div>
@@ -101,7 +114,7 @@
                                     <div class="dropdown-container">
                                         <button type="button" class="icon-btn" @click="rowMenuOpen = !rowMenuOpen" @click.outside="rowMenuOpen = false" x-html="$store.icons.more"></button>
                                         <div class="dropdown-menu z-dropdown" x-show="rowMenuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
-                                            <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.promptResetWatch(show)"><span class="dropdown-icon" x-html="$store.icons.refresh"></span> Reset Watch State</a>
+                                            <a href="#" class="dropdown-item" @click.prevent="rowMenuOpen = false; $store.mixer.promptResetWatch(show); $store.mixer.updatePreviewCount(block)"><span class="dropdown-icon" x-html="$store.icons.refresh"></span> Reset Watch State</a>
                                         </div>
                                     </div>
                                     <button type="button" class="icon-btn danger-hover" @click="$store.mixer.deleteShowRow(index, rowIndex)" title="Remove Series" x-html="$store.icons.trash"></button>

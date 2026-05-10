@@ -115,9 +115,12 @@
                 <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
             </template>
             <template x-if="($store.modals.preview.items || []).length > 0">
-                <ol class="preview-list" x-sort="$store.modals.preview.items" x-sort:config="{ handle: '.drag-handle' }">
+                <ol class="preview-list" 
+                    x-sort="$store.modals.preview.items" 
+                    x-sort:config="{ handle: '.drag-handle' }"
+                    @sort="$store.mixer.syncPreviewOrder($el)">
                     <template x-for="(item, index) in $store.modals.preview.items" :key="item.Id || index">
-                        <li x-sort:item class="flex-row align-center gap-md">
+                        <li x-sort:item :data-id="item.Id || item.id" class="flex-row align-center gap-md">
                             <div class="drag-handle opacity-60" x-sort:handle x-html="$store.icons.move"></div>
                             <div class="grow-1">
                                 <span class="item-name" x-text="item.name"></span>

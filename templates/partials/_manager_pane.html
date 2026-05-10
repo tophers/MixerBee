@@ -29,7 +29,7 @@
                     </template>
                     <template x-for="item in ($store.manager.filtered || [])" :key="item.Id">
                         <tr class="table-row">
-                            <td class="table-cell bold" x-text="item.Name"></td>
+                            <td class="table-cell bold clickable" x-text="item.Name" @click="$store.manager.viewContents(item)"></td>
                             <td class="table-cell">
                                 <span class="token-badge"
                                       :class="item.Type === 'Playlist' ? 'badge-accent' : 'badge-outline'"

@@ -2,6 +2,7 @@
 <template x-if="block && block.type === 'mirror'">
     <div x-data="{
         editModalOpen: false,
+        isOpen: index === $store.mixer.blocks.length - 1,
         searchQuery: '',
         suggestions: [],
         async performSearch(blk) {
@@ -28,7 +29,7 @@
             blk._previewLoading = false;
         }
     }" x-init="$store.mixer.ensureBlockState(block)">
-        <details class="mixed-block mirror-block" :open="index === $store.mixer.blocks.length - 1">
+        <details class="mixed-block mirror-block" :open="isOpen" @toggle="isOpen = $el.open">
             {% set default_title = 'Echo Block' %}
             {% include 'partials/_block_header.html' %}
 
@@ -98,7 +99,7 @@
                     <div class="mt-md curated-footer flex-row justify-between align-center">
                         <div class="flex-row gap-xs">
                              <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])" :disabled="!block.filters || block.filters.seeds_positive.length === 0">
-                                <span x-html="$store.icons.list"></span> Full List
+                                <span x-html="$store.icons.list"></span> Preview Block
                             </button>
                         </div>
                         <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true">

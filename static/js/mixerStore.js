@@ -146,6 +146,7 @@ export const mixerStore = {
                 s.previewTitle = s.previewTitle ?? '';
                 s._loadingTitle = false;
             });
+            this.updatePreviewCount(block);
         }
     },
 
@@ -155,6 +156,30 @@ export const mixerStore = {
         } else {
             localStorage.removeItem(this.autosaveKey);
         }
+    },
+
+    syncOrderFromDom(containerEl) {
+        // Collect UIDs from the actual DOM elements in their new visual order
+        const orderedUids = Array.from(containerEl.querySelectorAll('.block-wrapper')).map(node => node.dataset.uid);
+        
+        // Map current block objects by their UID for fast lookup
+        const blockMap = new Map(this.blocks.map(b => [b._uid, b]));
+        
+        // Create new array based on visual DOM sequence
+        const newBlocks = orderedUids.map(uid => blockMap.get(uid)).filter(Boolean);
+        
+        // Critical: Update the store reference to trigger reactivity/persistence
+        this.blocks = newBlocks;
+        this.persistToLocalStorage();
+    },
+
+    syncPreviewOrder(containerEl) {
+        const previewStore = Alpine.store('modals').preview;
+        const orderedIds = Array.from(containerEl.querySelectorAll('li[data-id]')).map(node => node.dataset.id);
+        const itemMap = new Map(previewStore.items.map(item => [String(item.Id || item.id), item]));
+        
+        const newItems = orderedIds.map(id => itemMap.get(id)).filter(Boolean);
+        previewStore.items = newItems;
     },
 
     getTvBlockSummary(block) {
@@ -254,7 +279,7 @@ export const mixerStore = {
                     people.forEach(p => results.push({ type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})` }));
                 }
                 if (Array.isArray(studios)) {
-                    studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
+                     studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
                 }
                 return results;
             }
@@ -299,7 +324,7 @@ export const mixerStore = {
         if (index === -1) return;
 
         const clonedItem = JSON.parse(JSON.stringify(item));
-        clonedItem.Id = clonedItem.Id || clonedItem.id; // Normalize just in case
+        clonedItem.Id = clonedItem.Id || clonedItem.id;
 
         sourceArray.splice(index, 1);
 
@@ -337,7 +362,16 @@ export const mixerStore = {
 
     async updatePreviewCount(block) {
         if (!block) return;
-        if (block.type === 'tv' && !block.vibe_type) return;
+        
+        // Handle standard TV blocks locally based on show count * episodes per show
+        if (block.type === 'tv' && !block.vibe_type) {
+            const showCount = (block.shows || []).filter(s => s.name || s.id).length;
+            const epsPerShow = parseInt(block.count || 0);
+            block._previewCount = showCount * epsPerShow;
+            // Force Alpine to notice the change by triggering a shallow update
+            this.blocks = [...this.blocks];
+            return;
+        }
 
         if (!this._previewDebouncers[block._uid]) {
             this._previewDebouncers[block._uid] = debounce(async (targetUid) => {
@@ -369,6 +403,7 @@ export const mixerStore = {
                     liveBlock._previewItems = [];
                 } finally {
                     liveBlock._previewLoading = false;
+                    this.blocks = [...this.blocks];
                 }
             }, 800);
         }
@@ -427,9 +462,9 @@ export const mixerStore = {
             await Promise.all(promises);
             
             if (append) {
-                this.blocks.push(...blocksData);
+                this.blocks = [...this.blocks, ...blocksData];
             } else {
-                this.blocks.splice(0, this.blocks.length, ...blocksData);
+                this.blocks = [...blocksData];
             }
 
         } catch (e) {
@@ -456,7 +491,7 @@ export const mixerStore = {
         if (block) {
             block._uid = generateUUID();
             this.ensureBlockState(block);
-            this.blocks.push(block);
+            this.blocks = [...this.blocks, block];
             this.updatePreviewCount(block);
         }
     },
@@ -465,17 +500,20 @@ export const mixerStore = {
         const copy = JSON.parse(JSON.stringify(this.blocks[index]));
         copy._uid = generateUUID();
         if (copy.shows) copy.shows.forEach(s => s._uid = generateUUID());
-        this.blocks.splice(index + 1, 0, copy);
+        
+        const newBlocks = [...this.blocks];
+        newBlocks.splice(index + 1, 0, copy);
+        this.blocks = newBlocks;
     },
 
     deleteBlock(index) {
-        this.blocks.splice(index, 1);
+        this.blocks = this.blocks.filter((_, i) => i !== index);
     },
 
     async clearAllBlocks() {
         try {
             await confirmModal.show({ title: 'Clear All?', text: 'Remove all blocks?', confirmText: 'Clear' });
-            this.blocks.splice(0, this.blocks.length);
+            this.blocks = [];
             Alpine.store('presets').currentName = '';
         } catch (e) { }
     },
@@ -483,10 +521,13 @@ export const mixerStore = {
     addShowRow(blockIndex) {
         const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
         this.blocks[blockIndex].shows.push(def);
+        this.updatePreviewCount(this.blocks[blockIndex]);
     },
 
     deleteShowRow(blockIndex, rowIndex) {
-        this.blocks[blockIndex].shows.splice(rowIndex, 1);
+        const block = this.blocks[blockIndex];
+        block.shows.splice(rowIndex, 1);
+        this.updatePreviewCount(block);
     },
 
     async generateWithAi() {
@@ -619,6 +660,19 @@ export const mixerStore = {
         }
     },
 
+    getPreparedBlocks(blocksOverride = null) {
+        const rawBlocks = blocksOverride || this.blocks;
+        // Deep clone the blocks to ensure the payload is clean
+        return JSON.parse(JSON.stringify(rawBlocks)).map(block => {
+            // Inject cached preview IDs if they exist to "lock" the randomized results for the build
+            if (block._previewItems && block._previewItems.length > 0) {
+                if (!block.filters) block.filters = {};
+                block.filters.ids = block._previewItems.map(item => item.Id || item.id);
+            }
+            return block;
+        });
+    },
+
     async previewPlaylist(btnEl, blocksOverride = null) {
         try {
             if (blocksOverride && blocksOverride.length === 1) {
@@ -631,7 +685,7 @@ export const mixerStore = {
                 }
             }
 
-            const targetBlocks = blocksOverride || this.blocks;
+            const targetBlocks = this.getPreparedBlocks(blocksOverride);
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
             const uid = Alpine.store('settings').activeUserId;
@@ -653,11 +707,14 @@ export const mixerStore = {
     async buildPlaylist(btnEl) {
         if (this.blocks.length === 0) return toast('Add a block.', false);
         const uid = Alpine.store('settings').activeUserId;
+
+        const preparedBlocks = this.getPreparedBlocks();
+
         if (this.buildMode === 'add') {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
-            await post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: this.blocks }, btnEl);
+            await post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: preparedBlocks }, btnEl);
         } else {
-            if (this.createAsCollection && (this.blocks.length !== 1 || (this.blocks[0].type !== 'movie' && this.blocks[0].vibe_type !== 'movie'))) {
+            if (this.createAsCollection && (preparedBlocks.length !== 1 || (preparedBlocks[0].type !== 'movie' && preparedBlocks[0].vibe_type !== 'movie'))) {
                 return toast('Requires one Movie block.', false);
             }
             try {
@@ -667,7 +724,7 @@ export const mixerStore = {
                     countInput: false,
                     defaultName: this.createAsCollection ? 'My Collection' : 'My Mix',
                 });
-                await post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: this.blocks, create_as_collection: this.createAsCollection }, btnEl);
+                await post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: preparedBlocks, create_as_collection: this.createAsCollection }, btnEl);
             } catch (err) { }
         }
     },

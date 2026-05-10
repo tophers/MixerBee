@@ -2,6 +2,7 @@
 <template x-if="block && block.type === 'movie'">
     <div x-data="{
         filterModalOpen: false,
+        isOpen: index === $store.mixer.blocks.length - 1,
         genreQuery: '',
         genreSuggestions: [],
         personQuery: '',
@@ -41,7 +42,7 @@
     }"
     x-init="$store.mixer.ensureBlockState(block); if(block.filters?.release_within_days && ![0,30,90,180,365,730].includes(parseInt(block.filters.release_within_days))) relativeDateCustom = true;">
 
-        <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
+        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
             {% set default_title = 'Movie Block' %}
             {% include 'partials/_block_header.html' %}
 

@@ -136,14 +136,17 @@
             </div>
         </fieldset>
 
-        <div id="mixed-playlist-blocks" x-sort:config="{ handle: '.block-drag-handle' }" x-sort="$store.mixer.blocks">
+        <div id="mixed-playlist-blocks" 
+             x-sort="$store.mixer.blocks" 
+             x-sort:config="{ handle: '.block-drag-handle' }"
+             @sort="$store.mixer.syncOrderFromDom($el)">
             <p class="placeholder-text" x-show="$store.mixer.blocks.length === 0">
                 Click <strong>'Add Block'</strong> below to begin building your mix, <br>
                 or try <strong>'Auto Playlists'</strong> for a quick start.
             </p>
 
             <template x-for="(block, index) in $store.mixer.blocks" :key="block._uid">
-                <div class="block-wrapper" x-sort:item>
+                <div class="block-wrapper" x-sort:item :data-uid="block._uid">
                     {% include 'partials/_tv_block.html' %}
                     {% include 'partials/_movie_block.html' %}
                     {% include 'partials/_music_block.html' %}
