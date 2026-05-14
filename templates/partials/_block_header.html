@@ -6,8 +6,13 @@
             <template x-if="block.is_ai_generated || block.type === 'vibe'">
                 <span class="ai-badge-icon" :class="block.type === 'vibe' ? 'pulse-icon' : ''" x-html="$store.icons.zap"></span>
             </template>
+            
             <span x-text="block.title || (block.type === 'vibe' ? (block.vibe_type === 'tv' ? 'TV Vibes' : 'Movie Vibes') : '{{ default_title }}')"></span>
             
+            <template x-if="block.isSnapshot">
+                <span class="color-accent ml-xs" title="Order Fixed (Snapshotted)" x-html="$store.icons.lock" style="--icon-size: 14px; opacity: 0.8;"></span>
+            </template>
+
             <span x-show="!isOpen" 
                   class="badge badge-outline-subtle ml-sm" 
                   style="font-size: 0.7rem; opacity: 0.8;"

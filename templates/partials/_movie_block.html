@@ -16,6 +16,7 @@
         },
 
         cycleWatchedStatus() {
+            if (block.isSnapshot) return;
             if (!block.filters) block.filters = {};
             const statusMap = { 'all': 'unplayed', 'unplayed': 'played', 'played': 'all' };
             block.filters.watched_status = statusMap[block.filters.watched_status || 'all'];
@@ -23,6 +24,7 @@
         },
 
         cycleSort() {
+            if (block.isSnapshot) return;
             if (!block.filters) block.filters = {};
             const sortMap = { 'Random': 'PremiereDate', 'PremiereDate': 'DateCreated', 'DateCreated': 'SortName', 'SortName': 'Random' };
             block.filters.sort_by = sortMap[block.filters.sort_by || 'Random'];
@@ -42,6 +44,7 @@
     }"
     x-init="$store.mixer.ensureBlockState(block); if(block.filters?.release_within_days && ![0,30,90,180,365,730].includes(parseInt(block.filters.release_within_days))) relativeDateCustom = true;">
 
+    <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
         <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
             {% set default_title = 'Movie Block' %}
             {% include 'partials/_block_header.html' %}
@@ -73,8 +76,13 @@
                             </div>
 
                             <div class="flex-row flex-wrap gap-sm align-center">
-                                <template x-if="block.filters && block.filters.watched_status && block.filters.watched_status !== 'all'">
-                                    <span class="badge" :class="block.filters.watched_status" x-text="block.filters.watched_status.toUpperCase()"></span>
+                                <template x-if="block.isSnapshot">
+                                    <span class="badge badge-accent">FIXED ORDER</span>
+                                </template>
+                                <template x-if="!block.isSnapshot">
+                                    <template x-if="block.filters && block.filters.watched_status && block.filters.watched_status !== 'all'">
+                                        <span class="badge" :class="block.filters.watched_status" x-text="block.filters.watched_status.toUpperCase()"></span>
+                                    </template>
                                 </template>
                                 <template x-if="block.filters && block.filters.release_within_days > 0">
                                     <span class="badge badge-accent" x-text="getRelativeDateLabel()"></span>
@@ -82,24 +90,29 @@
                                 <template x-if="block.filters && (!block.filters.release_within_days || block.filters.release_within_days == 0) && (block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear())">
                                     <span class="badge" x-text="block.filters.year_from + ' - ' + block.filters.year_to"></span>
                                 </template>
-                                <template x-for="libId in (block.filters?.parent_ids || [])" :key="block._uid + '_lib_badge_' + libId">
-                                    <span class="badge badge-outline-subtle" x-text="$store.mixer.library.libraryData.find(l => l.Id === libId)?.Name || 'Library'"></span>
-                                </template>
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-md curated-footer">
-                        <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
-                            <span x-html="$store.icons.list"></span> Preview Block
-                        </button>
-                        <button type="button" class="secondary small align-center gap-xs" @click="filterModalOpen = true">
+                    <div class="mt-md curated-footer flex-row justify-between align-center">
+                        <div class="flex-row gap-xs">
+                            <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
+                                <span x-html="$store.icons.list"></span> Preview & Sort
+                            </button>
+                            <button type="button" class="secondary small align-center gap-xs" 
+                                    x-show="block.isSnapshot"
+                                    @click="$store.mixer.unlockBlock(block)">
+                                <span x-html="$store.icons.unlock"></span> Unlock Order
+                            </button>
+                        </div>
+                        <button type="button" class="secondary small align-center gap-xs" @click="filterModalOpen = true" :disabled="block.isSnapshot">
                             <span x-html="$store.icons.sliders"></span> Edit Filters
                         </button>
                     </div>
                 </div>
             </div>
         </details>
+    </div>
 
         <div class="modal-overlay" x-show="filterModalOpen" x-cloak>
             <div class="modal-window wide" @click.outside="filterModalOpen = false">
@@ -268,5 +281,4 @@
                 <div class="modal-footer"><button type="button" @click="filterModalOpen = false" class="primary">Done</button></div>
             </div>
         </div>
-    </div>
 </template>

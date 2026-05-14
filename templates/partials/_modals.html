@@ -115,8 +115,8 @@
                 <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
             </template>
             <template x-if="($store.modals.preview.items || []).length > 0">
-                <ol class="preview-list" 
-                    x-sort="$store.modals.preview.items" 
+                <ol class="preview-list"
+                    x-sort="$store.modals.preview.items"
                     x-sort:config="{ handle: '.drag-handle' }"
                     @sort="$store.mixer.syncPreviewOrder($el)">
                     <template x-for="(item, index) in $store.modals.preview.items" :key="item.Id || index">
@@ -128,6 +128,7 @@
                                     <span class="item-context" x-text="item.context"></span>
                                 </template>
                             </div>
+                            <button type="button" class="secondary small icon-only" @click="$store.mixer.createEchoFromItem(item)" title="Find Similar (Echo)" x-html="$store.icons.search"></button>
                         </li>
                     </template>
                 </ol>
@@ -135,6 +136,7 @@
         </div>
         <div class="modal-footer">
             <button type="button" class="secondary mr-auto" @click="$store.modals.previewAction.close()">Close</button>
+            <button type="button" class="secondary" @click="$store.mixer.snapshotFromPreview()" x-show="($store.modals.preview.items || []).length > 0 && $store.modals.preview.parentBlockUid">Snapshot Order</button>
             <button type="button" class="primary" @click="$store.mixer.buildFromPreview($el)" x-show="($store.modals.preview.items || []).length > 0">Build This Order</button>
         </div>
     </div>
@@ -151,9 +153,9 @@
             <template x-if="$store.manager.contentsModal.isLoading">
                 <p class="text-center p-xl">Loading contents...</p>
             </template>
-            <ul class="no-list" 
-                x-sort="$store.manager.contentsModal.items" 
-                x-sort:config="{ handle: '.drag-handle' }" 
+            <ul class="no-list"
+                x-sort="$store.manager.contentsModal.items"
+                x-sort:config="{ handle: '.drag-handle' }"
                 @sort="$store.manager.contentsModal.hasChanges = true">
                 <template x-for="c in ($store.manager.contentsModal.items || [])" :key="c.Id">
                     <li x-sort:item class="list-item-divider flex-row justify-between align-center" :data-id="c.Id || c.id">
@@ -167,20 +169,28 @@
                                 </div>
                             </div>
                         </div>
-                        <button type="button"
-                                class="secondary small icon-only btn-danger-outline"
-                                @click="$store.manager.removeItem(c)"
-                                title="Remove from list"
-                                x-html="$store.icons.trash">
-                        </button>
+                        <div class="flex-row gap-xs">
+                            <button type="button"
+                                    class="secondary small icon-only"
+                                    @click="$store.mixer.createEchoFromItem(c)"
+                                    title="Find Similar (Echo)"
+                                    x-html="$store.icons.search">
+                            </button>
+                            <button type="button"
+                                    class="secondary small icon-only btn-danger-outline"
+                                    @click="$store.manager.removeItem(c)"
+                                    title="Remove from list"
+                                    x-html="$store.icons.trash">
+                            </button>
+                        </div>
                     </li>
                 </template>
             </ul>
         </div>
         <div class="modal-footer">
             <button type="button" class="secondary mr-auto" @click="$store.manager.contentsModal.isOpen = false">Close</button>
-            <button type="button" class="primary" 
-                    :disabled="!$store.manager.contentsModal.hasChanges" 
+            <button type="button" class="primary"
+                    :disabled="!$store.manager.contentsModal.hasChanges"
                     @click="$store.manager.saveContentOrder($el)">
                 Save Order
             </button>
@@ -393,11 +403,11 @@
                         <label class="control-item">
                             <span>Appearance</span>
                             <div class="toggle-pill w-full">
-                                <span class="pill-btn" 
-                                      :class="$store.settings.theme === 'dark' ? 'active' : ''" 
+                                <span class="pill-btn"
+                                      :class="$store.settings.theme === 'dark' ? 'active' : ''"
                                       @click="$store.settings.updateTheme('dark')">Dark</span>
-                                <span class="pill-btn" 
-                                      :class="$store.settings.theme === 'light' ? 'active' : ''" 
+                                <span class="pill-btn"
+                                      :class="$store.settings.theme === 'light' ? 'active' : ''"
                                       @click="$store.settings.updateTheme('light')">Light</span>
                             </div>
                         </label>
@@ -406,8 +416,8 @@
                         <label class="control-item">
                             <span>System Notifications</span>
                             <button type="button" class="secondary align-center gap-xs w-full" @click="$store.modals.historyAction.show()">
-                                <span x-html="$store.icons.bell"></span> 
-                                View History 
+                                <span x-html="$store.icons.bell"></span>
+                                View History
                                 <span id="toast-badge" class="badge badge-accent hidden" style="margin-left:auto">0</span>
                             </button>
                         </label>

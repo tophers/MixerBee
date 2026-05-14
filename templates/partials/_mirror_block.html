@@ -29,86 +29,96 @@
             blk._previewLoading = false;
         }
     }" x-init="$store.mixer.ensureBlockState(block)">
-        <details class="mixed-block mirror-block" :open="isOpen" @toggle="isOpen = $el.open">
-            {% set default_title = 'Echo Block' %}
-            {% include 'partials/_block_header.html' %}
+        <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
+            <details class="mixed-block mirror-block" :open="isOpen" @toggle="isOpen = $el.open">
+                {% set default_title = 'Echo Block' %}
+                {% include 'partials/_block_header.html' %}
 
-            <div class="mixed-block-body">
-                <div class="block-summary-card">
-                    <div class="flex-row align-center gap-lg">
-                        <div class="curated-stat-box shrink-0">
-                            <div class="summary-label">Matches</div>
-                            <div class="curated-count" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
-                        </div>
-
-                        <div class="grow-1">
-                            <div class="summary-label">Seed Environment</div>
-                            <div class="summary-content mb-sm">
-                                <template x-if="block.filters && block.filters.seeds_positive.length > 0">
-                                    <div class="curated-preview-text">
-                                        <span class="bold color-accent" x-text="block.filters.seeds_positive.map(s => s.Name).join(', ')"></span>
-
-                                        <template x-if="block.filters.seeds_negative.length > 0">
-                                            <span class="text-subtle"> (minus <span x-text="block.filters.seeds_negative.map(s => s.Name).join(', ')"></span>)</span>
-                                        </template>
-
-                                        <!-- Loading State -->
-                                        <template x-if="block._previewLoading">
-                                            <span class="text-subtle italic"> — Finding echoes...</span>
-                                        </template>
-
-                                        <!-- Preview Matches -->
-                                        <template x-if="!block._previewLoading && block._previewItems && block._previewItems.length > 0">
-                                            <span>
-                                                <span class="text-subtle"> — </span>
-                                                <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_mirprev_' + i">
-                                                    <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
-                                                </template>
-                                                <template x-if="block._previewCount > 3">
-                                                    <span class="text-subtle"> + <span x-text="block._previewCount - 3"></span> more</span>
-                                                </template>
-                                            </span>
-                                        </template>
-
-                                        <!-- No Matches Found -->
-                                        <template x-if="!block._previewLoading && (!block._previewItems || block._previewItems.length === 0)">
-                                            <span class="text-subtle italic"> — No echoes found at this depth</span>
-                                        </template>
-                                    </div>
-                                </template>
-                                <template x-if="!block.filters || block.filters.seeds_positive.length === 0">
-                                    <div class="text-subtle italic">No seed items selected</div>
-                                </template>
+                <div class="mixed-block-body">
+                    <div class="block-summary-card">
+                        <div class="flex-row align-center gap-lg">
+                            <div class="curated-stat-box shrink-0">
+                                <div class="summary-label">Matches</div>
+                                <div class="curated-count" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
                             </div>
 
-                            <div class="flex-row flex-wrap gap-sm align-center">
-                                <span class="badge ai-chip">Echo</span>
-                                <template x-if="block.filters && block.filters.seeds_positive.length > 0">
-                                    <span class="badge badge-outline-subtle" x-text="block.limit + ' matches • ' + (block.threshold < 0.6 ? 'Strict' : (block.threshold > 0.75 ? 'Discovery' : 'Balanced'))"></span>
-                                    <template x-if="block.filters.mixed_echo">
-                                        <span class="badge badge-outline-accent">Mixed Format</span>
+                            <div class="grow-1">
+                                <div class="summary-label">Seed Environment</div>
+                                <div class="summary-content mb-sm">
+                                    <template x-if="block.filters && block.filters.seeds_positive.length > 0">
+                                        <div class="curated-preview-text">
+                                            <span class="bold color-accent" x-text="block.filters.seeds_positive.map(s => s.Name).join(', ')"></span>
+
+                                            <template x-if="block.filters.seeds_negative.length > 0">
+                                                <span class="text-subtle"> (minus <span x-text="block.filters.seeds_negative.map(s => s.Name).join(', ')"></span>)</span>
+                                            </template>
+
+                                            <!-- Loading State -->
+                                            <template x-if="block._previewLoading">
+                                                <span class="text-subtle italic"> — Finding echoes...</span>
+                                            </template>
+
+                                            <!-- Preview Matches -->
+                                            <template x-if="!block._previewLoading && block._previewItems && block._previewItems.length > 0">
+                                                <span>
+                                                    <span class="text-subtle"> — </span>
+                                                    <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_mirprev_' + i">
+                                                        <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
+                                                    </template>
+                                                    <template x-if="block._previewCount > 3">
+                                                        <span class="text-subtle"> + <span x-text="block._previewCount - 3"></span> more</span>
+                                                    </template>
+                                                </span>
+                                            </template>
+
+                                            <!-- No Matches Found -->
+                                            <template x-if="!block._previewLoading && (!block._previewItems || block._previewItems.length === 0)">
+                                                <span class="text-subtle italic"> — No echoes found at this depth</span>
+                                            </template>
+                                        </div>
                                     </template>
-                                    <template x-if="block.filters.include_seeds">
-                                        <span class="badge badge-accent">Seeds Included</span>
+                                    <template x-if="!block.filters || block.filters.seeds_positive.length === 0">
+                                        <div class="text-subtle italic">No seed items selected</div>
                                     </template>
-                                </template>
+                                </div>
+
+                                <div class="flex-row flex-wrap gap-sm align-center">
+                                    <span class="badge ai-chip">Echo</span>
+                                    <template x-if="block.isSnapshot">
+                                        <span class="badge badge-accent">FIXED ORDER</span>
+                                    </template>
+                                    <template x-if="!block.isSnapshot && block.filters && block.filters.seeds_positive.length > 0">
+                                        <span class="badge badge-outline-subtle" x-text="block.limit + ' matches • ' + (block.threshold < 0.6 ? 'Strict' : (block.threshold > 0.75 ? 'Discovery' : 'Balanced'))"></span>
+                                        <template x-if="block.filters.mixed_echo">
+                                            <span class="badge badge-outline-accent">Mixed Format</span>
+                                        </template>
+                                        <template x-if="block.filters.include_seeds">
+                                            <span class="badge badge-accent">Seeds Included</span>
+                                        </template>
+                                    </template>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="mt-md curated-footer flex-row justify-between align-center">
-                        <div class="flex-row gap-xs">
-                             <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])" :disabled="!block.filters || block.filters.seeds_positive.length === 0">
-                                <span x-html="$store.icons.list"></span> Preview Block
+                        <div class="mt-md curated-footer flex-row justify-between align-center">
+                            <div class="flex-row gap-xs">
+                                 <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])" :disabled="!block.filters || block.filters.seeds_positive.length === 0">
+                                    <span x-html="$store.icons.list"></span> Preview & Sort
+                                </button>
+                                <button type="button" class="secondary small align-center gap-xs" 
+                                        x-show="block.isSnapshot"
+                                        @click="$store.mixer.unlockBlock(block)">
+                                    <span x-html="$store.icons.unlock"></span> Unlock Order
+                                </button>
+                            </div>
+                            <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true" :disabled="block.isSnapshot">
+                                <span x-html="$store.icons.search"></span> Configure Echo
                             </button>
                         </div>
-                        <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true">
-                            <span x-html="$store.icons.search"></span> Configure Echo
-                        </button>
                     </div>
                 </div>
-            </div>
-        </details>
+            </details>
+        </div>
 
         <!-- Echo Settings Modal -->
         <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 9999;">
