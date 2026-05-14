@@ -753,6 +753,7 @@ export const mixerStore = {
             if (block) {
                 block._previewItems = [...previewItems];
                 if (block.isSnapshot) {
+                    if (!block.filters) block.filters = {};
                     block.filters.ids = previewItems.map(i => i.Id || i.id);
                 }
             }
@@ -855,6 +856,12 @@ export const mixerStore = {
 
         const block = this.blocks.find(b => b._uid === uid);
         if (block) {
+            if (block.type !== 'movie' && block.type !== 'mirror') {
+                toast('This block type does not support snapshotting.', false);
+                return;
+            }
+
+            if (!block.filters) block.filters = {};
             block.filters.ids = previewStore.items.map(i => i.Id || i.id);
             block.isSnapshot = true;
             block._previewCount = block.filters.ids.length;
