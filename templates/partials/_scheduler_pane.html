@@ -26,10 +26,10 @@
                     </template>
                     <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
                         <tr class="table-row">
-                            <td class="table-cell">
+                            <td class="table-cell clickable">
                                 <div class="flex-row align-center gap-sm">
                                     <span class="job-icon-status" :class="entry.id ? 'color-accent' : 'text-subtle'" x-html="$store.icons.clock"></span>
-                                    <span class="job-name bold" x-text="entry.playlist_name || 'Unnamed Job'"></span>
+                                    <span class="job-name bold" @click="jobModalOpen = entry._uid" x-text="entry.playlist_name || 'Unnamed Job'"></span>
                                 </div>
                             </td>
                             <td class="table-cell">

@@ -17,6 +17,7 @@ DB_PATH = CONFIG_DIR / "mixerbee.db"
 def get_db_connection():
     """Yields a database connection and guarantees it is closed afterward."""
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
     try:
         yield conn

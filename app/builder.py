@@ -78,8 +78,6 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
         logging.error(f"Error processing TV block {block_index}: {e}", exc_info=True)
 
     return items
-
-
 def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     items = []
     try:
@@ -99,7 +97,6 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
 
-                # Resolve and force the order provided by the frontend
                 resolved_items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
                 item_map = {item.get("Id"): item for item in resolved_items}
                 for rid in id_list:
@@ -122,24 +119,24 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
 
         filters = block.get("filters", {})
         
-        # If specific IDs are provided (cached from frontend preview), resolve them in exact order
         if "ids" in filters and filters["ids"]:
             target_ids = filters["ids"]
             resolved_map = {}
             
-            # 1. Resolve as movies first
             resolved_movies = find_movies(user_id=user_id, filters={"ids": target_ids}, hdr=hdr)
             for m in resolved_movies:
                 resolved_map[m["Id"]] = m
             
-            # 2. Resolve remaining IDs as generic items (episodes)
             remaining_ids = [tid for tid in target_ids if tid not in resolved_map]
             for rid in remaining_ids:
-                item_info = items_api.get_item(rid, hdr)
+                item_info = items_api.get_item_children(user_id, rid, hdr) # Fallback resolving
                 if item_info:
-                    resolved_map[rid] = item_info
+                    resolved_map[rid] = item_info[0]
+                else: # Try direct get if not children
+                    item_resp = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items/{rid}", headers=hdr, timeout=5)
+                    if item_resp.ok:
+                        resolved_map[rid] = item_resp.json()
             
-            # 3. Reconstruct the list in the exact order requested by the frontend
             ordered_items = []
             for tid in target_ids:
                 if tid in resolved_map:

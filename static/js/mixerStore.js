@@ -75,6 +75,8 @@ export const mixerStore = {
         if (block._previewCount === undefined) block._previewCount = 0;
         if (block._previewItems === undefined) block._previewItems = [];
         if (block._previewLoading === undefined) block._previewLoading = false;
+        
+        if (block.isSnapshot === undefined) block.isSnapshot = false;
 
         const isStandardMovie = block.type === 'movie';
         const isVibeMovie = (block.type === 'vibe' && block.vibe_type === 'movie');
@@ -128,6 +130,7 @@ export const mixerStore = {
             block.filters.include_seeds = block.filters.include_seeds ?? false;
             block.limit = block.limit ?? 10;
             block.threshold = block.threshold ?? 0.65;
+            block.filters.ids = block.filters.ids ?? [];
         }
 
         if (block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv')) {
@@ -159,16 +162,9 @@ export const mixerStore = {
     },
 
     syncOrderFromDom(containerEl) {
-        // Collect UIDs from the actual DOM elements in their new visual order
         const orderedUids = Array.from(containerEl.querySelectorAll('.block-wrapper')).map(node => node.dataset.uid);
-        
-        // Map current block objects by their UID for fast lookup
         const blockMap = new Map(this.blocks.map(b => [b._uid, b]));
-        
-        // Create new array based on visual DOM sequence
         const newBlocks = orderedUids.map(uid => blockMap.get(uid)).filter(Boolean);
-        
-        // Critical: Update the store reference to trigger reactivity/persistence
         this.blocks = newBlocks;
         this.persistToLocalStorage();
     },
@@ -363,12 +359,16 @@ export const mixerStore = {
     async updatePreviewCount(block) {
         if (!block) return;
         
-        // Handle standard TV blocks locally based on show count * episodes per show
+        if (block.isSnapshot && block.filters?.ids?.length > 0) {
+            block._previewCount = block.filters.ids.length;
+            this.blocks = [...this.blocks];
+            return;
+        }
+
         if (block.type === 'tv' && !block.vibe_type) {
             const showCount = (block.shows || []).filter(s => s.name || s.id).length;
             const epsPerShow = parseInt(block.count || 0);
             block._previewCount = showCount * epsPerShow;
-            // Force Alpine to notice the change by triggering a shallow update
             this.blocks = [...this.blocks];
             return;
         }
@@ -456,7 +456,19 @@ export const mixerStore = {
                         }
                     });
                 }
-                promises.push(this.updatePreviewCount(block));
+                
+                if (block.isSnapshot && block.filters?.ids?.length > 0) {
+                     const p = post('api/builder/preview', { user_id: uid, blocks: [block] }, null, 'POST', true, false)
+                        .then(res => {
+                            if(res.status === 'ok') {
+                                block._previewItems = res.data;
+                                block._previewCount = res.data.length;
+                            }
+                        });
+                     promises.push(p);
+                } else {
+                     promises.push(this.updatePreviewCount(block));
+                }
             });
 
             await Promise.all(promises);
@@ -662,10 +674,8 @@ export const mixerStore = {
 
     getPreparedBlocks(blocksOverride = null) {
         const rawBlocks = blocksOverride || this.blocks;
-        // Deep clone the blocks to ensure the payload is clean
         return JSON.parse(JSON.stringify(rawBlocks)).map(block => {
-            // Inject cached preview IDs if they exist to "lock" the randomized results for the build
-            if (block._previewItems && block._previewItems.length > 0) {
+            if (!block.isSnapshot && block._previewItems && block._previewItems.length > 0) {
                 if (!block.filters) block.filters = {};
                 block.filters.ids = block._previewItems.map(item => item.Id || item.id);
             }
@@ -680,7 +690,8 @@ export const mixerStore = {
                 if (cachedBlock._previewItems && cachedBlock._previewItems.length > 0) {
                     return await previewModal.show({
                         items: cachedBlock._previewItems,
-                        title: `${cachedBlock.title || 'Block'} Preview`
+                        title: `${cachedBlock.title || 'Block'} Preview`,
+                        parentBlockUid: cachedBlock._uid 
                     });
                 }
             }
@@ -694,7 +705,8 @@ export const mixerStore = {
             if (res.status === 'ok') {
                 await previewModal.show({
                     items: res.data,
-                    title: 'Full Playlist Preview'
+                    title: 'Full Playlist Preview',
+                    parentBlockUid: null
                 });
             }
         } catch (err) {
@@ -730,10 +742,23 @@ export const mixerStore = {
     },
 
     async buildFromPreview(btnEl) {
-        const previewItems = Alpine.store('modals').preview.items;
+        const previewStore = Alpine.store('modals').preview;
+        const previewItems = previewStore.items;
         if (!previewItems || previewItems.length === 0) return;
 
         const uid = Alpine.store('settings').activeUserId;
+        
+        if (previewStore.parentBlockUid) {
+            const block = this.blocks.find(b => b._uid === previewStore.parentBlockUid);
+            if (block) {
+                block._previewItems = [...previewItems];
+                if (block.isSnapshot) {
+                    if (!block.filters) block.filters = {};
+                    block.filters.ids = previewItems.map(i => i.Id || i.id);
+                }
+            }
+        }
+
         const itemIds = previewItems.map(i => i.Id || i.id);
 
         try {
@@ -797,5 +822,63 @@ export const mixerStore = {
             if (showCount) options.count = count;
             await post('api/quick_builds', { user_id: uid, playlist_name: playlistName, quick_build_type: type, options });
         } catch (err) { }
+    },
+
+    createEchoFromItem(item) {
+        const block = {
+            type: 'mirror',
+            _uid: generateUUID(),
+            filters: {
+                seeds_positive: [{ Id: item.Id || item.id, Name: item.Name || item.name || item.previewTitle || 'Unknown' }],
+                seeds_negative: [],
+                mixed_echo: false,
+                include_seeds: false
+            },
+            limit: 10,
+            threshold: 0.65
+        };
+
+        this.ensureBlockState(block);
+        this.blocks = [...this.blocks, block];
+        this.updatePreviewCount(block);
+
+        Alpine.store('ui').setTab('mixed');
+        Alpine.store('modals').previewAction.close(null, true);
+        Alpine.store('manager').contentsModal.isOpen = false;
+
+        toast('Echo block created!', true);
+    },
+
+    snapshotFromPreview() {
+        const previewStore = Alpine.store('modals').preview;
+        const uid = previewStore.parentBlockUid;
+        if (!uid) return;
+
+        const block = this.blocks.find(b => b._uid === uid);
+        if (block) {
+            if (block.type !== 'movie' && block.type !== 'mirror') {
+                toast('This block type does not support snapshotting.', false);
+                return;
+            }
+
+            if (!block.filters) block.filters = {};
+            block.filters.ids = previewStore.items.map(i => i.Id || i.id);
+            block.isSnapshot = true;
+            block._previewCount = block.filters.ids.length;
+            block._previewItems = JSON.parse(JSON.stringify(previewStore.items));
+            this.blocks = [...this.blocks];
+            
+            Alpine.store('modals').previewAction.close(null, true);
+            toast('Order snapshotted to block!', true);
+        }
+    },
+
+    unlockBlock(block) {
+        if (!block) return;
+        block.isSnapshot = false;
+        if (block.filters) block.filters.ids = [];
+        this.updatePreviewCount(block);
+        this.blocks = [...this.blocks];
+        toast('Block unlocked.', true);
     }
 };
