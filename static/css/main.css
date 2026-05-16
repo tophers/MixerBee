@@ -917,7 +917,7 @@ td:last-child { text-align: right; }
 .table-row { border-top: 1px solid var(--border-color); }
 .table-cell { padding: .5rem; }
 .table-loading { padding: 3rem; text-align: center; color: var(--text-subtle); }
-
+.pointer { cursor: pointer; }
 
 /*  Modals, Toasts & Overlays */
 #loading-overlay {

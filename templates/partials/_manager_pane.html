@@ -1,25 +1,41 @@
 <!-- templates/partials/_manager_pane.html -->
 <div id="manager-pane">
     <div class="container">
-        <div class="flex-row justify-between align-center gap-md mb-sm">
-            <div class="flex-row items-baseline gap-sm">
-                <h2 class="m-0">Manager</h2>
-            </div>
-            <div class="flex-row gap-md grow-1 max-w-500">
+        <div class="flex-row justify-between align-center gap-md mb-sm flex-wrap">
+            <div class="flex-row gap-md grow-1 align-center">
                 <input type="search" placeholder="Search by name..."
                        x-model="$store.manager.searchQuery"
                        @input.debounce.250ms="$store.manager.applyFilters()"
                        class="grow-1 m-0">
             </div>
         </div>
-
+        <div class="toggle-pill m-0 shrink-0">
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+        </div>
         <div class="table-container card">
             <table class="manager-table w-full">
                 <thead>
                     <tr class="table-header-row">
-                        <th @click="$store.manager.toggleSort('Name')" class="table-cell pointer text-left">Name</th>
-                        <th @click="$store.manager.toggleSort('Type')" class="table-cell pointer text-left">Type</th>
-                        <th @click="$store.manager.toggleSort('ChildCount')" class="table-cell pointer text-center">Items</th>
+                        <th @click="$store.manager.toggleSort('Name')" class="table-cell pointer text-left select-none">
+                            <div class="flex-row align-center gap-xs">
+                                Name
+                                <span x-show="$store.manager.sortColumn === 'Name'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
+                            </div>
+                        </th>
+                        <th @click="$store.manager.toggleSort('DisplayType')" class="table-cell pointer text-left select-none">
+                            <div class="flex-row align-center gap-xs">
+                                Type
+                                <span x-show="$store.manager.sortColumn === 'DisplayType'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
+                            </div>
+                        </th>
+                        <th @click="$store.manager.toggleSort('ChildCount')" class="table-cell pointer text-center select-none">
+                            <div class="flex-row align-center justify-center gap-xs">
+                                Items
+                                <span x-show="$store.manager.sortColumn === 'ChildCount'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
+                            </div>
+                        </th>
                         <th class="table-cell text-right">Actions</th>
                     </tr>
                 </thead>
@@ -32,8 +48,8 @@
                             <td class="table-cell bold clickable" x-text="item.Name" @click="$store.manager.viewContents(item)"></td>
                             <td class="table-cell">
                                 <span class="token-badge"
-                                      :class="item.Type === 'Playlist' ? 'badge-accent' : 'badge-outline'"
-                                      x-text="item.Type"></span>
+                                      :class="item.DisplayType === 'Playlist' ? 'badge-accent' : 'badge-outline'"
+                                      x-text="item.DisplayType"></span>
                             </td>
                             <td class="table-cell text-center" x-text="item.ChildCount"></td>
                             <td class="table-cell text-right">

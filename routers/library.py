@@ -110,32 +110,45 @@ def api_get_studios(name: str = "", auth_deps: dict = Depends(get_current_auth_h
 
 @router.get("/api/media/search")
 def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_headers)) -> List[Dict[str, Any]]:
-    """Global search for any media (movies/shows) in the vector store."""
+    """Global search for any media (movies/shows) in the vector store + Collections."""
     try:
         res = media_collection.get(
             include=["metadatas"]
         )
         
-        if not res or not res.get('ids'):
-            return []
-
         search_term = query.lower()
         results = []
 
-        for i, item_id in enumerate(res['ids']):
-            meta = res['metadatas'][i]
-            name = meta.get("name", "Unknown")
+        # 1. Search Native Collections first
+        try:
+            collections = core.get_collections(auth_deps["login_uid"], auth_deps["hdr"])
+            for c in collections:
+                if search_term in c.get("Name", "").lower():
+                    results.append({
+                        "Id": c.get("Id"),
+                        "Name": c.get("Name"),
+                        "Year": "",
+                        "Type": "Collection"
+                    })
+        except Exception as ce:
+            logging.warning(f"Failed to fetch collections for search: {ce}")
 
-            if search_term in name.lower():
-                results.append({
-                    "Id": item_id,
-                    "Name": name,
-                    "Year": meta.get("year", ""),
-                    "Type": meta.get("type", "")
-                })
+        # 2. Search Local Vector DB Movies/Shows
+        if res and res.get('ids'):
+            for i, item_id in enumerate(res['ids']):
+                meta = res['metadatas'][i]
+                name = meta.get("name", "Unknown")
 
-                if len(results) >= 15:
-                    break
+                if search_term in name.lower():
+                    results.append({
+                        "Id": item_id,
+                        "Name": name,
+                        "Year": meta.get("year", ""),
+                        "Type": meta.get("type", "")
+                    })
+
+                    if len(results) >= 15:
+                        break
 
         return results
     except Exception as e:

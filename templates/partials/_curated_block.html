@@ -14,10 +14,10 @@
                 const res = await fetch('api/media/search?query=' + encodeURIComponent(this.searchQuery) + '&_cb=' + Date.now());
                 const data = await res.json();
                 if (Array.isArray(data)) {
-                    this.suggestions = data.filter(m => m.Type === 'Movie').map(m => ({
+                    this.suggestions = data.filter(m => m.Type === 'Movie' || m.Type === 'Collection' || m.Type === 'BoxSet').map(m => ({
                         type: 'media',
                         data: m,
-                        text: m.Name + ' (' + (m.Year || '?') + ')'
+                        text: m.Type === 'Movie' ? m.Name + ' (' + (m.Year || '?') + ')' : '📦 ' + m.Name + ' (Collection)'
                     }));
                 } else {
                     this.suggestions = [];
@@ -26,10 +26,32 @@
                 this.suggestions = [];
             }
         },
-        addMovie(itemData) {
-            if (!block.movies.some(m => m.Id === itemData.Id)) {
-                block.movies.push(itemData);
-                $store.mixer.updatePreviewCount(block);
+        async addMovie(itemData) {
+            if (itemData.Type === 'Collection' || itemData.Type === 'BoxSet') {
+                try {
+                    const res = await fetch(`api/items/${itemData.Id}/children?user_id=${$store.settings.activeUserId}&_cb=${Date.now()}`);
+                    const children = await res.json();
+                    if (Array.isArray(children)) {
+                        children.forEach(child => {
+                            if (child.Type === 'Movie' || child.type === 'Movie') {
+                                const formattedChild = {
+                                    Id: child.Id || child.id,
+                                    Name: child.Name || child.name,
+                                    Year: child.ProductionYear || (child.PremiereDate ? child.PremiereDate.substring(0,4) : '')
+                                };
+                                if (!block.movies.some(m => m.Id === formattedChild.Id)) {
+                                    block.movies.push(formattedChild);
+                                }
+                            }
+                        });
+                        $store.mixer.updatePreviewCount(block);
+                    }
+                } catch(e) { console.error('Collection unpack failed', e); }
+            } else {
+                if (!block.movies.some(m => m.Id === itemData.Id)) {
+                    block.movies.push(itemData);
+                    $store.mixer.updatePreviewCount(block);
+                }
             }
             this.searchQuery = '';
             this.suggestions = [];
@@ -88,7 +110,7 @@
                                  <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
                                     <span x-html="$store.icons.list"></span> Preview & Sort
                                 </button>
-                                <button type="button" class="secondary small align-center gap-xs" 
+                                <button type="button" class="secondary small align-center gap-xs"
                                         x-show="block.isSnapshot"
                                         @click="$store.mixer.unlockBlock(block)">
                                     <span x-html="$store.icons.unlock"></span> Unlock Order
@@ -111,16 +133,16 @@
                     <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
                 </div>
                 <div class="modal-body modal-body-scroll">
-                    
+
                     <fieldset class="filter-group mb-md">
                         <legend>Movies</legend>
                         <div class="mb-sm" style="position: relative; width: 100%; display: block;">
                             <input type="search"
                                    style="width: 100% !important; margin: 0; display: block; box-sizing: border-box;"
-                                   placeholder="Search for a movie to add..."
+                                   placeholder="Search for a movie or collection to add..."
                                    x-model="searchQuery"
                                    @input.debounce.300ms="performSearch()">
-                            
+
                             <div class="autocomplete-suggestions"
                                  style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
                                  x-show="suggestions.length > 0"
@@ -139,7 +161,7 @@
                         <div class="token-container" style="min-height: 42px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
                             <template x-for="(m, i) in block.movies" :key="block._uid + '_cur_m_' + m.Id">
                                 <span class="token token-logic-any">
-                                    <span class="token-label" x-text="m.Name || m.name"></span>
+                                    <span class="token-label" x-text="(m.Name || m.name) + (m.Year ? ' (' + m.Year + ')' : '')"></span>
                                     <b class="token-remove" @click="removeMovie(i)">&times;</b>
                                 </span>
                             </template>
@@ -156,7 +178,7 @@
                                 <span x-html="$store.icons.plus" style="--icon-size:12px;"></span> Add Rule
                             </button>
                         </legend>
-                        
+
                         <template x-if="block.shows.length === 0">
                             <p class="text-subtle italic mt-0 mb-sm" style="font-size: 0.85rem;">Click 'Add Rule' to append episodes.</p>
                         </template>
@@ -167,7 +189,7 @@
                                     <div class="show-selector-area grow-1">
                                         <div class="flex-row align-center gap-sm flex-wrap w-full mb-xs">
                                             <select class="m-0 grow-1"
-                                                    style="min-width: 150px;"
+                                                    style="min-width: 120px;"
                                                     :value="show.name"
                                                     @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">
                                                 <option value="">-- Select Series --</option>
@@ -175,7 +197,7 @@
                                                     <option :value="s.name" x-text="s.name" :selected="s.name === show.name"></option>
                                                 </template>
                                             </select>
-                                            
+
                                             <div class="toggle-pill m-0 shrink-0">
                                                 <span class="pill-btn" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show); $store.mixer.updatePreviewCount(block)">Next Unwatched</span>
                                                 <span class="pill-btn" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">Manual Episode</span>
@@ -202,7 +224,7 @@
                                 </div>
                             </template>
                         </div>
-                        
+
                         <div class="mt-md" x-show="block.shows.length > 1" x-transition>
                              <label class="field-label">TV Overlap</label>
                              <div class="toggle-pill w-full">

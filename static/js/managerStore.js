@@ -9,6 +9,7 @@ export const managerStore = {
     searchQuery: '',
     sortColumn: 'Name',
     sortDirection: 'asc',
+    viewFilter: 'All',
     isLoading: false,
 
     libraryIq: {
@@ -55,6 +56,7 @@ export const managerStore = {
                     Name: item.Name || item.name || 'Unknown',
                     Id: item.Id || item.id,
                     Type: item.Type || item.type || 'Playlist',
+                    DisplayType: item.DisplayType || (item.Type === 'BoxSet' ? 'Collection' : item.Type),
                     ChildCount: item.ChildCount !== undefined ? item.ChildCount : (item.child_count || 0)
                 }));
                 this.applyFilters();
@@ -65,6 +67,11 @@ export const managerStore = {
 
     applyFilters() {
         let list = Array.isArray(this.items) ? [...this.items] : [];
+
+        if (this.viewFilter !== 'All') {
+            list = list.filter(i => i.DisplayType === this.viewFilter);
+        }
+
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase().trim();
             list = list.filter(i => i.Name.toLowerCase().includes(q));
@@ -74,13 +81,34 @@ export const managerStore = {
         const dir = this.sortDirection === 'asc' ? 1 : -1;
 
         list.sort((a, b) => {
-            const aVal = (a[col] ?? '').toString();
-            const bVal = (b[col] ?? '').toString();
+            let aVal = a[col];
+            let bVal = b[col];
+            let primaryDiff = 0;
 
-            return aVal.localeCompare(bVal, undefined, {
-                numeric: true,
-                sensitivity: 'accent'
-            }) * dir;
+            if (col === 'ChildCount') {
+                aVal = parseInt(aVal || 0, 10);
+                bVal = parseInt(bVal || 0, 10);
+                primaryDiff = aVal - bVal;
+            } else {
+                aVal = (aVal ?? '').toString();
+                bVal = (bVal ?? '').toString();
+                primaryDiff = aVal.localeCompare(bVal, undefined, {
+                    numeric: true,
+                    sensitivity: 'accent'
+                });
+            }
+
+            if (primaryDiff !== 0) {
+                return primaryDiff * dir;
+            }
+
+            if (col !== 'Name') {
+                let aName = (a.Name ?? '').toString();
+                let bName = (b.Name ?? '').toString();
+                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'accent' }) * dir;
+            }
+
+            return 0;
         });
 
         this.filtered = list;
