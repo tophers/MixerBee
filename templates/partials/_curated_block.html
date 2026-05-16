@@ -1,0 +1,232 @@
+<!-- templates/partials/_curated_block.html -->
+<template x-if="block && block.type === 'curated'">
+    <div x-data="{
+        editModalOpen: false,
+        isOpen: index === $store.mixer.blocks.length - 1,
+        searchQuery: '',
+        suggestions: [],
+        async performSearch() {
+            if (this.searchQuery.length < 2) {
+                this.suggestions = [];
+                return;
+            }
+            try {
+                const res = await fetch('api/media/search?query=' + encodeURIComponent(this.searchQuery) + '&_cb=' + Date.now());
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    this.suggestions = data.filter(m => m.Type === 'Movie').map(m => ({
+                        type: 'media',
+                        data: m,
+                        text: m.Name + ' (' + (m.Year || '?') + ')'
+                    }));
+                } else {
+                    this.suggestions = [];
+                }
+            } catch (e) {
+                this.suggestions = [];
+            }
+        },
+        addMovie(itemData) {
+            if (!block.movies.some(m => m.Id === itemData.Id)) {
+                block.movies.push(itemData);
+                $store.mixer.updatePreviewCount(block);
+            }
+            this.searchQuery = '';
+            this.suggestions = [];
+        },
+        removeMovie(idx) {
+            block.movies.splice(idx, 1);
+            $store.mixer.updatePreviewCount(block);
+        }
+    }" x-init="$store.mixer.ensureBlockState(block)">
+        <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
+            <details class="mixed-block curated-block" :open="isOpen" @toggle="isOpen = $el.open">
+                {% set default_title = 'Curated Mix' %}
+                {% include 'partials/_block_header.html' %}
+
+                <div class="mixed-block-body">
+                    <div class="block-summary-card">
+                        <div class="flex-row align-start gap-lg">
+                            <div class="shrink-0 curated-stat-box">
+                                <div class="summary-label">Items</div>
+                                <div class="curated-count" x-text="block._previewLoading ? '...' : (block._previewCount ?? '0')"></div>
+                            </div>
+
+                            <div class="grow-1">
+                                <div class="summary-label">Selected Media</div>
+                                <div class="summary-content mb-sm">
+                                    <template x-if="block._previewLoading">
+                                        <span class="text-subtle italic"> — Resolving mix...</span>
+                                    </template>
+                                    <template x-if="!block._previewLoading && block._previewItems && block._previewItems.length > 0">
+                                        <div class="curated-preview-text">
+                                            <template x-for="(item, i) in block._previewItems.slice(0, 3)" :key="block._uid + '_curprev_' + i">
+                                                <span x-text="(item.name || item.Name || 'Unknown') + (i < Math.min(block._previewItems.length, 3) - 1 ? ', ' : '')"></span>
+                                            </template>
+                                            <template x-if="block._previewCount > 3">
+                                                <span class="text-subtle"> + <span x-text="block._previewCount - 3"></span> more</span>
+                                            </template>
+                                        </div>
+                                    </template>
+                                    <template x-if="!block._previewLoading && (!block._previewItems || block._previewItems.length === 0)">
+                                        <div class="text-subtle italic">No items selected</div>
+                                    </template>
+                                </div>
+                                <div class="flex-row flex-wrap gap-sm align-center mt-xs">
+                                    <template x-if="block.isSnapshot">
+                                        <span class="badge badge-accent">FIXED ORDER</span>
+                                    </template>
+                                    <template x-if="!block.isSnapshot">
+                                        <span class="badge badge-outline-subtle" x-text="block.playback_order === 'movies_first' ? 'Movies First' : (block.playback_order === 'tv_first' ? 'TV First' : 'Interleaved')"></span>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-md curated-footer flex-row justify-between align-center">
+                            <div class="flex-row gap-xs">
+                                 <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
+                                    <span x-html="$store.icons.list"></span> Preview & Sort
+                                </button>
+                                <button type="button" class="secondary small align-center gap-xs" 
+                                        x-show="block.isSnapshot"
+                                        @click="$store.mixer.unlockBlock(block)">
+                                    <span x-html="$store.icons.unlock"></span> Unlock Order
+                                </button>
+                            </div>
+                            <button type="button" class="secondary small align-center gap-xs" @click="editModalOpen = true" :disabled="block.isSnapshot">
+                                <span x-html="$store.icons.edit"></span> Configure Mix
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </details>
+        </div>
+
+        <!-- Curated Settings Modal -->
+        <div class="modal-overlay" x-show="editModalOpen" x-cloak style="z-index: 9999;">
+            <div class="modal-window wide" @click.outside="editModalOpen = false">
+                <div class="modal-header">
+                    <h2>Configure Curated Mix</h2>
+                    <button type="button" class="icon-btn" @click="editModalOpen = false">&times;</button>
+                </div>
+                <div class="modal-body modal-body-scroll">
+                    
+                    <fieldset class="filter-group mb-md">
+                        <legend>Movies</legend>
+                        <div class="mb-sm" style="position: relative; width: 100%; display: block;">
+                            <input type="search"
+                                   style="width: 100% !important; margin: 0; display: block; box-sizing: border-box;"
+                                   placeholder="Search for a movie to add..."
+                                   x-model="searchQuery"
+                                   @input.debounce.300ms="performSearch()">
+                            
+                            <div class="autocomplete-suggestions"
+                                 style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
+                                 x-show="suggestions.length > 0"
+                                 x-cloak>
+                                <ul style="margin: 0; padding: 0; list-style: none;">
+                                    <template x-for="s in suggestions" :key="block._uid + '_cur_msug_' + s.data.Id">
+                                        <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ffffff;"
+                                            class="dropdown-item-hover"
+                                            @click="addMovie(s.data)"
+                                            x-text="s.text"></li>
+                                    </template>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <div class="token-container" style="min-height: 42px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
+                            <template x-for="(m, i) in block.movies" :key="block._uid + '_cur_m_' + m.Id">
+                                <span class="token token-logic-any">
+                                    <span class="token-label" x-text="m.Name || m.name"></span>
+                                    <b class="token-remove" @click="removeMovie(i)">&times;</b>
+                                </span>
+                            </template>
+                            <template x-if="block.movies.length === 0">
+                                <span class="text-subtle italic px-sm" style="font-size: 0.85rem; line-height: 30px;">No movies selected.</span>
+                            </template>
+                        </div>
+                    </fieldset>
+
+                    <fieldset class="filter-group">
+                        <legend class="flex-row justify-between w-full align-center" style="display:flex;">
+                            <span>TV Shows</span>
+                            <button type="button" class="secondary small align-center gap-xs m-0" @click="$store.mixer.addShowRow(index)">
+                                <span x-html="$store.icons.plus" style="--icon-size:12px;"></span> Add Rule
+                            </button>
+                        </legend>
+                        
+                        <template x-if="block.shows.length === 0">
+                            <p class="text-subtle italic mt-0 mb-sm" style="font-size: 0.85rem;">Click 'Add Rule' to append episodes.</p>
+                        </template>
+
+                        <div class="tv-block-shows">
+                            <template x-for="(show, rowIndex) in (block.shows || [])" :key="show._uid">
+                                <div class="tv-show-row p-sm" style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); margin-bottom: 0.5rem;" :class="{ 'is-unwatched': show.unwatched }">
+                                    <div class="show-selector-area grow-1">
+                                        <div class="flex-row align-center gap-sm flex-wrap w-full mb-xs">
+                                            <select class="m-0 grow-1"
+                                                    style="min-width: 150px;"
+                                                    :value="show.name"
+                                                    @change="show.name = $event.target.value; show.unwatched ? $store.mixer.syncNextUnwatched(show) : $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">
+                                                <option value="">-- Select Series --</option>
+                                                <template x-for="s in $store.mixer.library.seriesData" :key="s.id">
+                                                    <option :value="s.name" x-text="s.name" :selected="s.name === show.name"></option>
+                                                </template>
+                                            </select>
+                                            
+                                            <div class="toggle-pill m-0 shrink-0">
+                                                <span class="pill-btn" :class="show.unwatched ? 'active' : ''" @click="show.unwatched = true; $store.mixer.syncNextUnwatched(show); $store.mixer.updatePreviewCount(block)">Next Unwatched</span>
+                                                <span class="pill-btn" :class="!show.unwatched ? 'active' : ''" @click="show.unwatched = false; $store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)">Manual Episode</span>
+                                            </div>
+
+                                            <button type="button" class="icon-btn danger-hover m-0 shrink-0" @click="$store.mixer.deleteShowRow(index, rowIndex)" title="Remove Series" x-html="$store.icons.trash"></button>
+                                        </div>
+
+                                        <div class="show-episode-config" x-show="show.name">
+                                            <div class="episode-inputs flex-row gap-md align-center mb-xs" x-show="!show.unwatched">
+                                                <div class="flex-row align-center gap-xs"><span class="text-subtle">Season:</span><input type="number" x-model.number="show.season" min="1" @change="$store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)" class="w-65 m-0"></div>
+                                                <div class="flex-row align-center gap-xs"><span class="text-subtle">Episode:</span><input type="number" x-model.number="show.episode" min="1" @change="$store.mixer.fetchEpisodeTitle(show); $store.mixer.updatePreviewCount(block)" class="w-65 m-0"></div>
+                                            </div>
+                                            <div class="flex-row align-center gap-md">
+                                                <div class="flex-row align-center gap-xs">
+                                                    <span class="text-subtle">Play</span>
+                                                    <input type="number" x-model.number="show.count" min="1" max="100" class="w-65 m-0 text-center" @change="$store.mixer.updatePreviewCount(block)">
+                                                    <span class="text-subtle">Eps</span>
+                                                </div>
+                                                <div class="curated-preview-text opacity-80" x-show="show.previewTitle"><span>Starting: </span><i x-text="show.previewTitle"></i></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                        
+                        <div class="mt-md" x-show="block.shows.length > 1" x-transition>
+                             <label class="field-label">TV Overlap</label>
+                             <div class="toggle-pill w-full">
+                                <span class="pill-btn grow-1 text-center" :class="block.tv_interleave ? 'active' : ''" @click="block.tv_interleave = true; $store.mixer.updatePreviewCount(block)">Interleaved</span>
+                                <span class="pill-btn grow-1 text-center" :class="!block.tv_interleave ? 'active' : ''" @click="block.tv_interleave = false; $store.mixer.updatePreviewCount(block)">Sequential</span>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <div class="tweak-item mt-lg" style="background: transparent; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
+                        <div class="tweak-label-row">
+                            <span class="tweak-title">Playback Order</span>
+                        </div>
+                        <div class="toggle-pill w-full">
+                            <span class="pill-btn grow-1 text-center" :class="block.playback_order === 'movies_first' ? 'active' : ''" @click="block.playback_order = 'movies_first'; $store.mixer.updatePreviewCount(block)">Movies First</span>
+                            <span class="pill-btn grow-1 text-center" :class="block.playback_order === 'tv_first' ? 'active' : ''" @click="block.playback_order = 'tv_first'; $store.mixer.updatePreviewCount(block)">TV First</span>
+                            <span class="pill-btn grow-1 text-center" :class="block.playback_order === 'interleaved' ? 'active' : ''" @click="block.playback_order = 'interleaved'; $store.mixer.updatePreviewCount(block)">Mixed / Interleaved</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="primary" @click="editModalOpen = false">Done</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>

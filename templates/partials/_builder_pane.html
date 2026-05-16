@@ -152,6 +152,7 @@
                     {% include 'partials/_music_block.html' %}
                     {% include 'partials/_vibe_block.html' %}
                     {% include 'partials/_mirror_block.html' %}
+                    {% include 'partials/_curated_block.html' %}
                 </div>
             </template>
         </div>
@@ -167,6 +168,7 @@
                         <span x-html="$store.icons.plus"></span><span class="hide-mobile">Add Block</span><span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
                     </button>
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('curated')"><span class="dropdown-icon" x-html="$store.icons.list"></span> Curated Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span> Echo Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>

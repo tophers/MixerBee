@@ -50,13 +50,13 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                             s = ep_info.get("ParentIndexNumber")
                             e = ep_info.get("IndexNumber")
 
-                    if s is None or e is None:
-                        first_ep = get_first_available_episode(sid, user_id, hdr)
-                        if first_ep:
-                            s = first_ep.get("ParentIndexNumber")
-                            e = first_ep.get("IndexNumber")
-                        else:
-                            s, e = 1, 1
+                if s is None or e is None:
+                    first_ep = get_first_available_episode(sid, user_id, hdr)
+                    if first_ep:
+                        s = first_ep.get("ParentIndexNumber")
+                        e = first_ep.get("IndexNumber")
+                    else:
+                        s, e = 1, 1
 
                 eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
 
@@ -247,6 +247,79 @@ def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
 
     return items
 
+def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    items = []
+    try:
+        # Snapshotted bypass
+        filters = block.get("filters", {})
+        if block.get("isSnapshot") and filters.get("ids"):
+            return _process_movie_block({"filters": {"ids": filters["ids"]}}, user_id, hdr, log_messages, block_index)
+
+        movies_list = []
+        movie_ids = [m.get("Id") for m in block.get("movies", []) if m.get("Id")]
+        if movie_ids:
+            resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
+            # Maintain explicit order
+            movie_map = {m["Id"]: m for m in resolved_movies}
+            movies_list = [movie_map[mid] for mid in movie_ids if mid in movie_map]
+
+        tv_list = []
+        shows = block.get("shows", [])
+        if shows:
+            groups = []
+            for raw_show in shows:
+                show_name = raw_show.get("name")
+                sid = items_api.sanitize_id(raw_show.get("id"))
+                if not sid and show_name:
+                    sid = series_id(show_name, hdr)
+                if not sid: continue
+
+                s = raw_show.get("season")
+                e = raw_show.get("episode")
+                is_unwatched = raw_show.get("unwatched", True)
+                count = int(raw_show.get("count", 1))
+
+                if s is not None: s = int(s)
+                if e is not None: e = int(e)
+
+                if s is None or e is None:
+                    if is_unwatched:
+                        ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                        if ep_info:
+                            s, e = ep_info.get("ParentIndexNumber"), ep_info.get("IndexNumber")
+                    if s is None or e is None:
+                        first_ep = get_first_available_episode(sid, user_id, hdr)
+                        if first_ep:
+                            s, e = first_ep.get("ParentIndexNumber"), first_ep.get("IndexNumber")
+                        else:
+                            s, e = 1, 1
+
+                eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
+                if eps: groups.append(eps)
+
+            if block.get("tv_interleave", False):
+                for bundle in zip_longest(*groups):
+                    tv_list.extend(ep for ep in bundle if ep is not None)
+            else:
+                for group in groups:
+                    tv_list.extend(group)
+
+        # Merge according to block rule
+        order = block.get("playback_order", "movies_first")
+        if order == "movies_first":
+            items = movies_list + tv_list
+        elif order == "tv_first":
+            items = tv_list + movies_list
+        elif order == "interleaved":
+            for m, t in zip_longest(movies_list, tv_list):
+                if m: items.append(m)
+                if t: items.append(t)
+        else:
+            items = movies_list + tv_list
+
+    except Exception as e:
+        logging.error(f"Error processing Curated block {block_index}: {e}", exc_info=True)
+    return items
 
 def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str], log_messages: List[str]) -> List[Dict[str, Any]]:
     master_items_list: List[Dict[str, Any]] = []
@@ -261,6 +334,8 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: 
             master_items_list.extend(_process_music_block(block, user_id, hdr, log_messages, i))
         elif block_type == "mirror" or block_type == "echo":
             master_items_list.extend(_process_mirror_block(block, user_id, hdr, log_messages, i))
+        elif block_type == "curated":
+            master_items_list.extend(_process_curated_block(block, user_id, hdr, log_messages, i))
 
     return master_items_list
 

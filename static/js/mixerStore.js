@@ -151,6 +151,31 @@ export const mixerStore = {
             });
             this.updatePreviewCount(block);
         }
+
+        if (block.type === 'curated') {
+            if (!block.movies) block.movies = [];
+            if (!block.shows) block.shows = [];
+            if (!block.playback_order) block.playback_order = 'movies_first';
+            if (!block.tv_interleave) block.tv_interleave = false;
+            if (!block.filters) block.filters = { ids: [] };
+
+            block.shows.forEach(s => {
+                if (!s._uid) s._uid = generateUUID();
+                if (!s.name && s.id) {
+                    const seriesMatch = this.library.seriesData.find(ls => String(ls.id) === String(s.id));
+                    if (seriesMatch) s.name = seriesMatch.name;
+                }
+                if (s.season === undefined) s.season = 1;
+                if (s.episode === undefined) s.episode = 1;
+                if (s.count === undefined) s.count = 1;
+                if (s.unwatched === undefined) s.unwatched = true;
+                s.previewTitle = s.previewTitle ?? '';
+                s._loadingTitle = false;
+            });
+            
+            // curated blocks ALWAYS rely on backend preview to resolve the dynamic TV rules
+            this.updatePreviewCount(block);
+        }
     },
 
     persistToLocalStorage() {
@@ -437,7 +462,7 @@ export const mixerStore = {
             const promises = [];
 
             blocksData.forEach(block => {
-                const isTv = block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv');
+                const isTv = block.type === 'tv' || (block.type === 'vibe' && block.vibe_type === 'tv') || block.type === 'curated';
                 if (isTv && uid) {
                     block.shows.forEach(show => {
                         if (show.unwatched) {
@@ -498,6 +523,8 @@ export const mixerStore = {
             block = { type: 'music', music: { mode: 'album', count: 10, filters: { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' } } };
         } else if (type === 'mirror') {
             block = { type: 'mirror', filters: { seeds_positive: [], seeds_negative: [], mixed_echo: false, include_seeds: false }, limit: 10, threshold: 0.65 };
+        } else if (type === 'curated') {
+            block = { type: 'curated', playback_order: 'movies_first', tv_interleave: false, movies: [], shows: [], filters: { ids: [] } };
         }
 
         if (block) {
@@ -531,9 +558,10 @@ export const mixerStore = {
     },
 
     addShowRow(blockIndex) {
-        const def = { name: '', season: 1, episode: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
-        this.blocks[blockIndex].shows.push(def);
-        this.updatePreviewCount(this.blocks[blockIndex]);
+        const block = this.blocks[blockIndex];
+        const def = { name: '', season: 1, episode: 1, count: 1, unwatched: true, previewTitle: '', _uid: generateUUID() };
+        block.shows.push(def);
+        this.updatePreviewCount(block);
     },
 
     deleteShowRow(blockIndex, rowIndex) {
@@ -856,7 +884,7 @@ export const mixerStore = {
 
         const block = this.blocks.find(b => b._uid === uid);
         if (block) {
-            if (block.type !== 'movie' && block.type !== 'mirror') {
+            if (block.type !== 'movie' && block.type !== 'mirror' && block.type !== 'curated') {
                 toast('This block type does not support snapshotting.', false);
                 return;
             }

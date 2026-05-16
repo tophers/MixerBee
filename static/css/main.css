@@ -143,30 +143,10 @@ body[data-theme='light'] {
 }
 
 /*  Base & Resets */
-html {
-  box-sizing: border-box;
-}
-
-html, body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  transition: background-color 0.2s, color 0.2s;
-}
-
-body {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-
-h2 {
-  font-family: 'Poppins', sans-serif;
-  font-weight: 600;
-  text-align: center;
-  margin: 1.3rem 0;
-}
-
+html { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); transition: background-color 0.2s, color 0.2s; }
+body { display: flex; flex-direction: column; min-height: 100vh; }
+h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; margin: 1.3rem 0; }
 [x-cloak] { display: none !important; }
 .hidden { display: none !important; }
 
@@ -369,6 +349,8 @@ button {
   gap: 0.5rem;
   margin-top: 0.5rem;
 }
+button[x-text="$store.modals.confirm.confirmText"] { background: var(--panel); color: var(--text); border: 1px solid var(--border-color); }
+button:hover[x-text="$store.modals.confirm.confirmText"] { background: var(--danger-outline-hover-bg); color: var(--danger) !important; border: 1px solid var(--danger-outline-border) !important; }
 
 button:hover {
   background: var(--accent-dark);
