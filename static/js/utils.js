@@ -14,9 +14,15 @@ export function generateUUID() {
 export function toast(message, isSuccess, options = {}) {
   const { actionCallback, actionText = 'View' } = options;
 
-  const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const timestamp = new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+
   toastHistory.unshift({ message, isSuccess, timestamp });
   if (toastHistory.length > 50) toastHistory.pop();
+
   document.dispatchEvent(new CustomEvent('toast-added'));
 
   document.querySelectorAll('.toast').forEach(t => t.remove());
@@ -24,46 +30,67 @@ export function toast(message, isSuccess, options = {}) {
   const toastElement = document.createElement('div');
   toastElement.className = `toast ${isSuccess ? 'ok' : 'fail'}`;
 
-  let contentHTML = `<div class="toast-message">${message}</div>`;
-
-  if (actionCallback) {
-    const icon = typeof Alpine !== 'undefined' ? Alpine.store('icons').externalLink : '';
-    contentHTML += `
-      <div class="toast-actions">
-        <button type="button" class="toast-button align-center gap-xs">
-          ${icon} ${actionText}
-        </button>
-      </div>
-    `;
-  }
-
-  toastElement.innerHTML = contentHTML;
-
-  if (actionCallback) {
-    toastElement.querySelector('.toast-button').addEventListener('click', () => {
-      actionCallback();
-      toastElement.style.animation = 'fadeOutUp 0.5s forwards';
-      toastElement.addEventListener('animationend', () => toastElement.remove());
+  const dismissToast = () => {
+    toastElement.style.animation = 'fadeOutUp 0.5s forwards';
+    toastElement.addEventListener('animationend', () => toastElement.remove(), {
+      once: true
     });
+  };
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = 'toast-message';
+  messageDiv.textContent = String(message ?? '');
+  toastElement.appendChild(messageDiv);
+
+  if (actionCallback) {
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'toast-actions';
+
+    const actionBtn = document.createElement('button');
+    actionBtn.type = 'button';
+    actionBtn.className = 'toast-button align-center gap-xs';
+
+    const icon = typeof Alpine !== 'undefined'
+      ? Alpine.store('icons')?.externalLink
+      : '';
+
+    if (icon) {
+      const iconSpan = document.createElement('span');
+      iconSpan.className = 'toast-button-icon';
+
+      iconSpan.innerHTML = icon;
+
+      actionBtn.appendChild(iconSpan);
+    }
+
+    actionBtn.appendChild(document.createTextNode(` ${String(actionText ?? '')}`));
+
+    actionBtn.addEventListener('click', () => {
+      actionCallback();
+      dismissToast();
+    });
+
+    actionsDiv.appendChild(actionBtn);
+    toastElement.appendChild(actionsDiv);
   }
 
   const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
   closeBtn.className = 'toast-close-btn';
-  closeBtn.innerHTML = '&times;';
-  closeBtn.onclick = () => {
-    toastElement.style.animation = 'fadeOutUp 0.5s forwards';
-    toastElement.addEventListener('animationend', () => toastElement.remove());
-  };
-  toastElement.appendChild(closeBtn);
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', dismissToast);
 
+  toastElement.appendChild(closeBtn);
   document.body.appendChild(toastElement);
 
   if (!actionCallback) {
-    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 3.2s forwards';
+    toastElement.style.animation =
+      'fadeInDown 0.5s, fadeOutUp 0.5s 3.2s forwards';
+
     setTimeout(() => {
-        if (toastElement.parentNode) {
-            toastElement.remove();
-        }
+      if (toastElement.parentNode) {
+        toastElement.remove();
+      }
     }, 4300);
   } else {
     toastElement.style.animation = 'fadeInDown 0.5s forwards';
