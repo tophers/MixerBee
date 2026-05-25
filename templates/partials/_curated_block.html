@@ -96,7 +96,7 @@
                                 </div>
                                 <div class="flex-row flex-wrap gap-sm align-center mt-xs">
                                     <template x-if="block.isSnapshot">
-                                        <span class="badge badge-accent">FIXED ORDER</span>
+                                        <span class="badge badge-accent">FIXED</span>
                                     </template>
                                     <template x-if="!block.isSnapshot">
                                         <span class="badge badge-outline-subtle" x-text="block.playback_order === 'movies_first' ? 'Movies First' : (block.playback_order === 'tv_first' ? 'TV First' : 'Interleaved')"></span>

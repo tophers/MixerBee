@@ -1,5 +1,5 @@
 """
-app/builder.py - Logic for building mixed playlists from blocks with randomized Echo sampling.
+app/builder.py -  module for constructing mixed playlists from content blocks.
 """
 
 import logging
@@ -16,6 +16,7 @@ from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_epis
 
 
 def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    """Process a TV block: resolve shows to episodes with optional interleave."""
     items = []
     try:
         should_interleave = block.get("interleave", True)
@@ -78,7 +79,10 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
         logging.error(f"Error processing TV block {block_index}: {e}", exc_info=True)
 
     return items
+
+
 def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    """Process a movie block: resolve by explicit IDs or general filters."""
     items = []
     try:
         filters = block.get("filters", {}).copy()
@@ -109,24 +113,23 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
         logging.error(f"Error processing Movie block {block_index}: {e}", exc_info=True)
     return items
 
+
 def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
-    """
-    Handles logic for the Echo (Mirror) block.
-    """
+    """Process an Echo (Mirror) block: AI-similarity-based content sampling."""
     items = []
     try:
         from .ai.vector_store import search_by_composite_similarity
 
         filters = block.get("filters", {})
-        
+
         if "ids" in filters and filters["ids"]:
             target_ids = filters["ids"]
             resolved_map = {}
-            
+
             resolved_movies = find_movies(user_id=user_id, filters={"ids": target_ids}, hdr=hdr)
             for m in resolved_movies:
                 resolved_map[m["Id"]] = m
-            
+
             remaining_ids = [tid for tid in target_ids if tid not in resolved_map]
             for rid in remaining_ids:
                 item_info = items_api.get_item_children(user_id, rid, hdr) # Fallback resolving
@@ -136,12 +139,12 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
                     item_resp = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items/{rid}", headers=hdr, timeout=5)
                     if item_resp.ok:
                         resolved_map[rid] = item_resp.json()
-            
+
             ordered_items = []
             for tid in target_ids:
                 if tid in resolved_map:
                     ordered_items.append(resolved_map[tid])
-            
+
             return ordered_items
 
         seeds_pos = [s['Id'] for s in filters.get("seeds_positive", [])]
@@ -216,7 +219,9 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
         logging.error(f"Error processing Echo block {block_index}: {e}", exc_info=True)
     return items
 
+
 def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    """Process a music block: resolve songs by album, artist, or genre."""
     items = []
     try:
         music_data = block.get("music", {})
@@ -247,7 +252,9 @@ def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
 
     return items
 
+
 def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+    """Process a curated block: combine explicit movies and TV shows with controlled ordering."""
     items = []
     try:
         # Snapshotted bypass
@@ -321,7 +328,9 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
         logging.error(f"Error processing Curated block {block_index}: {e}", exc_info=True)
     return items
 
+
 def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str], log_messages: List[str]) -> List[Dict[str, Any]]:
+    """Dispatch block definitions to their respective processors."""
     master_items_list: List[Dict[str, Any]] = []
 
     for i, block in enumerate(blocks, 1):
@@ -341,6 +350,7 @@ def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: 
 
 
 def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Format items into a display-friendly preview with episode numbers, years, and artist context."""
     formatted_list = []
     for item in items:
         item_id = item.get("Id")
@@ -370,6 +380,7 @@ def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]
 
 
 def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str]) -> Dict[str, Any]:
+    """Create a new playlist from resolved block items."""
     log_messages: List[str] = []
     master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
     master_item_ids = [item["Id"] for item in master_items if item.get("Id")]
@@ -387,6 +398,7 @@ def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[st
 
 
 def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str]) -> Dict[str, Any]:
+    """Add items from block definitions to an existing playlist."""
     log_messages: List[str] = []
     master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
     master_item_ids = [item["Id"] for item in master_items if item.get("Id")]

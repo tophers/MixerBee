@@ -1,6 +1,7 @@
-/* static/js/schedulerStore.js */
+// static/js/schedulerStore.js
 
-import { post, toast, generateUUID } from './utils.js';
+import { api } from './apiClient.js';
+import { toast, generateUUID } from './utils.js';
 
 export const schedulerStore = {
     schedule: [],
@@ -10,12 +11,9 @@ export const schedulerStore = {
         this.isLoading = true;
         try {
             await Alpine.store('presets').refresh();
-
-            const response = await fetch('api/schedules');
-            if (response.ok) {
-                const data = await response.json();
+            const data = await api.get('api/schedules', true, false);
+            if (data) {
                 const rawList = Array.isArray(data) ? data : [];
-
                 this.schedule = rawList.map(entry => {
                     const details = entry.schedule_details || {};
                     return {
@@ -30,15 +28,14 @@ export const schedulerStore = {
                             time: details.time || entry.time || "12:00",
                             frequency: details.frequency || entry.frequency || "daily",
                             interval_minutes: details.interval_minutes || 30,
-                            days_of_week: Array.isArray(details.days_of_week)
-                                ? details.days_of_week.map(Number)
-                                : [0, 1, 2, 3, 4, 5, 6]
+                            days_of_week: Array.isArray(details.days_of_week) ? details.days_of_week.map(Number) : [0, 1, 2, 3, 4, 5, 6]
                         }
                     };
                 });
             }
         } catch (err) {
             console.error("Scheduler Load Error:", err);
+            toast("Failed to load schedules", false);
         } finally {
             this.isLoading = false;
         }
@@ -47,11 +44,8 @@ export const schedulerStore = {
     async saveSchedule(entry, btnEl) {
         if (!entry) return;
         const uid = Alpine.store('settings').activeUserId;
-        
         let freq = entry.schedule_details.frequency;
-        if (freq !== 'interval') {
-            freq = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
-        }
+        if (freq !== 'interval') freq = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
 
         const payload = {
             user_id: uid,
@@ -70,29 +64,20 @@ export const schedulerStore = {
         };
 
         try {
-            let res;
-            if (entry.id) {
-                res = await post(`api/schedules/${entry.id}`, payload, btnEl, 'PUT');
-            } else {
-                res = await post('api/schedules', payload, btnEl);
-                if (res && res.id) entry.id = res.id;
-            }
-
+            let res = entry.id 
+                ? await api.put(`api/schedules/${entry.id}`, payload, btnEl)
+                : await api.post('api/schedules', payload, btnEl);
+            
             if (res && res.status === 'ok') {
+                if (res.id) entry.id = res.id;
                 this.schedule = [...this.schedule];
             }
-        } catch (err) {
-            console.error("Backend Save Error:", err);
-        }
+        } catch (err) { }
     },
 
     async runNow(id, btnEl) {
         if (!id) return toast("Save the schedule first to generate a Job ID.", false);
-        try {
-            await post(`api/schedules/${id}/run`, {}, btnEl);
-        } catch (err) {
-            console.error("Manual run failed:", err);
-        }
+        try { await api.post(`api/schedules/${id}/run`, {}, btnEl); } catch (err) { }
     },
 
     async removeEntry(entry, btnEl) {
@@ -101,32 +86,17 @@ export const schedulerStore = {
             return;
         }
         try {
-            const res = await post(`api/schedules/${entry.id}`, {}, btnEl, 'DELETE');
-            if (res && res.status === 'ok') {
-                this.schedule = this.schedule.filter(s => s !== entry);
-            }
-        } catch (err) {
-            console.error("Delete failed:", err);
-        }
+            const res = await api.del(`api/schedules/${entry.id}`, btnEl);
+            if (res && res.status === 'ok') this.schedule = this.schedule.filter(s => s !== entry);
+        } catch (err) { }
     },
 
     addEntry() {
-        const uid = Alpine.store('settings').activeUserId;
         const newEntry = {
-            id: null,
-            _uid: generateUUID(),
-            job_type: "builder",
-            playlist_name: "New Scheduled Mix",
-            preset_name: "",
-            user_id: uid,
-            create_as_collection: false,
+            id: null, _uid: generateUUID(), job_type: "builder", playlist_name: "New Scheduled Mix",
+            preset_name: "", user_id: Alpine.store('settings').activeUserId, create_as_collection: false,
             enrichment_data: { batch_size: 15, timeout: 120 },
-            schedule_details: {
-                time: "12:00",
-                frequency: "daily",
-                interval_minutes: 30,
-                days_of_week: [0, 1, 2, 3, 4, 5, 6]
-            }
+            schedule_details: { time: "12:00", frequency: "daily", interval_minutes: 30, days_of_week: [0, 1, 2, 3, 4, 5, 6] }
         };
         this.schedule = [...this.schedule, newEntry];
         return newEntry._uid;
@@ -134,11 +104,8 @@ export const schedulerStore = {
 
     toggleDay(entry, dayNum) {
         let days = [...(entry.schedule_details.days_of_week || [])];
-        if (days.includes(dayNum)) {
-            days = days.filter(d => d !== dayNum);
-        } else {
-            days.push(dayNum);
-        }
+        if (days.includes(dayNum)) days = days.filter(d => d !== dayNum);
+        else days.push(dayNum);
         entry.schedule_details.days_of_week = days.sort((a,b) => a - b);
         this.schedule = [...this.schedule];
     }

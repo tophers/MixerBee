@@ -54,22 +54,22 @@
                 </button>
             </div>
             
-            <div x-init="$store.mixer.fetchMoodDiscovery()">
+            <div x-init="$store.ai.fetchMoodDiscovery()">
                 <div class="textarea-wrapper">
-                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.mixer.aiPrompt"></textarea>
-                    <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.mixer.aiPrompt.length > 0" @click="$store.mixer.clearAiPrompt()">
+                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.ai.prompt"></textarea>
+                    <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.ai.prompt.length > 0" @click="$store.ai.clearPrompt()">
                         <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
                 
                 <!-- Mood Discovery Slots -->
-                <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.mixer.activeMoods.length > 0" x-transition>
+                <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.ai.activeMoods.length > 0" x-transition>
                     <span class="text-subtle mr-xs hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
                     <div class="flex-row gap-xs grow-1 overflow-hidden">
-                        <template x-for="(mood, i) in $store.mixer.activeMoods" :key="'mood-'+i">
+                        <template x-for="(mood, i) in $store.ai.activeMoods" :key="'mood-'+i">
                             <button type="button" 
                                     class="mood-slot-btn" 
-                                    @click="$store.mixer.appendMood(i)"
+                                    @click="$store.ai.appendMood(i)"
                                     title="Click to add to prompt">
                                 <span class="mood-slot-text" x-text="mood"></span>
                             </button>
@@ -77,15 +77,15 @@
                     </div>
                     <button type="button" 
                             class="icon-btn mood-refresh-btn" 
-                            @click="$store.mixer.refreshMoodSlots()" 
-                            :class="$store.mixer.isMoodLoading ? 'spin' : ''"
+                            @click="$store.ai.refreshMoodSlots()" 
+                            :class="$store.ai.isLoadingMoods ? 'spin' : ''"
                             title="Refresh Moods">
                         <span x-html="$store.icons.refresh" style="--icon-size: 14px;"></span>
                     </button>
                 </div>
-                <div class="prompt-starter-overlay" x-show="$store.mixer.aiPrompt.length === 0 && $store.mixer.samplePrompt" x-transition x-cloak>
+                <div class="prompt-starter-overlay" x-show="$store.ai.prompt.length === 0 && $store.ai.samplePrompt" x-transition x-cloak>
                     <span class="text-subtle hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Try: </span>
-                    <button type="button" class="link-btn mood-discovery-bar" @click="$store.mixer.useSamplePrompt()" x-text="$store.mixer.samplePrompt"></button>
+                    <button type="button" class="link-btn mood-discovery-bar" @click="$store.ai.useSamplePrompt()" x-text="$store.ai.samplePrompt"></button>
                 </div> 
 
                 <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
@@ -107,7 +107,7 @@
                             <template x-if="$store.settings.ai_provider === 'ollama'">
                                 <div>
                                     <template x-for="m in $store.settings.starred_models" :key="'quick-'+m">
-                                        <a href="#" class="dropdown-item flex-row justify-between align-center" @click.prevent="modelMenuOpen = false; $store.mixer.quickSwitchModel(m)">
+                                        <a href="#" class="dropdown-item flex-row justify-between align-center" @click.prevent="modelMenuOpen = false; $store.ai.quickSwitchModel(m)">
                                             <span class="flex-row align-center gap-xs">
                                                 <span class="running-indicator" x-show="$store.settings.ollama_running.includes(m)"></span>
                                                 <span x-text="m" :class="$store.settings.ollama_model === m ? 'bold color-accent' : ''"></span>
@@ -128,8 +128,8 @@
                         <button type="button" class="secondary icon-only m-0" title="Advanced AI Settings" @click="$store.modals.aiTweaksAction.show()">
                             <span x-html="$store.icons.sliders"></span>
                         </button>
-                        <button id="generate-with-ai-btn" type="button" class="secondary m-0" @click="$store.mixer.generateWithAi()" :disabled="$store.mixer.isAiGenerating">
-                            <span x-text="$store.mixer.isAiGenerating ? 'Thinking...' : 'Generate with AI'"></span>
+                        <button id="generate-with-ai-btn" type="button" class="secondary m-0" @click="$store.ai.generateWithAi()" :disabled="$store.ai.isGenerating">
+                            <span x-text="$store.ai.isGenerating ? 'Thinking...' : 'Generate with AI'"></span>
                         </button>
                     </div>
                 </div>

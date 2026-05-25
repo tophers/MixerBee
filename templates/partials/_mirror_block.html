@@ -85,7 +85,7 @@
                                 <div class="flex-row flex-wrap gap-sm align-center">
                                     <span class="badge ai-chip">Echo</span>
                                     <template x-if="block.isSnapshot">
-                                        <span class="badge badge-accent">FIXED ORDER</span>
+                                        <span class="badge badge-accent">FIXED</span>
                                     </template>
                                     <template x-if="!block.isSnapshot && block.filters && block.filters.seeds_positive.length > 0">
                                         <span class="badge badge-outline-subtle" x-text="block.limit + ' matches • ' + (block.threshold < 0.6 ? 'Strict' : (block.threshold > 0.75 ? 'Discovery' : 'Balanced'))"></span>
