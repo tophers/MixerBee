@@ -509,9 +509,10 @@ button.secondary:hover { background: var(--panel-alt); border-color: var(--accen
   align-items: center;
   justify-content: center;
 }
-.badge-accent { background: rgba(var(--accent-rgb), 0.1); color: var(--accent); border: 1px solid var(--accent); }
+
+.badge-accent { background: var(--accent); color: var(--text-on-accent); border: none; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; font-size: 0.65rem; padding: 4px 8px; }
 .badge-outline { border: 1px solid var(--border-color); }
-.badge-outline-subtle { border: 1px solid var(--border-color-subtle); }
+.badge-outline-subtle { border: 1px solid var(--border-color-subtle); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; font-size: 0.65rem; padding: 4px 8px; }
 .badge-accent-light { background: rgba(var(--accent-rgb), 0.1); color: var(--accent); }
 .badge-outline-accent { border: 1px solid var(--accent); color: var(--accent); }
 .badge.playlist { background-color: var(--accent); color: var(--text-on-accent); }

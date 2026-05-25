@@ -53,87 +53,29 @@
                 unlock: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='11' width='18' height='11' rx='2' ry='2'></rect><path d='M7 11V7a5 5 0 0 1 9.9-1'></path></svg>`
             });
 
-            Alpine.store('ui', {
-                currentTab: 'mixed',
-                setTab: () => {}
-            });
-
-            Alpine.store('mixer', {
-                blocks: [],
-                aiPrompt: '',
-                aiTweaks: { threshold: 0.65, limit: 25, strictness: 'genre_verified', temperature: 0.2, target_size: 10, only_unwatched: false, system_prompt: '' },
-                library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] },
-                getTvBlockSummary: () => '',
-                ensureBlockState: () => {},
-                updatePreviewCount: () => {},
-                init: () => {},
+            Alpine.store('ui', { currentTab: 'mixed', setTab: () => {} });
+            Alpine.store('ai', { 
+                prompt: '', 
+                isGenerating: false,
+                tweaks: { threshold: 0.65, limit: 25, strictness: 'genre_verified', temperature: 0.2, target_size: 10, only_unwatched: false, system_prompt: '' },
                 moodPool: [],
                 activeMoods: [],
-                isMoodLoading: false,
+                samplePrompt: '',
+                isLoadingMoods: false,
                 fetchMoodDiscovery: () => {},
                 refreshMoodSlots: () => {},
-                appendMood: () => {}
+                appendMood: () => {},
+                useSamplePrompt: () => {},
+                clearPrompt: () => {},
+                generateWithAi: () => {},
+                quickSwitchModel: () => {}
             });
-
+            Alpine.store('mixer', { blocks: [], library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] }});
             Alpine.store('presets', { currentName: '', availableNames: [], registry: {}, load: () => {}, refresh: () => {} });
             Alpine.store('scheduler', { schedule: [], isLoading: true, loadSchedule: () => {} });
-
-            Alpine.store('manager', {
-                items: [],
-                searchQuery: '',
-                sortColumn: 'Name',
-                sortDirection: 'asc',
-                filteredItems: [],
-                libraryIq: { total: 0, enriched: 0, percentage: 0 },
-                contentsModal: { isOpen: false, title: '', items: [], isLoading: false },
-                load: () => {}
-            });
-
-            Alpine.store('settings', {
-                isOpen: false,
-                activeUserId: '',
-                activeUserName: '',
-                version: '',
-                server_type: 'emby',
-                emby_url: '',
-                emby_user: '',
-                emby_pass: '',
-                is_ai_configured: false,
-                ai_provider: 'gemini',
-                ollama_url: '',
-                ollama_model: '',
-                ollama_timeout: 120,
-                ollama_installed: [],
-                ollama_running: [],
-                starred_models: [],
-                is_loading_ollama: false,
-                gemini_key: '',
-                vector_space: 'cosine',
-                show: () => {},
-                hide: () => {}
-            });
-
-            Alpine.store('modals', {
-                confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false },
-                preset: { isOpen: false, existingNames: [], name: '' },
-                playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
-                import: { isOpen: false, code: '', name: '' },
-                smartBuild: { isOpen: false, items: [] },
-                preview: { isOpen: false, items: [], title: 'Preview' },
-                resetWatch: { isOpen: false, showName: '', season: '' },
-                history: { isOpen: false, toastHistory: [] },
-                ollamaModels: { isOpen: false },
-                aiTweaks: { isOpen: false },
-                confirmAction: { show: () => new Promise(() => {}), close: () => {} },
-                playlistAction: { show: () => new Promise(() => {}), close: () => {} },
-                smartBuildAction: { show: () => new Promise(() => {}), close: () => {} },
-                presetAction: { show: () => new Promise(() => {}), close: () => {} },
-                previewAction: { show: () => new Promise(() => {}), close: () => {} },
-                resetWatchAction: { show: () => new Promise(() => {}), close: () => {} },
-                historyAction: { show: () => {}, close: () => {}, clear: () => {} },
-                importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} },
-                aiTweaksAction: { show: () => new Promise(() => {}), close: () => {} }
-            });
+            Alpine.store('manager', { items: [], searchQuery: '', sortColumn: 'Name', sortDirection: 'asc', filteredItems: [], libraryIq: { total: 0, enriched: 0, percentage: 0 }, contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, load: () => {} });
+            Alpine.store('settings', { isOpen: false, activeUserId: '', activeUserName: '', version: '', server_type: 'emby', emby_url: '', emby_user: '', emby_pass: '', is_ai_configured: false, ai_provider: 'gemini', ollama_url: '', ollama_model: '', ollama_timeout: 120, ollama_installed: [], ollama_running: [], starred_models: [], is_loading_ollama: false, gemini_key: '', vector_space: 'cosine', show: () => {}, hide: () => {} });
+            Alpine.store('modals', { confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false }, preset: { isOpen: false, existingNames: [], name: '' }, playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true }, import: { isOpen: false, code: '', name: '' }, smartBuild: { isOpen: false, items: [] }, preview: { isOpen: false, items: [], title: 'Preview' }, resetWatch: { isOpen: false, showName: '', season: '' }, history: { isOpen: false, toastHistory: [] }, ollamaModels: { isOpen: false }, aiTweaks: { isOpen: false }, confirmAction: { show: () => new Promise(() => {}), close: () => {} }, playlistAction: { show: () => new Promise(() => {}), close: () => {} }, smartBuildAction: { show: () => new Promise(() => {}), close: () => {} }, presetAction: { show: () => new Promise(() => {}), close: () => {} }, previewAction: { show: () => new Promise(() => {}), close: () => {} }, resetWatchAction: { show: () => new Promise(() => {}), close: () => {} }, historyAction: { show: () => {}, close: () => {}, clear: () => {} }, importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} }, aiTweaksAction: { show: () => new Promise(() => {}), close: () => {} } });
         });
     </script>
 </head>

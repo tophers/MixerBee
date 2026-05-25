@@ -286,7 +286,7 @@
                     <div class="tweak-label-row">
                         <span class="tweak-title">Custom System Prompt</span>
                     </div>
-                    <textarea x-model="$store.mixer.aiTweaks.system_prompt" rows="3" class="w-full" placeholder="e.g. Always prioritize 80s media unless specified otherwise..."></textarea>
+                    <textarea x-model="$store.ai.tweaks.system_prompt" rows="3" class="w-full" placeholder="e.g. Always prioritize 80s media unless specified otherwise..."></textarea>
                     <p class="tweak-description">Inject specific instructions into the AI's core behavior.</p>
                 </div>
 
@@ -294,12 +294,12 @@
                 <div class="tweak-item">
                     <div class="tweak-label-row">
                         <span class="tweak-title">Relevancy (Radius Lock)</span>
-                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.threshold.toFixed(2)"></span>
+                        <span class="tweak-value" x-text="$store.ai.tweaks.threshold.toFixed(2)"></span>
                     </div>
                     <div class="toggle-pill">
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.50 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.50">Strict</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.65 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.65">Balanced</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.threshold === 0.80 ? 'active' : ''" @click="$store.mixer.aiTweaks.threshold = 0.80">Relaxed</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.threshold === 0.50 ? 'active' : ''" @click="$store.ai.tweaks.threshold = 0.50">Strict</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.threshold === 0.65 ? 'active' : ''" @click="$store.ai.tweaks.threshold = 0.65">Balanced</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.threshold === 0.80 ? 'active' : ''" @click="$store.ai.tweaks.threshold = 0.80">Relaxed</span>
                     </div>
                     <p class="tweak-description">Lower is stricter. Strict only allows high-confidence matches. Relaxed allows more experimental results.</p>
                 </div>
@@ -308,12 +308,12 @@
                 <div class="tweak-item">
                     <div class="tweak-label-row">
                         <span class="tweak-title">Dig Depth (Search Limit)</span>
-                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.limit"></span>
+                        <span class="tweak-value" x-text="$store.ai.tweaks.limit"></span>
                     </div>
                     <div class="toggle-pill">
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 10 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 10">Shallow</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 25 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 25">Medium</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.limit === 50 ? 'active' : ''" @click="$store.mixer.aiTweaks.limit = 50">Deep</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.limit === 10 ? 'active' : ''" @click="$store.ai.tweaks.limit = 10">Shallow</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.limit === 25 ? 'active' : ''" @click="$store.ai.tweaks.limit = 25">Medium</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.limit === 50 ? 'active' : ''" @click="$store.ai.tweaks.limit = 50">Deep</span>
                     </div>
                     <p class="tweak-description">How many candidates ChromaDB pulls before the AI curates them. Deep is better for large libraries.</p>
                 </div>
@@ -324,8 +324,8 @@
                         <span class="tweak-title">Curation Mode</span>
                     </div>
                     <div class="toggle-pill">
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.strictness === 'vibe_first' ? 'active' : ''" @click="$store.mixer.aiTweaks.strictness = 'vibe_first'">Vibe First</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.strictness === 'genre_verified' ? 'active' : ''" @click="$store.mixer.aiTweaks.strictness = 'genre_verified'">Genre Verified</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.strictness === 'vibe_first' ? 'active' : ''" @click="$store.ai.tweaks.strictness = 'vibe_first'">Vibe First</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.strictness === 'genre_verified' ? 'active' : ''" @click="$store.ai.tweaks.strictness = 'genre_verified'">Genre Verified</span>
                     </div>
                     <p class="tweak-description">Genre Verified forces the AI to check metadata tags. Vibe First trusts the vector store's mathematical similarity.</p>
                 </div>
@@ -334,9 +334,9 @@
                 <div class="tweak-item">
                     <div class="tweak-label-row">
                         <span class="tweak-title">Creativity (Temperature)</span>
-                        <span class="tweak-value" x-text="$store.mixer.aiTweaks.temperature"></span>
+                        <span class="tweak-value" x-text="$store.ai.tweaks.temperature"></span>
                     </div>
-                    <input type="range" min="0" max="1" step="0.1" x-model.number="$store.mixer.aiTweaks.temperature" style="width: 100%;">
+                    <input type="range" min="0" max="1" step="0.1" x-model.number="$store.ai.tweaks.temperature" style="width: 100%;">
                     <p class="tweak-description">0.0 is very predictable. 1.0 allows for more chaos and creative connections.</p>
                 </div>
 
@@ -345,7 +345,7 @@
                     <div class="tweak-label-row">
                         <span class="tweak-title">Target Block Size</span>
                     </div>
-                    <input type="number" min="1" max="50" x-model.number="$store.mixer.aiTweaks.target_size" class="themed-input" style="width: 100%;">
+                    <input type="number" min="1" max="50" x-model.number="$store.ai.tweaks.target_size" class="themed-input" style="width: 100%;">
                     <p class="tweak-description">Tells the AI exactly how many items you want in the final block output.</p>
                 </div>
 
@@ -355,8 +355,8 @@
                         <span class="tweak-title">AI Watch Status Override</span>
                     </div>
                     <div class="toggle-pill">
-                        <span class="pill-btn" :class="!$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = false">Allow Watched</span>
-                        <span class="pill-btn" :class="$store.mixer.aiTweaks.only_unwatched ? 'active' : ''" @click="$store.mixer.aiTweaks.only_unwatched = true">Only Unwatched</span>
+                        <span class="pill-btn" :class="!$store.ai.tweaks.only_unwatched ? 'active' : ''" @click="$store.ai.tweaks.only_unwatched = false">Allow Watched</span>
+                        <span class="pill-btn" :class="$store.ai.tweaks.only_unwatched ? 'active' : ''" @click="$store.ai.tweaks.only_unwatched = true">Only Unwatched</span>
                     </div>
                     <p class="tweak-description">If 'Only Unwatched' is selected, every AI-generated block will automatically filter out played media.</p>
                 </div>

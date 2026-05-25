@@ -1,6 +1,7 @@
 // static/js/managerStore.js
 
-import { post, toast } from './utils.js';
+import { api } from './apiClient.js';
+import { toast } from './utils.js';
 import { confirmModal } from './modals.js';
 
 export const managerStore = {
@@ -12,33 +13,18 @@ export const managerStore = {
     viewFilter: 'All',
     isLoading: false,
 
-    libraryIq: {
-        total: 0,
-        enriched: 0,
-        percentage: 0
-    },
-
-    contentsModal: {
-        isOpen: false,
-        parentItem: null,
-        title: '',
-        items: [],
-        isLoading: false,
-        hasChanges: false
-    },
+    libraryIq: { total: 0, enriched: 0, percentage: 0 },
+    contentsModal: { isOpen: false, parentItem: null, title: '', items: [], isLoading: false, hasChanges: false },
 
     async loadIq() {
         try {
-            const res = await fetch(`api/library/iq?_cb=${Date.now()}`);
-            if (res.ok) {
-                const data = await res.json();
+            const data = await api.get('api/library/iq', true);
+            if (data) {
                 this.libraryIq.total = data.total || 0;
                 this.libraryIq.enriched = data.enriched || 0;
                 this.libraryIq.percentage = data.total > 0 ? Math.round((data.enriched / data.total) * 100) : 0;
             }
-        } catch (e) {
-            console.error("Failed to load Library IQ:", e);
-        }
+        } catch (e) { console.error("Failed to load Library IQ", e); }
     },
 
     async load() {
@@ -47,9 +33,8 @@ export const managerStore = {
         this.isLoading = true;
         this.loadIq();
         try {
-            const res = await fetch(`api/manageable_items?user_id=${uid}&_cb=${Date.now()}`);
-            if (res.ok) {
-                const data = await res.json();
+            const data = await api.get(`api/manageable_items?user_id=${uid}`, true);
+            if (data) {
                 const rawList = Array.isArray(data) ? data : (data.Items || []);
                 this.items = rawList.map(item => ({
                     ...item,
@@ -61,17 +46,16 @@ export const managerStore = {
                 }));
                 this.applyFilters();
             }
-        } catch (e) { console.error("Manager load failed:", e); }
-        finally { this.isLoading = false; }
+        } catch (e) { 
+            toast("Failed to load manager items.", false); 
+        } finally { 
+            this.isLoading = false; 
+        }
     },
 
     applyFilters() {
         let list = Array.isArray(this.items) ? [...this.items] : [];
-
-        if (this.viewFilter !== 'All') {
-            list = list.filter(i => i.DisplayType === this.viewFilter);
-        }
-
+        if (this.viewFilter !== 'All') list = list.filter(i => i.DisplayType === this.viewFilter);
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase().trim();
             list = list.filter(i => i.Name.toLowerCase().includes(q));
@@ -86,28 +70,13 @@ export const managerStore = {
             let primaryDiff = 0;
 
             if (col === 'ChildCount') {
-                aVal = parseInt(aVal || 0, 10);
-                bVal = parseInt(bVal || 0, 10);
-                primaryDiff = aVal - bVal;
+                primaryDiff = parseInt(aVal || 0, 10) - parseInt(bVal || 0, 10);
             } else {
-                aVal = (aVal ?? '').toString();
-                bVal = (bVal ?? '').toString();
-                primaryDiff = aVal.localeCompare(bVal, undefined, {
-                    numeric: true,
-                    sensitivity: 'accent'
-                });
+                primaryDiff = (aVal ?? '').toString().localeCompare((bVal ?? '').toString(), undefined, { numeric: true, sensitivity: 'accent' });
             }
 
-            if (primaryDiff !== 0) {
-                return primaryDiff * dir;
-            }
-
-            if (col !== 'Name') {
-                let aName = (a.Name ?? '').toString();
-                let bName = (b.Name ?? '').toString();
-                return aName.localeCompare(bName, undefined, { numeric: true, sensitivity: 'accent' }) * dir;
-            }
-
+            if (primaryDiff !== 0) return primaryDiff * dir;
+            if (col !== 'Name') return (a.Name ?? '').toString().localeCompare((b.Name ?? '').toString(), undefined, { numeric: true, sensitivity: 'accent' }) * dir;
             return 0;
         });
 
@@ -115,12 +84,8 @@ export const managerStore = {
     },
 
     toggleSort(col) {
-        if (this.sortColumn === col) {
-            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            this.sortColumn = col;
-            this.sortDirection = 'asc';
-        }
+        if (this.sortColumn === col) this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        else { this.sortColumn = col; this.sortDirection = 'asc'; }
         this.applyFilters();
     },
 
@@ -133,13 +98,13 @@ export const managerStore = {
         this.contentsModal.hasChanges = false;
         this.contentsModal.items = [];
         try {
-            const res = await fetch(`api/items/${item.Id}/children?user_id=${uid}&_cb=${Date.now()}`);
-            if (res.ok) {
-                const data = await res.json();
-                this.contentsModal.items = Array.isArray(data) ? data : (data.Items || []);
-            }
-        } catch (e) { toast("Load failed", false); }
-        finally { this.contentsModal.isLoading = false; }
+            const data = await api.get(`api/items/${item.Id}/children?user_id=${uid}`, true);
+            if (data) this.contentsModal.items = Array.isArray(data) ? data : (data.Items || []);
+        } catch (e) { 
+            toast("Load failed", false); 
+        } finally { 
+            this.contentsModal.isLoading = false; 
+        }
     },
 
     async saveContentOrder(btnEl) {
@@ -151,11 +116,7 @@ export const managerStore = {
         const itemIds = Array.from(itemNodes).map(node => node.getAttribute('data-id'));
 
         try {
-            const res = await post(`api/items/${parent.Id}/reorder`, {
-                user_id: uid,
-                item_ids: itemIds
-            }, btnEl);
-
+            const res = await api.post(`api/items/${parent.Id}/reorder`, { user_id: uid, item_ids: itemIds }, btnEl);
             if (res.status === 'ok') {
                 this.contentsModal.hasChanges = false;
                 await this.load();
@@ -180,12 +141,8 @@ export const managerStore = {
 
             const isCollection = parent.Type === 'BoxSet' || parent.Type === 'Collection';
             const endpointType = isCollection ? 'collections' : 'playlists';
-
-            const res = await post(`api/${endpointType}/${parent.Id}/items/remove`, {
-                user_id: uid,
-                item_id_to_remove: childItem.Id || childItem.id
-            });
-
+            const res = await api.post(`api/${endpointType}/${parent.Id}/items/remove`, { user_id: uid, item_id_to_remove: childItem.Id || childItem.id });
+            
             if (res.status === 'ok') {
                 await this.viewContents(parent);
                 await this.load();
@@ -202,11 +159,8 @@ export const managerStore = {
                 text: `Swap "${item.Name}" to a ${targetType}? Original will be deleted.`,
                 confirmText: 'Convert'
             });
-            const res = await post(`api/convert_item`, {
-                item_id: item.Id, user_id: uid, target_type: targetType,
-                new_name: item.Name, delete_original: true
-            });
-            if (res.status === 'ok') { await this.load(); }
+            const res = await api.post(`api/convert_item`, { item_id: item.Id, user_id: uid, target_type: targetType, new_name: item.Name, delete_original: true });
+            if (res.status === 'ok') await this.load();
         } catch (e) { }
     },
 
@@ -219,8 +173,8 @@ export const managerStore = {
                 confirmText: 'Delete',
                 isDanger: true
             });
-            const res = await post(`api/delete_item`, { item_id: item.Id, user_id: uid });
-            if (res.status === 'ok') { await this.load(); }
+            const res = await api.post(`api/delete_item`, { item_id: item.Id, user_id: uid });
+            if (res.status === 'ok') await this.load();
         } catch (e) { }
     }
 };

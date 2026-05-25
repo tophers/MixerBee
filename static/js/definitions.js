@@ -1,5 +1,20 @@
 // static/js/definitions.js
 
+export const BLOCK_TYPES = {
+    TV: 'tv',
+    MOVIE: 'movie',
+    MUSIC: 'music',
+    MIRROR: 'mirror',
+    CURATED: 'curated',
+    VIBE: 'vibe'
+};
+
+export const WATCH_STATUS = {
+    ALL: 'all',
+    PLAYED: 'played',
+    UNPLAYED: 'unplayed'
+};
+
 export const SMART_BUILD_TYPES = [
     {
         type: 'recently_added',
