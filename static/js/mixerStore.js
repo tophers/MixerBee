@@ -1,7 +1,7 @@
 // static/js/mixerStore.js
 
 import { api } from './apiClient.js';
-import { toast, debounce } from './utils.js';
+import { toast, debounce, generateUUID } from './utils.js';
 import { ensureBlockState, createNewBlock, createEchoBlock } from './blockFactory.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
 import { SMART_BUILD_TYPES, BLOCK_TYPES } from './definitions.js';
