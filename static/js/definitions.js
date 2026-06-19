@@ -51,4 +51,18 @@ export const SMART_BUILD_TYPES = [
         description: 'A movie marathon from a random genre.',
         schedulable: false
     },
+    {
+        type: 'top_community_unwatched',
+        name: 'Top Community Picks',
+        icon: 'film',
+        description: 'Highest community-rated movies you haven\'t seen.',
+        schedulable: true
+    },
+    {
+        type: 'top_critic_unwatched',
+        name: 'Top Critic Picks',
+        icon: 'film',
+        description: 'Highest critic-rated movies you haven\'t seen.',
+        schedulable: true
+    }
 ];

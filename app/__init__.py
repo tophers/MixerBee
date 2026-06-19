@@ -73,6 +73,8 @@ from .items import (
     create_artist_spotlight_playlist,
     create_album_playlist,
     create_music_genre_playlist,
+    create_top_community_unwatched_playlist,
+    create_top_critic_unwatched_playlist,
     construct_item_url
 )
 

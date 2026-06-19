@@ -634,6 +634,53 @@ def create_music_genre_playlist(user_id: str, playlist_name: str, genre: str, co
     except Exception as e:
         log.append(f"An unexpected error occurred: {e}")
         return {"status": "error", "log": log}
+def create_top_community_unwatched_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
+    """Creates a playlist of the top community-rated unwatched movies."""
+    try:
+        filters = {
+            "watched_status": "unplayed",
+            "sort_by": "CommunityRating",
+            "limit": count
+        }
+        found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
+        if not found_movies:
+            log.append("No unwatched movies found. Playlist not created.")
+            return {"status": "ok", "log": log}
+        
+        movie_ids = [m["Id"] for m in found_movies]
+        log.append(f"Found {len(found_movies)} top community-rated movies.")
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
+    except requests.RequestException as e:
+        log.append(f"An API error occurred: {e}")
+        return {"status": "error", "log": log}
+    except Exception as e:
+        log.append(f"An unexpected error occurred: {e}")
+        return {"status": "error", "log": log}
+
+def create_top_critic_unwatched_playlist(user_id: str, playlist_name: str, count: int, hdr: Dict[str, str], log: List[str]):
+    """Creates a playlist of the top critic-rated unwatched movies."""
+    try:
+        filters = {
+            "watched_status": "unplayed",
+            "sort_by": "CriticRating",
+            "limit": count
+        }
+        found_movies = find_movies(user_id=user_id, filters=filters, hdr=hdr)
+        if not found_movies:
+            log.append("No unwatched movies found. Playlist not created.")
+            return {"status": "ok", "log": log}
+        
+        movie_ids = [m["Id"] for m in found_movies]
+        log.append(f"Found {len(found_movies)} top critic-rated movies.")
+        new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=movie_ids, hdr=hdr, log=log)
+        return {"status": "ok" if new_item_id else "error", "log": log, "new_item_id": new_item_id}
+    except requests.RequestException as e:
+        log.append(f"An API error occurred: {e}")
+        return {"status": "error", "log": log}
+    except Exception as e:
+        log.append(f"An unexpected error occurred: {e}")
+        return {"status": "error", "log": log}
 
 def get_collections(user_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Gets a list of all collections (BoxSets/Collections) for a user."""

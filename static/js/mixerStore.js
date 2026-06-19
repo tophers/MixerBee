@@ -500,6 +500,8 @@ export const mixerStore = {
             pilot_sampler: { title: 'Pilot Sampler', description: 'Random pilots.', defaultName: 'Pilot Sampler' },
             from_the_vault: { title: 'From the Vault', description: 'Favorite movies you haven\'t watched in a while.', defaultName: 'Forgotten favorites.', defaultCount: 20 },
             genre_roulette: { title: 'Genre Roulette', description: 'A movie marathon from a random genre.', defaultName: 'Genre Roulette', defaultCount: 10 },
+            top_community_unwatched: { title: 'Top Community Rated', description: 'Highest community-rated movies you haven\'t seen.', defaultName: 'Community Favorites', defaultCount: 10 },
+            top_critic_unwatched: { title: 'Top Critic Rated', description: 'Highest critic-rated movies you haven\'t seen.', defaultName: 'Critic Favorites', defaultCount: 10 },
         };
 
         if (config[type]) {

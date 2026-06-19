@@ -40,7 +40,7 @@ def find_movies(user_id: str, filters: Dict,
                 hdr: Dict[str, str]) -> List[Dict[str, str]]:
     """Finds movies based on a set of filters."""
     logger.info(f"Finding movies for user {user_id} with filters: {filters}")
-    
+
     base_params = {
         "IncludeItemTypes": "Movie",
         "Recursive": "true",
@@ -75,7 +75,8 @@ def find_movies(user_id: str, filters: Dict,
         base_params["SortBy"] = "Random"
     else:
         base_params["SortBy"] = sort_by
-        if sort_by == "DateCreated":
+        # Added CommunityRating and CriticRating to force Descending order
+        if sort_by in ("DateCreated", "CommunityRating", "CriticRating"):
             base_params["SortOrder"] = "Descending"
 
     people_any = filters.get("people", [])
