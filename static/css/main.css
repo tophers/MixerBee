@@ -234,6 +234,7 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
 /* Forms, Inputs & Buttons */
 select,
 input[type="number"],
+input[type="number50"],
 input[type="text"],
 input[type="search"],
 input[type="time"],
@@ -260,6 +261,12 @@ select {
 
 input[type="number"] {
   width: 100%;
+  font-weight: 600;
+  text-align: center;
+}
+
+input[type="number50"] {
+  width: 50%;
   font-weight: 600;
   text-align: center;
 }

@@ -42,7 +42,13 @@
             return 'Last ' + days + ' Days';
         }
     }"
-    x-init="$store.mixer.ensureBlockState(block); if(block.filters?.release_within_days && ![0,30,90,180,365,730].includes(parseInt(block.filters.release_within_days))) relativeDateCustom = true;">
+    x-init="
+        $store.mixer.ensureBlockState(block); 
+        if(!block.filters.limit && !block.filters.duration_minutes && (!block._limitMode || block._limitMode === 'count')) { block._limitMode = 'none'; }
+        if(block.filters?.release_within_days && ![0,30,90,180,365,730].includes(parseInt(block.filters.release_within_days))) relativeDateCustom = true;
+        if(block._limitMode === 'count' && !block.filters.limit) { block.filters.limit = 10; $store.mixer.updatePreviewCount(block); }
+        if(block._limitMode === 'duration' && !block._limitDurationRaw) { block._limitDurationRaw = 2; block._limitDurationUnit = 60; block.filters.duration_minutes = 120; $store.mixer.updatePreviewCount(block); }
+    ">
 
     <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
         <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
@@ -80,15 +86,23 @@
                                     <span class="badge badge-accent">FIXED</span>
                                 </template>
                                 <template x-if="!block.isSnapshot">
-                                    <template x-if="block.filters && block.filters.watched_status && block.filters.watched_status !== 'all'">
-                                        <span class="badge" :class="block.filters.watched_status" x-text="block.filters.watched_status.toUpperCase()"></span>
-                                    </template>
-                                </template>
-                                <template x-if="block.filters && block.filters.release_within_days > 0">
-                                    <span class="badge badge-accent" x-text="getRelativeDateLabel()"></span>
-                                </template>
-                                <template x-if="block.filters && (!block.filters.release_within_days || block.filters.release_within_days == 0) && (block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear())">
-                                    <span class="badge" x-text="block.filters.year_from + ' - ' + block.filters.year_to"></span>
+                                    <span style="display:contents;">
+                                        <template x-if="block.filters && block.filters.watched_status && block.filters.watched_status !== 'all'">
+                                            <span class="badge" :class="block.filters.watched_status" x-text="block.filters.watched_status.toUpperCase()"></span>
+                                        </template>
+                                        <template x-if="block.filters && block.filters.release_within_days > 0">
+                                            <span class="badge badge-accent" x-text="getRelativeDateLabel()"></span>
+                                        </template>
+                                        <template x-if="block.filters && (!block.filters.release_within_days || block.filters.release_within_days == 0) && (block.filters.year_from > 1920 || block.filters.year_to < new Date().getFullYear())">
+                                            <span class="badge" x-text="block.filters.year_from + ' - ' + block.filters.year_to"></span>
+                                        </template>
+                                        <template x-if="block._limitMode === 'count' && block.filters?.limit">
+                                            <span class="badge badge-outline-subtle" x-text="block.filters.limit + ' Movies'"></span>
+                                        </template>
+                                        <template x-if="block._limitMode === 'duration' && block._limitDurationRaw">
+                                            <span class="badge badge-outline-subtle" x-text="block._limitDurationRaw + (block._limitDurationUnit === 60 ? ' Hours' : ' Mins')"></span>
+                                        </template>
+                                    </span>
                                 </template>
                             </div>
                         </div>
@@ -99,7 +113,7 @@
                             <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
                                 <span x-html="$store.icons.list"></span> Preview & Sort
                             </button>
-                            <button type="button" class="secondary small align-center gap-xs" 
+                            <button type="button" class="secondary small align-center gap-xs"
                                     x-show="block.isSnapshot"
                                     @click="$store.mixer.unlockBlock(block)">
                                 <span x-html="$store.icons.unlock"></span> Unlock Order
@@ -227,7 +241,7 @@
                         <div class="flex-column gap-md mb-md">
                             <div class="flex-row align-center gap-md flex-wrap">
                                 <label class="field-label m-0">Release within:</label>
-                                <select x-model.number="block.filters.release_within_days" 
+                                <select x-model.number="block.filters.release_within_days"
                                         class="w-auto m-0"
                                         @change="if($el.value != -1) { relativeDateCustom = false; $store.mixer.updatePreviewCount(block); } else { relativeDateCustom = true; }">
                                     <option value="0">All Time (Use Year Range)</option>
@@ -239,7 +253,7 @@
                                     <option value="-1">Custom Days...</option>
                                 </select>
                                 <div x-show="relativeDateCustom" x-cloak class="flex-row align-center gap-xs">
-                                    <input type="number" x-model.number="block.filters.release_within_days" 
+                                    <input type="number" x-model.number="block.filters.release_within_days"
                                            min="1" class="themed-input w-80 text-center m-0"
                                            @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
                                     <span class="text-subtle">Days</span>
@@ -277,6 +291,31 @@
                             </button>
                         </div>
                     </fieldset>
+                    <fieldset class="filter-group">
+                        <legend>Block Size Limits</legend>
+                        <div class="flex-column gap-sm mb-xs">
+                            <div class="toggle-pill w-full">
+                                <span class="pill-btn grow-1 text-center" :class="block._limitMode === 'none' ? 'active' : ''" @click="block._limitMode = 'none'; block.filters.limit = null; block.filters.duration_minutes = null; $store.mixer.updatePreviewCount(block)">No Limit</span>
+                                <span class="pill-btn grow-1 text-center" :class="block._limitMode === 'count' ? 'active' : ''" @click="block._limitMode = 'count'; block.filters.duration_minutes = null; if(!block.filters.limit) block.filters.limit = 10; $store.mixer.updatePreviewCount(block)">Item Count</span>
+                                <span class="pill-btn grow-1 text-center" :class="block._limitMode === 'duration' ? 'active' : ''" @click="block._limitMode = 'duration'; block.filters.limit = null; if(!block._limitDurationRaw) block._limitDurationRaw = 2; block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">Target Duration</span>
+                            </div>
+
+                            <div x-show="block._limitMode === 'count'" class="flex-row align-center gap-md mt-xs">
+                                <span class="text-subtle">Count:</span>
+                                <input type="number" x-model.number="block.filters.limit" min="1" max="500" class="m-0 w-80 text-center" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                            </div>
+
+                            <div x-show="block._limitMode === 'duration'" class="flex-row align-center gap-md mt-xs" x-cloak>
+                                <span class="text-subtle">Runtime:</span>
+                                <input type="number50" x-model.number="block._limitDurationRaw" min="1" class="m-0 w-80 text-center" @input.debounce.500ms="block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">
+                                <div class="toggle-pill m-0 grow-1">
+                                    <span class="pill-btn text-center" :class="block._limitDurationUnit === 1 ? 'active' : ''" @click="block._limitDurationUnit = 1; block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">Minutes</span>
+                                    <span class="pill-btn text-center" :class="block._limitDurationUnit === 60 ? 'active' : ''" @click="block._limitDurationUnit = 60; block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">Hours</span>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
                 </div>
                 <div class="modal-footer"><button type="button" @click="filterModalOpen = false" class="primary">Done</button></div>
             </div>
