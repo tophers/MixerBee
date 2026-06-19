@@ -20,6 +20,8 @@ QUICK_BUILD_MAP = {
     "artist_spotlight": (core.create_artist_spotlight_playlist, ['artist_id', 'count']),
     "album_roulette": (core.create_album_playlist, ['album_id']),
     "genre_sampler": (core.create_music_genre_playlist, ['genre', 'count']),
+    "top_community_unwatched": (core.create_top_community_unwatched_playlist, ['count']),
+    "top_critic_unwatched": (core.create_top_critic_unwatched_playlist, ['count']),
 }
 
 @router.post("/api/quick_builds")
