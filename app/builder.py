@@ -9,7 +9,6 @@ from itertools import zip_longest
 
 from . import client
 from . import items as items_api
-from .items import create_playlist, add_items_to_playlist_by_ids
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
 from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_episode, get_first_available_episode, series_id
@@ -41,16 +40,20 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 e = raw_show.get("episode")
                 is_unwatched = raw_show.get("unwatched", False)
 
-                if s is not None: s = int(s)
-                if e is not None: e = int(e)
+                # Fix: If the intent is unwatched, ignore any cached S/E numbers from the preset
+                # and dynamically fetch the true next unwatched episode right now.
+                if is_unwatched:
+                    ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                    if ep_info:
+                        s = ep_info.get("ParentIndexNumber")
+                        e = ep_info.get("IndexNumber")
+                    else:
+                        s, e = None, None
+                else:
+                    if s is not None: s = int(s)
+                    if e is not None: e = int(e)
 
-                if s is None or e is None:
-                    if is_unwatched:
-                        ep_info = get_first_unwatched_episode(sid, user_id, hdr)
-                        if ep_info:
-                            s = ep_info.get("ParentIndexNumber")
-                            e = ep_info.get("IndexNumber")
-
+                # Fallback if we still don't have a starting point
                 if s is None or e is None:
                     first_ep = get_first_available_episode(sid, user_id, hdr)
                     if first_ep:
@@ -286,20 +289,23 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
                 is_unwatched = raw_show.get("unwatched", True)
                 count = int(raw_show.get("count", 1))
 
-                if s is not None: s = int(s)
-                if e is not None: e = int(e)
+                # Fix: Same logic applied here for Curated Blocks
+                if is_unwatched:
+                    ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                    if ep_info:
+                        s, e = ep_info.get("ParentIndexNumber"), ep_info.get("IndexNumber")
+                    else:
+                        s, e = None, None
+                else:
+                    if s is not None: s = int(s)
+                    if e is not None: e = int(e)
 
                 if s is None or e is None:
-                    if is_unwatched:
-                        ep_info = get_first_unwatched_episode(sid, user_id, hdr)
-                        if ep_info:
-                            s, e = ep_info.get("ParentIndexNumber"), ep_info.get("IndexNumber")
-                    if s is None or e is None:
-                        first_ep = get_first_available_episode(sid, user_id, hdr)
-                        if first_ep:
-                            s, e = first_ep.get("ParentIndexNumber"), first_ep.get("IndexNumber")
-                        else:
-                            s, e = 1, 1
+                    first_ep = get_first_available_episode(sid, user_id, hdr)
+                    if first_ep:
+                        s, e = first_ep.get("ParentIndexNumber"), first_ep.get("IndexNumber")
+                    else:
+                        s, e = 1, 1
 
                 eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
                 if eps: groups.append(eps)
@@ -389,7 +395,7 @@ def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[st
         log_messages.append("No items were found to add. Playlist not created.")
         return {"status": "error", "log": log_messages}
 
-    new_item_id = create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
+    new_item_id = items_api.create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
     return {
         "status": "ok" if new_item_id else "error",
         "log": log_messages,
@@ -407,7 +413,7 @@ def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str,
         log_messages.append("No items were found to add. No changes made.")
         return {"status": "error", "log": log_messages}
 
-    success = add_items_to_playlist_by_ids(
+    success = items_api.add_items_to_playlist_by_ids(
         playlist_id=playlist_id,
         item_ids=master_item_ids,
         user_id=user_id,
