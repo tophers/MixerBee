@@ -75,12 +75,14 @@ from .items import (
     create_music_genre_playlist,
     create_top_community_unwatched_playlist,
     create_top_critic_unwatched_playlist,
-    construct_item_url
+    construct_item_url,
+    get_runtime_ticks_for_ids
 )
 
 from .builder import (
     create_mixed_playlist,
     add_items_to_playlist,
     generate_items_from_blocks,
-    format_items_for_preview
+    format_items_for_preview,
+    format_duration_ticks
 )

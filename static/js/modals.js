@@ -95,7 +95,7 @@ export function initModals() {
         playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
         import: { isOpen: false, code: '', name: '' },
         smartBuild: { isOpen: false, items: [] },
-        preview: { isOpen: false, items: [], title: 'Playlist Preview' },
+        preview: { isOpen: false, items: [], title: 'Playlist Preview', totalDuration: '' },
         resetWatch: { isOpen: false, showName: '', season: '' },
         history: { isOpen: false, toastHistory: [] },
         ollamaModels: { isOpen: false },

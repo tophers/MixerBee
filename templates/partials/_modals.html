@@ -114,6 +114,9 @@
             <template x-if="!$store.modals.preview.items || $store.modals.preview.items.length === 0">
                 <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
             </template>
+            <template x-if="($store.modals.preview.items || []).length > 0 && $store.modals.preview.totalDuration">
+                <p class="text-subtle" style="margin: 0 0 0.75rem;">Estimated Total Runtime: <strong x-text="$store.modals.preview.totalDuration"></strong></p>
+            </template>
             <template x-if="($store.modals.preview.items || []).length > 0">
                 <ol class="preview-list"
                     x-sort="$store.modals.preview.items"

@@ -251,15 +251,18 @@ export const mixerStore = {
                 try {
                     const res = await useApi(api.post('api/builder/preview', { user_id, blocks: [liveBlock] }), null, true, false);
                     if (res && res.status !== 'error') {
-                        liveBlock._previewItems = res.data || [];
+                        liveBlock._previewItems = res.data?.data || [];
                         liveBlock._previewCount = liveBlock._previewItems.length;
+                        liveBlock._previewDuration = res.data?.total_duration_formatted || '';
                     } else {
                         liveBlock._previewItems = [];
                         liveBlock._previewCount = 0;
+                        liveBlock._previewDuration = '';
                     }
                 } catch (e) {
                     liveBlock._previewCount = 0;
                     liveBlock._previewItems = [];
+                    liveBlock._previewDuration = '';
                 } finally {
                     liveBlock._previewLoading = false;
                     this.blocks = [...this.blocks];
@@ -317,8 +320,8 @@ export const mixerStore = {
                      const p = useApi(api.post('api/builder/preview', { user_id: uid, blocks: [block] }), null, true, false)
                         .then(res => {
                             if(res.status === 'ok') {
-                                block._previewItems = res.data;
-                                block._previewCount = res.data.length;
+                                block._previewItems = res.data.data;
+                                block._previewCount = res.data.data.length;
                             }
                         });
                      promises.push(p);
@@ -400,7 +403,8 @@ export const mixerStore = {
                     return await previewModal.show({
                         items: cachedBlock._previewItems,
                         title: `${cachedBlock.title || 'Block'} Preview`,
-                        parentBlockUid: cachedBlock._uid 
+                        parentBlockUid: cachedBlock._uid,
+                        totalDuration: cachedBlock._previewDuration || ''
                     });
                 }
             }
@@ -413,9 +417,10 @@ export const mixerStore = {
 
             if (res.status === 'ok') {
                 await previewModal.show({
-                    items: res.data,
+                    items: res.data.data,
                     title: 'Full Playlist Preview',
-                    parentBlockUid: null
+                    parentBlockUid: null,
+                    totalDuration: res.data.total_duration_formatted || ''
                 });
             }
         } catch (err) {

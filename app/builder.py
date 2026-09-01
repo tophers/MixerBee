@@ -385,6 +385,21 @@ def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]
     return formatted_list
 
 
+def format_duration_ticks(ticks: int) -> str:
+    """Formats a RunTimeTicks value (100-nanosecond units) as a human-readable duration, e.g. '3h 15m'."""
+    if not ticks:
+        return "0m"
+
+    total_minutes = int(ticks / 10_000_000 / 60)
+    hours, minutes = divmod(total_minutes, 60)
+
+    if hours and minutes:
+        return f"{hours}h {minutes}m"
+    if hours:
+        return f"{hours}h"
+    return f"{minutes}m"
+
+
 def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str]) -> Dict[str, Any]:
     """Create a new playlist from resolved block items."""
     log_messages: List[str] = []

@@ -57,6 +57,26 @@ def delete_item_by_id(item_id: str, hdr: Dict[str, str]) -> bool:
         logger.error(f"Failed to delete item with ID {item_id}", exc_info=True)
         return False
 
+def get_runtime_ticks_for_ids(user_id: str, item_ids: List[str], hdr: Dict[str, str]) -> int:
+    """Fetches RunTimeTicks for the given item IDs from the media server and returns their sum."""
+    total_ticks = 0
+    chunk_size = 200
+    for i in range(0, len(item_ids), chunk_size):
+        chunk = item_ids[i:i + chunk_size]
+        params = {
+            "UserId": user_id,
+            "Ids": ",".join(chunk),
+            "Fields": "RunTimeTicks",
+        }
+        try:
+            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=15)
+            r.raise_for_status()
+            for item in r.json().get("Items", []):
+                total_ticks += item.get("RunTimeTicks") or 0
+        except requests.RequestException:
+            logger.error("Failed to fetch RunTimeTicks for duration estimate", exc_info=True)
+    return total_ticks
+
 def get_item_children(user_id: str, item_id: str, hdr: Dict[str, str]) -> List[Dict]:
     """Fetches the child items of a given playlist or collection."""
     params = {

@@ -179,7 +179,16 @@ def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Dep
         user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
         items = core.generate_items_from_blocks(req.user_id, req.blocks, user_specific_hdr, [])
         formatted_items = core.format_items_for_preview(items)
-        return {"status": "ok", "data": formatted_items}
+
+        item_ids = [item["Id"] for item in items if item.get("Id")]
+        total_duration_ticks = core.get_runtime_ticks_for_ids(req.user_id, item_ids, user_specific_hdr) if item_ids else 0
+
+        return {
+            "status": "ok",
+            "data": formatted_items,
+            "total_duration_ticks": total_duration_ticks,
+            "total_duration_formatted": core.format_duration_ticks(total_duration_ticks)
+        }
     except Exception as e:
         logging.error(f"Error generating playlist preview: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred while generating the preview: {e}")
