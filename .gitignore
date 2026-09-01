@@ -7,8 +7,8 @@ presets.json
 mixerbee.db
 *.migrated
 config/chroma_db/*
-#I have my reasons
 tests/*
+.claude/
 
 # Python
 __pycache__/

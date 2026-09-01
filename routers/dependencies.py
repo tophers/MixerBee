@@ -3,6 +3,7 @@ routers/dependencies.py – APIRouter
 """
 
 import logging
+import secrets
 import time
 import threading
 from fastapi import HTTPException, status, Header
@@ -18,31 +19,27 @@ _token_check_lock = threading.Lock()
 def get_current_auth_headers(x_mixerbee_key: str = Header(None)) -> dict:
     """
     FastAPI Dependency to ensure the app is configured and the auth token is valid.
-    Supports external API key bypass via X-MixerBee-Key header.
+    Supports external API key / access key bypass via X-MixerBee-Key header (the global
+    access-key middleware in web.py has already validated this header for every /api/*
+    request by the time this dependency runs when a gate is configured; this re-check
+    matters for direct/external callers when it isn't).
+
+    Once authorized, control always falls through into the same TOKEN_TTL/re-auth logic
+    below regardless of how the caller got here - browser traffic sends X-MixerBee-Key on
+    every request once an Access Key is set, so this must not shortcut past staleness
+    detection, or a browser session, unlike an unheadered one, would never notice an
+    expired/invalidated Emby token and recover from it.
     """
     global _last_token_check
 
     if x_mixerbee_key:
-        if not app_state.EXTERNAL_API_KEY or x_mixerbee_key != app_state.EXTERNAL_API_KEY:
-            logging.warning(f"Unauthorized External API attempt with key: {x_mixerbee_key[:4]}...")
+        valid_keys = [k for k in (app_state.ACCESS_KEY, app_state.EXTERNAL_API_KEY) if k]
+        if not valid_keys or not any(secrets.compare_digest(x_mixerbee_key, k) for k in valid_keys):
+            logging.warning(f"Unauthorized API attempt with key: {x_mixerbee_key[:4]}...")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or unconfigured External API Key."
+                detail="Invalid or unconfigured API Key."
             )
-
-        if not app_state.is_configured or not app_state.DEFAULT_UID:
-            logging.info("External API call triggered hydration/authentication.")
-            if not app_state.load_and_authenticate():
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Application is not authenticated with the media server."
-                )
-
-        return {
-            "hdr": app_state.HDR,
-            "token": app_state.token,
-            "login_uid": app_state.DEFAULT_UID
-        }
 
     if not app_state.is_configured:
         logging.warning("Auth dependency called but app_state is not configured. Attempting to recover...")

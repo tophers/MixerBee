@@ -1,7 +1,9 @@
 // static/js/app.js
 
 import { api } from './apiClient.js';
+import { ensureUnlocked } from './accessGate.js';
 import { toast } from './utils.js';
+import { useApi } from './utils.js';
 import { initModals, confirmModal, toastHistoryModal, smartPlaylistModal, smartBuildModal, previewModal, resetWatchModal, importAction, presetModal } from './modals.js';
 import { mixerStore } from './mixerStore.js';
 import { aiStore } from './aiStore.js';
@@ -47,6 +49,8 @@ async function initializeApp() {
 
     const loadingOverlay = document.getElementById('loading-overlay');
     try {
+        await ensureUnlocked();
+
         const body = document.body;
         const toastBadge = document.getElementById('toast-badge');
 
@@ -72,31 +76,32 @@ async function initializeApp() {
             }
         });
 
-        const config = await api.get('api/config_status', true, false);
-        if (!config || config.status === 'error') throw new Error(config?.detail || "Backend failure.");
+        const config = await useApi(api.get('api/config_status'), null, true, false);
+        if (!config || config.status === 'error') throw new Error(config?.error?.detail || "Backend failure.");
 
         Object.assign(sStore, {
-            version: config.version || '',
-            server_type: config.server_type || 'emby',
-            ai_provider: config.ai_provider || 'gemini',
-            ollama_model: config.ollama_model || '',
-            is_ai_configured: !!config.is_ai_configured,
-            starred_models: config.starred_models || [],
-            vector_space: config.vector_space || 'cosine'
+            version: config.data?.version || '',
+            server_type: config.data?.server_type || 'emby',
+            ai_provider: config.data?.ai_provider || 'gemini',
+            ollama_model: config.data?.ollama_model || '',
+            is_ai_configured: !!config.data?.is_ai_configured,
+            starred_models: config.data?.starred_models || [],
+            vector_space: config.data?.vector_space || 'cosine',
+            is_access_key_set: !!config.data?.access_key_set
         });
 
-        if (!config.is_configured) return;
+        if (!config.data?.is_configured) return;
 
         const [defUser, libraryData] = await Promise.all([
-            api.get('api/default_user', true, false),
-            api.get('api/library_data', true, false)
+            useApi(api.get('api/default_user'), null, true, false),
+            useApi(api.get('api/library_data'), null, true, false)
         ]);
 
-        sStore.activeUserId = defUser.id;
-        sStore.activeUserName = defUser.name;
-        localStorage.setItem('mixerbeeGlobalState', JSON.stringify({ userId: defUser.id }));
+        sStore.activeUserId = defUser.data?.id;
+        sStore.activeUserName = defUser.data?.name;
+        localStorage.setItem('mixerbeeGlobalState', JSON.stringify({ userId: defUser.data?.id }));
 
-        Object.assign(Alpine.store('mixer').library, libraryData);
+        Object.assign(Alpine.store('mixer').library, libraryData.data);
         await Alpine.store('presets').refresh();
 
     } catch (err) {

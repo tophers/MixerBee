@@ -1,7 +1,7 @@
 // static/js/managerStore.js
 
 import { api } from './apiClient.js';
-import { toast } from './utils.js';
+import { toast, useApi } from './utils.js';
 import { confirmModal } from './modals.js';
 
 export const managerStore = {
@@ -18,11 +18,11 @@ export const managerStore = {
 
     async loadIq() {
         try {
-            const data = await api.get('api/library/iq', true);
-            if (data) {
-                this.libraryIq.total = data.total || 0;
-                this.libraryIq.enriched = data.enriched || 0;
-                this.libraryIq.percentage = data.total > 0 ? Math.round((data.enriched / data.total) * 100) : 0;
+            const res = await useApi(api.get('api/library/iq'), null, true, false);
+            if (res.data) {
+                this.libraryIq.total = res.data.total || 0;
+                this.libraryIq.enriched = res.data.enriched || 0;
+                this.libraryIq.percentage = res.data.total > 0 ? Math.round((res.data.enriched / res.data.total) * 100) : 0;
             }
         } catch (e) { console.error("Failed to load Library IQ", e); }
     },
@@ -33,9 +33,9 @@ export const managerStore = {
         this.isLoading = true;
         this.loadIq();
         try {
-            const data = await api.get(`api/manageable_items?user_id=${uid}`, true);
-            if (data) {
-                const rawList = Array.isArray(data) ? data : (data.Items || []);
+            const res = await useApi(api.get(`api/manageable_items?user_id=${uid}`));
+            if (res.data) {
+                const rawList = Array.isArray(res.data) ? res.data : (res.data.Items || []);
                 this.items = rawList.map(item => ({
                     ...item,
                     Name: item.Name || item.name || 'Unknown',
@@ -98,8 +98,8 @@ export const managerStore = {
         this.contentsModal.hasChanges = false;
         this.contentsModal.items = [];
         try {
-            const data = await api.get(`api/items/${item.Id}/children?user_id=${uid}`, true);
-            if (data) this.contentsModal.items = Array.isArray(data) ? data : (data.Items || []);
+            const res = await useApi(api.get(`api/items/${item.Id}/children?user_id=${uid}`));
+            if (res.data) this.contentsModal.items = Array.isArray(res.data) ? res.data : (res.data.Items || []);
         } catch (e) { 
             toast("Load failed", false); 
         } finally { 
@@ -116,7 +116,7 @@ export const managerStore = {
         const itemIds = Array.from(itemNodes).map(node => node.getAttribute('data-id'));
 
         try {
-            const res = await api.post(`api/items/${parent.Id}/reorder`, { user_id: uid, item_ids: itemIds }, btnEl);
+            const res = await useApi(api.post(`api/items/${parent.Id}/reorder`, { user_id: uid, item_ids: itemIds }), btnEl);
             if (res.status === 'ok') {
                 this.contentsModal.hasChanges = false;
                 await this.load();
@@ -141,7 +141,7 @@ export const managerStore = {
 
             const isCollection = parent.Type === 'BoxSet' || parent.Type === 'Collection';
             const endpointType = isCollection ? 'collections' : 'playlists';
-            const res = await api.post(`api/${endpointType}/${parent.Id}/items/remove`, { user_id: uid, item_id_to_remove: childItem.Id || childItem.id });
+            const res = await useApi(api.post(`api/${endpointType}/${parent.Id}/items/remove`, { user_id: uid, item_id_to_remove: childItem.Id || childItem.id }));
             
             if (res.status === 'ok') {
                 await this.viewContents(parent);
@@ -159,7 +159,7 @@ export const managerStore = {
                 text: `Swap "${item.Name}" to a ${targetType}? Original will be deleted.`,
                 confirmText: 'Convert'
             });
-            const res = await api.post(`api/convert_item`, { item_id: item.Id, user_id: uid, target_type: targetType, new_name: item.Name, delete_original: true });
+            const res = await useApi(api.post(`api/convert_item`, { item_id: item.Id, user_id: uid, target_type: targetType, new_name: item.Name, delete_original: true }));
             if (res.status === 'ok') await this.load();
         } catch (e) { }
     },
@@ -173,7 +173,7 @@ export const managerStore = {
                 confirmText: 'Delete',
                 isDanger: true
             });
-            const res = await api.post(`api/delete_item`, { item_id: item.Id, user_id: uid });
+            const res = await useApi(api.post(`api/delete_item`, { item_id: item.Id, user_id: uid }));
             if (res.status === 'ok') await this.load();
         } catch (e) { }
     }

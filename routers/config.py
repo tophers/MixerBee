@@ -4,12 +4,13 @@ routers/config.py – APIRouter for configuration and settings management.
 
 import logging
 import os
+import secrets
 import sys
 import threading
 import time
 import requests
 import json
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
 
 import app as core
@@ -39,7 +40,8 @@ def api_config_status():
         "ai_provider": app_state.AI_PROVIDER,
         "ollama_model": app_state.OLLAMA_MODEL,
         "starred_models": app_state.STARRED_MODELS,
-        "vector_space": get_vector_space()
+        "vector_space": get_vector_space(),
+        "access_key_set": bool(app_state.ACCESS_KEY)
     }
 
 @router.get("/api/settings")
@@ -54,11 +56,69 @@ def api_get_settings():
         "gemini_key": app_state.GEMINI_API_KEY or "",
         "ollama_url": app_state.OLLAMA_URL or "http://localhost:11434",
         "ollama_model": app_state.OLLAMA_MODEL or "qwen2.5:7b",
+        "ollama_timeout": app_state.OLLAMA_TIMEOUT or 120,
         "starred_models": app_state.STARRED_MODELS,
         "external_api_key": app_state.EXTERNAL_API_KEY or "",
+        "access_key": app_state.ACCESS_KEY or "",
+        "webhook_secret": app_state.WEBHOOK_SECRET or "",
         "version": core.CLIENT_VERSION,
         "vector_space": get_vector_space()
     }
+
+@router.get("/api/auth/check")
+def api_auth_check():
+    """No-op endpoint the frontend pings to confirm a stored X-MixerBee-Key is still valid.
+    Reaching this handler at all already proves the access-key middleware accepted it."""
+    return {"status": "ok"}
+
+@router.post("/api/settings/access_key/regenerate")
+def api_regenerate_access_key(payload: dict = Body(default={})):
+    """Rotates (or sets a custom) access key that gates the whole API/UI. Takes effect
+    immediately, no restart."""
+    custom = (payload.get("key") or "").strip()
+    if custom and len(custom) < 8:
+        raise HTTPException(status_code=400, detail="Access key must be at least 8 characters.")
+
+    app_state.ACCESS_KEY = custom or secrets.token_urlsafe(24)
+    with database.get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_ACCESS_KEY', ?)", (app_state.ACCESS_KEY,))
+        conn.commit()
+    return {"status": "ok", "log": ["Access key updated."], "access_key": app_state.ACCESS_KEY}
+
+@router.post("/api/settings/access_key/clear")
+def api_clear_access_key():
+    """Disables the access-key gate entirely, restoring MixerBee's default open-on-the-LAN
+    behavior. Like every other /api/settings/* route, this one is itself gated by the
+    current Access Key while one is set - disabling the gate requires already being
+    unlocked with it, same as any other Settings change."""
+    app_state.ACCESS_KEY = None
+    with database.get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_ACCESS_KEY', ?)", ("",))
+        conn.commit()
+    return {"status": "ok", "log": ["Access key disabled. MixerBee is now open to anyone who can reach it."], "access_key": ""}
+
+@router.post("/api/settings/webhook_secret/regenerate")
+def api_regenerate_webhook_secret(payload: dict = Body(default={})):
+    """Generates (or sets a custom) webhook token. Admin still needs to add ?token=...
+    to the notification URL in Emby/Jellyfin for it to take effect."""
+    custom = (payload.get("key") or "").strip()
+    if custom and len(custom) < 8:
+        raise HTTPException(status_code=400, detail="Webhook secret must be at least 8 characters.")
+
+    app_state.WEBHOOK_SECRET = custom or secrets.token_urlsafe(16)
+    with database.get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_WEBHOOK_SECRET', ?)", (app_state.WEBHOOK_SECRET,))
+        conn.commit()
+    return {"status": "ok", "log": ["Webhook secret updated. Add it to your Emby/Jellyfin notification URL as ?token=..."], "webhook_secret": app_state.WEBHOOK_SECRET}
+
+@router.post("/api/settings/webhook_secret/clear")
+def api_clear_webhook_secret():
+    """Disables webhook token enforcement, restoring today's open /api/webhook behavior."""
+    app_state.WEBHOOK_SECRET = None
+    with database.get_db_connection() as conn:
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_WEBHOOK_SECRET', ?)", ("",))
+        conn.commit()
+    return {"status": "ok", "log": ["Webhook token disabled."], "webhook_secret": ""}
 
 @router.get("/api/ollama/status")
 def api_ollama_status():
@@ -125,6 +185,7 @@ def api_save_settings(req: models.SettingsRequest):
         "AI_PROVIDER": req.ai_provider,
         "OLLAMA_URL": req.ollama_url.strip(),
         "OLLAMA_MODEL": req.ollama_model.strip(),
+        "OLLAMA_TIMEOUT": str(req.ollama_timeout),
         "GEMINI_API_KEY": req.gemini_key.strip() if req.gemini_key else "",
         "STARRED_MODELS": json.dumps(req.starred_models or []),
         "EXTERNAL_API_KEY": req.external_api_key.strip() if req.external_api_key else ""
@@ -137,7 +198,7 @@ def api_save_settings(req: models.SettingsRequest):
             for k, v in settings_dict.items():
                 conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (k, v))
 
-            env_keys = ["SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS", "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY", "EXTERNAL_API_KEY"]
+            env_keys = ["SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS", "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT", "GEMINI_API_KEY", "EXTERNAL_API_KEY"]
             env_content = "\n".join([f'{k}="{settings_dict[k]}"' for k in env_keys if settings_dict.get(k) is not None])
 
             with open(app_state.ENV_PATH, "w") as f:

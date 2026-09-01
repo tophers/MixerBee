@@ -2,9 +2,11 @@
 routers/webhooks.py – APIRouter
 """
 
+import secrets
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
-from typing import Dict, Any, Set
+from fastapi.responses import JSONResponse
+from typing import Dict, Any
 
 import app_state
 from scheduler import scheduler_manager
@@ -13,34 +15,12 @@ from app.logger import get_logger
 logger = get_logger("MixerBee.Webhooks")
 router = APIRouter()
 
-def _get_schedule_media_types(sched: Dict[str, Any]) -> Set[str]:
-    """Analyzes a schedule to determine what media types it manages (tv, movie, music)."""
-    types = set()
-    job_type = sched.get("job_type")
-    
-    if job_type == "builder":
-        blocks = sched.get("blocks") or []
-        for b in blocks:
-            t = b.get("type")
-            if t == "vibe":
-                t = b.get("vibe_type")
-            if t:
-                types.add(t)
-                
-    elif job_type == "quick_playlist":
-        qp_type = sched.get("quick_playlist_data", {}).get("quick_playlist_type")
-        if qp_type in ["recently_added"]: 
-            types.update(["movie", "tv"])
-        elif qp_type in ["next_up", "pilot_sampler"]: 
-            types.add("tv")
-        elif qp_type in ["from_the_vault", "genre_roulette"]: 
-            types.add("movie")
-        elif qp_type in ["artist_spotlight", "album_roulette", "genre_sampler"]: 
-            types.add("music")
-            
-    return types
-
 def trigger_relevant_schedules(user_id: str = None, target_media_type: str = None):
+    # target_media_type is accepted for logging/job-id purposes only (see
+    # handle_media_webhook) and is deliberately NOT used to filter schedules here: a
+    # schedule's block types can't be reliably mapped back to "tv"/"movie"/"music"
+    # (e.g. curated/mirror blocks), and a show can appear in several playlists the
+    # user wants kept current regardless of which one they were watching.
     if not app_state.is_configured:
         return
 
@@ -50,14 +30,8 @@ def trigger_relevant_schedules(user_id: str = None, target_media_type: str = Non
     for sched in schedules:
         if sched.get("job_type") == "enrichment":
             continue
-            
+
         if user_id is None or sched.get("user_id") == user_id:
-            if target_media_type:
-                sched_types = _get_schedule_media_types(sched)
-                if sched_types and target_media_type not in sched_types:
-                    logger.info(f"Skipping schedule '{sched.get('playlist_name')}' (Type {sched_types} does not match event '{target_media_type}')")
-                    continue
-                    
             try:
                 logger.info(f"Triggering live update for schedule '{sched.get('playlist_name')}'")
                 scheduler_manager.run_schedule_now(sched["id"])
@@ -70,6 +44,15 @@ def trigger_relevant_schedules(user_id: str = None, target_media_type: str = Non
 @router.post("/api/webhook")
 async def handle_media_webhook(request: Request):
     user_agent = request.headers.get("user-agent", "UNKNOWN").lower()
+
+    if app_state.WEBHOOK_SECRET:
+        supplied = request.query_params.get("token") or request.headers.get("x-mixerbee-webhook-secret", "")
+        if not supplied or not secrets.compare_digest(supplied, app_state.WEBHOOK_SECRET):
+            logger.warning("Rejected webhook request: missing or invalid token.")
+            return JSONResponse(
+                status_code=401,
+                content={"status": "rejected", "reason": "Missing or invalid webhook token."}
+            )
 
     if not app_state.is_configured:
         return {"status": "ignored", "reason": "App not configured"}
@@ -120,11 +103,16 @@ async def handle_media_webhook(request: Request):
     ]
 
     if any(keyword in event_type_lower for keyword in relevant_keywords):
-        
-        run_time = datetime.now() + timedelta(seconds=10)
-        job_id = f"webhook_debounce_{user_id}_{target_media_type or 'all'}"
 
-        logger.info(f"Event matches triggers! Scheduling debounce rebuild for 10s from now.")
+        debounce_seconds = app_state.WEBHOOK_DEBOUNCE_SECONDS
+        run_time = datetime.now() + timedelta(seconds=debounce_seconds)
+        # Keyed on user only: target_media_type no longer changes which schedules get
+        # triggered (see trigger_relevant_schedules), so keeping it in the id would let two
+        # events of different types within the debounce window queue two full fan-out
+        # sweeps instead of coalescing into one.
+        job_id = f"webhook_debounce_{user_id}"
+
+        logger.info(f"Event matches triggers! Scheduling debounce rebuild for {debounce_seconds}s from now.")
 
         scheduler_manager.scheduler.add_job(
             func=trigger_relevant_schedules,

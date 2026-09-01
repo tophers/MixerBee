@@ -1,7 +1,7 @@
 // static/js/schedulerStore.js
 
 import { api } from './apiClient.js';
-import { toast, generateUUID } from './utils.js';
+import { toast, generateUUID, useApi } from './utils.js';
 
 export const schedulerStore = {
     schedule: [],
@@ -11,9 +11,9 @@ export const schedulerStore = {
         this.isLoading = true;
         try {
             await Alpine.store('presets').refresh();
-            const data = await api.get('api/schedules', true, false);
-            if (data) {
-                const rawList = Array.isArray(data) ? data : [];
+            const res = await useApi(api.get('api/schedules'), null, true, false);
+            if (res.data) {
+                const rawList = Array.isArray(res.data) ? res.data : [];
                 this.schedule = rawList.map(entry => {
                     const details = entry.schedule_details || {};
                     return {
@@ -65,11 +65,11 @@ export const schedulerStore = {
 
         try {
             let res = entry.id 
-                ? await api.put(`api/schedules/${entry.id}`, payload, btnEl)
-                : await api.post('api/schedules', payload, btnEl);
+                ? await useApi(api.put(`api/schedules/${entry.id}`, payload), btnEl)
+                : await useApi(api.post('api/schedules', payload), btnEl);
             
             if (res && res.status === 'ok') {
-                if (res.id) entry.id = res.id;
+                if (res.data?.id) entry.id = res.data.id;
                 this.schedule = [...this.schedule];
             }
         } catch (err) { }
@@ -77,7 +77,7 @@ export const schedulerStore = {
 
     async runNow(id, btnEl) {
         if (!id) return toast("Save the schedule first to generate a Job ID.", false);
-        try { await api.post(`api/schedules/${id}/run`, {}, btnEl); } catch (err) { }
+        try { await useApi(api.post(`api/schedules/${id}/run`, {}), btnEl); } catch (err) { }
     },
 
     async removeEntry(entry, btnEl) {
@@ -86,7 +86,7 @@ export const schedulerStore = {
             return;
         }
         try {
-            const res = await api.del(`api/schedules/${entry.id}`, btnEl);
+            const res = await useApi(api.del(`api/schedules/${entry.id}`), btnEl);
             if (res && res.status === 'ok') this.schedule = this.schedule.filter(s => s !== entry);
         } catch (err) { }
     },

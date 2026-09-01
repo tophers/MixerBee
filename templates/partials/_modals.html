@@ -506,6 +506,59 @@
                     </label>
                 </fieldset>
 
+                <fieldset class="filter-group mt-md">
+                    <legend>Access &amp; Security</legend>
+
+                    <label class="control-item">
+                        <span>Access Key</span>
+                        <div class="input-with-button">
+                            <input :type="$store.settings.is_access_key_visible ? 'text' : 'password'" x-model="$store.settings.access_key" placeholder="Paste a custom key, or use Generate below">
+                            <button type="button" class="secondary small" @click="$store.settings.toggleAccessKeyVisibility()">
+                                <span x-html="$store.settings.is_access_key_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                            </button>
+                            <button type="button" class="secondary small" @click="$store.settings.copyToClipboard($store.settings.access_key, 'Access key')">Copy</button>
+                        </div>
+                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
+                            <template x-if="$store.settings.is_access_key_set">
+                                <span>Required to use MixerBee's UI/API from any browser or device. This browser is already
+                                unlocked with it. Editing and saving here takes effect immediately (no restart) and updates
+                                this browser automatically — any other unlocked browser/device will need the new key.</span>
+                            </template>
+                            <template x-if="!$store.settings.is_access_key_set">
+                                <span>Not set — MixerBee is open to anyone who can reach it on your network. Set one to
+                                require it for the UI and API (except <code>/api/webhook</code>, see below).</span>
+                            </template>
+                        </p>
+                        <div class="flex-row gap-sm mt-xs">
+                            <button type="button" class="secondary small" @click="$store.settings.saveAccessKey($event.currentTarget)">Save Key</button>
+                            <button type="button" class="secondary small" @click="$store.settings.regenerateAccessKey($event.currentTarget)">Generate Random</button>
+                            <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.is_access_key_set" @click="$store.settings.clearAccessKey($event.currentTarget)">Disable</button>
+                        </div>
+                    </label>
+
+                    <label class="control-item mt-md">
+                        <span>Webhook Secret (optional)</span>
+                        <div class="input-with-button">
+                            <input :type="$store.settings.is_webhook_secret_visible ? 'text' : 'password'" x-model="$store.settings.webhook_secret" placeholder="Not set — /api/webhook accepts any request">
+                            <button type="button" class="secondary small" @click="$store.settings.toggleWebhookSecretVisibility()">
+                                <span x-html="$store.settings.is_webhook_secret_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                            </button>
+                            <button type="button" class="secondary small" x-show="$store.settings.webhook_secret" @click="$store.settings.copyToClipboard($store.settings.webhook_secret, 'Webhook secret')">Copy</button>
+                        </div>
+                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
+                            The Access Key above does NOT apply to <code>/api/webhook</code>, since Emby/Jellyfin notification
+                            plugins can't send custom headers. Set a secret here, then append
+                            <code>?token=&lt;secret&gt;</code> to the webhook URL in your Emby Notification config
+                            (Dashboard &gt; Notifications &gt; MixerBee) to require it. Leave unset to keep today's open behavior.
+                        </p>
+                        <div class="flex-row gap-sm mt-xs">
+                            <button type="button" class="secondary small" @click="$store.settings.saveWebhookSecret($event.currentTarget)">Save Secret</button>
+                            <button type="button" class="secondary small" @click="$store.settings.regenerateWebhookSecret($event.currentTarget)">Generate Random</button>
+                            <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.webhook_secret" @click="$store.settings.clearWebhookSecret($event.currentTarget)">Disable</button>
+                        </div>
+                    </label>
+                </fieldset>
+
                 <fieldset class="filter-group mt-md danger-zone">
                     <legend>Maintenance & Recovery</legend>
                     <div class="flex-column gap-sm">
