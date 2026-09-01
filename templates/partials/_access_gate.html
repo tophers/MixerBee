@@ -1,0 +1,14 @@
+<!-- templates/partials/_access_gate.html -->
+<!-- Plain vanilla-JS overlay (no Alpine) so it can gate the page before any store hydrates.
+     Driven entirely by static/js/accessGate.js. -->
+<div id="access-gate-overlay" hidden>
+    <form id="access-gate-form" class="access-gate-card">
+        <h2>🐝 MixerBee is locked</h2>
+        <p>Enter your Access Key to continue. Lost it? Any other browser/device still unlocked can view or
+        rotate it from Settings &gt; Access &amp; Security, or an admin can clear the
+        <code>MIXERBEE_ACCESS_KEY</code> row in the <code>settings</code> table to disable the gate.</p>
+        <input id="access-gate-input" type="password" autocomplete="off" placeholder="Access Key" autofocus>
+        <div id="access-gate-error" class="access-gate-error"></div>
+        <button type="submit">Unlock</button>
+    </form>
+</div>

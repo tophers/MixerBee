@@ -1,7 +1,7 @@
 // static/js/aiStore.js
 
 import { api } from './apiClient.js';
-import { toast } from './utils.js';
+import { toast, useApi } from './utils.js';
 import { aiTweaksModal } from './modals.js';
 
 export const aiStore = {
@@ -40,20 +40,20 @@ export const aiStore = {
         if (!this.prompt.trim()) return toast('Prompt required.', false);
         this.isGenerating = true;
         try {
-            const res = await api.post('api/create_from_text', {
+            const res = await useApi(api.post('api/create_from_text', {
                 prompt: this.prompt,
                 tweaks: this.tweaks
-            }, null, false, false);
+            }));
             
-            if (res.status === 'ok' && Array.isArray(res.blocks)) {
-                if (res.blocks.length === 0) {
-                    const failMsg = res.log?.[0] || "No items matched your library.";
+            if (res.status === 'ok' && Array.isArray(res.data?.blocks)) {
+                if (res.data.blocks.length === 0) {
+                    const failMsg = res.data.log?.[0] || "No items matched your library.";
                     toast(`${failMsg} Try Relaxing Relevancy in AI Tweaks.`, false, {
                         actionText: "Tweaks",
                         actionCallback: () => aiTweaksModal.show()
                     });
                 } else {
-                    await Alpine.store('mixer').loadBlocks(res.blocks, true);
+                    await Alpine.store('mixer').loadBlocks(res.data.blocks, true);
                 }
             }
         } catch (e) {
@@ -68,7 +68,7 @@ export const aiStore = {
         if (sStore.ollama_model === modelName) return;
 
         try {
-            const res = await api.post('api/settings/model', { ollama_model: modelName }, null, true, false);
+            const res = await useApi(api.post('api/settings/model', { ollama_model: modelName }));
             if (res.status === 'ok') {
                 sStore.ollama_model = modelName;
                 toast(`AI Model switched to ${modelName}`, true);
@@ -84,9 +84,9 @@ export const aiStore = {
         if (this.isLoadingMoods) return;
         this.isLoadingMoods = true;
         try {
-            const res = await api.get('api/library/mood_discovery', true, false);
-            if (res && res.tags && res.tags.length > 0) {
-                this.moodPool = res.tags;
+            const res = await useApi(api.get('api/library/mood_discovery'), null, true, false);
+            if (res.data && res.data.tags && res.data.tags.length > 0) {
+                this.moodPool = res.data.tags;
                 this.refreshMoodSlots();
                 this.refreshSamplePrompt();
             } else {

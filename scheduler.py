@@ -5,6 +5,7 @@ scheduler.py – Manages schedules
 import json
 import uuid
 import random
+import threading
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -31,6 +32,8 @@ QUICK_PLAYLIST_MAP = {
     "next_up": items_api.create_continue_watching_playlist,
     "pilot_sampler": items_api.create_pilot_sampler_playlist,
     "from_the_vault": items_api.create_forgotten_favorites_playlist,
+    "top_community_unwatched": items_api.create_top_community_unwatched_playlist,
+    "top_critic_unwatched": items_api.create_top_critic_unwatched_playlist,
 }
 LEGACY_TYPE_MAP = {"continue_watching": "next_up", "forgotten_favorites": "from_the_vault"}
 
@@ -133,9 +136,13 @@ def run_playlist_job(**schedule_data) -> Dict:
 
     return result
 
-def scheduled_job_wrapper(**schedule_data):
+# Cap on back-to-back reruns triggered by requests that arrive while a schedule is
+# already running, so a heavy burst of webhook events can't loop indefinitely.
+MAX_RERUN_PASSES = 3
+
+def _run_once_and_record(schedule_data: Dict, schedule_id: Optional[str]):
     result = run_playlist_job(**schedule_data)
-    if schedule_id := schedule_data.get("id"):
+    if schedule_id:
         last_run_info = {
             "timestamp": datetime.now().isoformat(),
             "status": result.get("status", "error"),
@@ -143,10 +150,71 @@ def scheduled_job_wrapper(**schedule_data):
         }
         scheduler_manager._update_schedule_last_run(schedule_id, last_run_info)
 
+def scheduled_job_wrapper(**schedule_data):
+    schedule_id = schedule_data.get("id")
+
+    # Cron runs, webhook-triggered runs, and manual "Run Now" runs all funnel through
+    # here, so guarding on the schedule id here is enough to keep any two runs of the
+    # same schedule from executing (and clobbering create_playlist) at the same time.
+    if not schedule_id:
+        logger.warning("scheduled_job_wrapper received schedule data with no 'id'; running unguarded.")
+        _run_once_and_record(schedule_data, None)
+        return
+
+    lock = scheduler_manager._get_schedule_lock(schedule_id)
+    if not lock.acquire(blocking=False):
+        scheduler_manager._mark_rerun_pending(schedule_id)
+        logger.info(f"Schedule '{schedule_id}' is already running; queued a rerun instead of overlapping.")
+        return
+
+    try:
+        current_data = schedule_data
+        for pass_num in range(1, MAX_RERUN_PASSES + 1):
+            _run_once_and_record(current_data, schedule_id)
+
+            if not scheduler_manager._consume_rerun_pending(schedule_id):
+                break
+            if pass_num == MAX_RERUN_PASSES:
+                logger.warning(
+                    f"Schedule '{schedule_id}' hit the {MAX_RERUN_PASSES}-pass rerun cap; "
+                    "dropping the pending rerun."
+                )
+                break
+
+            # Pick up any edits saved while this schedule was running instead of
+            # rerunning with the (possibly now-stale) data captured at dispatch time.
+            current_data = scheduler_manager.schedules.get(schedule_id, current_data)
+    finally:
+        lock.release()
+
 class Scheduler:
     def __init__(self):
         self.scheduler = BackgroundScheduler(daemon=True)
         self.schedules: Dict[str, Dict] = {}
+        # Per-schedule run lock + "a rerun was requested while running" flag, keyed by
+        # schedule id. _schedule_locks_guard protects both dicts so concurrent first-time
+        # access for the same schedule id can't create two different Lock objects.
+        self._schedule_locks: Dict[str, threading.Lock] = {}
+        self._rerun_pending: Dict[str, bool] = {}
+        self._schedule_locks_guard = threading.Lock()
+
+    def _get_schedule_lock(self, schedule_id: str) -> threading.Lock:
+        with self._schedule_locks_guard:
+            lock = self._schedule_locks.get(schedule_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._schedule_locks[schedule_id] = lock
+            return lock
+
+    def _mark_rerun_pending(self, schedule_id: str):
+        with self._schedule_locks_guard:
+            self._rerun_pending[schedule_id] = True
+
+    def _consume_rerun_pending(self, schedule_id: str) -> bool:
+        with self._schedule_locks_guard:
+            pending = self._rerun_pending.get(schedule_id, False)
+            self._rerun_pending[schedule_id] = False
+        return pending
 
     def _get_trigger(self, schedule_data: Dict):
         details = schedule_data.get("schedule_details", {})
@@ -222,8 +290,13 @@ class Scheduler:
     def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
         if not (schedule_data := self.schedules.get(schedule_id)): return None
 
-        job_id = f"manual_run_{schedule_id}_{int(datetime.now().timestamp())}"
-        
+        # Stable id (not a per-call unique one) so a request that arrives while an
+        # earlier one is still queued replaces it instead of stacking alongside it.
+        # This only dedupes the *queued* case; the per-schedule lock in
+        # scheduled_job_wrapper is what prevents two already-dispatched runs of the
+        # same schedule from executing at once.
+        job_id = f"run_{schedule_id}"
+
         try:
             self.scheduler.add_job(
                 func=scheduled_job_wrapper,
@@ -231,7 +304,15 @@ class Scheduler:
                 run_date=datetime.now(),
                 kwargs=schedule_data,
                 id=job_id,
-                name=f"Manual Run: {schedule_data.get('playlist_name', 'Unnamed Schedule')}"
+                name=f"Manual Run: {schedule_data.get('playlist_name', 'Unnamed Schedule')}",
+                replace_existing=True,
+                # The default executor is a 10-worker thread pool (unconfigured/default
+                # in this app); a webhook fan-out queues one of these per schedule, and
+                # rebuilds can run 30-60s+ against a large library. A tight grace period
+                # would let APScheduler discard a job that's merely waiting for a free
+                # worker as "misfired" - silently skipping the exact rebuild this whole
+                # change exists to guarantee.
+                misfire_grace_time=300
             )
             
             logger.info(f"Successfully queued background run for schedule {schedule_id}")
@@ -371,6 +452,13 @@ class Scheduler:
                 self.scheduler.remove_job(schedule_id)
             except JobLookupError:
                 logger.warning(f"Job {schedule_id} not found, removing from storage anyway.")
+            try:
+                # A queued-but-not-yet-run request from run_schedule_now (manual "Run Now"
+                # or a webhook fan-out) uses this deterministic id; without canceling it
+                # too, it would fire against a schedule that no longer exists.
+                self.scheduler.remove_job(f"run_{schedule_id}")
+            except JobLookupError:
+                pass
             del self.schedules[schedule_id]
             try:
                 with database.get_db_connection() as conn:
@@ -378,6 +466,10 @@ class Scheduler:
                     conn.commit()
             except Exception as e:
                  logger.error(f"Failed to delete schedule {schedule_id} from database: {e}", exc_info=True)
+
+            with self._schedule_locks_guard:
+                self._schedule_locks.pop(schedule_id, None)
+                self._rerun_pending.pop(schedule_id, None)
 
     def get_all_schedules(self) -> List[Dict]:
         if not self.schedules and self.scheduler.running:

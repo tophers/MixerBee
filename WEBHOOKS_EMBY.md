@@ -8,6 +8,17 @@ To enable **Live Synchronization**, MixerBee can listen for events from your Emb
 > 
 ---
 
+## Security Note
+
+`/api/webhook` is intentionally exempt from MixerBee's Access Key gate, since Emby/Jellyfin
+notification plugins can't send custom HTTP headers. By default it accepts any request on your
+network, same as always. If you want to lock it down, generate a **Webhook Secret** from
+MixerBee's Settings (Access & Security section) and append `?token=<secret>` to the URL you
+enter in step 3 below — MixerBee will then reject any webhook POST that doesn't include a
+matching token. This is entirely optional and off by default.
+
+---
+
 ## Prerequisites
 
 * An Emby Server with administrative access.

@@ -83,3 +83,32 @@ export function debounce(func, wait) {
         timeout = setTimeout(later, wait);
     };
 };
+
+export function useApi(apiCall, element = null, silent = false, showLoading = true) {
+    const loadingOverlay = document.getElementById('loading-overlay');
+    let clickedButton = null;
+
+    if (element) {
+        clickedButton = element.currentTarget || element;
+        if (clickedButton) clickedButton.disabled = true;
+    }
+
+    if (showLoading && loadingOverlay) loadingOverlay.classList.remove('hidden');
+
+    return apiCall.then(async (response) => {
+        if (response.status === 'ok' && !silent) {
+            const msg = response.data?.log?.join(' • ') || 'All good!';
+            const tOpts = response.data?.newItemUrl ? { actionText: 'View on Server', actionCallback: () => window.open(response.data.newItemUrl, '_blank') } : {};
+            toast(msg, true, tOpts);
+        } else if ((response.status === 'error' || response.error?.detail) && !silent) {
+            toast('Error: ' + (response.data?.log?.join(' • ') || response.error?.detail || 'Unknown error'), false);
+        }
+        return response;
+    }).catch((err) => {
+        if (!silent) toast('Error: ' + (err?.log?.join(' • ') || err?.detail || err.message || 'An unknown error occurred.'), false);
+        return { data: null, error: err, status: 'error' };
+    }).finally(() => {
+        if (showLoading && loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (clickedButton) clickedButton.disabled = false;
+    });
+}

@@ -12,7 +12,7 @@ import app as core
 import models
 import app_state
 from app.cache import get_library_data
-from app.ai.vector_store import calculate_library_iq, media_collection, get_discovery_tags
+from app.ai.vector_store import calculate_library_iq, get_discovery_tags
 from .dependencies import get_current_auth_headers
 
 router = APIRouter()
@@ -110,50 +110,59 @@ def api_get_studios(name: str = "", auth_deps: dict = Depends(get_current_auth_h
 
 @router.get("/api/media/search")
 def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_headers)) -> List[Dict[str, Any]]:
-    """Global search for any media (movies/shows) in the vector store + Collections."""
-    try:
-        res = media_collection.get(
-            include=["metadatas"]
-        )
-        
-        search_term = query.lower()
-        results = []
-
-        # 1. Search Native Collections first
-        try:
-            collections = core.get_collections(auth_deps["login_uid"], auth_deps["hdr"])
-            for c in collections:
-                if search_term in c.get("Name", "").lower():
-                    results.append({
-                        "Id": c.get("Id"),
-                        "Name": c.get("Name"),
-                        "Year": "",
-                        "Type": "Collection"
-                    })
-        except Exception as ce:
-            logging.warning(f"Failed to fetch collections for search: {ce}")
-
-        # 2. Search Local Vector DB Movies/Shows
-        if res and res.get('ids'):
-            for i, item_id in enumerate(res['ids']):
-                meta = res['metadatas'][i]
-                name = meta.get("name", "Unknown")
-
-                if search_term in name.lower():
-                    results.append({
-                        "Id": item_id,
-                        "Name": name,
-                        "Year": meta.get("year", ""),
-                        "Type": meta.get("type", "")
-                    })
-
-                    if len(results) >= 15:
-                        break
-
-        return results
-    except Exception as e:
-        logging.error(f"Media search failed: {e}")
+    """Global search for media (movies/shows/collections) using indexed server search."""
+    search_term = query.strip()
+    if not search_term:
         return []
+
+    user_id = auth_deps["login_uid"]
+    user_specific_hdr = core.auth_headers(auth_deps["token"], user_id)
+    results = []
+
+    # 1. Search Collections first
+    try:
+        collections = core.get_collections(user_id, user_specific_hdr)
+        for c in collections:
+            if search_term.lower() in c.get("Name", "").lower():
+                results.append({
+                    "Id": c.get("Id"),
+                    "Name": c.get("Name"),
+                    "Year": "",
+                    "Type": "Collection"
+                })
+    except Exception as ce:
+        logging.warning(f"Failed to fetch collections for search: {ce}")
+
+    # 2. Native indexed server search for Movies and TV Series
+    try:
+        params = {
+            "SearchTerm": search_term,
+            "IncludeItemTypes": "Movie,Series",
+            "Recursive": "true",
+            "Limit": 20,
+            "Fields": "ProductionYear,Type"
+        }
+        r = core.SESSION.get(
+            f"{core.EMBY_URL}/Users/{user_id}/Items",
+            params=params,
+            headers=user_specific_hdr,
+            timeout=10
+        )
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+
+        for it in items:
+            it_type = it.get("Type", "")
+            results.append({
+                "Id": it.get("Id"),
+                "Name": it.get("Name"),
+                "Year": it.get("ProductionYear", ""),
+                "Type": it_type
+            })
+    except Exception as e:
+        logging.error(f"Native media search failed: {e}")
+
+    return results
 
 @router.get("/api/music/random_artist")
 def api_get_random_artist(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, str]:

@@ -10,6 +10,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 import app as core
+import app.client as client
 
 IS_DOCKER = os.path.exists('/.dockerenv')
 if IS_DOCKER:
@@ -31,6 +32,14 @@ OLLAMA_TIMEOUT = 120
 STARRED_MODELS = []
 VERBOSE_LOGGING = False
 EXTERNAL_API_KEY = None
+WEBHOOK_DEBOUNCE_SECONDS = 30
+
+# Gatekeeping: ACCESS_KEY guards the entire API/UI (auto-generated on first run, DB-only,
+# never round-tripped through .env). WEBHOOK_SECRET is a separate, opt-in secret checked
+# on /api/webhook only, since Emby/Jellyfin notification plugins can't send custom headers
+# and instead get it via a URL query param.
+ACCESS_KEY = None
+WEBHOOK_SECRET = None
 
 CACHE_REFRESH_MINUTES = 15
 SERVER_TYPE = "emby"
@@ -64,7 +73,7 @@ def sync_env_to_db():
 
             keys_to_sync = [
                 "SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS",
-                "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "GEMINI_API_KEY",
+                "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT", "GEMINI_API_KEY",
                 "VERBOSE_LOGGING", "EXTERNAL_API_KEY"
             ]
 
@@ -82,14 +91,22 @@ def load_settings_from_db():
     """Hydrates runtime globals from the SQLite settings table."""
     import database
 
-    global SERVER_TYPE, AI_PROVIDER, OLLAMA_URL, OLLAMA_MODEL, GEMINI_API_KEY, VERBOSE_LOGGING, STARRED_MODELS, EXTERNAL_API_KEY
+    global SERVER_TYPE, AI_PROVIDER, OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT, GEMINI_API_KEY, VERBOSE_LOGGING, STARRED_MODELS, EXTERNAL_API_KEY, ACCESS_KEY, WEBHOOK_SECRET, WEBHOOK_DEBOUNCE_SECONDS
 
     with database.get_db_connection() as conn:
         rows = conn.execute("SELECT key, value FROM settings").fetchall()
         settings = {row['key']: row['value'] for row in rows}
 
         SERVER_TYPE = settings.get("SERVER_TYPE", "emby").lower()
-        core.EMBY_URL = settings.get("EMBY_URL", "").rstrip("/")
+        # Every app/*.py domain module (items, movies, tv, music, ...) builds its Emby
+        # request URLs from app.client.EMBY_URL directly, not from this core.EMBY_URL copy
+        # (app/__init__.py's `from .client import EMBY_URL` binds a value, not a live
+        # reference, so the two diverge the moment either is reassigned). core.EMBY_URL
+        # alone only feeds core.authenticate()'s explicit argument below, so keep
+        # client.EMBY_URL in sync too or a mid-process re-sync (e.g. after a manual .env
+        # edit, without the full restart a Settings-UI save triggers) leaves every actual
+        # API call pointed at a stale host.
+        core.EMBY_URL = client.EMBY_URL = settings.get("EMBY_URL", "").rstrip("/")
         core.EMBY_USER = settings.get("EMBY_USER")
         core.EMBY_PASS = settings.get("EMBY_PASS")
 
@@ -97,6 +114,11 @@ def load_settings_from_db():
         OLLAMA_URL = settings.get("OLLAMA_URL", "http://localhost:11434")
         OLLAMA_MODEL = settings.get("OLLAMA_MODEL", "qwen2.5:7b")
         GEMINI_API_KEY = settings.get("GEMINI_API_KEY")
+
+        try:
+            OLLAMA_TIMEOUT = int(settings.get("OLLAMA_TIMEOUT") or 120)
+        except (TypeError, ValueError):
+            OLLAMA_TIMEOUT = 120
         
         try:
             STARRED_MODELS = json.loads(settings.get("STARRED_MODELS", "[]"))
@@ -106,6 +128,20 @@ def load_settings_from_db():
         VERBOSE_LOGGING = str(settings.get("VERBOSE_LOGGING", "false")).lower() in ("true", "1", "t", "yes")
         
         EXTERNAL_API_KEY = settings.get("EXTERNAL_API_KEY")
+
+        # ACCESS_KEY/WEBHOOK_SECRET/WEBHOOK_DEBOUNCE_SECONDS are DB-only (never written to
+        # .env, never in keys_to_sync above) so a later .env edit can never wipe them out via
+        # sync_env_to_db, which would otherwise write "" for any key .env doesn't mention.
+        # ACCESS_KEY/WEBHOOK_SECRET are also opt-in and unset by default: MixerBee stays open
+        # on the LAN, same as before this existed, until the admin deliberately sets one from
+        # Settings (the UI nags but never forces this).
+        ACCESS_KEY = settings.get("MIXERBEE_ACCESS_KEY") or None
+        WEBHOOK_SECRET = settings.get("MIXERBEE_WEBHOOK_SECRET") or None
+
+        try:
+            WEBHOOK_DEBOUNCE_SECONDS = max(1, int(settings.get("WEBHOOK_DEBOUNCE_SECONDS") or 30))
+        except (TypeError, ValueError):
+            WEBHOOK_DEBOUNCE_SECONDS = 30
 
 def load_and_authenticate() -> bool:
     """Master startup sequence: Hash check -> DB Sync -> Hydrate -> Authenticate."""

@@ -934,6 +934,33 @@ td:last-child { text-align: right; }
   display: flex; justify-content: center; align-items: center; z-index: 10000;
 }
 
+#access-key-nag {
+  display: flex; align-items: center; gap: var(--gap-sm);
+  background: rgba(var(--danger-rgb), 0.12); border-bottom: 1px solid var(--danger);
+  color: var(--text); padding: 0.6rem var(--gap-md); font-size: 0.85rem;
+}
+#access-key-nag span:first-child { flex-shrink: 0; color: var(--danger); }
+#access-key-nag span:nth-child(2) { flex-grow: 1; }
+
+#access-gate-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background-color: var(--bg); display: flex; justify-content: center; align-items: center;
+  z-index: 10001;
+}
+#access-gate-overlay[hidden] { display: none; }
+#access-gate-overlay .access-gate-card {
+  background: var(--panel); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  box-shadow: var(--shadow); padding: var(--gap-xl); width: 90%; max-width: 380px;
+  display: flex; flex-direction: column; gap: var(--gap-md);
+}
+#access-gate-overlay h2 { margin: 0; font-size: 1.1rem; }
+#access-gate-overlay p { margin: 0; color: var(--text-subtle); font-size: 0.85rem; }
+#access-gate-overlay input[type="password"] {
+  background: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--radius-sm);
+  color: var(--text); padding: 0.6rem; font-size: 1rem; width: 100%;
+}
+#access-gate-overlay .access-gate-error { color: var(--danger); font-size: 0.85rem; min-height: 1.1em; }
+
 /* Typewriter Overlay */
 #typewriter-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;

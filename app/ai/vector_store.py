@@ -6,7 +6,7 @@ import json
 import time
 import threading
 import random
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import chromadb
 import numpy as np
 
@@ -170,15 +170,12 @@ def migrate_enrichment_fields():
 def calculate_library_iq() -> dict:
     try:
         total = media_collection.count()
-        if total == 0: return {"total": 0, "enriched": 0}
+        if total == 0:
+            return {"total": 0, "enriched": 0}
 
-        all_data = media_collection.get(limit=total, include=["metadatas"])
-
-        enriched_count = 0
-        if all_data and all_data.get('metadatas'):
-            for meta in all_data['metadatas']:
-                if meta and str(meta.get('is_enriched', 'False')).lower() == "true":
-                    enriched_count += 1
+        ids_bool = set(media_collection.get(where={"is_enriched": True}, include=[]).get('ids', []))
+        ids_str = set(media_collection.get(where={"is_enriched": "True"}, include=[]).get('ids', []))
+        enriched_count = len(ids_bool | ids_str)
 
         return {"total": total, "enriched": enriched_count}
     except Exception as e:
@@ -191,21 +188,17 @@ def get_discovery_tags(limit: int = 60) -> List[str]:
     Checks both boolean and string variants to be safe.
     """
     try:
-        enriched_data = media_collection.get(
+        enriched_bool = media_collection.get(
             where={"is_enriched": True},
             include=["metadatas"],
             limit=2000
         )
-        
-        all_metadatas = enriched_data.get('metadatas', [])
-        
-        if not all_metadatas:
-            enriched_data = media_collection.get(
-                where={"is_enriched": "True"},
-                include=["metadatas"],
-                limit=2000
-            )
-            all_metadatas = enriched_data.get('metadatas', [])
+        enriched_str = media_collection.get(
+            where={"is_enriched": "True"},
+            include=["metadatas"],
+            limit=2000
+        )
+        all_metadatas = (enriched_bool.get('metadatas') or []) + (enriched_str.get('metadatas') or [])
 
         if not all_metadatas:
             return []
@@ -348,9 +341,34 @@ def index_library_for_vibes(user_id: str, hdr: dict):
     except Exception as e:
         logger.error(f"Failed during library sync: {e}", exc_info=True)
 
+def _sample_candidates_by_distance(candidates: List[Dict[str, Any]], target_count: int, temperature: float = 0.7) -> List[Dict[str, Any]]:
+    """Probabilistically samples candidates weighted by similarity to reduce hubness and selection bias."""
+    if len(candidates) <= target_count:
+        return candidates
+
+    try:
+        # Convert cosine distance to similarity score (closer to 0 distance = closer to 1 similarity)
+        similarities = np.array([max(0.001, 1.0 - float(c.get("Distance", 0.5))) for c in candidates])
+        
+        # Softmax scaling with temperature
+        scaled = similarities / max(0.1, temperature)
+        exp_scores = np.exp(scaled - np.max(scaled))
+        probabilities = exp_scores / np.sum(exp_scores)
+
+        selected_indices = np.random.choice(
+            len(candidates),
+            size=target_count,
+            replace=False,
+            p=probabilities
+        )
+        return [candidates[i] for i in selected_indices]
+    except Exception as e:
+        logger.warning(f"Softmax candidate sampling failed, falling back to top candidates: {e}")
+        return candidates[:target_count]
+
 def search_by_vibe(query: str = None, media_type: str = None, limit: int = None, threshold: float = None, **kwargs) -> List[Dict[str, str]]:
     """
-    Searches the library for media matching a specific vibe, mood, theme, or description.
+    Core vector similarity search for the LLMs and UI.
     Includes a 'Radius Lock' to filter out mathematically irrelevant results.
     """
     refresh_logger_level()
@@ -399,9 +417,10 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
     logger.info(f"Vibe Search Request: '{query}' | Threshold: {current_threshold:.2f} | Limit: {final_limit}")
 
     try:
+        pool_limit = max(40, final_limit * 2)
         results = media_collection.query(
             query_texts=[query],
-            n_results=final_limit,
+            n_results=pool_limit,
             where=where_clause if where_clause else None,
             include=["metadatas", "distances"]
         )
@@ -431,7 +450,7 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
 
             logger.info(f"    [KEEP] {name} ({year}) [ID: {item_id}] | Cosine Distance: {distance:.4f}")
 
-        return matched_items
+        return _sample_candidates_by_distance(matched_items, target_count=final_limit, temperature=0.7)
     except Exception as e:
         logger.error(f"Vibe search failed: {e}")
         return []
@@ -464,6 +483,11 @@ def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit
         neg_vectors = [vectors[nid] for nid in negative_ids if nid in vectors]
         for neg_vec in neg_vectors:
             composite_vector = composite_vector - (neg_vec * 0.4)
+
+        # Normalize back to unit vector for cosine distance
+        norm = np.linalg.norm(composite_vector)
+        if norm > 0:
+            composite_vector = composite_vector / norm
 
         target_type = id_to_type.get(positive_ids[0]) if not mixed_echo else None
 

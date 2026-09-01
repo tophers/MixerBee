@@ -1,7 +1,7 @@
 // static/js/mixerStore.js
 
 import { api } from './apiClient.js';
-import { toast, debounce, generateUUID } from './utils.js';
+import { toast, debounce, generateUUID, useApi } from './utils.js';
 import { ensureBlockState, createNewBlock, createEchoBlock } from './blockFactory.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
 import { SMART_BUILD_TYPES, BLOCK_TYPES } from './definitions.js';
@@ -90,11 +90,11 @@ export const mixerStore = {
 
         showData._loadingTitle = true;
         try {
-            const res = await api.get(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`, true, false);
-            if (res && res.name) {
-                showData.previewTitle = res.name;
-                if (res.season !== undefined) showData.season = res.season;
-                if (res.episode !== undefined) showData.episode = res.episode;
+            const res = await useApi(api.get(`api/episode_lookup?series_id=${series.id}&season=${showData.season}&episode=${showData.episode}`), null, true, false);
+            if (res && res.data?.name) {
+                showData.previewTitle = res.data.name;
+                if (res.data.season !== undefined) showData.season = res.data.season;
+                if (res.data.episode !== undefined) showData.episode = res.data.episode;
             } else {
                 showData.previewTitle = `S${showData.season}E${showData.episode}`;
             }
@@ -112,11 +112,11 @@ export const mixerStore = {
 
         showData._loadingTitle = true;
         try {
-            const res = await api.get(`api/shows/${series.id}/first_unwatched?user_id=${uid}`, true, false);
-            if (res && res.Id) {
-                showData.season = res.ParentIndexNumber;
-                showData.episode = res.IndexNumber;
-                showData.previewTitle = res.Name || `S${res.ParentIndexNumber}E${res.IndexNumber}`;
+            const res = await useApi(api.get(`api/shows/${series.id}/first_unwatched?user_id=${uid}`), null, true, false);
+            if (res && res.data?.Id) {
+                showData.season = res.data.ParentIndexNumber;
+                showData.episode = res.data.IndexNumber;
+                showData.previewTitle = res.data.Name || `S${res.data.ParentIndexNumber}E${res.data.IndexNumber}`;
             }
         } catch (e) {
         } finally {
@@ -135,7 +135,7 @@ export const mixerStore = {
                 user_id: uid,
                 season_number: decision.scope === 'season' ? showData.season : null
             };
-            const res = await api.post(`api/shows/${series.id}/unplayed`, payload);
+            const res = await useApi(api.post(`api/shows/${series.id}/unplayed`, payload));
             if (res.status === 'ok') {
                 showData.unwatched = true;
                 await this.syncNextUnwatched(showData);
@@ -153,17 +153,17 @@ export const mixerStore = {
             }
             if (type === 'person') {
                 const [people, studios] = await Promise.all([
-                    api.get(`api/people?name=${encodeURIComponent(query)}`, true, false),
-                    api.get(`api/studios?name=${encodeURIComponent(query)}`, true, false)
+                    useApi(api.get(`api/people?name=${encodeURIComponent(query)}`), null, true, false),
+                    useApi(api.get(`api/studios?name=${encodeURIComponent(query)}`), null, true, false)
                 ]);
                 const results = [];
-                if (Array.isArray(people)) people.forEach(p => results.push({ type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})` }));
-                if (Array.isArray(studios)) studios.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
+                if (Array.isArray(people.data)) people.data.forEach(p => results.push({ type: 'person', data: p, text: `${p.Name} (${p.Role || 'Person'})` }));
+                if (Array.isArray(studios.data)) studios.data.forEach(s => results.push({ type: 'studio', data: s, text: `${s.Name} (Studio)` }));
                 return results;
             }
             if (type === 'media') {
-                 const res = await api.get(`api/media/search?query=${encodeURIComponent(query)}`, true, false);
-                 return Array.isArray(res) ? res.map(m => ({ type: 'media', data: m, text: `${m.Name} (${m.Year || '?'})` })) : [];
+                 const res = await useApi(api.get(`api/media/search?query=${encodeURIComponent(query)}`), null, true, false);
+                 return Array.isArray(res.data) ? res.data.map(m => ({ type: 'media', data: m, text: `${m.Name} (${m.Year || '?'})` })) : [];
             }
         } catch (e) { return []; }
     },
@@ -249,9 +249,9 @@ export const mixerStore = {
 
                 liveBlock._previewLoading = true;
                 try {
-                    const itemsData = await api.post('api/builder/preview', { user_id, blocks: [liveBlock] }, null, true, false);
-                    if (itemsData && itemsData.status !== 'error') {
-                        liveBlock._previewItems = itemsData.data || [];
+                    const res = await useApi(api.post('api/builder/preview', { user_id, blocks: [liveBlock] }), null, true, false);
+                    if (res && res.status !== 'error') {
+                        liveBlock._previewItems = res.data || [];
                         liveBlock._previewCount = liveBlock._previewItems.length;
                     } else {
                         liveBlock._previewItems = [];
@@ -274,8 +274,8 @@ export const mixerStore = {
         const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         try {
-            const res = await api.get(`api/users/${uid}/playlists`, true);
-            if (Array.isArray(res)) this.userPlaylists = res;
+            const res = await useApi(api.get(`api/users/${uid}/playlists`));
+            if (Array.isArray(res.data)) this.userPlaylists = res.data;
         } catch (e) { console.error("Failed to load user playlists", e); }
     },
 
@@ -297,12 +297,12 @@ export const mixerStore = {
                         if (show.unwatched) {
                             const series = this.library.seriesData.find(s => s.name === show.name || s.id === show.id);
                             if (series) {
-                                const p = api.get(`api/shows/${series.id}/first_unwatched?user_id=${uid}`, true)
-                                    .then(ep => { 
-                                        if (ep && ep.Id) {
-                                            show.season = ep.ParentIndexNumber;
-                                            show.episode = ep.IndexNumber;
-                                            show.previewTitle = ep.Name || '';
+                                const p = useApi(api.get(`api/shows/${series.id}/first_unwatched?user_id=${uid}`))
+                                    .then(res => { 
+                                        if (res.data && res.data.Id) {
+                                            show.season = res.data.ParentIndexNumber;
+                                            show.episode = res.data.IndexNumber;
+                                            show.previewTitle = res.data.Name || '';
                                         } 
                                     });
                                 promises.push(p);
@@ -314,7 +314,7 @@ export const mixerStore = {
                 }
                 
                 if (block.isSnapshot && block.filters?.ids?.length > 0) {
-                     const p = api.post('api/builder/preview', { user_id: uid, blocks: [block] }, null, true, false)
+                     const p = useApi(api.post('api/builder/preview', { user_id: uid, blocks: [block] }), null, true, false)
                         .then(res => {
                             if(res.status === 'ok') {
                                 block._previewItems = res.data;
@@ -409,7 +409,7 @@ export const mixerStore = {
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
             const uid = Alpine.store('settings').activeUserId;
-            const res = await api.post('api/builder/preview', { user_id: uid, blocks: targetBlocks }, btnEl, true);
+            const res = await useApi(api.post('api/builder/preview', { user_id: uid, blocks: targetBlocks }), btnEl, true);
 
             if (res.status === 'ok') {
                 await previewModal.show({
@@ -430,7 +430,7 @@ export const mixerStore = {
 
         if (this.buildMode === 'add') {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
-            await api.post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: preparedBlocks }, btnEl);
+            await useApi(api.post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: preparedBlocks }), btnEl);
         } else {
             if (this.createAsCollection && (preparedBlocks.length !== 1 || (preparedBlocks[0].type !== BLOCK_TYPES.MOVIE && preparedBlocks[0].vibe_type !== BLOCK_TYPES.MOVIE))) {
                 return toast('Requires one Movie block.', false);
@@ -442,7 +442,7 @@ export const mixerStore = {
                     countInput: false,
                     defaultName: this.createAsCollection ? 'My Collection' : 'My Mix',
                 });
-                await api.post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: preparedBlocks, create_as_collection: this.createAsCollection }, btnEl);
+                await useApi(api.post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: preparedBlocks, create_as_collection: this.createAsCollection }), btnEl);
             } catch (err) { }
         }
     },
@@ -475,12 +475,12 @@ export const mixerStore = {
                 defaultName: 'Custom Preview Mix'
             });
 
-            await api.post('api/create_mixed_playlist', {
+            await useApi(api.post('api/create_mixed_playlist', {
                 user_id: uid,
                 playlist_name: playlistName,
                 item_ids: itemIds,
                 create_as_collection: false
-            }, btnEl);
+            }), btnEl);
 
             previewModal.close();
         } catch (e) { }
@@ -528,7 +528,7 @@ export const mixerStore = {
             const { playlistName, count } = await smartPlaylistModal.show({ title, description, defaultName, countInput: showCount, defaultCount });
             const options = { ...extraParams };
             if (showCount) options.count = count;
-            await api.post('api/quick_builds', { user_id: uid, playlist_name: playlistName, quick_build_type: type, options });
+            await useApi(api.post('api/quick_builds', { user_id: uid, playlist_name: playlistName, quick_build_type: type, options }));
         } catch (err) { }
     },
 
