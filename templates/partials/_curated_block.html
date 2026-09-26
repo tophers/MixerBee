@@ -11,8 +11,7 @@
                 return;
             }
             try {
-                const res = await fetch('api/media/search?query=' + encodeURIComponent(this.searchQuery) + '&_cb=' + Date.now());
-                const data = await res.json();
+                const data = await $store.mixer.fetchMediaSuggestions(this.searchQuery);
                 if (Array.isArray(data)) {
                     this.suggestions = data.filter(m => m.Type === 'Movie' || m.Type === 'Collection' || m.Type === 'BoxSet').map(m => ({
                         type: 'media',
@@ -29,8 +28,7 @@
         async addMovie(itemData) {
             if (itemData.Type === 'Collection' || itemData.Type === 'BoxSet') {
                 try {
-                    const res = await fetch(`api/items/${itemData.Id}/children?user_id=${$store.settings.activeUserId}&_cb=${Date.now()}`);
-                    const children = await res.json();
+                    const children = await $store.mixer.fetchItemChildren(itemData.Id);
                     if (Array.isArray(children)) {
                         children.forEach(child => {
                             if (child.Type === 'Movie' || child.type === 'Movie') {

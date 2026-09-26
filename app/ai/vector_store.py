@@ -6,6 +6,7 @@ import json
 import time
 import threading
 import random
+import hashlib
 from typing import List, Dict, Optional, Any
 import chromadb
 import numpy as np
@@ -49,6 +50,49 @@ class CollectionProxy:
         return repr(get_media_collection())
 
 media_collection = CollectionProxy()
+
+
+def compose_document(
+    title: str,
+    year: str = "",
+    media_type: str = "",
+    genres: str = "",
+    vibe_tags: str = "",
+    overview: str = "",
+    artist: str = ""
+) -> str:
+    """
+    Shared document composer for indexing, enrichment, and refresh.
+    Ensures identical embedding text shape across all vectors.
+    """
+    parts = [f"Title: {title or 'Unknown'}"]
+    if artist:
+        parts.append(f"Artist: {artist}")
+    if year:
+        parts.append(f"Year: {year}")
+    if media_type:
+        parts.append(f"Format: {media_type}")
+    if genres:
+        parts.append(f"Genres: {genres}")
+    if vibe_tags:
+        parts.append(f"Style: {vibe_tags}")
+    if overview:
+        parts.append(f"Summary: {overview}")
+    return ". ".join(parts)
+
+
+def compute_metadata_fingerprint(
+    title: str,
+    year: str = "",
+    media_type: str = "",
+    genres: str = "",
+    overview: str = "",
+    artist: str = ""
+) -> str:
+    """Computes a deterministic hash of the server-side source metadata to detect changes."""
+    raw = f"{title}|{year}|{media_type}|{genres}|{overview}|{artist}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
 
 @media_operation
 def get_vector_space(*, media=None) -> str:
@@ -239,7 +283,7 @@ def get_discovery_tags(limit: int = 60, *, media=None) -> List[str]:
 
 @media_operation
 def index_library_for_vibes(user_id: str, media: client.MediaClient):
-    """Fetches metadata from Emby and embeds locally. Restores AI tags from backup if available."""
+    """Fetches metadata from Emby/Jellyfin and embeds locally. Restores AI tags from backup if available."""
     media.require_user(user_id)
     refresh_logger_level()
     migrate_enrichment_fields()
@@ -257,7 +301,7 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
 
         while True:
             params = {
-                "IncludeItemTypes": "Movie,Series",
+                "IncludeItemTypes": "Movie,Series,MusicAlbum",
                 "Recursive": "true",
                 "UserId": user_id,
                 "StartIndex": start_index,
@@ -293,7 +337,7 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
             params = {
                 "Ids": ",".join(batch_ids),
                 "UserId": user_id,
-                "Fields": "Overview,Genres,ProductionYear,PremiereDate,DateCreated"
+                "Fields": "Overview,Genres,ProductionYear,PremiereDate,DateCreated,AlbumArtist,ArtistItems"
             }
             r = media.get(f"/Users/{user_id}/Items", params=params, timeout=30)
             r.raise_for_status()
@@ -323,6 +367,12 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
 
                 year_str = str(year) if year else "Unknown Year"
 
+                m_type = item.get("Type")
+                artist = ""
+                if m_type in ("MusicAlbum", "Album"):
+                    m_type = "MusicAlbum"
+                    artist = item.get("AlbumArtist") or ", ".join([a.get("Name", "") for a in item.get("ArtistItems", []) if isinstance(a, dict)]) or ""
+
                 is_enriched = False
                 vibe_tags = ""
                 if item_id in backup_tags:
@@ -330,20 +380,37 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
                     is_enriched = True
                     logger.info(f"MIGRATION: Restoring AI tags for '{title}'")
 
-                text_to_embed = f"Title: {title}. Year: {year_str}. Format: {item.get('Type')}. Genres: {genres}. Style: {vibe_tags}. Summary: {overview}"
+                text_to_embed = compose_document(
+                    title=title,
+                    year=year_str,
+                    media_type=m_type,
+                    genres=genres,
+                    vibe_tags=vibe_tags,
+                    overview=overview,
+                    artist=artist
+                )
+                fingerprint = compute_metadata_fingerprint(
+                    title=title,
+                    year=year_str,
+                    media_type=m_type,
+                    genres=genres,
+                    overview=overview,
+                    artist=artist
+                )
 
                 documents.append(text_to_embed)
                 metadatas.append({
                     "name": title,
-                    "type": item.get("Type"),
+                    "type": m_type,
+                    "artist": artist,
                     "year": year_str,
                     "genres": genres,
                     "overview": overview,
                     "is_enriched": is_enriched,
-                    "vibe_tags": vibe_tags
+                    "vibe_tags": vibe_tags,
+                    "fingerprint": fingerprint
                 })
                 upsert_ids.append(item_id)
-
 
             if upsert_ids:
                 media_collection.upsert(
@@ -360,6 +427,176 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
 
     except Exception as e:
         logger.error(f"Failed during library sync: {e}", exc_info=True)
+
+
+@media_operation
+def refresh_semantic_index(user_id: str, media: client.MediaClient) -> Dict[str, Any]:
+    """
+    Selectively re-indexes the library:
+    - Adds new items from server.
+    - Removes items deleted from server.
+    - Compares server metadata fingerprint with stored fingerprint for existing items.
+    - Re-embeds ONLY items whose metadata changed or lacks fingerprint,
+      preserving existing `is_enriched` and `vibe_tags`.
+    Returns dict with counts: added, removed, refreshed, unchanged.
+    """
+    media.require_user(user_id)
+    refresh_logger_level()
+    logger.info("Starting Selective Semantic Index Refresh...")
+
+    col = get_media_collection()
+    existing = col.get(include=["metadatas"])
+    existing_map = {}
+    if existing and existing.get("ids"):
+        for i, cid in enumerate(existing["ids"]):
+            existing_map[cid] = existing["metadatas"][i] or {}
+
+    server_items = {}
+    start_index = 0
+    limit = 5000
+    while True:
+        params = {
+            "IncludeItemTypes": "Movie,Series,MusicAlbum",
+            "Recursive": "true",
+            "UserId": user_id,
+            "StartIndex": start_index,
+            "Limit": limit,
+            "Fields": "Overview,Genres,ProductionYear,PremiereDate,DateCreated,AlbumArtist,ArtistItems"
+        }
+        r = media.get(f"/Users/{user_id}/Items", params=params, timeout=30)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+        if not items:
+            break
+        for it in items:
+            server_items[it["Id"]] = it
+        if len(items) < limit:
+            break
+        start_index += limit
+
+    server_ids = set(server_items.keys())
+    existing_ids = set(existing_map.keys())
+
+    to_remove = list(existing_ids - server_ids)
+    to_add = list(server_ids - existing_ids)
+
+    common_ids = existing_ids & server_ids
+    to_refresh = []
+    unchanged_count = 0
+
+    for cid in common_ids:
+        s_item = server_items[cid]
+        c_meta = existing_map[cid]
+
+        m_type = s_item.get("Type")
+        artist = ""
+        if m_type in ("MusicAlbum", "Album"):
+            m_type = "MusicAlbum"
+            artist = s_item.get("AlbumArtist") or ", ".join([a.get("Name", "") for a in s_item.get("ArtistItems", []) if isinstance(a, dict)]) or ""
+
+        title = s_item.get("Name", "")
+        overview = s_item.get("Overview", "").strip() or "No summary available."
+        genres = ", ".join(s_item.get("Genres", []))
+        year = s_item.get("ProductionYear") or (s_item.get("PremiereDate") or "")[:4] or (s_item.get("DateCreated") or "")[:4] or "Unknown Year"
+        year_str = str(year)
+
+        server_fp = compute_metadata_fingerprint(title, year_str, m_type, genres, overview, artist)
+        stored_fp = c_meta.get("fingerprint", "")
+
+        if server_fp != stored_fp or not stored_fp:
+            to_refresh.append(cid)
+        else:
+            unchanged_count += 1
+
+    if to_remove:
+        logger.info(f"Removing {len(to_remove)} deleted items from ChromaDB.")
+        for i in range(0, len(to_remove), 500):
+            col.delete(ids=to_remove[i:i+500])
+
+    added_count = 0
+    if to_add:
+        logger.info(f"Adding {len(to_add)} new items to ChromaDB.")
+        for i in range(0, len(to_add), 100):
+            batch = to_add[i:i+100]
+            docs, metas, u_ids = [], [], []
+            for item_id in batch:
+                s_item = server_items[item_id]
+                m_type = s_item.get("Type")
+                artist = ""
+                if m_type in ("MusicAlbum", "Album"):
+                    m_type = "MusicAlbum"
+                    artist = s_item.get("AlbumArtist") or ", ".join([a.get("Name", "") for a in s_item.get("ArtistItems", []) if isinstance(a, dict)]) or ""
+                title = s_item.get("Name", "")
+                overview = s_item.get("Overview", "").strip() or "No summary available."
+                genres = ", ".join(s_item.get("Genres", []))
+                year = s_item.get("ProductionYear") or (s_item.get("PremiereDate") or "")[:4] or (s_item.get("DateCreated") or "")[:4] or "Unknown Year"
+                year_str = str(year)
+                fp = compute_metadata_fingerprint(title, year_str, m_type, genres, overview, artist)
+                doc = compose_document(title, year_str, m_type, genres, "", overview, artist)
+                docs.append(doc)
+                metas.append({
+                    "name": title,
+                    "type": m_type,
+                    "artist": artist,
+                    "year": year_str,
+                    "genres": genres,
+                    "overview": overview,
+                    "is_enriched": False,
+                    "vibe_tags": "",
+                    "fingerprint": fp
+                })
+                u_ids.append(item_id)
+            col.upsert(documents=docs, metadatas=metas, ids=u_ids)
+            added_count += len(u_ids)
+
+    refreshed_count = 0
+    if to_refresh:
+        logger.info(f"Refreshing {len(to_refresh)} changed items in ChromaDB (preserving enrichments).")
+        for i in range(0, len(to_refresh), 100):
+            batch = to_refresh[i:i+100]
+            docs, metas, u_ids = [], [], []
+            for item_id in batch:
+                s_item = server_items[item_id]
+                c_meta = existing_map.get(item_id, {})
+                m_type = s_item.get("Type")
+                artist = ""
+                if m_type in ("MusicAlbum", "Album"):
+                    m_type = "MusicAlbum"
+                    artist = s_item.get("AlbumArtist") or ", ".join([a.get("Name", "") for a in s_item.get("ArtistItems", []) if isinstance(a, dict)]) or ""
+                title = s_item.get("Name", "")
+                overview = s_item.get("Overview", "").strip() or "No summary available."
+                genres = ", ".join(s_item.get("Genres", []))
+                year = s_item.get("ProductionYear") or (s_item.get("PremiereDate") or "")[:4] or (s_item.get("DateCreated") or "")[:4] or "Unknown Year"
+                year_str = str(year)
+
+                is_enriched = bool(c_meta.get("is_enriched", False))
+                vibe_tags = str(c_meta.get("vibe_tags", ""))
+
+                fp = compute_metadata_fingerprint(title, year_str, m_type, genres, overview, artist)
+                doc = compose_document(title, year_str, m_type, genres, vibe_tags, overview, artist)
+                docs.append(doc)
+                metas.append({
+                    "name": title,
+                    "type": m_type,
+                    "artist": artist,
+                    "year": year_str,
+                    "genres": genres,
+                    "overview": overview,
+                    "is_enriched": is_enriched,
+                    "vibe_tags": vibe_tags,
+                    "fingerprint": fp
+                })
+                u_ids.append(item_id)
+            col.update(documents=docs, metadatas=metas, ids=u_ids)
+            refreshed_count += len(u_ids)
+
+    return {
+        "status": "ok",
+        "added": added_count,
+        "removed": len(to_remove),
+        "refreshed": refreshed_count,
+        "unchanged": unchanged_count
+    }
 
 def _sample_candidates_by_distance(candidates: List[Dict[str, Any]], target_count: int, temperature: float = 0.7) -> List[Dict[str, Any]]:
     """Probabilistically samples candidates weighted by similarity to reduce hubness and selection bias."""
@@ -417,9 +654,15 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
         where_clause = {}
         mt_normalized = ""
         if media_type:
-            mt_normalized = media_type.strip().capitalize()
-            if mt_normalized in ["Tv", "Show"]:
+            mt_lower = media_type.strip().lower()
+            if mt_lower in ["tv", "show", "series"]:
                 mt_normalized = "Series"
+            elif mt_lower in ["movie", "movies"]:
+                mt_normalized = "Movie"
+            elif mt_lower in ["music", "musicalbum", "album", "albums"]:
+                mt_normalized = "MusicAlbum"
+            else:
+                mt_normalized = media_type.strip().capitalize()
             where_clause["type"] = mt_normalized
 
         if limit is not None:

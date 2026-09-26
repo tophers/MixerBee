@@ -12,9 +12,24 @@ export const managerStore = {
     sortDirection: 'asc',
     viewFilter: 'All',
     isLoading: false,
+    selectedIds: [],
 
     libraryIq: { total: 0, enriched: 0, percentage: 0 },
     contentsModal: { isOpen: false, parentItem: null, title: '', items: [], isLoading: false, hasChanges: false },
+    overlapModal: { isOpen: false, isLoading: false, data: null },
+
+    enrichmentStatus: {
+        status: 'idle',
+        total_items: 0,
+        processed_items: 0,
+        succeeded_items: 0,
+        failed_items: 0,
+        remaining_items: 0,
+        queue_depth: 0,
+        last_message: '',
+        elapsed_seconds: 0
+    },
+    enrichmentPollTimer: null,
 
     async loadIq() {
         try {
@@ -27,11 +42,76 @@ export const managerStore = {
         } catch (e) { console.error("Failed to load Library IQ", e); }
     },
 
+    async pollEnrichmentStatus() {
+        try {
+            const res = await useApi(api.get('api/library/enrichment/status'), null, true, false);
+            if (res.data) {
+                Object.assign(this.enrichmentStatus, res.data);
+                if (res.data.status === 'running' || res.data.status === 'stopping') {
+                    if (!this.enrichmentPollTimer) {
+                        this.enrichmentPollTimer = setTimeout(() => {
+                            this.enrichmentPollTimer = null;
+                            this.pollEnrichmentStatus();
+                        }, 1500);
+                    }
+                } else {
+                    if (this.enrichmentPollTimer) {
+                        clearTimeout(this.enrichmentPollTimer);
+                        this.enrichmentPollTimer = null;
+                    }
+                    this.loadIq();
+                }
+            }
+        } catch (e) {
+            console.error("Enrichment status poll failed", e);
+        }
+    },
+
+    async startEnrichment() {
+        try {
+            const res = await useApi(api.post('api/library/enrichment/start', { batch_size: 10 }));
+            if (res.status === 'ok') {
+                toast("AI enrichment started in background.");
+                this.pollEnrichmentStatus();
+            }
+        } catch (e) {
+            toast(e.message || "Failed to start enrichment", false);
+        }
+    },
+
+    async stopEnrichment() {
+        try {
+            const res = await useApi(api.post('api/library/enrichment/stop'));
+            if (res.status === 'ok') {
+                toast("Stopping AI enrichment...");
+                this.pollEnrichmentStatus();
+            }
+        } catch (e) {
+            toast("Failed to stop enrichment", false);
+        }
+    },
+
+    async runSemanticRefresh(btnEl) {
+        try {
+            const res = await useApi(api.post('api/library/semantic_refresh'), btnEl);
+            if (res.status === 'ok' || res.data?.status === 'ok') {
+                const data = res.data || res;
+                toast(`Index refreshed: ${data.added} added, ${data.refreshed} updated, ${data.removed} removed.`);
+                this.loadIq();
+                this.pollEnrichmentStatus();
+            }
+        } catch (e) {
+            toast("Semantic refresh failed", false);
+        }
+    },
+
     async load() {
         const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         this.isLoading = true;
+        this.selectedIds = [];
         this.loadIq();
+        this.pollEnrichmentStatus();
         try {
             const res = await useApi(api.get(`api/manageable_items?user_id=${uid}`));
             if (res.data) {
@@ -42,7 +122,9 @@ export const managerStore = {
                     Id: item.Id || item.id,
                     Type: item.Type || item.type || 'Playlist',
                     DisplayType: item.DisplayType || (item.Type === 'BoxSet' ? 'Collection' : item.Type),
-                    ChildCount: item.ChildCount !== undefined ? item.ChildCount : (item.child_count || 0)
+                    ChildCount: item.ChildCount !== undefined ? item.ChildCount : (item.child_count || 0),
+                    FormattedRuntime: item.FormattedRuntime || '',
+                    ServerUrl: item.ServerUrl || ''
                 }));
                 this.applyFilters();
             }
@@ -81,12 +163,88 @@ export const managerStore = {
         });
 
         this.filtered = list;
+        // Prune selected IDs that are no longer in filtered view
+        const validIds = new Set(list.map(i => i.Id));
+        this.selectedIds = this.selectedIds.filter(id => validIds.has(id));
     },
 
     toggleSort(col) {
         if (this.sortColumn === col) this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
         else { this.sortColumn = col; this.sortDirection = 'asc'; }
         this.applyFilters();
+    },
+
+    // Multi-selection
+    toggleSelect(id) {
+        if (this.selectedIds.includes(id)) {
+            this.selectedIds = this.selectedIds.filter(x => x !== id);
+        } else {
+            this.selectedIds.push(id);
+        }
+    },
+
+    selectAll() {
+        if (this.isAllSelected()) {
+            this.selectedIds = [];
+        } else {
+            this.selectedIds = (this.filtered || []).map(i => i.Id);
+        }
+    },
+
+    isAllSelected() {
+        return (this.filtered || []).length > 0 && this.selectedIds.length === this.filtered.length;
+    },
+
+    async bulkDeleteSelected() {
+        const uid = Alpine.store('settings').activeUserId;
+        if (!uid || this.selectedIds.length === 0) return;
+
+        try {
+            await confirmModal.show({
+                title: 'Bulk Delete Items?',
+                text: `Permanently delete all ${this.selectedIds.length} selected playlists/collections? This cannot be undone.`,
+                confirmText: `Delete ${this.selectedIds.length} Items`,
+                isDanger: true
+            });
+
+            const res = await useApi(api.post('api/bulk_delete_items', {
+                user_id: uid,
+                item_ids: this.selectedIds
+            }));
+
+            if (res.status === 'ok' || res.data?.status === 'ok') {
+                const data = res.data || res;
+                toast(`Deleted ${data.deleted_count} items (${data.failed_count} failed).`);
+                this.selectedIds = [];
+                await this.load();
+            }
+        } catch (e) {
+            // Cancelled or failed
+        }
+    },
+
+    async checkOverlaps() {
+        const uid = Alpine.store('settings').activeUserId;
+        if (!uid) return;
+        this.overlapModal.isOpen = true;
+        this.overlapModal.isLoading = true;
+        this.overlapModal.data = null;
+
+        try {
+            const targetIds = this.selectedIds.length > 0 ? this.selectedIds : null;
+            const res = await useApi(api.post('api/library/overlap_report', {
+                user_id: uid,
+                item_ids: targetIds
+            }));
+
+            if (res.data) {
+                this.overlapModal.data = res.data;
+            }
+        } catch (e) {
+            toast("Failed to generate overlap report", false);
+        } finally {
+            this.overlapModal.isLoading = false;
+        }
     },
 
     async viewContents(item) {

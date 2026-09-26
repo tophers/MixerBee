@@ -2,12 +2,18 @@
 
 import { api } from './apiClient.js';
 import { toast, debounce, generateUUID, useApi } from './utils.js';
-import { ensureBlockState, createNewBlock, createEchoBlock } from './blockFactory.js';
-import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal } from './modals.js';
+import { ensureBlockState, createNewBlock, createEchoBlock, serializeBlockDefinition, serializeMixDefinition } from './blockFactory.js';
+import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal, recipeLibraryModal, saveRecipeModal, musicQuickBuildModal } from './modals.js';
 import { SMART_BUILD_TYPES, BLOCK_TYPES } from './definitions.js';
 
 export const mixerStore = {
     blocks: [],
+    mix_options: {
+        freshness: { last_successful_builds: 0, history_scope: 'series', watched_within_days: 0, exhaustion_policy: 'shorter' },
+        duplicate_policy: { cross_block_policy: 'suppress', max_movies_per_franchise: 0 },
+        sequencing: { mode: 'sequential', pattern: [], exhaustion_policy: 'continue' },
+        runtime_budget: { mode: 'off', target_minutes: 0, allowed_overrun_minutes: 0, end_local_time: '', timezone: '' }
+    },
     library: {
         seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [], studioData: []
     },
@@ -18,7 +24,95 @@ export const mixerStore = {
     userPlaylists: [],
     autosaveKey: 'mixerbee_autosave',
 
+    past: [],
+    future: [],
+    savedBaseline: null,
+    _historySuspended: false,
     _previewDebouncers: {},
+
+    get canUndo() {
+        return this.past.length > 0;
+    },
+    get canRedo() {
+        return this.future.length > 0;
+    },
+
+    hasActiveRules() {
+        const o = this.mix_options;
+        if (!o) return false;
+        if (o.freshness && (o.freshness.last_successful_builds > 0 || o.freshness.watched_within_days > 0)) return true;
+        if (o.duplicate_policy && (o.duplicate_policy.cross_block_policy !== 'suppress' || o.duplicate_policy.max_movies_per_franchise > 0)) return true;
+        if (o.sequencing && o.sequencing.mode && o.sequencing.mode !== 'sequential') return true;
+        if (o.runtime_budget && o.runtime_budget.mode && o.runtime_budget.mode !== 'off' && o.runtime_budget.target_minutes > 0) return true;
+        return false;
+    },
+
+    captureDraft() {
+        return serializeMixDefinition({ blocks: this.blocks, mix_options: this.mix_options });
+    },
+
+    beginEdit(label = '') {
+        if (this._historySuspended) return;
+        const currentDraft = this.captureDraft();
+        this.past.push(currentDraft);
+        if (this.past.length > 50) this.past.shift();
+        this.future = [];
+    },
+
+    undo() {
+        if (!this.canUndo) return;
+        const current = this.captureDraft();
+        this.future.push(current);
+        const previous = this.past.pop();
+        this.restoreDraft(previous);
+        toast('Undo', false);
+    },
+
+    redo() {
+        if (!this.canRedo) return;
+        const current = this.captureDraft();
+        this.past.push(current);
+        const next = this.future.pop();
+        this.restoreDraft(next);
+        toast('Redo', false);
+    },
+
+    restoreDraft(draft) {
+        if (!draft) return;
+        this._historySuspended = true;
+        try {
+            const blocks = JSON.parse(JSON.stringify(draft.blocks || []));
+            blocks.forEach(b => this.ensureBlockState(b));
+            this.blocks = blocks;
+            if (draft.mix_options) {
+                this.mix_options = JSON.parse(JSON.stringify(draft.mix_options));
+            }
+            this.persistToLocalStorage();
+        } finally {
+            this._historySuspended = false;
+        }
+    },
+
+    markSaved(definition = null) {
+        this.savedBaseline = JSON.stringify(definition || this.captureDraft());
+    },
+
+    isDirty() {
+        if (!this.savedBaseline) return this.blocks.length > 0;
+        return JSON.stringify(this.captureDraft()) !== this.savedBaseline;
+    },
+
+    revertToSaved() {
+        if (!this.savedBaseline) return;
+        this.beginEdit('Revert to saved');
+        try {
+            const baseline = JSON.parse(this.savedBaseline);
+            this.restoreDraft(baseline);
+            toast('Reverted to saved preset.', true);
+        } catch (e) {
+            console.error('Revert failed:', e);
+        }
+    },
 
     init(connectionId) {
         if (!connectionId) return;
@@ -30,8 +124,28 @@ export const mixerStore = {
                 const loadedBlocks = parsed.blocks || [];
                 loadedBlocks.forEach(b => this.ensureBlockState(b));
                 this.blocks = loadedBlocks;
+                if (parsed.mix_options) {
+                    this.mix_options = parsed.mix_options;
+                }
             }
         } catch (e) { console.error("Autosave restore failed:", e); }
+
+        this.markSaved();
+
+        window.addEventListener('keydown', (e) => {
+            const isModifier = e.ctrlKey || e.metaKey;
+            if (!isModifier) return;
+            const tag = document.activeElement?.tagName;
+            if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
+            if (e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                this.undo();
+            } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+                e.preventDefault();
+                this.redo();
+            }
+        });
 
         Alpine.watch(() => JSON.stringify(this.blocks), () => this.persistToLocalStorage());
     },
@@ -47,13 +161,18 @@ export const mixerStore = {
 
     persistToLocalStorage() {
         if (this.blocks.length > 0) {
-            localStorage.setItem(this.autosaveKey, JSON.stringify({ blocks: this.blocks }));
+            localStorage.setItem(this.autosaveKey, JSON.stringify({
+                schema_version: 1,
+                blocks: this.blocks,
+                mix_options: this.mix_options
+            }));
         } else {
             localStorage.removeItem(this.autosaveKey);
         }
     },
 
     syncOrderFromDom(containerEl) {
+        this.beginEdit('Reorder Blocks');
         const orderedUids = Array.from(containerEl.querySelectorAll('.block-wrapper')).map(node => node.dataset.uid);
         const blockMap = new Map(this.blocks.map(b => [b._uid, b]));
         this.blocks = orderedUids.map(uid => blockMap.get(uid)).filter(Boolean);
@@ -164,9 +283,33 @@ export const mixerStore = {
                 return results;
             }
             if (type === 'media') {
-                 const res = await useApi(api.get(`api/media/search?query=${encodeURIComponent(query)}`), null, true, false);
-                 return Array.isArray(res.data) ? res.data.map(m => ({ type: 'media', data: m, text: `${m.Name} (${m.Year || '?'})` })) : [];
+                 return await this.fetchMediaSuggestions(query);
             }
+        } catch (e) { return []; }
+    },
+
+    async fetchMediaSuggestions(query) {
+        if (!query || query.length < 2) return [];
+        try {
+            const res = await useApi(api.get(`api/media/search?query=${encodeURIComponent(query)}`), null, true, false);
+            return Array.isArray(res?.data) ? res.data : [];
+        } catch (e) { return []; }
+    },
+
+    async fetchItemChildren(itemId) {
+        if (!itemId) return [];
+        const uid = Alpine.store('settings').activeUserId;
+        try {
+            const res = await useApi(api.get(`api/items/${itemId}/children?user_id=${uid}`), null, true, false);
+            return Array.isArray(res?.data) ? res.data : [];
+        } catch (e) { return []; }
+    },
+
+    async loadArtistAlbums(artistId) {
+        if (!artistId) return [];
+        try {
+            const res = await useApi(api.get(`api/music/artists/${artistId}/albums`), null, true, false);
+            return Array.isArray(res?.data) ? res.data : [];
         } catch (e) { return []; }
     },
 
@@ -284,13 +427,17 @@ export const mixerStore = {
         } catch (e) { console.error("Failed to load user playlists", e); }
     },
 
-    async loadBlocks(blocksData = [], append = false) {
+    async loadBlocks(blocksData = [], append = false, mixOptions = null) {
         const overlay = document.getElementById('loading-overlay');
         if (overlay) overlay.classList.remove('hidden');
 
         try {
             if (!Array.isArray(blocksData)) blocksData = [];
             blocksData.forEach(b => this.ensureBlockState(b));
+
+            if (mixOptions) {
+                this.mix_options = JSON.parse(JSON.stringify(mixOptions));
+            }
             
             const uid = Alpine.store('settings').activeUserId;
             const promises = [];
@@ -319,7 +466,7 @@ export const mixerStore = {
                 }
                 
                 if (block.isSnapshot && block.filters?.ids?.length > 0) {
-                     const p = useApi(api.post('api/builder/preview', { user_id: uid, blocks: [block] }), null, true, false)
+                     const p = useApi(api.post('api/builder/preview', { user_id: uid, blocks: [block], mix_options: this.mix_options }), null, true, false)
                         .then(res => {
                             if(res.status === 'ok') {
                                 block._previewItems = res.data.data;
@@ -334,6 +481,7 @@ export const mixerStore = {
 
             await Promise.all(promises);
             this.blocks = append ? [...this.blocks, ...blocksData] : [...blocksData];
+            this.markSaved();
 
         } catch (e) {
             console.error("[MixerBee] loadBlocks failed:", e);
@@ -344,6 +492,7 @@ export const mixerStore = {
     },
 
     addBlock(type) {
+        this.beginEdit('Add block');
         const block = createNewBlock(type, this.library.libraryData);
         if (block) {
             this.blocks = [...this.blocks, block];
@@ -352,22 +501,27 @@ export const mixerStore = {
     },
 
     duplicateBlock(index) {
+        this.beginEdit('Duplicate block');
         const copy = JSON.parse(JSON.stringify(this.blocks[index]));
         copy._uid = generateUUID();
+        copy.block_id = generateUUID();
         if (copy.shows) copy.shows.forEach(s => s._uid = generateUUID());
         
         const newBlocks = [...this.blocks];
         newBlocks.splice(index + 1, 0, copy);
         this.blocks = newBlocks;
+        this.updatePreviewCount(copy);
     },
 
     deleteBlock(index) {
+        this.beginEdit('Delete block');
         this.blocks = this.blocks.filter((_, i) => i !== index);
     },
 
     async clearAllBlocks() {
         try {
             await confirmModal.show({ title: 'Clear All?', text: 'Remove all blocks?', confirmText: 'Clear' });
+            this.beginEdit('Clear all');
             this.blocks = [];
             Alpine.store('presets').currentName = '';
         } catch (e) { }
@@ -386,15 +540,30 @@ export const mixerStore = {
         this.updatePreviewCount(block);
     },
 
-    getPreparedBlocks(blocksOverride = null) {
+    getPreparedBlocks(blocksOverride = null, lockInPreview = false) {
         const rawBlocks = blocksOverride || this.blocks;
         return JSON.parse(JSON.stringify(rawBlocks)).map(block => {
-            if (!block.isSnapshot && block._previewItems && block._previewItems.length > 0) {
+            if (lockInPreview && !block.isSnapshot && block._previewItems && block._previewItems.length > 0) {
                 if (!block.filters) block.filters = {};
                 block.filters.ids = block._previewItems.map(item => item.Id || item.id);
             }
             return block;
         });
+    },
+
+    async reselectBlock(blockUid) {
+        const block = this.blocks.find(b => b._uid === blockUid);
+        if (!block) return;
+        this.beginEdit('Re-roll Block Candidates');
+        block._previewItems = null;
+        block._previewDuration = '';
+        block._stale = false;
+        if (!block.isSnapshot && block.filters && block.filters.ids) {
+            delete block.filters.ids;
+        }
+        await this.updatePreviewCount(block);
+        this.commitEdit();
+        toast(`Re-rolled selection for "${block.title || 'Block'}"`);
     },
 
     async previewPlaylist(btnEl, blocksOverride = null) {
@@ -415,7 +584,11 @@ export const mixerStore = {
             if (targetBlocks.length === 0) return toast('No content to preview.', false);
 
             const uid = Alpine.store('settings').activeUserId;
-            const res = await useApi(api.post('api/builder/preview', { user_id: uid, blocks: targetBlocks }), btnEl, true);
+            const res = await useApi(api.post('api/builder/preview', {
+                user_id: uid,
+                blocks: targetBlocks,
+                mix_options: this.mix_options
+            }), btnEl, true);
 
             if (res.status === 'ok') {
                 await previewModal.show({
@@ -442,7 +615,11 @@ export const mixerStore = {
 
         if (this.buildMode === 'add') {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
-            await useApi(api.post(`api/playlists/${this.existingPlaylistId}/add-items`, { user_id: uid, blocks: preparedBlocks }), btnEl);
+            await useApi(api.post(`api/playlists/${this.existingPlaylistId}/add-items`, {
+                user_id: uid,
+                blocks: preparedBlocks,
+                mix_options: this.mix_options
+            }), btnEl);
         } else {
             if (this.createAsCollection && (preparedBlocks.length !== 1 || (preparedBlocks[0].type !== BLOCK_TYPES.MOVIE && preparedBlocks[0].vibe_type !== BLOCK_TYPES.MOVIE))) {
                 return toast('Requires one Movie block.', false);
@@ -454,7 +631,13 @@ export const mixerStore = {
                     countInput: false,
                     defaultName: this.createAsCollection ? 'My Collection' : 'My Mix',
                 });
-                await useApi(api.post('api/create_mixed_playlist', { user_id: uid, playlist_name: playlistName, blocks: preparedBlocks, create_as_collection: this.createAsCollection }), btnEl);
+                await useApi(api.post('api/create_mixed_playlist', {
+                    user_id: uid,
+                    playlist_name: playlistName,
+                    blocks: preparedBlocks,
+                    create_as_collection: this.createAsCollection,
+                    mix_options: this.mix_options
+                }), btnEl);
             } catch (err) { }
         }
     },
@@ -491,7 +674,8 @@ export const mixerStore = {
                 user_id: uid,
                 playlist_name: playlistName,
                 item_ids: itemIds,
-                create_as_collection: false
+                create_as_collection: false,
+                mix_options: this.mix_options
             }), btnEl);
 
             previewModal.close();
@@ -506,6 +690,10 @@ export const mixerStore = {
     },
 
     async handleSmartBuildSelection(type) {
+        if (['artist_spotlight', 'genre_sampler', 'album_roulette'].includes(type)) {
+            return await this.openMusicQuickBuild(type);
+        }
+
         const config = {
             recently_added: { title: 'Recently Added', description: 'New media.', defaultName: 'Recently Added', defaultCount: 25 },
             next_up: { title: 'Next Up', description: 'In-progress shows.', defaultName: 'Next Up' },
@@ -534,6 +722,85 @@ export const mixerStore = {
         }
     },
 
+    async openMusicQuickBuild(type) {
+        const uid = Alpine.store('settings').activeUserId;
+        if (!uid) return toast("Active user required.", false);
+
+        if (type === 'artist_spotlight') {
+            const artists = this.library.artistData || [];
+            if (artists.length === 0) return toast("No music artists found in library.", false);
+            try {
+                const result = await musicQuickBuildModal.show({
+                    type: 'artist_spotlight',
+                    title: 'Artist Spotlight',
+                    playlistName: 'Artist Spotlight',
+                    count: 25,
+                    selectedArtistId: artists[0].Id || artists[0].id || ''
+                });
+                if (result) {
+                    await this.submitMusicQuickBuild(type, result);
+                }
+            } catch (e) { }
+        } else if (type === 'genre_sampler') {
+            const genres = this.library.musicGenreData || [];
+            if (genres.length === 0) return toast("No music genres found in library.", false);
+            try {
+                const result = await musicQuickBuildModal.show({
+                    type: 'genre_sampler',
+                    title: 'Music Genre Sampler',
+                    playlistName: `Genre: ${genres[0].Name || genres[0].name}`,
+                    count: 25,
+                    selectedGenre: genres[0].Name || genres[0].name || ''
+                });
+                if (result) {
+                    await this.submitMusicQuickBuild(type, result);
+                }
+            } catch (e) { }
+        } else if (type === 'album_roulette') {
+            try {
+                const result = await musicQuickBuildModal.show({
+                    type: 'album_roulette',
+                    title: 'Album Roulette',
+                    playlistName: 'Album Mix',
+                    selectedAlbumId: '',
+                    selectedAlbumName: '',
+                    selectedArtistId: '',
+                    albums: [],
+                    loadingAlbums: false
+                });
+                if (result) {
+                    await this.submitMusicQuickBuild(type, result);
+                }
+            } catch (e) { }
+        }
+    },
+
+    async submitMusicQuickBuild(type, form) {
+        const uid = Alpine.store('settings').activeUserId;
+        const options = {};
+        if (type === 'artist_spotlight') {
+            if (!form.selectedArtistId) return toast("Select an artist.", false);
+            options.artist_id = form.selectedArtistId;
+            options.count = form.count || 25;
+        } else if (type === 'genre_sampler') {
+            if (!form.selectedGenre) return toast("Select a genre.", false);
+            options.genre = form.selectedGenre;
+            options.count = form.count || 25;
+        } else if (type === 'album_roulette') {
+            if (!form.selectedAlbumId) return toast("Choose an album first.", false);
+            options.album_id = form.selectedAlbumId;
+        }
+
+        try {
+            await useApi(api.post('api/quick_builds', {
+                user_id: uid,
+                playlist_name: form.playlistName || 'Music Mix',
+                quick_build_type: type,
+                options
+            }));
+        } catch (e) { }
+    },
+
     async executeQuickBuild(type, { title, description, defaultName, showCount = true, defaultCount = 10, extraParams = {} }) {
         const uid = Alpine.store('settings').activeUserId;
         try {
@@ -542,6 +809,75 @@ export const mixerStore = {
             if (showCount) options.count = count;
             await useApi(api.post('api/quick_builds', { user_id: uid, playlist_name: playlistName, quick_build_type: type, options }));
         } catch (err) { }
+    },
+
+    async saveBlockAsRecipe(block) {
+        if (!block) return;
+        try {
+            const data = await saveRecipeModal.show({
+                name: block.title || (block.type.toUpperCase() + ' Recipe'),
+                description: '',
+                tags: '',
+                is_favorite: false,
+                blockToSave: block
+            });
+            if (!data || !data.name || !data.name.trim()) return;
+            const serialized = serializeBlockDefinition(block);
+            const tags = data.tags ? data.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+            const payload = {
+                name: data.name.trim(),
+                description: data.description?.trim() || '',
+                block_json: JSON.stringify(serialized),
+                tags: tags,
+                is_favorite: !!data.is_favorite
+            };
+            const res = await useApi(api.post('api/recipes', payload));
+            if (res.status === 'ok') {
+                toast(`Recipe "${data.name.trim()}" saved!`, true);
+            }
+        } catch (e) { }
+    },
+
+    async openRecipeLibrary() {
+        try {
+            const [recipesRes, startersRes] = await Promise.all([
+                useApi(api.get('api/recipes'), null, true, false),
+                useApi(api.get('api/recipes/starters'), null, true, false)
+            ]);
+            const recipes = Array.isArray(recipesRes?.data) ? recipesRes.data : [];
+            const starters = Array.isArray(startersRes?.data) ? startersRes.data : [];
+
+            const chosen = await recipeLibraryModal.show({
+                recipes,
+                starters,
+                filterQuery: '',
+                activeTab: 'saved'
+            });
+
+            if (chosen) {
+                this.insertRecipe(chosen);
+            }
+        } catch (e) { }
+    },
+
+    insertRecipe(recipe) {
+        if (!recipe || !recipe.block_json) return;
+        this.beginEdit(`Insert Recipe: ${recipe.name}`);
+        try {
+            const blockDef = JSON.parse(recipe.block_json);
+            blockDef._uid = generateUUID();
+            blockDef.block_id = generateUUID();
+            if (blockDef.shows) {
+                blockDef.shows.forEach(s => s._uid = generateUUID());
+            }
+            this.ensureBlockState(blockDef);
+            this.blocks.push(blockDef);
+            this.updatePreviewCount(blockDef);
+            toast(`Inserted "${recipe.name}"!`, true);
+        } catch (e) {
+            console.error("Failed to insert recipe:", e);
+            toast("Could not insert recipe.", false);
+        }
     },
 
     createEchoFromItem(item) {

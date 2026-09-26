@@ -5,8 +5,11 @@
 
             <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-grow: 1;">
                 <label class="control-item grow-1 m-0" for="load-preset-select">
-                    <div class="flex-row justify-between">
-                        <span>Load Preset</span>
+                    <div class="flex-row justify-between align-center">
+                        <div class="flex-row align-center gap-xs">
+                            <span>Load Preset</span>
+                            <span class="badge" style="background: rgba(255,193,7,0.2); color: #ffc107; font-size: 0.65rem;" x-show="$store.mixer.isDirty()" x-cloak>MODIFIED</span>
+                        </div>
                         <span class="badge badge-outline-subtle" style="font-size: 0.65rem;" x-text="$store.presets.availableNames.length + ' saved'"></span>
                     </div>
                     <select id="load-preset-select"
@@ -20,6 +23,13 @@
                     </select>
                 </label>
 
+                <button type="button" class="secondary icon-only m-0" title="Undo (Ctrl+Z)" :disabled="!$store.mixer.canUndo" @click="$store.mixer.undo()" :style="!$store.mixer.canUndo ? 'opacity: 0.4;' : ''">
+                    <span x-html="$store.icons.undo"></span>
+                </button>
+                <button type="button" class="secondary icon-only m-0" title="Redo (Ctrl+Y)" :disabled="!$store.mixer.canRedo" @click="$store.mixer.redo()" :style="!$store.mixer.canRedo ? 'opacity: 0.4;' : ''">
+                    <span x-html="$store.icons.redo"></span>
+                </button>
+
                 <div class="dropdown-container shrink-0">
                     <button type="button" class="secondary icon-only m-0" @click="presetMenuOpen = !presetMenuOpen" @click.outside="presetMenuOpen = false">
                         <span x-html="$store.icons.more"></span>
@@ -31,6 +41,12 @@
                         </a>
                         <a href="#" class="dropdown-item" x-show="!$store.presets.currentName" @click.prevent="presetMenuOpen = false; $store.presets.saveAs()">
                             <span class="dropdown-icon" x-html="$store.icons.save"></span> Save as Preset...
+                        </a>
+                        <a href="#" class="dropdown-item" x-show="$store.presets.currentName && $store.mixer.isDirty()" @click.prevent="presetMenuOpen = false; $store.mixer.revertToSaved()">
+                            <span class="dropdown-icon" x-html="$store.icons.refresh"></span> Revert to Saved
+                        </a>
+                        <a href="#" class="dropdown-item" x-show="$store.presets.currentName" @click.prevent="presetMenuOpen = false; $store.presets.promptRename()">
+                            <span class="dropdown-icon" x-html="$store.icons.edit"></span> Rename Preset...
                         </a>
                         <a href="#" class="dropdown-item" @click.prevent="presetMenuOpen = false; $store.presets.import()">
                             <span class="dropdown-icon" x-html="$store.icons.download"></span> Import
@@ -168,9 +184,9 @@
 <div id="action-bar" x-show="$store.ui.currentTab === 'mixed'">
     <div class="action-bar-content action-bar-stack">
         <div class="action-bar-row">
-            <div class="button-group flex-wrap grow-1">
+            <div class="button-group grow-1">
                 <div class="dropdown-container" x-data="{ open: false }">
-                    <button class="secondary m-0 align-center gap-xs" @click="open = !open" @click.outside="open = false">
+                    <button class="secondary m-0 align-center gap-xs" @click="open = !open" @click.outside="open = false" title="Add Block">
                         <span x-html="$store.icons.plus"></span><span class="hide-mobile">Add Block</span><span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
                     </button>
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
@@ -179,17 +195,34 @@
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
+                        <div class="divider"></div>
+                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.openRecipeLibrary()"><span class="dropdown-icon" x-html="$store.icons.archive"></span> Recipe Library...</a>
                     </div>
                 </div>
                 
-                <button type="button" class="secondary m-0 align-center gap-xs" x-show="$store.settings.is_ai_configured" @click="$store.ui.showAiBuilder = !$store.ui.showAiBuilder">
-                    <span x-html="$store.icons.zap"></span> <span class="hide-mobile">AI Builder</span>
+                <button type="button" class="secondary m-0 align-center gap-xs" x-show="$store.settings.is_ai_configured" @click="$store.ui.showAiBuilder = !$store.ui.showAiBuilder" title="AI Builder">
+                    <span x-html="$store.icons.zap"></span> <span class="hide-mobile">AI<span class="hide-compact"> Builder</span></span>
                 </button>
                 
-                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.showSmartBuildMenu()"><span x-html="$store.icons.framer"></span> <span class="hide-mobile">Auto Playlists</span></button>
-                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.previewPlaylist($el)"><span x-html="$store.icons.search"></span> <span class="hide-mobile">Preview</span></button>
+                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.showSmartBuildMenu()" title="Auto Playlists">
+                    <span x-html="$store.icons.framer"></span> <span class="hide-mobile">Auto<span class="hide-compact"> Playlists</span></span>
+                </button>
+                
+                <button type="button" class="secondary m-0 align-center gap-xs" 
+                        :class="$store.mixer.hasActiveRules() ? 'btn-active-rules' : ''"
+                        @click="$store.modals.mixRulesAction.show()" 
+                        title="Mix Rules (Cooldown, Duplicates, Sequencing, Budget)">
+                    <span x-html="$store.icons.sliders"></span> <span class="hide-mobile">Mix Rules</span>
+                    <span class="active-dot" x-show="$store.mixer.hasActiveRules()" x-cloak title="Rules active"></span>
+                </button>
+                
+                <button type="button" class="secondary m-0 align-center gap-xs" @click="$store.mixer.previewPlaylist($el)" title="Preview Playlist">
+                    <span x-html="$store.icons.search"></span> <span class="hide-mobile">Preview</span>
+                </button>
             </div>
-            <button type="button" class="secondary btn-danger-outline m-0 align-center gap-xs" title="Clear All Blocks" @click="$store.mixer.clearAllBlocks()"><span x-html="$store.icons.trash"></span> <span class="hide-mobile">Clear All</span></button>
+            <button type="button" class="secondary btn-danger-outline m-0 align-center gap-xs" title="Clear All Blocks" @click="$store.mixer.clearAllBlocks()">
+                <span x-html="$store.icons.trash"></span> <span class="hide-mobile">Clear All</span>
+            </button>
         </div>
         <div class="action-bar-footer">
             <div class="flex-row gap-sm grow-1 align-center">

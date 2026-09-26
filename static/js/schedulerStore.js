@@ -24,6 +24,10 @@ export const schedulerStore = {
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
                         user_id: entry.user_id || Alpine.store('settings').activeUserId || "",
                         create_as_collection: !!entry.create_as_collection,
+                        enabled: entry.enabled !== false,
+                        snoozed_until: entry.snoozed_until || null,
+                        trigger_sources: entry.trigger_sources || ['clock', 'watch', 'library'],
+                        quick_playlist_data: entry.quick_playlist_data || { quick_playlist_type: 'recently_added', options: { count: 25 } },
                         enrichment_data: entry.enrichment_data || { batch_size: 15, timeout: 120 },
                         schedule_details: {
                             time: details.time || entry.time || "12:00",
@@ -58,15 +62,18 @@ export const schedulerStore = {
             playlist_name: entry.playlist_name || "Scheduled Mix",
             preset_id: presetId,
             preset_name: presetId ? Alpine.store('presets').nameForId(presetId) : "",
-            quick_playlist_data: entry.quick_playlist_data || null,
-            enrichment_data: entry.enrichment_data || null,
+            quick_playlist_data: entry.job_type === 'quick_playlist' ? entry.quick_playlist_data : null,
+            enrichment_data: entry.job_type === 'enrichment' ? entry.enrichment_data : null,
             schedule_details: {
                 time: entry.schedule_details.time,
                 frequency: freq,
                 days_of_week: entry.schedule_details.days_of_week,
                 interval_minutes: parseInt(entry.schedule_details.interval_minutes) || 30
             },
-            create_as_collection: !!entry.create_as_collection
+            create_as_collection: !!entry.create_as_collection,
+            enabled: entry.enabled !== false,
+            snoozed_until: entry.snoozed_until || null,
+            trigger_sources: entry.trigger_sources || ['clock', 'watch', 'library']
         };
 
         try {
@@ -77,6 +84,35 @@ export const schedulerStore = {
             if (res && res.status === 'ok') {
                 if (res.data?.id) entry.id = res.data.id;
                 this.schedule = [...this.schedule];
+            }
+        } catch (err) { }
+    },
+
+    async toggleEnabled(entry, btnEl) {
+        if (!entry.id) {
+            entry.enabled = !entry.enabled;
+            return;
+        }
+        const endpoint = entry.enabled ? `api/schedules/${entry.id}/pause` : `api/schedules/${entry.id}/resume`;
+        try {
+            const res = await useApi(api.post(endpoint, {}), btnEl);
+            if (res && res.status === 'ok') {
+                entry.enabled = !entry.enabled;
+                if (entry.enabled) entry.snoozed_until = null;
+                this.schedule = [...this.schedule];
+                toast(entry.enabled ? 'Schedule resumed.' : 'Schedule paused.', true);
+            }
+        } catch (err) { }
+    },
+
+    async snooze(entry, minutes, btnEl) {
+        if (!entry.id) return toast("Save schedule first.", false);
+        try {
+            const res = await useApi(api.post(`api/schedules/${entry.id}/snooze`, { minutes }), btnEl);
+            if (res && res.status === 'ok') {
+                entry.snoozed_until = new Date(Date.now() + minutes * 60000).toISOString();
+                this.schedule = [...this.schedule];
+                toast(`Snoozed for ${minutes} minutes.`, true);
             }
         } catch (err) { }
     },
@@ -101,6 +137,8 @@ export const schedulerStore = {
         const newEntry = {
             id: null, _uid: generateUUID(), job_type: "builder", playlist_name: "New Scheduled Mix",
             preset_id: "", preset_name: "", user_id: Alpine.store('settings').activeUserId, create_as_collection: false,
+            enabled: true, snoozed_until: null, trigger_sources: ['clock', 'watch', 'library'],
+            quick_playlist_data: { quick_playlist_type: 'recently_added', options: { count: 25 } },
             enrichment_data: { batch_size: 15, timeout: 120 },
             schedule_details: { time: "12:00", frequency: "daily", interval_minutes: 30, days_of_week: [0, 1, 2, 3, 4, 5, 6] }
         };

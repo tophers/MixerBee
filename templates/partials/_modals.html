@@ -726,3 +726,318 @@
         </div>
     </div>
 </div>
+
+<!-- Rename Preset Modal -->
+<div class="modal-overlay sub-modal" x-show="$store.modals.renamePreset.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.renamePresetAction.close(null, true)">
+        <div class="modal-header">
+            <h2>Rename Preset</h2>
+            <button class="icon-btn" @click="$store.modals.renamePresetAction.close(null, true)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">New Preset Name</label>
+            <input type="text" x-model="$store.modals.renamePreset.newName" placeholder="Enter new preset name..." style="width: 100%; box-sizing: border-box;">
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.renamePresetAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.renamePresetAction.close($store.modals.renamePreset.newName)">Rename</button>
+        </div>
+    </div>
+</div>
+
+<!-- Save Recipe Modal -->
+<div class="modal-overlay sub-modal" x-show="$store.modals.saveRecipe.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.saveRecipeAction.close(null, true)">
+        <div class="modal-header">
+            <h2>Save as Recipe</h2>
+            <button class="icon-btn" @click="$store.modals.saveRecipeAction.close(null, true)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-form-layout">
+                <label class="control-item">
+                    <span>Recipe Name</span>
+                    <input type="text" x-model="$store.modals.saveRecipe.name" placeholder="e.g., Fast Unwatched 90s Thrillers">
+                </label>
+                <label class="control-item">
+                    <span>Description (Optional)</span>
+                    <input type="text" x-model="$store.modals.saveRecipe.description" placeholder="Brief note about what this recipe selects">
+                </label>
+                <label class="control-item">
+                    <span>Tags (Comma-separated)</span>
+                    <input type="text" x-model="$store.modals.saveRecipe.tags" placeholder="e.g., movies, unwatched, action">
+                </label>
+                <label class="align-center gap-xs" style="margin-top: 0.5rem;">
+                    <input type="checkbox" x-model="$store.modals.saveRecipe.is_favorite">
+                    <span>Mark as Favorite</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.saveRecipeAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.saveRecipeAction.close({ name: $store.modals.saveRecipe.name, description: $store.modals.saveRecipe.description, tags: $store.modals.saveRecipe.tags, is_favorite: $store.modals.saveRecipe.is_favorite })">Save Recipe</button>
+        </div>
+    </div>
+</div>
+
+<!-- Recipe Library Modal -->
+<div class="modal-overlay" x-show="$store.modals.recipeLibrary.isOpen" x-cloak>
+    <div class="modal-window wide" @click.outside="$store.modals.recipeLibraryAction.close(null, true)">
+        <div class="modal-header">
+            <h2>Recipe Library</h2>
+            <button class="icon-btn" @click="$store.modals.recipeLibraryAction.close(null, true)">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="flex-row justify-between align-center mb-md">
+                <div class="toggle-pill">
+                    <span class="pill-btn" :class="$store.modals.recipeLibrary.activeTab === 'saved' ? 'active' : ''" @click="$store.modals.recipeLibrary.activeTab = 'saved'">Saved Recipes</span>
+                    <span class="pill-btn" :class="$store.modals.recipeLibrary.activeTab === 'starters' ? 'active' : ''" @click="$store.modals.recipeLibrary.activeTab = 'starters'">Starter Catalog</span>
+                </div>
+                <input type="text" x-model="$store.modals.recipeLibrary.filterQuery" placeholder="Filter recipes..." class="themed-input w-auto m-0">
+            </div>
+
+            <!-- Saved Recipes Tab -->
+            <div x-show="$store.modals.recipeLibrary.activeTab === 'saved'">
+                <template x-if="(!$store.modals.recipeLibrary.recipes || $store.modals.recipeLibrary.recipes.length === 0)">
+                    <p class="text-subtle p-md text-center italic">No saved recipes yet. Save any block in your mix using the block menu (...).</p>
+                </template>
+                <ul class="item-selection-list">
+                    <template x-for="recipe in ($store.modals.recipeLibrary.recipes || []).filter(r => !($store.modals.recipeLibrary.filterQuery) || r.name.toLowerCase().includes($store.modals.recipeLibrary.filterQuery.toLowerCase()))" :key="recipe.id">
+                        <li>
+                            <a href="#" @click.prevent="$store.modals.recipeLibraryAction.close(recipe)">
+                                <div class="item-name flex-row justify-between align-center">
+                                    <span class="bold" x-text="recipe.name"></span>
+                                    <span x-show="recipe.is_favorite" style="color: var(--accent);">★</span>
+                                </div>
+                                <div class="item-description" x-text="recipe.description || 'Block recipe'"></div>
+                                <template x-if="recipe.tags && recipe.tags.length">
+                                    <div class="flex-row gap-xs mt-xs">
+                                        <template x-for="t in recipe.tags" :key="t">
+                                            <span class="badge badge-outline-subtle" style="font-size: 0.65rem;" x-text="t"></span>
+                                        </template>
+                                    </div>
+                                </template>
+                            </a>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+
+            <!-- Starter Catalog Tab -->
+            <div x-show="$store.modals.recipeLibrary.activeTab === 'starters'">
+                <ul class="item-selection-list">
+                    <template x-for="starter in ($store.modals.recipeLibrary.starters || []).filter(s => !($store.modals.recipeLibrary.filterQuery) || s.name.toLowerCase().includes($store.modals.recipeLibrary.filterQuery.toLowerCase()))" :key="starter.name">
+                        <li>
+                            <a href="#" @click.prevent="$store.modals.recipeLibraryAction.close(starter)">
+                                <div class="item-name bold" x-text="starter.name"></div>
+                                <div class="item-description" x-text="starter.description"></div>
+                            </a>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.recipeLibraryAction.close(null, true)">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Music Quick Build Modal -->
+<div class="modal-overlay sub-modal" x-show="$store.modals.musicQuickBuild.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.musicQuickBuildAction.close(null, true)">
+        <div class="modal-header">
+            <h2 x-text="$store.modals.musicQuickBuild.title"></h2>
+            <button class="icon-btn" @click="$store.modals.musicQuickBuildAction.close(null, true)">&times;</button>
+        </div>
+        <div class="modal-body modal-form-layout">
+            <label class="control-item">
+                <span>Playlist Name</span>
+                <input type="text" x-model="$store.modals.musicQuickBuild.playlistName">
+            </label>
+
+            <!-- Artist Spotlight Fields -->
+            <template x-if="$store.modals.musicQuickBuild.type === 'artist_spotlight'">
+                <div>
+                    <label class="control-item">
+                        <span>Select Artist</span>
+                        <select x-model="$store.modals.musicQuickBuild.selectedArtistId" class="mixer-select w-full" @change="const a = ($store.mixer.library.artistData || []).find(art => (art.Id || art.id) === $el.value); if(a) $store.modals.musicQuickBuild.playlistName = 'Spotlight: ' + (a.Name || a.name)">
+                            <option value="">-- Choose Artist --</option>
+                            <template x-for="art in ($store.mixer.library.artistData || [])" :key="art.Id || art.id">
+                                <option :value="art.Id || art.id" x-text="art.Name || art.name"></option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="control-item mt-sm">
+                        <span>Song Count</span>
+                        <input type="number" x-model.number="$store.modals.musicQuickBuild.count" min="1" max="100">
+                    </label>
+                </div>
+            </template>
+
+            <!-- Genre Sampler Fields -->
+            <template x-if="$store.modals.musicQuickBuild.type === 'genre_sampler'">
+                <div>
+                    <label class="control-item">
+                        <span>Select Music Genre</span>
+                        <select x-model="$store.modals.musicQuickBuild.selectedGenre" class="mixer-select w-full" @change="$store.modals.musicQuickBuild.playlistName = 'Genre: ' + $el.value">
+                            <option value="">-- Choose Genre --</option>
+                            <template x-for="g in ($store.mixer.library.musicGenreData || [])" :key="g.Name || g.name">
+                                <option :value="g.Name || g.name" x-text="g.Name || g.name"></option>
+                            </template>
+                        </select>
+                    </label>
+                    <label class="control-item mt-sm">
+                        <span>Song Count</span>
+                        <input type="number" x-model.number="$store.modals.musicQuickBuild.count" min="1" max="100">
+                    </label>
+                </div>
+            </template>
+
+            <!-- Album Roulette Fields -->
+            <template x-if="$store.modals.musicQuickBuild.type === 'album_roulette'">
+                <div>
+                    <div class="flex-row gap-sm align-center mb-md">
+                        <button type="button" class="primary align-center gap-xs" @click="
+                            const res = await useApi(api.get('api/music/random_album'), $el, true, false);
+                            if (res && res.data) {
+                                $store.modals.musicQuickBuild.selectedAlbumId = res.data.id || res.data.Id;
+                                $store.modals.musicQuickBuild.selectedAlbumName = res.data.name || res.data.Name;
+                                $store.modals.musicQuickBuild.playlistName = 'Album: ' + (res.data.name || res.data.Name);
+                            }
+                        ">
+                            <span x-html="$store.icons.shuffle"></span> Surprise Me (Random Album)
+                        </button>
+                    </div>
+
+                    <div class="card p-md mb-md" x-show="$store.modals.musicQuickBuild.selectedAlbumName" style="background: rgba(255,255,255,0.05);">
+                        <span class="text-subtle" style="font-size: 0.8rem;">Selected Album:</span>
+                        <div class="bold" style="font-size: 1.1rem; color: var(--accent);" x-text="$store.modals.musicQuickBuild.selectedAlbumName"></div>
+                    </div>
+
+                    <label class="control-item">
+                        <span>Or Select Artist</span>
+                        <select x-model="$store.modals.musicQuickBuild.selectedArtistId" class="mixer-select w-full" @change="
+                            $store.modals.musicQuickBuild.loadingAlbums = true;
+                            $store.mixer.loadArtistAlbums($el.value).then(albums => {
+                                $store.modals.musicQuickBuild.albums = albums;
+                                $store.modals.musicQuickBuild.loadingAlbums = false;
+                            });
+                        ">
+                            <option value="">-- Choose Artist --</option>
+                            <template x-for="art in ($store.mixer.library.artistData || [])" :key="art.Id || art.id">
+                                <option :value="art.Id || art.id" x-text="art.Name || art.name"></option>
+                            </template>
+                        </select>
+                    </label>
+
+                    <label class="control-item mt-sm" x-show="($store.modals.musicQuickBuild.albums || []).length > 0">
+                        <span>Select Album</span>
+                        <select x-model="$store.modals.musicQuickBuild.selectedAlbumId" class="mixer-select w-full" @change="
+                            const alb = ($store.modals.musicQuickBuild.albums || []).find(a => (a.Id || a.id) === $el.value);
+                            if (alb) {
+                                $store.modals.musicQuickBuild.selectedAlbumName = alb.Name || alb.name;
+                                $store.modals.musicQuickBuild.playlistName = 'Album: ' + (alb.Name || alb.name);
+                            }
+                        ">
+                            <option value="">-- Choose Album --</option>
+                            <template x-for="alb in ($store.modals.musicQuickBuild.albums || [])" :key="alb.Id || alb.id">
+                                <option :value="alb.Id || alb.id" x-text="alb.Name || alb.name"></option>
+                            </template>
+                        </select>
+                    </label>
+                </div>
+            </template>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.musicQuickBuildAction.close(null, true)">Cancel</button>
+            <button type="button" @click="$store.modals.musicQuickBuildAction.close($store.modals.musicQuickBuild)">Build Playlist</button>
+        </div>
+    </div>
+</div>
+
+<!-- Mix Rules Modal -->
+<div class="modal-overlay" x-show="$store.modals.mixRules.isOpen" x-cloak>
+    <div class="modal-window wide" @click.outside="$store.modals.mixRulesAction.close()">
+        <div class="modal-header">
+            <h2>Mix Rules & Policies</h2>
+            <button class="icon-btn" @click="$store.modals.mixRulesAction.close()">&times;</button>
+        </div>
+        <div class="modal-body modal-inner-form text-left">
+            <!-- Freshness -->
+            <fieldset class="filter-group mb-md">
+                <legend>Freshness & History</legend>
+                <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <label class="field-label">Exclude items from last N successful builds</label>
+                        <input type="number" x-model.number="$store.mixer.mix_options.freshness.last_successful_builds" min="0" max="50" class="themed-input w-full m-0">
+                    </div>
+                    <div>
+                        <label class="field-label">Exclude items watched within N days</label>
+                        <input type="number" x-model.number="$store.mixer.mix_options.freshness.watched_within_days" min="0" max="365" class="themed-input w-full m-0">
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Duplicate Policy -->
+            <fieldset class="filter-group mb-md">
+                <legend>Duplicate & Franchise Policy</legend>
+                <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <label class="field-label">Cross-Block Duplicates</label>
+                        <select x-model="$store.mixer.mix_options.duplicate_policy.cross_block_policy" class="mixer-select w-full m-0">
+                            <option value="suppress">Suppress (Keep First Occurrence)</option>
+                            <option value="allow">Allow Duplicates Across Blocks</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">Max Movies per Franchise (0 = Unlimited)</label>
+                        <input type="number" x-model.number="$store.mixer.mix_options.duplicate_policy.max_movies_per_franchise" min="0" max="10" class="themed-input w-full m-0">
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Sequencing Mode -->
+            <fieldset class="filter-group mb-md">
+                <legend>Sequencing</legend>
+                <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <label class="field-label">Sequencing Mode</label>
+                        <select x-model="$store.mixer.mix_options.sequencing.mode" class="mixer-select w-full m-0">
+                            <option value="sequential">Sequential (Block by Block)</option>
+                            <option value="round_robin">Round-Robin (1 item per block)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label">When a block is exhausted</label>
+                        <select x-model="$store.mixer.mix_options.sequencing.exhaustion_policy" class="mixer-select w-full m-0">
+                            <option value="continue">Continue with remaining blocks</option>
+                            <option value="stop">Stop sequence immediately</option>
+                        </select>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Runtime Budget -->
+            <fieldset class="filter-group">
+                <legend>Runtime Budget</legend>
+                <div class="filter-grid" style="grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <div>
+                        <label class="field-label">Budget Mode</label>
+                        <select x-model="$store.mixer.mix_options.runtime_budget.mode" class="mixer-select w-full m-0">
+                            <option value="off">Off (Unlimited)</option>
+                            <option value="duration">Target Duration</option>
+                        </select>
+                    </div>
+                    <div x-show="$store.mixer.mix_options.runtime_budget.mode === 'duration'">
+                        <label class="field-label">Target Duration (Minutes)</label>
+                        <input type="number" x-model.number="$store.mixer.mix_options.runtime_budget.target_minutes" min="15" max="1440" class="themed-input w-full m-0">
+                    </div>
+                </div>
+            </fieldset>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="primary" @click="$store.modals.mixRulesAction.close()">Done</button>
+        </div>
+    </div>
+</div>
+

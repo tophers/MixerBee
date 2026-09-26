@@ -39,6 +39,11 @@ export const previewModal = createModalLogic('preview');
 export const resetWatchModal = createModalLogic('resetWatch');
 export const ollamaModelsModal = createModalLogic('ollamaModels');
 export const aiTweaksModal = createModalLogic('aiTweaks');
+export const recipeLibraryModal = createModalLogic('recipeLibrary');
+export const saveRecipeModal = createModalLogic('saveRecipe');
+export const mixRulesModal = createModalLogic('mixRules');
+export const renamePresetModal = createModalLogic('renamePreset');
+export const musicQuickBuildModal = createModalLogic('musicQuickBuild');
 
 export const toastHistoryModal = {
     show() {
@@ -99,9 +104,31 @@ export function initModals() {
         resetWatch: { isOpen: false, showName: '', season: '' },
         history: { isOpen: false, toastHistory: [] },
         ollamaModels: { isOpen: false },
-        aiTweaks: { isOpen: false }
+        aiTweaks: { isOpen: false },
+        recipeLibrary: { isOpen: false, recipes: [], starters: [], filterQuery: '', activeTab: 'saved' },
+        saveRecipe: { isOpen: false, name: '', description: '', tags: '', is_favorite: false, blockToSave: null },
+        mixRules: { isOpen: false },
+        renamePreset: { isOpen: false, presetId: '', oldName: '', newName: '' },
+        musicQuickBuild: {
+            isOpen: false,
+            type: 'artist_spotlight',
+            title: '',
+            playlistName: '',
+            count: 25,
+            selectedArtistId: '',
+            selectedGenre: '',
+            selectedAlbumId: '',
+            selectedAlbumName: '',
+            albums: [],
+            loadingAlbums: false
+        }
     });
     
     Alpine.store('modals').ollamaAction = ollamaModelsModal;
     Alpine.store('modals').aiTweaksAction = aiTweaksModal;
+    Alpine.store('modals').recipeLibraryAction = recipeLibraryModal;
+    Alpine.store('modals').saveRecipeAction = saveRecipeModal;
+    Alpine.store('modals').mixRulesAction = mixRulesModal;
+    Alpine.store('modals').renamePresetAction = renamePresetModal;
+    Alpine.store('modals').musicQuickBuildAction = musicQuickBuildModal;
 }

@@ -37,3 +37,7 @@ GEMINI.md
 
 # One-time local account bootstrap token
 config/setup-token
+
+# Temporary files
+temp/
+

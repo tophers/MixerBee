@@ -42,7 +42,7 @@ When building a playlist, MixerBee looks for an existing playlist with the same 
 
 Use the Builder's add-to-playlist mode to append items to a selected playlist instead of replacing its contents.
 
-Movie collection builds delete an existing collection with the matching name before creating the replacement, so its server ID can change. Standard and scheduled collection builds require exactly one Movie block and media-server administrator permission.
+Movie collection builds resolve candidate movies before touching server state. If no items match, the build is refused and the existing collection remains untouched. For matching selections, MixerBee updates existing collections in place where supported by the server, preserving the server ID. If recreate is required, prior members are captured to attempt rollback upon failure. Collection builds return one of three explicit outcomes: `replaced`, `refused` (collection unchanged), or `failed`. Standard and scheduled collection builds require exactly one Movie block and media-server administrator permission.
 
 Manager edits change the item stored on the media server, not the preset that generated it. A later scheduled rebuild can replace those manual edits. Update and save the source preset when an edit should affect future scheduled builds.
 
@@ -113,9 +113,31 @@ AI features are optional and configured independently for each connection. Ollam
 
 Each connection has a separate ChromaDB collection and enrichment state. Reset/re-index operations apply only to the selected connection. Removing a connection deletes its local AI index. A large library may take time to warm or re-index after startup or migration.
 
+- **On-Demand Enrichment**: Initiate or halt background metadata enrichment directly from the Manager pane or via `POST /api/library/enrichment/start` and `stop`. An internal concurrency lock ensures manual enrichment runs and scheduled enrichment passes never conflict.
+- **Selective Semantic Refresh**: Instead of a full ChromaDB reset, `POST /api/library/semantic_refresh` analyzes current server metadata against stored fingerprints, re-embedding only added or changed items while strictly preserving existing vibe tags and enrichment status.
+
+## Manager tools and bulk actions
+
+The Manager pane enables library curation across all playlists and collections:
+- **Multi-Selection & Bulk Delete**: Check multiple playlists or collections to delete them simultaneously with permission verification.
+- **Direct Server Links**: Open playlists and collections directly on the Emby/Jellyfin web interface.
+- **Runtime Presentation**: Formatted total duration is computed and displayed alongside item counts.
+- **Overlap Analysis**: Identify duplicate media items that appear across multiple playlists or collections with bounded queries to prevent server overload.
+
 ## Backup and restore
 
-Back up the complete configuration directory:
+MixerBee provides both online, owner-authenticated API backup/restore and file-system archive options.
+
+### Online archive (Owner API)
+
+The installation owner can create, inspect, and restore configuration archives while MixerBee is running:
+- **Download**: `GET /api/backup/download` creates a verified `.zip` archive containing a consistent SQLite online snapshot (`mixerbee.db`), ChromaDB collections, and `manifest.json`.
+- **Inspect**: `POST /api/backup/inspect` checks archive validity, validates schema versions, and runs an SQLite integrity check without applying changes.
+- **Restore**: `POST /api/backup/restore` stages the restoration, creates an automatic rollback backup of the active database, restores SQLite and ChromaDB data in place, and reloads active connections and schedules.
+
+### File-system backup
+
+Alternatively, back up the complete configuration directory:
 
 | Installation | Directory to back up |
 | --- | --- |
@@ -125,13 +147,13 @@ Back up the complete configuration directory:
 
 The directory includes `.env` when present, `mixerbee.db`, SQLite sidecar files, and `chroma_db/`. It contains account hashes, media-server credentials, AI credentials, webhook secrets, and external API keys. Credentials are not encrypted at rest; store backups privately.
 
-### Back up
+#### File-system back up
 
 1. Stop MixerBee so SQLite and ChromaDB are not changing during the copy. For Docker Hub, run `docker stop mixerbee`; for Compose, run `docker compose stop`.
 2. Copy or archive the entire configuration directory to a separate location. Include hidden files and database sidecar files.
 3. Start MixerBee again with `docker start mixerbee` or `docker compose start`. For a custom install, restart its service.
 
-### Restore
+#### File-system restore
 
 1. Stop MixerBee and keep a separate copy of the current configuration directory.
 2. Restore the complete backup into an empty configuration directory rather than merging database files. Preserve ownership and permissions so MixerBee can read and write it.

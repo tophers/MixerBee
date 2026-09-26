@@ -1,6 +1,7 @@
 <!-- templates/partials/_manager_pane.html -->
 <div id="manager-pane">
     <div class="container">
+        <!-- Top Toolbar: Search + View Filters + Bulk Actions -->
         <div class="flex-row justify-between align-center gap-md mb-sm flex-wrap">
             <div class="flex-row gap-md grow-1 align-center">
                 <input type="search" placeholder="Search by name..."
@@ -8,50 +9,99 @@
                        @input.debounce.250ms="$store.manager.applyFilters()"
                        class="grow-1 m-0">
             </div>
+            <div class="toggle-pill m-0 shrink-0">
+                <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
+                <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
+                <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+            </div>
         </div>
-        <div class="toggle-pill m-0 shrink-0">
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+
+        <!-- Bulk Action Bar (shown when 1 or more items are selected) -->
+        <div class="card mb-sm p-sm flex-row justify-between align-center flex-wrap gap-sm"
+             x-show="$store.manager.selectedIds.length > 0"
+             x-cloak>
+            <div class="flex-row align-center gap-sm">
+                <span class="bold" x-text="$store.manager.selectedIds.length + ' item(s) selected'"></span>
+                <button type="button" class="secondary small" @click="$store.manager.selectedIds = []">Clear</button>
+            </div>
+            <div class="flex-row align-center gap-sm">
+                <button type="button" class="secondary small" @click="$store.manager.checkOverlaps()">
+                    Find Overlaps
+                </button>
+                <button type="button" class="danger small" @click="$store.manager.bulkDeleteSelected()">
+                    Delete Selected
+                </button>
+            </div>
         </div>
+
+        <!-- Main Table -->
         <div class="table-container card">
             <table class="manager-table w-full">
                 <thead>
                     <tr class="table-header-row">
+                        <th class="table-cell text-center" style="width: 40px;">
+                            <input type="checkbox"
+                                   :checked="$store.manager.isAllSelected()"
+                                   @change="$store.manager.selectAll()"
+                                   title="Select All">
+                        </th>
                         <th @click="$store.manager.toggleSort('Name')" class="table-cell pointer text-left select-none">
                             <div class="flex-row align-center gap-xs">
                                 Name
                                 <span x-show="$store.manager.sortColumn === 'Name'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
                             </div>
                         </th>
-                        <th @click="$store.manager.toggleSort('DisplayType')" class="table-cell pointer text-left select-none">
+                        <th @click="$store.manager.toggleSort('DisplayType')" class="table-cell pointer text-left select-none" style="width: 130px;">
                             <div class="flex-row align-center gap-xs">
                                 Type
                                 <span x-show="$store.manager.sortColumn === 'DisplayType'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
                             </div>
                         </th>
-                        <th @click="$store.manager.toggleSort('ChildCount')" class="table-cell pointer text-center select-none">
+                        <th @click="$store.manager.toggleSort('ChildCount')" class="table-cell pointer text-center select-none" style="width: 140px;">
                             <div class="flex-row align-center justify-center gap-xs">
-                                Items
+                                Size & Duration
                                 <span x-show="$store.manager.sortColumn === 'ChildCount'" x-html="$store.manager.sortDirection === 'asc' ? $store.icons.chevronUp : $store.icons.chevronDown" style="--icon-size: 14px; opacity: 0.7;" x-cloak></span>
                             </div>
                         </th>
-                        <th class="table-cell text-right">Actions</th>
+                        <th class="table-cell text-right" style="width: 160px;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <template x-if="!$store.manager.isLoading && ($store.manager.filtered || []).length === 0">
-                        <tr><td colspan="4" class="table-loading">No items found.</td></tr>
+                        <tr><td colspan="5" class="table-loading">No items found.</td></tr>
                     </template>
                     <template x-for="item in ($store.manager.filtered || [])" :key="item.Id">
-                        <tr class="table-row">
-                            <td class="table-cell bold clickable" x-text="item.Name" @click="$store.manager.viewContents(item)"></td>
+                        <tr class="table-row" :class="$store.manager.selectedIds.includes(item.Id) ? 'bg-surface-alt' : ''">
+                            <td class="table-cell text-center" @click.stop>
+                                <input type="checkbox"
+                                       :checked="$store.manager.selectedIds.includes(item.Id)"
+                                       @click.stop="$store.manager.toggleSelect(item.Id)">
+                            </td>
+                            <td class="table-cell bold">
+                                <div class="flex-row align-center gap-xs">
+                                    <span class="clickable grow-1" x-text="item.Name" @click="$store.manager.viewContents(item)"></span>
+                                    <a x-show="item.ServerUrl"
+                                       :href="item.ServerUrl"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="secondary small icon-only p-0 inline-flex align-center opacity-60 hover-opacity-100"
+                                       title="Open on Media Server"
+                                       @click.stop>
+                                        <span x-html="$store.icons.externalLink || $store.icons.eye" style="--icon-size: 14px;"></span>
+                                    </a>
+                                </div>
+                            </td>
                             <td class="table-cell">
                                 <span class="token-badge"
                                       :class="item.DisplayType === 'Playlist' ? 'badge-accent' : 'badge-outline'"
                                       x-text="item.DisplayType"></span>
                             </td>
-                            <td class="table-cell text-center" x-text="item.ChildCount"></td>
+                            <td class="table-cell text-center">
+                                <div class="flex-col align-center">
+                                    <span x-text="item.ChildCount + ' items'"></span>
+                                    <span class="subtext text-xs" x-show="item.FormattedRuntime" x-text="item.FormattedRuntime"></span>
+                                </div>
+                            </td>
                             <td class="table-cell text-right">
                                 <div class="flex-row justify-end gap-sm">
                                     <button type="button"
@@ -79,11 +129,108 @@
             </table>
         </div>
 
-        <div class="flex-row items-baseline gap-sm mt-md">
-            <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Mood Searches.">
-                <span x-html="$store.icons.zap"></span>
-                <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ')'"></span>
-            </span>
+        <!-- AI Enrichment & Semantic Refresh Management Card -->
+        <div class="card mt-md p-md">
+            <div class="flex-row justify-between align-center flex-wrap gap-md mb-sm">
+                <div class="flex-row align-center gap-sm">
+                    <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Mood Searches.">
+                        <span x-html="$store.icons.zap"></span>
+                        <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ' items)'"></span>
+                    </span>
+                    <span class="subtext text-sm" x-show="$store.manager.enrichmentStatus.queue_depth > 0"
+                          x-text="$store.manager.enrichmentStatus.queue_depth + ' items awaiting tags'"></span>
+                </div>
+                <div class="flex-row align-center gap-sm flex-wrap">
+                    <button type="button" class="secondary small"
+                            @click="$store.manager.runSemanticRefresh($el)"
+                            title="Re-check server metadata for changes and update vector store without losing AI tags">
+                        <span class="flex-row align-center gap-xs">
+                            <span x-html="$store.icons.refresh" style="--icon-size: 13px;"></span>
+                            Re-index Changes
+                        </span>
+                    </button>
+                    <button type="button" class="primary small"
+                            x-show="$store.manager.enrichmentStatus.status !== 'running' && $store.manager.enrichmentStatus.status !== 'stopping'"
+                            @click="$store.manager.startEnrichment()">
+                        <span class="flex-row align-center gap-xs">
+                            <span x-html="$store.icons.sparkles || $store.icons.zap" style="--icon-size: 13px;"></span>
+                            Start Enrichment
+                        </span>
+                    </button>
+                    <button type="button" class="danger small"
+                            x-show="$store.manager.enrichmentStatus.status === 'running' || $store.manager.enrichmentStatus.status === 'stopping'"
+                            :disabled="$store.manager.enrichmentStatus.status === 'stopping'"
+                            @click="$store.manager.stopEnrichment()">
+                        <span x-text="$store.manager.enrichmentStatus.status === 'stopping' ? 'Stopping...' : 'Stop Enrichment'"></span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Enrichment Progress Bar & Status (when active or recently completed) -->
+            <div class="w-full bg-surface-alt rounded overflow-hidden" style="height: 6px;">
+                <div class="bg-accent" :style="'width: ' + $store.manager.libraryIq.percentage + '%; height: 100%; transition: width 0.3s;'"></div>
+            </div>
+
+            <div class="flex-row justify-between align-center mt-xs text-xs subtext" x-show="$store.manager.enrichmentStatus.last_message" x-cloak>
+                <span x-text="$store.manager.enrichmentStatus.last_message"></span>
+                <span x-show="$store.manager.enrichmentStatus.status === 'running'"
+                      x-text="'Processed ' + $store.manager.enrichmentStatus.processed_items + ' (' + $store.manager.enrichmentStatus.succeeded_items + ' ok, ' + $store.manager.enrichmentStatus.failed_items + ' errors)'"></span>
+            </div>
+        </div>
+
+        <!-- Overlap Report Modal -->
+        <div class="modal-backdrop" x-show="$store.manager.overlapModal.isOpen" x-cloak @click.self="$store.manager.overlapModal.isOpen = false">
+            <div class="modal-window wide">
+                <div class="modal-header">
+                    <h3>Library Overlap Report</h3>
+                    <button type="button" class="modal-close" @click="$store.manager.overlapModal.isOpen = false">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <template x-if="$store.manager.overlapModal.isLoading">
+                        <div class="p-lg text-center subtext">Analyzing playlists and collections for duplicate items...</div>
+                    </template>
+                    <template x-if="!$store.manager.overlapModal.isLoading && $store.manager.overlapModal.data">
+                        <div>
+                            <p class="subtext mb-md"
+                               x-text="'Checked ' + $store.manager.overlapModal.data.parents_checked + ' lists. Found ' + $store.manager.overlapModal.data.overlap_count + ' items appearing in multiple lists.'"></p>
+                            <template x-if="$store.manager.overlapModal.data.overlap_count === 0">
+                                <div class="card p-md text-center">No overlapping items found across the checked lists!</div>
+                            </template>
+                            <template x-if="$store.manager.overlapModal.data.overlap_count > 0">
+                                <div class="table-container card max-h-96 overflow-y-auto">
+                                    <table class="w-full">
+                                        <thead>
+                                            <tr>
+                                                <th class="table-cell text-left">Item Name</th>
+                                                <th class="table-cell text-left">Type</th>
+                                                <th class="table-cell text-left">Appears In</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <template x-for="ov in $store.manager.overlapModal.data.overlaps" :key="ov.media_id">
+                                                <tr class="table-row">
+                                                    <td class="table-cell bold" x-text="ov.name"></td>
+                                                    <td class="table-cell text-sm" x-text="ov.type"></td>
+                                                    <td class="table-cell">
+                                                        <div class="flex-row gap-xs flex-wrap">
+                                                            <template x-for="parent in ov.in_items" :key="parent.id">
+                                                                <span class="token-badge badge-outline text-xs" x-text="parent.name"></span>
+                                                            </template>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+                <div class="modal-footer flex-row justify-end">
+                    <button type="button" class="secondary" @click="$store.manager.overlapModal.isOpen = false">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>

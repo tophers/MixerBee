@@ -37,41 +37,80 @@ export const presetStore = {
     },
 
     async load(name) {
+        const mixer = Alpine.store('mixer');
         if (!name) {
             this.currentName = '';
-            await Alpine.store('mixer').loadBlocks([]);
+            await mixer.loadBlocks([]);
+            mixer.markSaved();
             return;
         }
+        const record = this.records.find(r => r.name === name);
         const data = this.registry[name];
         if (data) {
             this.currentName = name;
-            await Alpine.store('mixer').loadBlocks(JSON.parse(JSON.stringify(data)));
+            let blocks = data;
+            let mixOptions = record?.mix_options || null;
+            if (data && typeof data === 'object' && !Array.isArray(data) && data.blocks) {
+                blocks = data.blocks;
+                mixOptions = data.mix_options || mixOptions;
+            }
+            await mixer.loadBlocks(JSON.parse(JSON.stringify(blocks)), false, mixOptions);
+            mixer.markSaved();
         }
     },
 
     async saveAs() {
-        const mixerBlocks = Alpine.store('mixer').blocks;
+        const mixer = Alpine.store('mixer');
+        const mixerBlocks = mixer.blocks;
         if (mixerBlocks.length === 0) return toast("No blocks to save.", false);
 
         try {
             const name = await presetModal.show({ existingNames: this.availableNames, name: '' });
             if (!name || !name.trim()) return;
 
-            const res = await useApi(api.post('api/presets', { name: name.trim(), data: mixerBlocks }));
+            const res = await useApi(api.post('api/presets', {
+                name: name.trim(),
+                data: mixerBlocks,
+                mix_options: mixer.mix_options
+            }));
             if (res.status === 'ok') {
                 await this.refresh();
                 this.currentName = name.trim();
+                mixer.markSaved();
             }
         } catch (err) { }
     },
 
     async updateCurrent() {
         if (!this.currentName) return;
-        const mixerBlocks = Alpine.store('mixer').blocks;
-        const res = await useApi(api.post('api/presets', { name: this.currentName, data: mixerBlocks }));
+        const mixer = Alpine.store('mixer');
+        const mixerBlocks = mixer.blocks;
+        const res = await useApi(api.post('api/presets', {
+            name: this.currentName,
+            data: mixerBlocks,
+            mix_options: mixer.mix_options
+        }));
         if (res.status === 'ok') {
             this.registry[this.currentName] = JSON.parse(JSON.stringify(mixerBlocks));
+            mixer.markSaved();
+            toast('Preset saved.', true);
         }
+    },
+
+    async promptRename() {
+        if (!this.currentName) return;
+        const presetId = this.idForName(this.currentName);
+        if (!presetId) return toast("Preset ID not found.", false);
+        try {
+            const newName = await Alpine.store('modals').renamePresetAction.show({ presetId, oldName: this.currentName, newName: this.currentName });
+            if (!newName || !newName.trim() || newName.trim() === this.currentName) return;
+            const res = await useApi(api.patch(`api/presets/${presetId}`, { name: newName.trim() }));
+            if (res.status === 'ok') {
+                await this.refresh();
+                this.currentName = newName.trim();
+                toast(`Preset renamed to "${newName.trim()}"`, true);
+            }
+        } catch (e) { }
     },
 
     async deleteCurrent() {

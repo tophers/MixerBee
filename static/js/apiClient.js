@@ -6,8 +6,14 @@ export function getSession() { return session; }
 
 export const api = {
     async request(endpoint, body = null, method = 'GET') {
-        const separator = endpoint.includes('?') ? '&' : '?';
-        const finalUrl = `${endpoint}${separator}_cb=${Date.now()}`;
+        const reqAccount = session.account?.id;
+        const reqConnection = session.connection_id;
+
+        let finalUrl = endpoint;
+        if (!finalUrl.includes('_cb=')) {
+            const separator = finalUrl.includes('?') ? '&' : '?';
+            finalUrl = `${finalUrl}${separator}_cb=${Date.now()}`;
+        }
 
         const fetchOptions = {
             method: method.toUpperCase(),
@@ -27,6 +33,10 @@ export const api = {
 
             if (r.status === 401 || r.status === 409) {
                 document.dispatchEvent(new CustomEvent('mixerbee:unauthorized'));
+            }
+
+            if (session.account?.id !== reqAccount || session.connection_id !== reqConnection) {
+                return { data: null, error: { detail: 'Request context expired or switched' }, status: 'stale' };
             }
 
             if (!r.ok) {

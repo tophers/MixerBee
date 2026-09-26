@@ -36,15 +36,157 @@ def get_movie_genres(user_id: str, media: client.MediaClient) -> List[Dict[str, 
     logger.info(f"Found {len(genres)} movie genres.")
     return genres
 
+LANGUAGE_SYNONYMS = {
+    "en": {"en", "eng", "english"},
+    "eng": {"en", "eng", "english"},
+    "english": {"en", "eng", "english"},
+    "es": {"es", "spa", "spanish", "español"},
+    "spa": {"es", "spa", "spanish", "español"},
+    "spanish": {"es", "spa", "spanish", "español"},
+    "fr": {"fr", "fra", "fre", "french", "français"},
+    "fra": {"fr", "fra", "fre", "french", "français"},
+    "fre": {"fr", "fra", "fre", "french", "français"},
+    "french": {"fr", "fra", "fre", "french", "français"},
+    "de": {"de", "deu", "ger", "german", "deutsch"},
+    "deu": {"de", "deu", "ger", "german", "deutsch"},
+    "ger": {"de", "deu", "ger", "german", "deutsch"},
+    "german": {"de", "deu", "ger", "german", "deutsch"},
+    "it": {"it", "ita", "italian", "italiano"},
+    "ita": {"it", "ita", "italian", "italiano"},
+    "italian": {"it", "ita", "italian", "italiano"},
+    "ja": {"ja", "jpn", "japanese"},
+    "jpn": {"ja", "jpn", "japanese"},
+    "japanese": {"ja", "jpn", "japanese"},
+    "ko": {"ko", "kor", "korean"},
+    "kor": {"ko", "kor", "korean"},
+    "korean": {"ko", "kor", "korean"},
+    "zh": {"zh", "zho", "chi", "chinese"},
+    "zho": {"zh", "zho", "chi", "chinese"},
+    "chi": {"zh", "zho", "chi", "chinese"},
+    "chinese": {"zh", "zho", "chi", "chinese"},
+    "pt": {"pt", "por", "portuguese", "português"},
+    "por": {"pt", "por", "portuguese", "português"},
+    "portuguese": {"pt", "por", "portuguese", "português"},
+    "ru": {"ru", "rus", "russian"},
+    "rus": {"ru", "rus", "russian"},
+    "russian": {"ru", "rus", "russian"}
+}
+
+def language_matches(stream_lang: Optional[str], target_lang: str) -> bool:
+    if not stream_lang or not target_lang:
+        return False
+    sl = stream_lang.strip().lower()
+    tl = target_lang.strip().lower()
+    if sl == tl:
+        return True
+    synonyms = LANGUAGE_SYNONYMS.get(tl, {tl})
+    return sl in synonyms
+
+def normalize_movie_filters(filters: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not filters:
+        return {}
+    normalized = dict(filters)
+    if "min_runtime_minutes" in normalized and normalized["min_runtime_minutes"] is not None:
+        try:
+            normalized["min_runtime_minutes"] = int(normalized["min_runtime_minutes"])
+        except (ValueError, TypeError):
+            normalized["min_runtime_minutes"] = None
+    if "max_runtime_minutes" in normalized and normalized["max_runtime_minutes"] is not None:
+        try:
+            normalized["max_runtime_minutes"] = int(normalized["max_runtime_minutes"])
+        except (ValueError, TypeError):
+            normalized["max_runtime_minutes"] = None
+    if "min_community_rating" in normalized and normalized["min_community_rating"] is not None:
+        try:
+            normalized["min_community_rating"] = float(normalized["min_community_rating"])
+        except (ValueError, TypeError):
+            normalized["min_community_rating"] = None
+    if "favorites_only" in normalized:
+        normalized["favorites_only"] = bool(normalized["favorites_only"])
+    return normalized
+
+def matches_movie_constraints(item: Dict[str, Any], filters: Dict[str, Any]) -> bool:
+    """Pure predicate evaluating Section 7 practical viewing constraints against a movie item."""
+    if not filters or not item:
+        return True
+
+    runtime_ticks = item.get("RunTimeTicks")
+    min_runtime = filters.get("min_runtime_minutes")
+    max_runtime = filters.get("max_runtime_minutes")
+
+    if min_runtime is not None or max_runtime is not None:
+        if runtime_ticks is None or runtime_ticks <= 0:
+            return False
+        runtime_minutes = runtime_ticks / 600_000_000.0
+        if min_runtime is not None and runtime_minutes < min_runtime:
+            return False
+        if max_runtime is not None and runtime_minutes > max_runtime:
+            return False
+
+    min_rating = filters.get("min_community_rating")
+    if min_rating is not None and min_rating > 0:
+        comm_rating = item.get("CommunityRating")
+        if comm_rating is None:
+            return False
+        try:
+            if float(comm_rating) < float(min_rating):
+                return False
+        except (ValueError, TypeError):
+            return False
+
+    if filters.get("favorites_only"):
+        user_data = item.get("UserData") or {}
+        if not user_data.get("IsFavorite", False):
+            return False
+
+    allowed_ratings = filters.get("allowed_content_ratings")
+    if allowed_ratings:
+        norm_allowed = {r.strip().lower() for r in allowed_ratings if r and r.strip()}
+        if norm_allowed:
+            off_rating = (item.get("OfficialRating") or "").strip().lower()
+            if not off_rating:
+                if "unrated" not in norm_allowed and "unknown" not in norm_allowed:
+                    return False
+            else:
+                if off_rating not in norm_allowed:
+                    return False
+
+    audio_languages = filters.get("audio_languages")
+    if audio_languages:
+        media_streams = item.get("MediaStreams") or []
+        audio_streams = [s for s in media_streams if s.get("Type") == "Audio"]
+        matched_audio = False
+        for req_lang in audio_languages:
+            if any(language_matches(s.get("Language"), req_lang) for s in audio_streams):
+                matched_audio = True
+                break
+        if not matched_audio:
+            return False
+
+    subtitle_languages = filters.get("subtitle_languages")
+    if subtitle_languages:
+        media_streams = item.get("MediaStreams") or []
+        sub_streams = [s for s in media_streams if s.get("Type") == "Subtitle"]
+        matched_sub = False
+        for req_lang in subtitle_languages:
+            if any(language_matches(s.get("Language"), req_lang) for s in sub_streams):
+                matched_sub = True
+                break
+        if not matched_sub:
+            return False
+
+    return True
+
 def find_movies(user_id: str, filters: Dict,
                 media: client.MediaClient) -> List[Dict[str, str]]:
     """Finds movies based on a set of filters."""
+    filters = normalize_movie_filters(filters)
     logger.info(f"Finding movies for user {user_id} with filters: {filters}")
 
     base_params = {
         "IncludeItemTypes": "Movie",
         "Recursive": "true",
-        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios,People",
+        "Fields": "Genres,PremiereDate,UserData,RunTimeTicks,Studios,People,OfficialRating,CommunityRating,MediaStreams",
         "Limit": 2000
     }
 
@@ -177,6 +319,8 @@ def find_movies(user_id: str, filters: Dict,
     if genres_exclude:
         exclude_genres = {g.lower() for g in genres_exclude}
         all_movies = [m for m in all_movies if not get_movie_genre_set(m).intersection(exclude_genres)]
+
+    all_movies = [m for m in all_movies if matches_movie_constraints(m, filters)]
 
     final_list = all_movies
     logger.info(f"Local filtering complete. {len(final_list)} movies match criteria.")

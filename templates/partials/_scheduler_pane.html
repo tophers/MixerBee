@@ -34,8 +34,14 @@
                             </td>
                             <td class="table-cell">
                                 <span class="token-badge badge-accent" 
-                                      :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.create_as_collection ? 'collection-active' : 'playlist-active')"
-                                      x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST')"></span>
+                                      :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.job_type === 'quick_playlist' ? 'badge-outline-subtle' : (entry.create_as_collection ? 'collection-active' : 'playlist-active'))"
+                                      x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.job_type === 'quick_playlist' ? 'AUTO PLAYLIST' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'))"></span>
+                                <template x-if="!entry.enabled">
+                                    <span class="badge" style="background: rgba(220,53,69,0.2); color: #ff6b6b; font-size: 0.65rem; margin-left: 0.25rem;">PAUSED</span>
+                                </template>
+                                <template x-if="entry.enabled && entry.snoozed_until">
+                                    <span class="badge" style="background: rgba(255,193,7,0.2); color: #ffc107; font-size: 0.65rem; margin-left: 0.25rem;">SNOOZED</span>
+                                </template>
                             </td>
                             <td class="table-cell">
                                 <div class="schedule-summary-cell">
@@ -52,11 +58,14 @@
                             </td>
 
                             <td class="table-cell">
-                                <span class="text-subtle" style="font-size: 0.9rem;" x-text="entry.preset_name || '-'"></span>
+                                <span class="text-subtle" style="font-size: 0.9rem;" x-text="entry.job_type === 'quick_playlist' ? (entry.quick_playlist_data?.quick_playlist_type || 'Auto Playlist') : (entry.preset_name || '-')"></span>
                             </td>
 
                             <td class="table-cell text-right">
                                 <div class="flex-row justify-end gap-sm">
+                                    <button type="button" class="secondary small icon-only" :title="entry.enabled ? 'Pause Job' : 'Resume Job'" @click="$store.scheduler.toggleEnabled(entry, $el)" :style="!entry.enabled ? 'opacity: 0.5;' : ''">
+                                        <span x-html="entry.enabled ? $store.icons.eyeOff : $store.icons.eye"></span>
+                                    </button>
                                     <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
                                     <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Edit Job" x-html="$store.icons.settings"></button>
                                     <button type="button" class="secondary small icon-only danger-hover" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Job" x-html="$store.icons.trash"></button>
@@ -71,8 +80,9 @@
                                         <div class="modal-body modal-inner-form text-left">
                                             <div class="mb-md">
                                                 <label class="field-label">Job Type</label>
-                                                <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'">
+                                                <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'; if(entry.job_type === 'quick_playlist' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Scheduled Auto Playlist'">
                                                     <option value="builder">Standard Playlist / Collection</option>
+                                                    <option value="quick_playlist">Auto Playlist</option>
                                                     <option value="enrichment">Library Metadata Enrichment (AI)</option>
                                                 </select>
                                             </div>
@@ -82,7 +92,7 @@
                                                     <label class="field-label">Job Name</label>
                                                     <input type="text" x-model="entry.playlist_name" class="ghost-input w-full automation-config-item">
                                                 </div>
-                                                <template x-if="entry.job_type !== 'enrichment'">
+                                                <template x-if="entry.job_type === 'builder'">
                                                     <div>
                                                         <label class="field-label">Output Mode</label>
                                                         <div class="toggle-pill">
@@ -93,7 +103,7 @@
                                                 </template>
                                             </div>
 
-                                            <template x-if="entry.job_type !== 'enrichment'">
+                                            <template x-if="entry.job_type === 'builder'">
                                                 <div class="mt-lg">
                                                     <label class="field-label">Automation Preset</label>
                                                     <select x-model="entry.preset_id" class="mixer-select w-full"
@@ -105,6 +115,66 @@
                                                     </select>
                                                 </div>
                                             </template>
+
+                                            <template x-if="entry.job_type === 'quick_playlist'">
+                                                <div class="mt-lg">
+                                                    <label class="field-label">Auto Playlist Type</label>
+                                                    <select x-model="entry.quick_playlist_data.quick_playlist_type" class="mixer-select w-full">
+                                                        <option value="recently_added">Recently Added</option>
+                                                        <option value="next_up">Next Up (TV)</option>
+                                                        <option value="pilot_sampler">Pilot Sampler (TV)</option>
+                                                        <option value="from_the_vault">From the Vault (Movies)</option>
+                                                        <option value="top_community_unwatched">Top Community Picks (Movies)</option>
+                                                        <option value="top_critic_unwatched">Top Critic Picks (Movies)</option>
+                                                        <option value="artist_spotlight">Artist Spotlight (Music)</option>
+                                                        <option value="genre_sampler">Music Genre Sampler</option>
+                                                        <option value="album_roulette">Album Roulette (Music)</option>
+                                                    </select>
+
+                                                    <div class="mt-md" x-show="['recently_added', 'next_up', 'pilot_sampler', 'from_the_vault', 'top_community_unwatched', 'top_critic_unwatched', 'artist_spotlight', 'genre_sampler'].includes(entry.quick_playlist_data.quick_playlist_type)">
+                                                        <label class="field-label">Number of Items</label>
+                                                        <input type="number" x-model.number="entry.quick_playlist_data.options.count" min="1" max="500" class="themed-input w-full m-0">
+                                                    </div>
+
+                                                    <div class="mt-md" x-show="entry.quick_playlist_data.quick_playlist_type === 'artist_spotlight'">
+                                                        <label class="field-label">Artist</label>
+                                                        <select x-model="entry.quick_playlist_data.options.artist_id" class="mixer-select w-full">
+                                                            <option value="">-- Select Artist --</option>
+                                                            <template x-for="a in $store.mixer.library.artistData" :key="a.Id">
+                                                                <option :value="a.Id" x-text="a.Name"></option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+
+                                                    <div class="mt-md" x-show="entry.quick_playlist_data.quick_playlist_type === 'genre_sampler'">
+                                                        <label class="field-label">Music Genre</label>
+                                                        <select x-model="entry.quick_playlist_data.options.genre" class="mixer-select w-full">
+                                                            <option value="">-- Select Genre --</option>
+                                                            <template x-for="g in $store.mixer.library.musicGenreData" :key="g.Name">
+                                                                <option :value="g.Name" x-text="g.Name"></option>
+                                                            </template>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <div class="mt-lg">
+                                                <label class="field-label">Trigger Sources</label>
+                                                <div class="flex-row gap-md">
+                                                    <label class="align-center gap-xs" style="font-size: 0.85rem;">
+                                                        <input type="checkbox" value="clock" :checked="(entry.trigger_sources || []).includes('clock')" @change="$event.target.checked ? (entry.trigger_sources = [...(entry.trigger_sources || []), 'clock']) : (entry.trigger_sources = (entry.trigger_sources || []).filter(s => s !== 'clock'))">
+                                                        Clock
+                                                    </label>
+                                                    <label class="align-center gap-xs" style="font-size: 0.85rem;">
+                                                        <input type="checkbox" value="watch" :checked="(entry.trigger_sources || []).includes('watch')" @change="$event.target.checked ? (entry.trigger_sources = [...(entry.trigger_sources || []), 'watch']) : (entry.trigger_sources = (entry.trigger_sources || []).filter(s => s !== 'watch'))">
+                                                        Watched Webhook
+                                                    </label>
+                                                    <label class="align-center gap-xs" style="font-size: 0.85rem;">
+                                                        <input type="checkbox" value="library" :checked="(entry.trigger_sources || []).includes('library')" @change="$event.target.checked ? (entry.trigger_sources = [...(entry.trigger_sources || []), 'library']) : (entry.trigger_sources = (entry.trigger_sources || []).filter(s => s !== 'library'))">
+                                                        Library Webhook
+                                                    </label>
+                                                </div>
+                                            </div>
 
                                             <template x-if="entry.job_type === 'enrichment'">
                                                 <div class="filter-grid mt-lg" style="grid-template-columns: 1fr 1fr; gap: 2rem;">

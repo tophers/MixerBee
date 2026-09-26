@@ -7,22 +7,15 @@ from fastapi import APIRouter, HTTPException, Depends
 import app as core
 import models
 import app_state
+from quick_playlist_registry import QUICK_BUILD_MAP, get_public_registry
 from .dependencies import get_current_auth_headers, media_for_user
 
 router = APIRouter()
 
-QUICK_BUILD_MAP = {
-    "recently_added": (core.create_recently_added_playlist, ['count']),
-    "next_up": (core.create_continue_watching_playlist, ['count']),
-    "pilot_sampler": (core.create_pilot_sampler_playlist, ['count']),
-    "from_the_vault": (core.create_forgotten_favorites_playlist, ['count']),
-    "genre_roulette": (core.create_movie_marathon_playlist, ['genre', 'count']),
-    "artist_spotlight": (core.create_artist_spotlight_playlist, ['artist_id', 'count']),
-    "album_roulette": (core.create_album_playlist, ['album_id']),
-    "genre_sampler": (core.create_music_genre_playlist, ['genre', 'count']),
-    "top_community_unwatched": (core.create_top_community_unwatched_playlist, ['count']),
-    "top_critic_unwatched": (core.create_top_critic_unwatched_playlist, ['count']),
-}
+@router.get("/api/quick_builds/types")
+def api_get_quick_build_types():
+    """Returns all supported quick playlist / smart build types with schema and schedulability metadata."""
+    return get_public_registry()
 
 @router.post("/api/quick_builds")
 def api_quick_builds(req: models.QuickBuildRequest, auth_deps: dict = Depends(get_current_auth_headers)):

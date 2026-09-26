@@ -17,12 +17,40 @@ from app.logger import get_logger
 logger = get_logger("MixerBee.Webhooks")
 router = APIRouter()
 
-def trigger_relevant_schedules(user_id: str = None, target_media_type: str = None, connection_id: str = None):
-    # target_media_type is accepted for logging/job-id purposes only (see
-    # handle_media_webhook) and is deliberately NOT used to filter schedules here: a
-    # schedule's block types can't be reliably mapped back to "tv"/"movie"/"music"
-    # (e.g. curated/mirror blocks), and a show can appear in several playlists the
-    # user wants kept current regardless of which one they were watching.
+def classify_webhook_event(payload: Dict[str, Any]) -> Optional[str]:
+    """
+    Classifies an incoming Emby/Jellyfin webhook event into a normalized category:
+    - 'watch': Playback completion, mark played/unplayed, rating, userdata changes.
+    - 'library': New/added/created items, removed/deleted items.
+    Returns None if the event is unhandled or ignored (e.g. playback paused/uncompleted).
+    """
+    event_type = payload.get("Event", "")
+    event_type_lower = event_type.lower()
+    if not event_type_lower:
+        return None
+
+    if event_type_lower == "playback.stop":
+        played_to_completion = payload.get("PlaybackInfo", {}).get("PlayedToCompletion", False)
+        if not played_to_completion:
+            return None
+        return "watch"
+
+    if any(k in event_type_lower for k in ["played", "userdata", "rating", "markplayed", "scrobble"]):
+        return "watch"
+
+    if any(k in event_type_lower for k in ["new", "added", "created", "removed", "deleted", "itemadded"]):
+        return "library"
+
+    return None
+
+import threading
+
+_webhook_context = threading.local()
+
+def get_current_webhook_category() -> Optional[str]:
+    return getattr(_webhook_context, "category", None)
+
+def trigger_relevant_schedules(user_id: str = None, target_media_type: str = None, connection_id: str = None, event_category: str = "watch"):
     if not connection_id:
         return
 
@@ -35,11 +63,15 @@ def trigger_relevant_schedules(user_id: str = None, target_media_type: str = Non
 
         if user_id is None or sched.get("user_id") == user_id:
             try:
-                logger.info(f"Triggering live update for schedule '{sched.get('playlist_name')}'")
-                scheduler_manager.run_schedule_now(sched["id"])
+                logger.info(f"Triggering live update ({event_category}) for schedule '{sched.get('playlist_name')}'")
+                _webhook_context.category = event_category
+                try:
+                    scheduler_manager.run_schedule_now(sched["id"])
+                finally:
+                    _webhook_context.category = None
                 triggered_count += 1
             except Exception as e:
-                logger.error(f"Failed to run schedule {sched['id']} during live update: {e}")
+                logger.error(f"Failed to queue schedule {sched['id']} during live update: {e}")
 
     logger.info(f"Finished live update. {triggered_count} schedule(s) refreshed.")
 
@@ -63,9 +95,7 @@ async def handle_media_webhook(connection_id: str, request: Request):
         return {"status": "ignored", "reason": "Empty or invalid JSON payload"}
 
     event_type = payload.get("Event", "")
-    event_type_lower = event_type.lower()
-
-    if not event_type_lower:
+    if not event_type:
         return {"status": "ignored", "reason": "No Event type provided in payload"}
 
     # A valid authenticated media-server event proves that the current URL is
@@ -76,11 +106,9 @@ async def handle_media_webhook(connection_id: str, request: Request):
             webhook_verified_at=? WHERE id=?''', (now, now, connection_id))
         conn.commit()
 
-    if event_type_lower == "playback.stop":
-        played_to_completion = payload.get("PlaybackInfo", {}).get("PlayedToCompletion", False)
-        if not played_to_completion:
-            logger.info("playback.stop received, but PlayedToCompletion is False (User paused). Ignoring to prevent thrashing.")
-            return {"status": "ignored", "reason": "Playback stopped before completion."}
+    category = classify_webhook_event(payload)
+    if not category:
+        return {"status": "ignored", "reason": f"Event '{event_type}' does not require playlist updates or was paused."}
 
     user_id = None
     if "User" in payload and isinstance(payload["User"], dict):
@@ -97,40 +125,23 @@ async def handle_media_webhook(connection_id: str, request: Request):
     elif item_type in ["Audio", "MusicAlbum", "MusicArtist"]:
         target_media_type = "music"
 
-    logger.info(f"Parsed Event='{event_type}', UserID='{user_id}', TargetType='{target_media_type}'")
+    logger.info(f"Parsed Event='{event_type}', Category='{category}', UserID='{user_id}', TargetType='{target_media_type}'")
 
-    relevant_keywords = [
-        "stop",
-        "played",
-        "userdata",
-        "new",
-        "added",
-        "removed",
-        "deleted"
-    ]
+    debounce_seconds = app_state.WEBHOOK_DEBOUNCE_SECONDS
+    run_time = datetime.now() + timedelta(seconds=debounce_seconds)
+    # Debounce preserves category so watch and library events each trigger appropriately
+    job_id = f"webhook_debounce_{connection_id}_{user_id}_{category}"
 
-    if any(keyword in event_type_lower for keyword in relevant_keywords):
+    logger.info(f"Event matches '{category}' category. Scheduling debounced rebuild in {debounce_seconds}s.")
 
-        debounce_seconds = app_state.WEBHOOK_DEBOUNCE_SECONDS
-        run_time = datetime.now() + timedelta(seconds=debounce_seconds)
-        # Keyed on user only: target_media_type no longer changes which schedules get
-        # triggered (see trigger_relevant_schedules), so keeping it in the id would let two
-        # events of different types within the debounce window queue two full fan-out
-        # sweeps instead of coalescing into one.
-        job_id = f"webhook_debounce_{connection_id}_{user_id}"
+    scheduler_manager.scheduler.add_job(
+        func=trigger_relevant_schedules,
+        trigger='date',
+        run_date=run_time,
+        args=[user_id, target_media_type, connection_id, category],
+        id=job_id,
+        name=f"Debounced {category.capitalize()} Update for {user_id}",
+        replace_existing=True 
+    )
 
-        logger.info(f"Event matches triggers! Scheduling debounce rebuild for {debounce_seconds}s from now.")
-
-        scheduler_manager.scheduler.add_job(
-            func=trigger_relevant_schedules,
-            trigger='date',
-            run_date=run_time,
-            args=[user_id, target_media_type, connection_id],
-            id=job_id,
-            name=f"Debounced Webhook Update for {user_id} ({target_media_type or 'all'})",
-            replace_existing=True 
-        )
-
-        return {"status": "accepted", "message": f"Playlist rebuild queued for {run_time.strftime('%H:%M:%S')}."}
-
-    return {"status": "ignored", "reason": f"Event '{event_type}' does not require playlist updates."}
+    return {"status": "accepted", "message": f"{category.capitalize()} update queued for {run_time.strftime('%H:%M:%S')}."}

@@ -67,6 +67,13 @@ def api_create_schedule(req: models.ScheduleRequest, auth_deps: dict = Depends(g
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:
             require_collection_permission(media)
+        if req.job_type == "quick_playlist":
+            if not req.quick_playlist_data:
+                raise ValueError("quick_playlist_data is required for quick_playlist job type.")
+            qp_type = req.quick_playlist_data.quick_playlist_type
+            if qp_type not in scheduler.QUICK_PLAYLIST_MAP:
+                raise ValueError(f"Unknown or unschedulable quick playlist type: '{qp_type}'.")
+
         schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save["connection_id"] = auth_deps["connection_id"]
         schedule_data_to_save['crontab'] = crontab
@@ -106,6 +113,13 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest, auth_deps
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:
             require_collection_permission(media)
+        if req.job_type == "quick_playlist":
+            if not req.quick_playlist_data:
+                raise ValueError("quick_playlist_data is required for quick_playlist job type.")
+            qp_type = req.quick_playlist_data.quick_playlist_type
+            if qp_type not in scheduler.QUICK_PLAYLIST_MAP:
+                raise ValueError(f"Unknown or unschedulable quick playlist type: '{qp_type}'.")
+
         schedule_data_to_save = req.model_dump(exclude_none=True)
         schedule_data_to_save["connection_id"] = auth_deps["connection_id"]
         schedule_data_to_save['crontab'] = crontab
@@ -137,3 +151,34 @@ def api_delete_schedule(schedule_id: str, auth_deps: dict = Depends(get_current_
         raise HTTPException(404, "Schedule not found.")
     scheduler.scheduler_manager.remove_schedule(schedule_id)
     return {"status": "ok", "log": ["Schedule deleted."]}
+
+@router.post("/api/schedules/{schedule_id}/pause")
+def api_pause_schedule(schedule_id: str, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
+    success = scheduler.scheduler_manager.pause_schedule(schedule_id)
+    if not success:
+        raise HTTPException(500, "Failed to pause schedule.")
+    return {"status": "ok", "message": "Schedule paused."}
+
+@router.post("/api/schedules/{schedule_id}/resume")
+def api_resume_schedule(schedule_id: str, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
+    success = scheduler.scheduler_manager.resume_schedule(schedule_id)
+    if not success:
+        raise HTTPException(500, "Failed to resume schedule.")
+    return {"status": "ok", "message": "Schedule resumed."}
+
+@router.post("/api/schedules/{schedule_id}/snooze")
+def api_snooze_schedule(schedule_id: str, req: models.SnoozeRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
+    success = scheduler.scheduler_manager.snooze_schedule(schedule_id, minutes=req.minutes, until=req.until)
+    if not success:
+        raise HTTPException(500, "Failed to snooze schedule.")
+    return {"status": "ok", "message": "Schedule snoozed."}
+

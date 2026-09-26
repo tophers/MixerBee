@@ -38,6 +38,25 @@ def initialize_schema(conn):
         name TEXT NOT NULL, data TEXT NOT NULL,
         UNIQUE(connection_id, name)
     )''')
+    preset_columns = {r['name'] for r in conn.execute('PRAGMA table_info(connection_presets)')}
+    if 'tags_json' not in preset_columns:
+        conn.execute("ALTER TABLE connection_presets ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'")
+    if 'is_favorite' not in preset_columns:
+        conn.execute("ALTER TABLE connection_presets ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+
+    conn.execute('''CREATE TABLE IF NOT EXISTS connection_recipes (
+        id TEXT PRIMARY KEY,
+        connection_id TEXT NOT NULL REFERENCES media_connections(id),
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        block_json TEXT NOT NULL,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        is_favorite INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )''')
+    conn.execute('CREATE INDEX IF NOT EXISTS idx_recipes_conn ON connection_recipes(connection_id)')
+
     schedule_columns = {r['name'] for r in conn.execute('PRAGMA table_info(schedules)')}
     if 'preset_id' not in schedule_columns:
         conn.execute('ALTER TABLE schedules ADD COLUMN preset_id TEXT REFERENCES connection_presets(id)')
@@ -195,3 +214,10 @@ def update_active_ai_setting(key, value):
         conn.execute('UPDATE media_connections SET ai_settings=? WHERE id=?',
                      (json.dumps(settings), media.connection.id))
         conn.commit()
+
+
+def reload_connections():
+    """Clear cached connection media clients to pick up reloaded database state."""
+    with _clients_lock:
+        _clients.clear()
+

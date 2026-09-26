@@ -370,3 +370,145 @@ def api_mark_unplayed(
     except Exception as e:
         logging.error(f"Error resetting watch state: {e}", exc_info=True)
         raise HTTPException(500, str(e))
+
+@router.post("/api/library/enrichment/start")
+def api_start_enrichment(
+    req: models.StartEnrichmentRequest = Body(default_factory=models.StartEnrichmentRequest),
+    auth_deps: dict = Depends(get_current_auth_headers)
+) -> Dict[str, Any]:
+    """Starts a background metadata enrichment process for the current connection."""
+    connection_id = auth_deps["connection_id"]
+    media = auth_deps["media"]
+    try:
+        res = core.start_enrichment(
+            connection_id=connection_id,
+            media=media,
+            batch_size=req.batch_size,
+            max_items=req.max_items
+        )
+        return {"status": "ok", "state": res}
+    except RuntimeError as re:
+        raise HTTPException(status_code=409, detail=str(re))
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
+    except Exception as e:
+        logging.error(f"Failed to start enrichment: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/library/enrichment/stop")
+def api_stop_enrichment(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
+    """Stops the active enrichment worker for the current connection."""
+    connection_id = auth_deps["connection_id"]
+    return core.stop_enrichment(connection_id)
+
+@router.get("/api/library/enrichment/status")
+def api_enrichment_status(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
+    """Gets the current status and queue depth of enrichment for the current connection."""
+    connection_id = auth_deps["connection_id"]
+    media = auth_deps["media"]
+    return core.get_enrichment_status(connection_id, media=media)
+
+@router.post("/api/library/semantic_refresh")
+def api_semantic_refresh(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
+    """Selectively re-indexes changed library items in ChromaDB while preserving AI enrichments."""
+    user_id = auth_deps["login_uid"]
+    media = auth_deps["media"]
+    try:
+        return core.refresh_semantic_index(user_id, media)
+    except Exception as e:
+        logging.error(f"Semantic refresh failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/api/bulk_delete_items")
+def api_bulk_delete_items(
+    req: models.BulkDeleteRequest,
+    auth_deps: dict = Depends(get_current_auth_headers)
+) -> Dict[str, Any]:
+    """Bulk deletes items with per-item permission checks and reported outcomes."""
+    media = media_for_user(auth_deps, req.user_id)
+    deleted = []
+    failed = []
+
+    for item_id in req.item_ids:
+        try:
+            item_resp = media.get(f"/Users/{req.user_id}/Items", params={"Ids": item_id}, timeout=5)
+            if item_resp.ok:
+                items_data = item_resp.json().get("Items", [])
+                if items_data and items_data[0].get("Type") in ("BoxSet", "Collection"):
+                    if not media.can_manage_collections():
+                        failed.append({"id": item_id, "name": items_data[0].get("Name", item_id), "reason": "Permission denied for collections"})
+                        continue
+
+            if core.delete_item_by_id(item_id, media):
+                deleted.append(item_id)
+            else:
+                failed.append({"id": item_id, "reason": "Media server deletion failed"})
+        except Exception as e:
+            failed.append({"id": item_id, "reason": str(e)})
+
+    return {
+        "status": "ok",
+        "deleted_count": len(deleted),
+        "failed_count": len(failed),
+        "deleted_ids": deleted,
+        "failed_items": failed
+    }
+
+@router.post("/api/library/overlap_report")
+def api_overlap_report(
+    req: models.OverlapReportRequest,
+    auth_deps: dict = Depends(get_current_auth_headers)
+) -> Dict[str, Any]:
+    """
+    Finds items appearing across multiple playlists or collections.
+    Bounded read to prevent media server thrashing.
+    """
+    media = media_for_user(auth_deps, req.user_id)
+    target_ids = req.item_ids
+
+    if not target_ids:
+        manageable = core.get_manageable_items(req.user_id, media)
+        target_ids = [m["Id"] for m in manageable[:30]]
+    else:
+        target_ids = target_ids[:50]
+
+    parent_map = {}
+    item_appearances: Dict[str, Dict[str, Any]] = {}
+
+    for pid in target_ids:
+        try:
+            children = core.get_item_children(req.user_id, pid, media)
+            p_resp = media.get(f"/Users/{req.user_id}/Items", params={"Ids": pid}, timeout=5)
+            p_name = pid
+            if p_resp.ok and p_resp.json().get("Items"):
+                p_name = p_resp.json()["Items"][0].get("Name", pid)
+
+            parent_map[pid] = p_name
+
+            for child in children:
+                cid = child.get("Id")
+                if not cid:
+                    continue
+                if cid not in item_appearances:
+                    item_appearances[cid] = {
+                        "media_id": cid,
+                        "name": child.get("Name", "Unknown"),
+                        "type": child.get("Type", "Unknown"),
+                        "in_items": []
+                    }
+                item_appearances[cid]["in_items"].append({"id": pid, "name": p_name})
+        except Exception as e:
+            logging.warning(f"Error fetching children for {pid} during overlap report: {e}")
+
+    overlaps = [info for info in item_appearances.values() if len(info["in_items"]) > 1]
+    overlaps.sort(key=lambda x: len(x["in_items"]), reverse=True)
+
+    return {
+        "status": "ok",
+        "parents_checked": len(parent_map),
+        "total_unique_media": len(item_appearances),
+        "overlap_count": len(overlaps),
+        "overlaps": overlaps
+    }
+
+

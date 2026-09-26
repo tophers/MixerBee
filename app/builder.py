@@ -4,15 +4,18 @@ app/builder.py -  module for constructing mixed playlists from content blocks.
 
 import logging
 import random
+import uuid
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from itertools import zip_longest
 
 from . import client
 from .media_client import media_operation
 from . import items as items_api
-from .movies import find_movies
+from .movies import find_movies, matches_movie_constraints, normalize_movie_filters
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
 from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_episode, get_first_available_episode, series_id
+from . import build_history
 
 
 def _process_tv_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
@@ -177,6 +180,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.Med
 
             movie_ids = []
             series_ids = []
+            album_ids = []
 
             for match in sampled_matches:
                 m_type = match.get("Type")
@@ -185,9 +189,15 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.Med
                     movie_ids.append(m_id)
                 elif m_type == "Series":
                     series_ids.append(m_id)
+                elif m_type in ("MusicAlbum", "Album"):
+                    album_ids.append(m_id)
 
             if movie_ids:
-                resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, media=media)
+                movie_filter_dict = {"ids": movie_ids}
+                for k in ("min_runtime_minutes", "max_runtime_minutes", "min_community_rating", "favorites_only", "allowed_content_ratings", "audio_languages", "subtitle_languages"):
+                    if k in filters:
+                        movie_filter_dict[k] = filters[k]
+                resolved_movies = find_movies(user_id=user_id, filters=movie_filter_dict, media=media)
                 items.extend(resolved_movies)
 
             for sid in series_ids:
@@ -196,6 +206,14 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.Med
                     next_ep = get_first_available_episode(sid, user_id, media)
                 if next_ep:
                     items.append(next_ep)
+
+            for aid in album_ids:
+                try:
+                    album_songs = get_songs_by_album(aid, media)
+                    if album_songs:
+                        items.extend(album_songs)
+                except Exception as music_err:
+                    logging.warning(f"Failed to expand album {aid} in Echo block: {music_err}")
 
             random.shuffle(items)
 
@@ -337,37 +355,42 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, media: client.Me
     return items
 
 
-@media_operation
-def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], media: client.MediaClient, log_messages: List[str]) -> List[Dict[str, Any]]:
-    """Dispatch block definitions to their respective processors."""
-    media.require_user(user_id)
-    master_items_list: List[Dict[str, Any]] = []
+class MixResolutionResult:
+    def __init__(self, rows: Optional[List[Dict[str, Any]]] = None, warnings: Optional[List[str]] = None, log: Optional[List[str]] = None):
+        self.rows = rows or []
+        self.warnings = warnings or []
+        self.log = log or []
+        self.total_duration_ticks = sum(int(r.get("RunTimeTicks") or r.get("runtime_ticks") or 0) for r in self.rows)
+        self.total_count = len(self.rows)
 
-    for i, block in enumerate(blocks, 1):
-        block_type = block.get("type")
-        if block_type == "tv" or (block_type == "vibe" and block.get("vibe_type") == "tv"):
-            master_items_list.extend(_process_tv_block(block, user_id, media, log_messages, i))
-        elif block_type == "movie" or (block_type == "vibe" and block.get("vibe_type") == "movie"):
-            master_items_list.extend(_process_movie_block(block, user_id, media, log_messages, i))
-        elif block_type == "music":
-            master_items_list.extend(_process_music_block(block, user_id, media, log_messages, i))
-        elif block_type == "mirror" or block_type == "echo":
-            master_items_list.extend(_process_mirror_block(block, user_id, media, log_messages, i))
-        elif block_type == "curated":
-            master_items_list.extend(_process_curated_block(block, user_id, media, log_messages, i))
+    @property
+    def total_items(self) -> int:
+        return self.total_count
 
-    return master_items_list
+    @property
+    def total_duration_minutes(self) -> int:
+        return int(self.total_duration_ticks / 10_000_000 / 60)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "rows": self.rows,
+            "data": self.rows,
+            "warnings": self.warnings,
+            "log": self.log,
+            "total_count": self.total_count,
+            "total_duration_ticks": self.total_duration_ticks,
+            "total_duration_formatted": format_duration_ticks(self.total_duration_ticks)
+        }
 
 
-def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]]:
-    """Format items into a display-friendly preview with episode numbers, years, and artist context."""
-    formatted_list = []
-    for item in items:
-        item_id = item.get("Id")
-        item_type = item.get("Type")
-        name = item.get("Name", "Unknown")
-        context = ""
+def format_item_for_display(item: Dict[str, Any]) -> Dict[str, Any]:
+    """Format item with title, context, runtime, and unique occurrence identity."""
+    item_id = item.get("Id") or item.get("media_id")
+    item_type = item.get("Type") or item.get("media_type") or "Unknown"
+    name = item.get("Name") or item.get("name") or "Unknown"
+    context = item.get("context") or ""
 
+    if not context:
         if item_type == "Episode":
             s_num = item.get("ParentIndexNumber", 0)
             e_num = item.get("IndexNumber", 0)
@@ -377,15 +400,350 @@ def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]
             if year := item.get("ProductionYear"):
                 name = f"{name} ({year})"
         elif item_type == "Audio":
-            artist = ", ".join([a["Name"] for a in item.get("ArtistItems", [])])
+            artist = ", ".join([a["Name"] for a in item.get("ArtistItems", []) if isinstance(a, dict) and a.get("Name")])
             album = item.get("Album", "")
             if artist and album:
                 context = f"{artist} — {album}"
             elif artist:
                 context = artist
+    elif item_type == "Movie" and "(" not in name:
+        if year := item.get("ProductionYear"):
+            name = f"{name} ({year})"
 
-        formatted_list.append({"Id": item_id, "name": name, "context": context})
+    runtime_ticks = item.get("RunTimeTicks") or item.get("runtime_ticks") or 0
 
+    return {
+        "entry_id": item.get("entry_id") or uuid.uuid4().hex,
+        "Id": item_id,
+        "media_id": str(item_id) if item_id else "",
+        "Name": name,
+        "name": name,
+        "context": context,
+        "Type": item_type,
+        "media_type": item_type,
+        "RunTimeTicks": runtime_ticks,
+        "runtime_ticks": runtime_ticks,
+        "source_block_id": item.get("source_block_id") or "",
+        "source_series_id": item.get("SeriesId") or item.get("source_series_id") or "",
+        "selection_reason": item.get("selection_reason") or "Matched block filter criteria",
+        "raw_item": item.get("raw_item") or item
+    }
+
+
+def apply_sequencing(
+    rows_by_block: Dict[str, List[Dict[str, Any]]],
+    block_order: List[str],
+    seq_opt: Optional[Dict[str, Any]]
+) -> List[Dict[str, Any]]:
+    """Applies pure sequencing rules: sequential, round-robin, or weighted pattern."""
+    if not seq_opt:
+        ordered = []
+        for b_id in block_order:
+            ordered.extend(rows_by_block.get(b_id, []))
+        return ordered
+
+    mode = seq_opt.get("mode", "sequential")
+    exhaustion = seq_opt.get("exhaustion_policy", "continue")
+
+    if mode == "sequential":
+        ordered = []
+        for b_id in block_order:
+            ordered.extend(rows_by_block.get(b_id, []))
+        return ordered
+
+    if mode in ("round_robin", "interleave"):
+        queues = {b: list(rows_by_block.get(b, [])) for b in block_order}
+        active_blocks = [b for b in block_order if queues[b]]
+        ordered = []
+        while active_blocks:
+            to_remove = []
+            for b in list(active_blocks):
+                if queues[b]:
+                    ordered.append(queues[b].pop(0))
+                if not queues[b]:
+                    to_remove.append(b)
+            if exhaustion == "stop" and to_remove:
+                break
+            for b in to_remove:
+                if b in active_blocks:
+                    active_blocks.remove(b)
+        return ordered
+
+    if mode in ("weighted", "pattern") or seq_opt.get("pattern"):
+        pattern = seq_opt.get("pattern") or []
+        if not pattern:
+            pattern = [{"block_id": b, "take": 1} for b in block_order]
+
+        queues = {b: list(rows_by_block.get(b, [])) for b in block_order}
+        ordered = []
+        made_progress = True
+
+        while made_progress:
+            made_progress = False
+            for step in pattern:
+                b = step.get("block_id")
+                take = int(step.get("take", 1))
+                if b not in queues or not queues[b]:
+                    if exhaustion == "stop":
+                        made_progress = False
+                        break
+                    continue
+                for _ in range(take):
+                    if queues[b]:
+                        ordered.append(queues[b].pop(0))
+                        made_progress = True
+                    else:
+                        break
+
+        if exhaustion == "continue":
+            for b in block_order:
+                if b in queues and queues[b]:
+                    ordered.extend(queues[b])
+
+        return ordered
+
+    ordered = []
+    for b_id in block_order:
+        ordered.extend(rows_by_block.get(b_id, []))
+    return ordered
+
+
+def apply_duplicate_and_freshness(
+    rows: List[Dict[str, Any]],
+    dup_opt: Optional[Dict[str, Any]],
+    freshness_opt: Optional[Dict[str, Any]],
+    connection_id: str,
+    warnings: List[str],
+    series_key: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Applies cross-block duplicate suppression, franchise caps, and freshness cooldowns."""
+    dup_opt = dup_opt or {}
+    freshness_opt = freshness_opt or {}
+
+    dup_mode = dup_opt.get("mode", "suppress")
+    max_franchise = int(dup_opt.get("max_movies_per_franchise", 0) or 0)
+
+    # 1. Freshness exclusion
+    history_builds = int(freshness_opt.get("last_successful_builds", 0) or 0)
+    history_scope = freshness_opt.get("history_scope", "series")
+    exhaustion_policy = freshness_opt.get("exhaustion_policy", "shorter")
+
+    history_media_ids: Set[str] = set()
+    if history_builds > 0 and connection_id:
+        history_media_ids = build_history.get_history_media_ids(
+            connection_id=connection_id,
+            scope=history_scope,
+            last_n_builds=history_builds,
+            series_key=series_key
+        )
+
+    watched_within_days = int(freshness_opt.get("watched_within_days", 0) or 0)
+    cutoff_dt = None
+    if watched_within_days > 0:
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=watched_within_days)
+
+    filtered_candidates = []
+    excluded_by_history = []
+
+    for r in rows:
+        mid = str(r.get("media_id") or r.get("Id") or "")
+        raw = r.get("raw_item") or {}
+
+        # Check watched within days
+        if cutoff_dt:
+            last_played = (raw.get("UserData") or {}).get("LastPlayedDate")
+            if last_played:
+                try:
+                    # Emby/Jellyfin ISO timestamps
+                    lp_dt = datetime.fromisoformat(last_played.replace("Z", "+00:00"))
+                    if lp_dt >= cutoff_dt:
+                        continue
+                except Exception:
+                    pass
+
+        # Check history cooldown
+        if history_media_ids and mid in history_media_ids:
+            excluded_by_history.append(r)
+            continue
+
+        filtered_candidates.append(r)
+
+    # Exhaustion handling
+    if not filtered_candidates and excluded_by_history:
+        if exhaustion_policy == "relax_cooldown":
+            warnings.append("Recommendation cooldown relaxed due to candidate exhaustion.")
+            filtered_candidates = excluded_by_history
+        else:
+            warnings.append(f"Excluded {len(excluded_by_history)} items due to recent build history cooldown.")
+
+    # 2. Duplicate suppression and franchise caps
+    seen_ids = set()
+    franchise_counts: Dict[str, int] = {}
+    result = []
+
+    for r in filtered_candidates:
+        mid = str(r.get("media_id") or r.get("Id") or "")
+        if dup_mode == "suppress":
+            if mid in seen_ids:
+                continue
+            seen_ids.add(mid)
+
+        if max_franchise > 0 and (r.get("Type") == "Movie" or r.get("media_type") == "Movie"):
+            raw = r.get("raw_item") or {}
+            franchise = raw.get("SeriesName") or raw.get("CollectionName") or ""
+            if not franchise and ":" in r.get("Name", ""):
+                franchise = r.get("Name", "").split(":")[0]
+            if franchise:
+                f_key = franchise.strip().lower()
+                if franchise_counts.get(f_key, 0) >= max_franchise:
+                    continue
+                franchise_counts[f_key] = franchise_counts.get(f_key, 0) + 1
+
+        result.append(r)
+
+    return result
+
+
+def apply_runtime_budget(
+    rows: List[Dict[str, Any]],
+    budget_opt: Optional[Dict[str, Any]],
+    warnings: List[str]
+) -> List[Dict[str, Any]]:
+    """Applies whole-mix time budget limits."""
+    if not budget_opt:
+        return rows
+
+    mode = budget_opt.get("mode", "off")
+    if mode == "off":
+        return rows
+
+    target_minutes = int(budget_opt.get("target_minutes", 0) or 0)
+    allowed_overrun = int(budget_opt.get("allowed_overrun_minutes", 15) or 15)
+
+    if mode == "end_time":
+        end_time_str = budget_opt.get("end_local_time")
+        if end_time_str:
+            try:
+                now = datetime.now()
+                parts = [int(p) for p in end_time_str.split(":")]
+                target_dt = now.replace(hour=parts[0], minute=parts[1], second=0, microsecond=0)
+                if target_dt <= now:
+                    target_dt += timedelta(days=1)
+                target_minutes = int((target_dt - now).total_seconds() / 60)
+            except Exception as e:
+                logging.warning(f"Could not parse end_local_time '{end_time_str}': {e}")
+
+    if target_minutes <= 0:
+        return rows
+
+    max_allowed_ticks = (target_minutes + allowed_overrun) * 600_000_000
+    accumulated_ticks = 0
+    accepted_rows = []
+
+    for r in rows:
+        ticks = int(r.get("RunTimeTicks") or r.get("runtime_ticks") or 0)
+        if ticks <= 0:
+            accepted_rows.append(r)
+            continue
+        if accumulated_ticks + ticks <= max_allowed_ticks:
+            accepted_rows.append(r)
+            accumulated_ticks += ticks
+        else:
+            warnings.append(
+                f"Excluded '{r.get('Name') or r.get('name')}' to respect runtime budget of {target_minutes}m (total reached {accumulated_ticks // 600_000_000}m)"
+            )
+
+    return accepted_rows
+
+
+@media_operation
+def resolve_mix(
+    user_id: str,
+    blocks: List[Dict[str, Any]],
+    media: client.MediaClient,
+    log_messages: Optional[List[str]] = None,
+    mix_options: Optional[Dict[str, Any]] = None,
+    series_key: Optional[str] = None
+) -> MixResolutionResult:
+    """Core transformation engine converting blocks + mix_options into resolved rows with provenance."""
+    media.require_user(user_id)
+    if log_messages is None:
+        log_messages = []
+    warnings: List[str] = []
+
+    mix_opt = mix_options or {}
+    freshness_opt = mix_opt.get("freshness") or {}
+    dup_opt = mix_opt.get("duplicate_policy") or {}
+    seq_opt = mix_opt.get("sequencing") or {}
+    budget_opt = mix_opt.get("runtime_budget") or {}
+
+    rows_by_block: Dict[str, List[Dict[str, Any]]] = {}
+    block_order: List[str] = []
+
+    for i, block in enumerate(blocks, 1):
+        block_id = block.get("block_id") or block.get("_uid") or f"block_{i}"
+        block_order.append(block_id)
+        block_type = block.get("type")
+
+        raw_items: List[Dict[str, Any]] = []
+        if block_type == "tv" or (block_type == "vibe" and block.get("vibe_type") == "tv"):
+            raw_items = _process_tv_block(block, user_id, media, log_messages, i)
+        elif block_type == "movie" or (block_type == "vibe" and block.get("vibe_type") == "movie"):
+            raw_items = _process_movie_block(block, user_id, media, log_messages, i)
+        elif block_type == "music":
+            raw_items = _process_music_block(block, user_id, media, log_messages, i)
+        elif block_type == "mirror" or block_type == "echo":
+            raw_items = _process_mirror_block(block, user_id, media, log_messages, i)
+        elif block_type == "curated":
+            raw_items = _process_curated_block(block, user_id, media, log_messages, i)
+
+        block_rows = []
+        for item in raw_items:
+            formatted = format_item_for_display(item)
+            formatted["source_block_id"] = block_id
+            formatted["raw_item"] = item
+            formatted["selection_reason"] = f"Resolved from block '{block.get('title') or block_type}'"
+            block_rows.append(formatted)
+
+        rows_by_block[block_id] = block_rows
+
+    ordered_rows = apply_sequencing(rows_by_block, block_order, seq_opt)
+    ordered_rows = apply_duplicate_and_freshness(
+        ordered_rows, dup_opt, freshness_opt, media.connection.id, warnings, series_key
+    )
+    ordered_rows = apply_runtime_budget(ordered_rows, budget_opt, warnings)
+
+    return MixResolutionResult(rows=ordered_rows, warnings=warnings, log=log_messages)
+
+
+@media_operation
+def generate_items_from_blocks(
+    user_id: str,
+    blocks: List[Dict[str, Any]],
+    media: client.MediaClient,
+    log_messages: List[str],
+    mix_options: Optional[Dict[str, Any]] = None
+) -> List[Dict[str, Any]]:
+    """Dispatch block definitions to their respective processors with provenance resolution."""
+    resolution = resolve_mix(user_id=user_id, blocks=blocks, media=media, log_messages=log_messages, mix_options=mix_options)
+    return [r.get("raw_item") or r for r in resolution.rows]
+
+
+def format_items_for_preview(items: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    """Format items into a display-friendly preview with episode numbers, years, and artist context."""
+    formatted_list = []
+    for item in items:
+        formatted = format_item_for_display(item)
+        formatted_list.append({
+            "Id": formatted["Id"],
+            "media_id": formatted["media_id"],
+            "entry_id": formatted["entry_id"],
+            "name": formatted["Name"],
+            "Name": formatted["Name"],
+            "context": formatted["context"],
+            "Type": formatted["Type"],
+            "source_block_id": formatted["source_block_id"]
+        })
     return formatted_list
 
 
@@ -404,33 +762,100 @@ def format_duration_ticks(ticks: int) -> str:
     return f"{minutes}m"
 
 
-def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[str, Any]], media: client.MediaClient) -> Dict[str, Any]:
-    """Create a new playlist from resolved block items."""
+def create_mixed_playlist(
+    user_id: str,
+    playlist_name: str,
+    blocks: List[Dict[str, Any]],
+    media: client.MediaClient,
+    mix_options: Optional[Dict[str, Any]] = None,
+    trigger_source: str = "manual",
+    schedule_id: Optional[str] = None,
+    preset_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Create a new playlist from resolved block items, recording build history."""
     log_messages: List[str] = []
-    master_items = generate_items_from_blocks(user_id, blocks, media, log_messages)
-    master_item_ids = [item["Id"] for item in master_items if item.get("Id")]
+    run_id = build_history.record_build_start(
+        connection_id=media.connection.id,
+        operation="playlist",
+        user_id=user_id,
+        trigger_source=trigger_source,
+        schedule_id=schedule_id,
+        preset_id=preset_id,
+        series_key=preset_id or schedule_id or playlist_name,
+        definition_snapshot={"blocks": blocks, "mix_options": mix_options}
+    )
+
+    resolution = resolve_mix(
+        user_id=user_id,
+        blocks=blocks,
+        media=media,
+        log_messages=log_messages,
+        mix_options=mix_options,
+        series_key=preset_id or schedule_id or playlist_name
+    )
+    master_item_ids = [item.get("media_id") or item.get("Id") for item in resolution.rows if (item.get("media_id") or item.get("Id"))]
 
     if not master_item_ids:
         log_messages.append("No items were found to add. Playlist not created.")
-        return {"status": "error", "log": log_messages}
+        build_history.record_build_finish(run_id=run_id, output_id=None, outcome="error", summary="No items found to add", rows=[])
+        return {"status": "error", "log": log_messages, "warnings": resolution.warnings}
 
     new_item_id = items_api.create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, media=media, log=log_messages)
+    outcome = "ok" if new_item_id else "error"
+    build_history.record_build_finish(
+        run_id=run_id,
+        output_id=new_item_id,
+        outcome=outcome,
+        summary=f"Created playlist '{playlist_name}' with {len(resolution.rows)} items",
+        rows=resolution.rows
+    )
+
     return {
-        "status": "ok" if new_item_id else "error",
+        "status": outcome,
         "log": log_messages,
-        "new_item_id": new_item_id
+        "warnings": resolution.warnings,
+        "new_item_id": new_item_id,
+        "run_id": run_id
     }
 
 
-def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str, Any]], media: client.MediaClient) -> Dict[str, Any]:
-    """Add items from block definitions to an existing playlist."""
+def add_items_to_playlist(
+    user_id: str,
+    playlist_id: str,
+    blocks: List[Dict[str, Any]],
+    media: client.MediaClient,
+    mix_options: Optional[Dict[str, Any]] = None,
+    trigger_source: str = "manual",
+    schedule_id: Optional[str] = None,
+    preset_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Add items from block definitions to an existing playlist, recording build history."""
     log_messages: List[str] = []
-    master_items = generate_items_from_blocks(user_id, blocks, media, log_messages)
-    master_item_ids = [item["Id"] for item in master_items if item.get("Id")]
+    run_id = build_history.record_build_start(
+        connection_id=media.connection.id,
+        operation="playlist_append",
+        user_id=user_id,
+        trigger_source=trigger_source,
+        schedule_id=schedule_id,
+        preset_id=preset_id,
+        series_key=preset_id or schedule_id or playlist_id,
+        definition_snapshot={"blocks": blocks, "mix_options": mix_options}
+    )
+
+    resolution = resolve_mix(
+        user_id=user_id,
+        blocks=blocks,
+        media=media,
+        log_messages=log_messages,
+        mix_options=mix_options,
+        series_key=preset_id or schedule_id or playlist_id
+    )
+    master_item_ids = [item.get("media_id") or item.get("Id") for item in resolution.rows if (item.get("media_id") or item.get("Id"))]
 
     if not master_item_ids:
         log_messages.append("No items were found to add. No changes made.")
-        return {"status": "error", "log": log_messages}
+        build_history.record_build_finish(run_id=run_id, output_id=playlist_id, outcome="error", summary="No items found to add", rows=[])
+        return {"status": "error", "log": log_messages, "warnings": resolution.warnings}
 
     success = items_api.add_items_to_playlist_by_ids(
         playlist_id=playlist_id,
@@ -440,7 +865,18 @@ def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str,
         log=log_messages
     )
 
+    outcome = "ok" if success else "error"
+    build_history.record_build_finish(
+        run_id=run_id,
+        output_id=playlist_id,
+        outcome=outcome,
+        summary=f"Appended {len(resolution.rows)} items to playlist {playlist_id}",
+        rows=resolution.rows
+    )
+
     return {
-        "status": "ok" if success else "error",
-        "log": log_messages
+        "status": outcome,
+        "log": log_messages,
+        "warnings": resolution.warnings,
+        "run_id": run_id
     }

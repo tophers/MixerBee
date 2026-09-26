@@ -14,7 +14,7 @@ from contextvars import ContextVar
 from app.media_client import current_media, media_operation
 from .tools import AVAILABLE_TOOLS, tools_for_connection
 from app.logger import get_logger, refresh_logger_level
-from .vector_store import media_collection
+from .vector_store import media_collection, compose_document
 from .. import items as items_api
 from ..builder import format_duration_ticks
 from models import AiTweaks
@@ -776,7 +776,7 @@ def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None, existi
         ai_tweaks_context.reset(token)
 
 @media_operation
-def process_enrichment_queue(batch_size: int, timeout: int, *, media=None) -> Dict[str, Any]:
+def process_enrichment_queue(batch_size: int, timeout: int, *, media=None, stop_event=None) -> Dict[str, Any]:
     """Pulls a batch of un-enriched media, calls the LLM for vibe tags, and updates the Vector DB."""
     refresh_logger_level()
     logger.info(f"--- STARTING METADATA ENRICHMENT (Batch: {batch_size}) ---")
@@ -794,13 +794,35 @@ def process_enrichment_queue(batch_size: int, timeout: int, *, media=None) -> Di
         ids = unprocessed['ids']
         metadatas = unprocessed['metadatas']
         success_count = 0
+        processed_count = 0
 
         for i, item_id in enumerate(ids):
+            if stop_event and getattr(stop_event, "is_set", lambda: False)():
+                logger.info("Enrichment batch interrupted by stop event.")
+                break
+
+            processed_count += 1
             meta = metadatas[i]
             title = meta.get('name', 'Unknown')
             overview = meta.get('overview', 'No summary available.')
-            logger.info(f"Enriching [{i+1}/{len(ids)}]: {title}")
-            prompt = f"Analyze Title: '{title}' Summary: '{overview}'. Return 5-12 highly specific vibe tags in English ONLY for visual style, emotional tone, and pacing. Avoid generic filler (e.g., 'action', 'intense', 'fast-paced') unless absolute defining traits. Focus on unique descriptors (e.g., 'noir', 'brutalist', 'melancholic'). If summary is brief, provide fewer tags. Output strictly as JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}."
+            m_type = meta.get('type', '')
+            logger.info(f"Enriching [{i+1}/{len(ids)}]: {title} ({m_type})")
+
+            if m_type in ("MusicAlbum", "Album"):
+                artist = meta.get('artist', 'Unknown')
+                prompt = (
+                    f"Analyze Music Album Title: '{title}', Artist: '{artist}', Genres: '{meta.get('genres', '')}', "
+                    f"Summary: '{overview}'. Return 5-12 highly specific vibe tags in English ONLY for musical style, "
+                    f"emotional mood, tempo, and sonic texture (e.g., 'dream-pop', 'melancholic', 'acoustic', 'driving-bass', 'lo-fi'). "
+                    f"Output strictly as JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}."
+                )
+            else:
+                prompt = (
+                    f"Analyze Title: '{title}' Summary: '{overview}'. Return 5-12 highly specific vibe tags in English "
+                    f"ONLY for visual style, emotional tone, and pacing. Avoid generic filler (e.g., 'action', 'intense', 'fast-paced') "
+                    f"unless absolute defining traits. Focus on unique descriptors (e.g., 'noir', 'brutalist', 'melancholic'). "
+                    f"If summary is brief, provide fewer tags. Output strictly as JSON: {{\"tags\": [\"tag1\", \"tag2\"]}}."
+                )
 
             schema = {
                 "type": "object",
@@ -848,16 +870,24 @@ def process_enrichment_queue(batch_size: int, timeout: int, *, media=None) -> Di
                 if vibe_tags_str:
                     meta['is_enriched'] = True
                     meta['vibe_tags'] = vibe_tags_str
-                    text_to_embed = f"Title: {title}. Year: {meta.get('year')}. Type: {meta.get('type')}. Genres: {meta.get('genres')}. Style: {vibe_tags_str}. Summary: {overview}"
+                    text_to_embed = compose_document(
+                        title=title,
+                        year=str(meta.get('year', '')),
+                        media_type=meta.get('type', ''),
+                        genres=meta.get('genres', ''),
+                        vibe_tags=vibe_tags_str,
+                        overview=overview,
+                        artist=meta.get('artist', '')
+                    )
                     media_collection.update(ids=[item_id], metadatas=[meta], documents=[text_to_embed])
                     success_count += 1
                     logger.info(f"  -> Tags: {vibe_tags_str}")
             except Exception as e:
                 logger.error(f"  -> Failed to enrich {title}: {e}")
 
-        log_msg = f"Enrichment batch complete. Successfully processed {success_count}/{len(ids)} items."
+        log_msg = f"Enrichment batch complete. Successfully processed {success_count}/{processed_count} items."
         logger.info(log_msg)
-        return {"status": "ok", "processed": len(ids), "success": success_count, "log": [log_msg]}
+        return {"status": "ok", "processed": processed_count, "success": success_count, "log": [log_msg]}
     except Exception as e:
         logger.error(f"Enrichment queue failed: {e}", exc_info=True)
         return {"status": "error", "log": [str(e)]}

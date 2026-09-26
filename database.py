@@ -63,4 +63,6 @@ def init_db():
         accounts.initialize_schema(conn)
         from connections import initialize_schema
         initialize_schema(conn)
+        from app.build_history import init_history_schema
+        init_history_schema(conn)
         conn.commit()

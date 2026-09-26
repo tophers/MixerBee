@@ -64,5 +64,26 @@ export const SMART_BUILD_TYPES = [
         icon: 'film',
         description: 'Highest critic-rated movies you haven\'t seen.',
         schedulable: true
+    },
+    {
+        type: 'artist_spotlight',
+        name: 'Artist Spotlight',
+        icon: 'music',
+        description: 'Top songs from a selected artist.',
+        schedulable: true
+    },
+    {
+        type: 'genre_sampler',
+        name: 'Music Genre Sampler',
+        icon: 'music',
+        description: 'Random songs from a selected music genre.',
+        schedulable: true
+    },
+    {
+        type: 'album_roulette',
+        name: 'Album Roulette',
+        icon: 'disc',
+        description: 'All tracks from an album in sequence.',
+        schedulable: true
     }
 ];

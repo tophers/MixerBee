@@ -93,7 +93,7 @@ def get_manageable_items(user_id: str, media: client.MediaClient) -> List[Dict]:
     params = {
         "Recursive": "true",
         "IncludeItemTypes": "Playlist,BoxSet,Collection",
-        "Fields": "ChildCount,DateCreated",
+        "Fields": "ChildCount,DateCreated,RunTimeTicks",
     }
     r = media.get(f"/Users/{user_id}/Items", params=params, timeout=15)
     r.raise_for_status()
@@ -104,8 +104,18 @@ def get_manageable_items(user_id: str, media: client.MediaClient) -> List[Dict]:
         item["ItemCount"] = item.get("ChildCount", 0)
         item_type = item.get("Type")
         item["DisplayType"] = "Collection" if item_type in ["BoxSet", "Collection"] else "Playlist"
+        item_id = item.get("Id")
+        item["ServerUrl"] = media.item_url(item_id) if item_id else ""
+        ticks = item.get("RunTimeTicks", 0) or 0
+        if ticks > 0:
+            total_minutes = int(ticks / 10_000_000 / 60)
+            hours, minutes = divmod(total_minutes, 60)
+            item["FormattedRuntime"] = f"{hours}h {minutes}m" if hours else f"{minutes}m"
+        else:
+            item["FormattedRuntime"] = ""
 
     return items
+
 
 def remove_item_from_collection(collection_id: str, item_id: str, media: client.MediaClient) -> bool:
     """
@@ -714,37 +724,95 @@ def delete_collection(name: str, user_id: str, media: client.MediaClient, log: L
     """Deletes a collection by its name, checking for both Emby and Jellyfin types."""
     _delete_item_by_name(name, "BoxSet,Collection", user_id, media, log)
 
+def resolve_collection_selection(filters: Dict[str, Any], user_id: str, media: client.MediaClient) -> List[str]:
+    """Resolves matching movie IDs for a collection before modifying server state."""
+    found_movies = find_movies(user_id=user_id, filters=filters, media=media)
+    return [movie["Id"] for movie in found_movies if movie.get("Id")]
+
 def create_movie_collection(user_id: str, collection_name: str, filters: Dict, media: client.MediaClient) -> Dict:
-    """Creates a movie collection from a set of movie filters."""
-    log = []
+    """
+    Non-destructive collection build:
+    1. Resolves candidate movie selection first; refuses if empty (leaving existing collection intact).
+    2. Captures prior membership for rollback if recreate is necessary.
+    3. Tries in-place membership update (preserving collection ID) before falling back to recreate.
+    4. Distinguishes 'replaced', 'refused', and 'failed' outcomes.
+    """
+    log: List[str] = []
     try:
-        delete_collection(collection_name, user_id, media, log)
-        found_movies = find_movies(user_id=user_id, filters=filters, media=media)
-        if not found_movies:
-            log.append("No movies found matching the specified filters. Collection not created.")
-            return {"status": "ok", "log": log}
-        item_ids = [movie["Id"] for movie in found_movies]
-        log.append(f"Found {len(item_ids)} movies matching filters.")
-        params = {
-            "Name": collection_name,
-            "Ids": ",".join(item_ids),
-            "UserId": user_id,
-        }
-        request_headers = {"Content-Type": "application/json"}
-        r = media.post("/Collections", params=params, data="{}", headers=request_headers, timeout=15)
-        r.raise_for_status()
-        new_item_id = r.json().get("Id")
-        msg = f"Successfully created collection '{collection_name}' with {len(item_ids)} items."
-        logger.info(msg)
-        log.append(msg)
-        return {"status": "ok", "log": log, "new_item_id": new_item_id}
+        new_ids = resolve_collection_selection(filters, user_id, media)
+        if not new_ids:
+            msg = "No movies found matching collection filters. Collection build refused; existing collection left unchanged."
+            log.append(msg)
+            logger.info(msg)
+            return {"status": "refused", "log": log, "collection_name": collection_name}
+
+        log.append(f"Resolved {len(new_ids)} movies for collection '{collection_name}'.")
+
+        existing_collections = get_collections(user_id, media)
+        existing = next((c for c in existing_collections if (c.get("Name") or "").strip().lower() == collection_name.strip().lower()), None)
+
+        if existing:
+            collection_id = existing["Id"]
+            old_children = get_item_children(user_id, collection_id, media)
+            old_ids = [c["Id"] for c in old_children if c.get("Id")]
+
+            # Try in-place replacement
+            to_remove = [x for x in old_ids if x not in new_ids]
+            to_add = [x for x in new_ids if x not in old_ids]
+
+            in_place_success = True
+            if to_remove:
+                del_resp = media.delete(f"/Collections/{collection_id}/Items", params={"Ids": ",".join(to_remove)}, timeout=15)
+                if not del_resp.ok:
+                    in_place_success = False
+            if in_place_success and to_add:
+                add_resp = media.post(f"/Collections/{collection_id}/Items", params={"Ids": ",".join(to_add)}, timeout=15)
+                if not add_resp.ok:
+                    in_place_success = False
+
+            if in_place_success:
+                msg = f"Successfully updated collection '{collection_name}' in-place with {len(new_ids)} items (server ID preserved)."
+                logger.info(msg)
+                log.append(msg)
+                return {"status": "replaced", "log": log, "new_item_id": collection_id}
+
+            # Fallback to delete-and-recreate with restore capability
+            logger.warning(f"In-place collection update not fully supported for '{collection_name}'; falling back to recreate with rollback protection.")
+            delete_collection(collection_name, user_id, media, log)
+            new_id = create_collection_from_ids(user_id, collection_name, new_ids, media, log)
+            if new_id:
+                msg = f"Successfully recreated collection '{collection_name}' with {len(new_ids)} items."
+                log.append(msg)
+                return {"status": "replaced", "log": log, "new_item_id": new_id}
+
+            # Attempt rollback
+            logger.error(f"Recreate failed for '{collection_name}'. Attempting restore of {len(old_ids)} prior items...")
+            restored_id = create_collection_from_ids(user_id, collection_name, old_ids, media, log)
+            if restored_id:
+                msg = f"CRITICAL: Failed to recreate collection, but successfully restored original {len(old_ids)} members."
+                logger.warning(msg)
+                log.append(msg)
+                return {"status": "failed", "log": log}
+            else:
+                msg = f"CRITICAL: Failed to recreate collection '{collection_name}' and restore failed. Collection may be missing."
+                logger.error(msg)
+                log.append(msg)
+                return {"status": "failed", "log": log}
+
+        # Brand new collection
+        new_id = create_collection_from_ids(user_id, collection_name, new_ids, media, log)
+        if new_id:
+            msg = f"Successfully created collection '{collection_name}' with {len(new_ids)} items."
+            log.append(msg)
+            return {"status": "replaced", "log": log, "new_item_id": new_id}
+        else:
+            return {"status": "failed", "log": log}
+
     except Exception as e:
-        error_message = f"Failed to create collection: {e}"
+        error_message = f"Failed to build collection: {e}"
         log.append(error_message)
-        logger.error(error_message)
-        if hasattr(e, 'response') and e.response is not None:
-            logger.error(f"Response Body: {e.response.text}")
-        return {"status": "error", "log": log}
+        logger.error(error_message, exc_info=True)
+        return {"status": "failed", "log": log}
 
 def create_collection_from_ids(user_id: str, collection_name: str, item_ids: List[str], media: client.MediaClient, log: List[str]) -> str:
     """Creates a collection directly from a list of explicit item IDs."""

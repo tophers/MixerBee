@@ -1254,9 +1254,53 @@ svg.mb-icon,
 .ai-badge-icon { color: var(--accent); width: 16px; margin-right: 4px; }
 .ai-badge-icon svg { color: var(--accent); }
 
-.action-bar-stack { display: flex; flex-direction: column; align-items: stretch; gap: 0.8rem; padding: 0.8rem 1rem; }
-.action-bar-row { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; align-items: center; }
-.action-bar-footer { display: flex; flex-wrap: wrap; gap: 0.8rem; align-items: flex-start; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.8rem; }
+.action-bar-stack { display: flex; flex-direction: column; align-items: stretch; gap: 0.65rem; padding: 0.65rem 1rem; }
+.action-bar-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.action-bar-row .button-group {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+}
+.action-bar-row button {
+  padding: 0.42rem 0.65rem;
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  position: relative;
+}
+.action-bar-row button svg.mb-icon,
+.action-bar-row .dropdown-container button svg.mb-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.btn-active-rules {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+.active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-block;
+  margin-left: 2px;
+  flex-shrink: 0;
+}
+.action-bar-footer { display: flex; flex-wrap: nowrap; gap: 0.6rem; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 0.65rem; }
 .action-bar-pill { height: 32px; border: 1px solid var(--border-color); min-width: 140px; }
 /* Builder Layout Specific Extras */
 #mixed-playlist-blocks .placeholder-text { text-align: center; color: var(--text-placeholder); padding: 3rem 1rem; border: 2px dashed var(--border-color); border-radius: var(--radius); margin-bottom: 1rem; }
@@ -1298,6 +1342,11 @@ svg.mb-icon,
 /* Media Queries */
 @media (min-width: 681px) {
   .hide-desktop { display: none; }
+}
+
+@media (min-width: 681px) and (max-width: 780px) {
+  .hide-compact { display: none; }
+  .action-bar-row button { padding: 0.4rem 0.5rem; font-size: 0.8rem; gap: 0.25rem; }
 }
 
 @media (max-width: 680px) {
@@ -1342,16 +1391,57 @@ svg.mb-icon,
   .preset-controls .button-group { flex-direction: column; align-items: stretch; }
   .preset-controls .button-group button { width: 100%; text-align: center; }
 
-  #action-bar { padding: 0.5rem 0; }
-  .action-bar-content { display: flex; flex-direction: column; gap: 0.8rem; }
-  .action-bar-content .build-options-container { flex-basis: 100%; order: 1; gap: 0.8rem; }
-  .action-bar-content .build-options-container > select { flex-grow: 1; }
-  
-  .action-bar-checkbox-label { flex-basis: 100%; order: 4; justify-content: center; margin-left: 0; padding: 0.5rem 0 0 0; border-top: 1px solid var(--border-color); }
-  
-  #generate-mixed-playlist-btn { grid-column: span 2; order: 5; height: 50px; font-size: 1.1rem; margin-top: 0.5rem; }
-  #preview-playlist-btn { order: 3; }
-  .action-bar-pill { min-width: 120px; font-size: 0.8rem; }
+  #action-bar { padding: 0.4rem 0; }
+  .action-bar-stack { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+  .action-bar-row {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 0.35rem;
+  }
+  .action-bar-row .button-group {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    align-items: center;
+  }
+  .action-bar-row button {
+    padding: 0.5rem;
+    min-width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    font-size: 1rem;
+  }
+  .action-bar-row button svg.mb-icon,
+  .action-bar-row .dropdown-container button svg.mb-icon {
+    width: 18px;
+    height: 18px;
+  }
+  .action-bar-row .active-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    margin: 0;
+  }
+  .action-bar-footer {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--border-color);
+    padding-top: 0.5rem;
+  }
+  .action-bar-pill { min-width: 110px; height: 34px; font-size: 0.8rem; }
+  .action-bar-footer select { font-size: 0.95rem; padding: 0.5rem 0.5rem; }
+  .action-bar-footer button { min-width: 80px; height: 34px; font-size: 0.95rem; padding: 0.5rem 0.8rem; }
 
   .episode-inputs input[type="number"] { padding: 0.6rem 0.3rem; font-size: 1.1rem; }
   table { font-size: 0.9rem; }

@@ -6,6 +6,7 @@ import { BLOCK_TYPES, WATCH_STATUS } from './definitions.js';
 export function ensureBlockState(block, library) {
     if (!block) return;
     if (!block._uid) block._uid = generateUUID();
+    if (!block.block_id) block.block_id = generateUUID();
 
     if (block._previewCount === undefined) block._previewCount = 0;
     if (block._previewItems === undefined) block._previewItems = [];
@@ -154,4 +155,137 @@ export function createEchoBlock(item) {
     };
     ensureBlockState(block);
     return block;
+}
+
+/**
+ * Whitelist serialization of a block definition, omitting UI transient flags
+ * (_previewItems, _loading, _expanded, _uid, etc.).
+ */
+export function serializeBlockDefinition(block) {
+    if (!block) return null;
+    const base = {
+        block_id: block.block_id || block._uid || generateUUID(),
+        type: block.type
+    };
+
+    if (block.type === BLOCK_TYPES.TV) {
+        return {
+            ...base,
+            mode: block.mode || 'count',
+            count: block.count ?? 3,
+            interleave: block.interleave ?? true,
+            shows: (block.shows || []).map(s => ({
+                id: s.id,
+                name: s.name,
+                season: s.season ?? 1,
+                episode: s.episode ?? 1,
+                unwatched: s.unwatched ?? true,
+                count: s.count ?? 1
+            }))
+        };
+    }
+
+    if (block.type === BLOCK_TYPES.MOVIE) {
+        const f = block.filters || {};
+        return {
+            ...base,
+            isSnapshot: !!block.isSnapshot,
+            filters: {
+                parent_ids: f.parent_ids || [],
+                genres_any: f.genres_any || [],
+                genres_all: f.genres_all || [],
+                genres_exclude: f.genres_exclude || [],
+                people: f.people || [],
+                people_all: f.people_all || [],
+                exclude_people: f.exclude_people || [],
+                studios: f.studios || [],
+                exclude_studios: f.exclude_studios || [],
+                watched_status: f.watched_status || WATCH_STATUS.ALL,
+                sort_by: f.sort_by || 'Random',
+                year_from: f.year_from ?? 1900,
+                year_to: f.year_to ?? (new Date().getFullYear() + 2),
+                release_within_days: f.release_within_days ?? 0,
+                count: f.count,
+                duration_minutes: f.duration_minutes,
+                min_runtime_minutes: f.min_runtime_minutes,
+                max_runtime_minutes: f.max_runtime_minutes,
+                min_community_rating: f.min_community_rating,
+                favorites_only: f.favorites_only,
+                allowed_content_ratings: f.allowed_content_ratings,
+                audio_languages: f.audio_languages,
+                subtitle_languages: f.subtitle_languages,
+                ids: f.ids || []
+            }
+        };
+    }
+
+    if (block.type === BLOCK_TYPES.MUSIC) {
+        return {
+            ...base,
+            music: {
+                mode: block.music?.mode || 'album',
+                count: block.music?.count ?? 10,
+                filters: block.music?.filters ? { ...block.music.filters } : { sort_by: 'Random', limit: 25, genres: [], genre_match: 'any' }
+            }
+        };
+    }
+
+    if (block.type === BLOCK_TYPES.MIRROR) {
+        const f = block.filters || {};
+        return {
+            ...base,
+            limit: block.limit ?? 10,
+            threshold: block.threshold ?? 0.65,
+            filters: {
+                seeds_positive: f.seeds_positive || [],
+                seeds_negative: f.seeds_negative || [],
+                mixed_echo: !!f.mixed_echo,
+                include_seeds: !!f.include_seeds,
+                ids: f.ids || []
+            }
+        };
+    }
+
+    if (block.type === BLOCK_TYPES.CURATED) {
+        return {
+            ...base,
+            playback_order: block.playback_order || 'movies_first',
+            tv_interleave: !!block.tv_interleave,
+            movies: (block.movies || []).map(m => ({ id: m.id || m.Id, name: m.name || m.Name })),
+            shows: (block.shows || []).map(s => ({
+                id: s.id,
+                name: s.name,
+                season: s.season ?? 1,
+                episode: s.episode ?? 1,
+                count: s.count ?? 1,
+                unwatched: s.unwatched ?? true
+            })),
+            filters: { ids: block.filters?.ids || [] }
+        };
+    }
+
+    if (block.type === BLOCK_TYPES.VIBE) {
+        return {
+            ...base,
+            vibe_type: block.vibe_type || BLOCK_TYPES.MOVIE,
+            prompt: block.prompt || '',
+            count: block.count ?? 10,
+            filters: block.filters ? { ...block.filters } : {}
+        };
+    }
+
+    // Default fallback
+    return { ...base };
+}
+
+/**
+ * Serialize full mix definition including version and top-level mix_options.
+ */
+export function serializeMixDefinition(mixState) {
+    if (!mixState) return { schema_version: 1, blocks: [], mix_options: {} };
+    return {
+        schema_version: 1,
+        blocks: (mixState.blocks || []).map(serializeBlockDefinition).filter(Boolean),
+        mix_options: mixState.mix_options ? JSON.parse(JSON.stringify(mixState.mix_options)) : {}
+    };
 }

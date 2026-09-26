@@ -186,16 +186,21 @@ def api_music_preview_count(req: models.MusicFinderRequest, auth_deps: dict = De
 def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
         media = media_for_user(auth_deps, req.user_id)
-        items = core.generate_items_from_blocks(req.user_id, req.blocks, media, [])
-        formatted_items = core.format_items_for_preview(items)
-
-        total_duration_ticks = sum((item.get("RunTimeTicks") or 0) for item in items)
+        resolution = core.resolve_mix(
+            user_id=req.user_id,
+            blocks=req.blocks,
+            media=media,
+            mix_options=req.mix_options
+        )
+        formatted_items = core.format_items_for_preview([r.get("raw_item") or r for r in resolution.rows])
 
         return {
             "status": "ok",
             "data": formatted_items,
-            "total_duration_ticks": total_duration_ticks,
-            "total_duration_formatted": core.format_duration_ticks(total_duration_ticks)
+            "rows": resolution.rows,
+            "warnings": resolution.warnings,
+            "total_duration_ticks": resolution.total_duration_ticks,
+            "total_duration_formatted": core.format_duration_ticks(resolution.total_duration_ticks)
         }
     except HTTPException:
         raise
@@ -237,7 +242,8 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
             user_id=req.user_id,
             playlist_name=req.playlist_name,
             blocks=req.blocks,
-            media=media
+            media=media,
+            mix_options=req.mix_options
         )
 
     if new_item_id := result.get("new_item_id"):
@@ -253,7 +259,8 @@ def api_add_items_to_playlist(playlist_id: str, req: models.AddItemsRequest, aut
             user_id=req.user_id,
             playlist_id=playlist_id,
             blocks=req.blocks,
-            media=media
+            media=media,
+            mix_options=req.mix_options
         )
         return result
     except HTTPException:

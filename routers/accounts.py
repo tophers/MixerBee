@@ -2,7 +2,9 @@
 import time
 from urllib.parse import quote, urlencode, urlsplit
 
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 import accounts
@@ -261,3 +263,61 @@ def delete_connection(connection_id: str, request: Request, delete_data: bool = 
     delete_connection_collection(connection_id)
     return {'status': 'ok', 'connection_id': fallback_id,
             'log': [f'Removed connection, {preset_count} preset(s), and {len(schedule_ids)} schedule(s). Media-server items were not changed.']}
+
+
+@router.get('/api/backup/download')
+def download_backup(request: Request):
+    require_admin(request)
+    import app.backup as backup
+    archive_path = backup.create_backup_archive()
+    filename = archive_path.name
+    return FileResponse(
+        path=str(archive_path),
+        filename=filename,
+        media_type='application/zip',
+        headers={'X-MixerBee-Warning': 'Contains connection credentials and access keys.'}
+    )
+
+
+@router.post('/api/backup/inspect')
+async def inspect_backup(request: Request):
+    require_admin(request)
+    import app.backup as backup
+    import tempfile
+    import shutil
+    content = await request.body()
+    if not content:
+        raise HTTPException(400, "Empty backup archive body.")
+    temp_dir = Path(tempfile.mkdtemp(prefix="inspect_upload_"))
+    try:
+        temp_file = temp_dir / "backup.zip"
+        with open(temp_file, "wb") as f:
+            f.write(content)
+        return backup.inspect_backup_archive(temp_file)
+    except Exception as e:
+        raise HTTPException(400, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+@router.post('/api/backup/restore')
+async def restore_backup(request: Request):
+    require_admin(request)
+    import app.backup as backup
+    import tempfile
+    import shutil
+    content = await request.body()
+    if not content:
+        raise HTTPException(400, "Empty backup archive body.")
+    temp_dir = Path(tempfile.mkdtemp(prefix="restore_upload_"))
+    try:
+        temp_file = temp_dir / "backup.zip"
+        with open(temp_file, "wb") as f:
+            f.write(content)
+        return backup.restore_backup_archive(temp_file)
+    except Exception as e:
+        raise HTTPException(400, detail=str(e))
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+

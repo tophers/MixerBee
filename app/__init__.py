@@ -28,7 +28,9 @@ from .tv import (
 from .movies import (
     get_movie_libraries,
     get_movie_genres,
-    find_movies
+    find_movies,
+    matches_movie_constraints,
+    normalize_movie_filters
 )
 
 from .people import (
@@ -59,6 +61,7 @@ from .items import (
     get_collections,
     delete_collection,
     create_movie_collection,
+    resolve_collection_selection,
     delete_item_by_id,
     get_item_children,
     get_manageable_items,
@@ -80,6 +83,29 @@ from .builder import (
     create_mixed_playlist,
     add_items_to_playlist,
     generate_items_from_blocks,
+    resolve_mix,
+    MixResolutionResult,
     format_items_for_preview,
     format_duration_ticks
+)
+
+from . import build_history
+
+from .ai.vector_store import (
+    compose_document,
+    compute_metadata_fingerprint,
+    refresh_semantic_index
+)
+
+from .ai.enrichment_manager import (
+    start_enrichment,
+    stop_enrichment,
+    get_enrichment_status,
+    enrichment_guard
+)
+
+from .backup import (
+    create_backup_archive,
+    inspect_backup_archive,
+    restore_backup_archive
 )

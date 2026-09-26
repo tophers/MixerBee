@@ -18,13 +18,25 @@
                   style="font-size: 0.7rem; opacity: 0.8;"
                   x-text="(block._previewCount ?? 0) + ' Matches'">
             </span>
+            <span x-show="block._stale"
+                  class="badge badge-accent-light ml-xs"
+                  style="font-size: 0.65rem;"
+                  title="Block settings modified since last preview.">Stale</span>
         </h3>
 
         <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
             <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
             <div class="dropdown-menu z-dropdown" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
+                <template x-if="!block.isSnapshot">
+                    <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.reselectBlock(block._uid)">
+                        <span class="dropdown-icon" x-html="$store.icons.refresh"></span> Re-roll Selection
+                    </a>
+                </template>
                 <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.duplicateBlock(index)">
                     <span class="dropdown-icon" x-html="$store.icons.copy"></span> Duplicate
+                </a>
+                <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.saveBlockAsRecipe(block)">
+                    <span class="dropdown-icon" x-html="$store.icons.save"></span> Save as Recipe...
                 </a>
                 <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.deleteBlock(index)" style="color: var(--danger);">
                     <span class="dropdown-icon" x-html="$store.icons.trash"></span> Delete

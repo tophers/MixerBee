@@ -27,14 +27,7 @@ logger = get_logger("MixerBee.Scheduler")
 import logging
 logging.getLogger('apscheduler').setLevel(logging.INFO if app_state.VERBOSE_LOGGING else logging.WARNING)
 
-QUICK_PLAYLIST_MAP = {
-    "recently_added": items_api.create_recently_added_playlist,
-    "next_up": items_api.create_continue_watching_playlist,
-    "pilot_sampler": items_api.create_pilot_sampler_playlist,
-    "from_the_vault": items_api.create_forgotten_favorites_playlist,
-    "top_community_unwatched": items_api.create_top_community_unwatched_playlist,
-    "top_critic_unwatched": items_api.create_top_critic_unwatched_playlist,
-}
+from quick_playlist_registry import QUICK_PLAYLIST_MAP
 LEGACY_TYPE_MAP = {"continue_watching": "next_up", "forgotten_favorites": "from_the_vault"}
 
 def run_playlist_job(**schedule_data) -> Dict:
@@ -61,12 +54,19 @@ def run_playlist_job(**schedule_data) -> Dict:
         auth_data = get_auth_data(connection_id)
         media = auth_data["media"].require_user(user_id)
         if job_type == "enrichment":
-            from app.ai import process_enrichment_queue
+            from app.ai.enrichment_manager import enrichment_guard
             enrich_data = schedule_data.get("enrichment_data", {})
             batch_size = enrich_data.get("batch_size", 15)
             timeout = enrich_data.get("timeout", 120)
-            
-            result = process_enrichment_queue(batch_size=batch_size, timeout=timeout, media=media)
+
+            with enrichment_guard(connection_id) as acquired:
+                if not acquired:
+                    msg = f"Enrichment job skipped for connection {connection_id}: another enrichment process is currently running."
+                    logger.warning(msg)
+                    return {"status": "ok", "skipped": True, "log": [msg]}
+
+                from app.ai import process_enrichment_queue
+                result = process_enrichment_queue(batch_size=batch_size, timeout=timeout, media=media)
             
         else:
             import preset_manager as pm
@@ -154,8 +154,41 @@ def run_playlist_job(**schedule_data) -> Dict:
     return result
 
 # Cap on back-to-back reruns triggered by requests that arrive while a schedule is
+# Cap on back-to-back reruns triggered by requests that arrive while a schedule is
 # already running, so a heavy burst of webhook events can't loop indefinitely.
 MAX_RERUN_PASSES = 3
+
+def is_automatic_run_allowed(schedule: Dict, source: str, now: Optional[datetime] = None) -> bool:
+    """
+    Unified policy check for whether an execution triggered by `source` is permitted.
+    Manual runs ("manual") are always permitted even if paused/snoozed.
+    """
+    if source == "manual":
+        return True
+    if schedule.get("enabled", True) is False:
+        return False
+
+    snoozed_until_str = schedule.get("snoozed_until")
+    if snoozed_until_str:
+        try:
+            from datetime import timezone
+            now_dt = now or datetime.now(timezone.utc)
+            if now_dt.tzinfo is None:
+                now_dt = now_dt.replace(tzinfo=timezone.utc)
+            snooze_dt = datetime.fromisoformat(snoozed_until_str.replace("Z", "+00:00"))
+            if snooze_dt.tzinfo is None:
+                snooze_dt = snooze_dt.replace(tzinfo=timezone.utc)
+            if now_dt < snooze_dt:
+                return False
+        except Exception:
+            pass
+
+    trigger_sources = schedule.get("trigger_sources")
+    if trigger_sources is not None and isinstance(trigger_sources, list):
+        if source not in trigger_sources:
+            return False
+
+    return True
 
 def _run_once_and_record(schedule_data: Dict, schedule_id: Optional[str]):
     result = run_playlist_job(**schedule_data)
@@ -169,6 +202,7 @@ def _run_once_and_record(schedule_data: Dict, schedule_id: Optional[str]):
 
 def scheduled_job_wrapper(**schedule_data):
     schedule_id = schedule_data.get("id")
+    source = schedule_data.get("trigger_source", "clock")
 
     # Cron runs, webhook-triggered runs, and manual "Run Now" runs all funnel through
     # here, so guarding on the schedule id here is enough to keep any two runs of the
@@ -176,6 +210,15 @@ def scheduled_job_wrapper(**schedule_data):
     if not schedule_id:
         logger.warning("scheduled_job_wrapper received schedule data with no 'id'; running unguarded.")
         _run_once_and_record(schedule_data, None)
+        return
+
+    # Execution-time policy recheck:
+    current_schedule = scheduler_manager.schedules.get(schedule_id, schedule_data)
+    if not is_automatic_run_allowed(current_schedule, source):
+        logger.info(
+            f"Execution skipped for schedule '{schedule_id}': automatic run not allowed for source '{source}' "
+            f"(enabled={current_schedule.get('enabled', True)}, snoozed_until={current_schedule.get('snoozed_until')})."
+        )
         return
 
     lock = scheduler_manager._get_schedule_lock(schedule_id)
@@ -187,6 +230,13 @@ def scheduled_job_wrapper(**schedule_data):
     try:
         current_data = schedule_data
         for pass_num in range(1, MAX_RERUN_PASSES + 1):
+            if pass_num > 1:
+                # Recheck policy before queued rerun pass
+                current_data = scheduler_manager.schedules.get(schedule_id, current_data)
+                if not is_automatic_run_allowed(current_data, source):
+                    logger.info(f"Aborting pending rerun for '{schedule_id}': schedule state changed to paused/snoozed.")
+                    break
+
             _run_once_and_record(current_data, schedule_id)
 
             if not scheduler_manager._consume_rerun_pending(schedule_id):
@@ -203,6 +253,7 @@ def scheduled_job_wrapper(**schedule_data):
             current_data = scheduler_manager.schedules.get(schedule_id, current_data)
     finally:
         lock.release()
+
 
 class Scheduler:
     def __init__(self):
@@ -323,42 +374,43 @@ class Scheduler:
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
                     "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
-                    "create_as_collection": schedule_data.get("create_as_collection", False)
+                    "create_as_collection": schedule_data.get("create_as_collection", False),
+                    "mix_options": schedule_data.get("mix_options"),
+                    "enabled": schedule_data.get("enabled", True),
+                    "snoozed_until": schedule_data.get("snoozed_until"),
+                    "trigger_sources": schedule_data.get("trigger_sources", ["clock", "watch", "library"]),
+                    "timezone": schedule_data.get("timezone"),
                 }
                 conn.execute("UPDATE schedules SET config_data = ? WHERE id = ?", (json.dumps(config_payload), schedule_id))
                 conn.commit()
         except Exception as e:
             logger.error(f"Failed to update schedule config in DB for {schedule_id}: {e}", exc_info=True)
 
-    def run_schedule_now(self, schedule_id: str) -> Optional[Dict]:
-        if not (schedule_data := self.schedules.get(schedule_id)): return None
+    def enqueue_schedule_run(self, schedule_id: str, source: str = "clock") -> Optional[Dict]:
+        if not (schedule_data := self.schedules.get(schedule_id)):
+            return None
 
-        # Stable id (not a per-call unique one) so a request that arrives while an
-        # earlier one is still queued replaces it instead of stacking alongside it.
-        # This only dedupes the *queued* case; the per-schedule lock in
-        # scheduled_job_wrapper is what prevents two already-dispatched runs of the
-        # same schedule from executing at once.
+        if not is_automatic_run_allowed(schedule_data, source):
+            logger.info(f"Skipping enqueue for schedule '{schedule_id}': source '{source}' not allowed.")
+            return {"status": "skipped", "reason": "not_allowed"}
+
         job_id = f"run_{schedule_id}"
+        job_data = dict(schedule_data)
+        job_data["trigger_source"] = source
 
         try:
             self.scheduler.add_job(
                 func=scheduled_job_wrapper,
                 trigger='date',
                 run_date=datetime.now(),
-                kwargs=schedule_data,
+                kwargs=job_data,
                 id=job_id,
-                name=f"Manual Run: {schedule_data.get('playlist_name', 'Unnamed Schedule')}",
+                name=f"{source.capitalize()} Run: {schedule_data.get('playlist_name', 'Unnamed Schedule')}",
                 replace_existing=True,
-                # The default executor is a 10-worker thread pool (unconfigured/default
-                # in this app); a webhook fan-out queues one of these per schedule, and
-                # rebuilds can run 30-60s+ against a large library. A tight grace period
-                # would let APScheduler discard a job that's merely waiting for a free
-                # worker as "misfired" - silently skipping the exact rebuild this whole
-                # change exists to guarantee.
                 misfire_grace_time=300
             )
-            
-            logger.info(f"Successfully queued background run for schedule {schedule_id}")
+
+            logger.info(f"Successfully queued background run ({source}) for schedule {schedule_id}")
             return {
                 "status": "ok",
                 "log": [f"Execution started for '{schedule_data.get('playlist_name', 'Unnamed')}'."]
@@ -369,6 +421,50 @@ class Scheduler:
                 "status": "error",
                 "log": [f"Failed to queue background job: {str(e)}"]
             }
+
+    def run_schedule_now(self, schedule_id: str, source: Optional[str] = None) -> Optional[Dict]:
+        if source is None:
+            try:
+                from routers.webhooks import get_current_webhook_category
+                webhook_cat = get_current_webhook_category()
+                source = webhook_cat if webhook_cat else "manual"
+            except Exception:
+                source = "manual"
+        return self.enqueue_schedule_run(schedule_id, source=source)
+
+    def pause_schedule(self, schedule_id: str) -> bool:
+        if schedule_id not in self.schedules:
+            return False
+        sched = self.schedules[schedule_id]
+        sched["enabled"] = False
+        self._update_schedule_config_in_db(schedule_id, sched)
+        logger.info(f"Paused schedule {schedule_id}")
+        return True
+
+    def resume_schedule(self, schedule_id: str) -> bool:
+        if schedule_id not in self.schedules:
+            return False
+        sched = self.schedules[schedule_id]
+        sched["enabled"] = True
+        sched["snoozed_until"] = None
+        self._update_schedule_config_in_db(schedule_id, sched)
+        logger.info(f"Resumed schedule {schedule_id}")
+        return True
+
+    def snooze_schedule(self, schedule_id: str, minutes: Optional[int] = 60, until: Optional[str] = None) -> bool:
+        if schedule_id not in self.schedules:
+            return False
+        sched = self.schedules[schedule_id]
+        from datetime import timezone, timedelta
+        if until:
+            snooze_until_iso = until
+        else:
+            mins = minutes if (minutes and minutes > 0) else 60
+            snooze_until_iso = (datetime.now(timezone.utc) + timedelta(minutes=mins)).isoformat()
+        sched["snoozed_until"] = snooze_until_iso
+        self._update_schedule_config_in_db(schedule_id, sched)
+        logger.info(f"Snoozed schedule {schedule_id} until {snooze_until_iso}")
+        return True
 
     def start(self):
         self.scheduler.add_job(
@@ -381,7 +477,24 @@ class Scheduler:
         )
 
         self.schedules = self._load_schedules()
+        from datetime import timezone
+        now_utc = datetime.now(timezone.utc)
+
         for schedule_id, schedule_data in self.schedules.items():
+            # Startup reconciliation: check if snooze has expired
+            snoozed_until = schedule_data.get("snoozed_until")
+            if snoozed_until:
+                try:
+                    snooze_dt = datetime.fromisoformat(snoozed_until.replace("Z", "+00:00"))
+                    if snooze_dt.tzinfo is None:
+                        snooze_dt = snooze_dt.replace(tzinfo=timezone.utc)
+                    if now_utc >= snooze_dt:
+                        schedule_data["snoozed_until"] = None
+                        self._update_schedule_config_in_db(schedule_id, schedule_data)
+                        logger.info(f"Reconciled expired snooze for schedule {schedule_id}.")
+                except Exception:
+                    pass
+
             trigger = self._get_trigger(schedule_data)
             if not schedule_data.get("connection_id"):
                 logger.warning("Schedule %s has no verified connection; leaving it inactive.", schedule_id)
@@ -417,7 +530,12 @@ class Scheduler:
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
                     "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
-                    "create_as_collection": schedule_data.get("create_as_collection", False)
+                    "create_as_collection": schedule_data.get("create_as_collection", False),
+                    "mix_options": schedule_data.get("mix_options"),
+                    "enabled": schedule_data.get("enabled", True),
+                    "snoozed_until": schedule_data.get("snoozed_until"),
+                    "trigger_sources": schedule_data.get("trigger_sources", ["clock", "watch", "library"]),
+                    "timezone": schedule_data.get("timezone"),
                 }
                 conn.execute(
                     "INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data, connection_id, preset_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -455,7 +573,12 @@ class Scheduler:
                     "quick_playlist_data": schedule_data.get("quick_playlist_data"),
                     "enrichment_data": schedule_data.get("enrichment_data"),
                     "schedule_details": schedule_data.get("schedule_details"),
-                    "create_as_collection": schedule_data.get("create_as_collection", False)
+                    "create_as_collection": schedule_data.get("create_as_collection", False),
+                    "mix_options": schedule_data.get("mix_options"),
+                    "enabled": schedule_data.get("enabled", True),
+                    "snoozed_until": schedule_data.get("snoozed_until"),
+                    "trigger_sources": schedule_data.get("trigger_sources", ["clock", "watch", "library"]),
+                    "timezone": schedule_data.get("timezone"),
                 }
                 conn.execute(
                     """

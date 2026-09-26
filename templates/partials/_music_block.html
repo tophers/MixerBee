@@ -4,9 +4,7 @@
          x-init="
             $store.mixer.ensureBlockState(block);
             if(block.music && block.music.artistId) {
-                fetch(`api/music/artists/${block.music.artistId}/albums`)
-                    .then(res => res.json())
-                    .then(data => { albums = data; });
+                $store.mixer.loadArtistAlbums(block.music.artistId).then(data => { albums = data; });
             }
          ">
         <details class="mixed-block" :open="index === $store.mixer.blocks.length - 1">
@@ -90,7 +88,7 @@
                             <div x-show="block.music?.mode !== 'genre'" class="flex-column gap-md">
                                 <div class="search-and-select w-full">
                                     <input type="search" placeholder="Search artists..." x-model="artistSearch" class="mb-sm">
-                                    <select x-model="block.music.artistId" @change="block.music.albumId = ''; if($el.value) fetch(`api/music/artists/${$el.value}/albums`).then(r => r.json()).then(d => { albums = d; })">
+                                    <select x-model="block.music.artistId" @change="block.music.albumId = ''; if($el.value) $store.mixer.loadArtistAlbums($el.value).then(d => { albums = d; })">
                                         <option value="">-- Select Artist --</option>
                                         <template x-for="a in $store.mixer.library.artistData" :key="a.Id">
                                             <option :value="a.Id" x-text="a.Name" x-show="!artistSearch || a.Name.toLowerCase().includes(artistSearch.toLowerCase())"></option>
