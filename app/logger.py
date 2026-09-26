@@ -25,7 +25,7 @@ def refresh_logger_level(target_logger: logging.Logger = None):
     """Updates the logging level based on the global VERBOSE_LOGGING toggle."""
     import app_state
     
-    level = logging.INFO if app_state.VERBOSE_LOGGING else logging.WARNING
+    level = logging.INFO if getattr(app_state, "VERBOSE_LOGGING", False) else logging.WARNING
     
     if target_logger:
         target_logger.setLevel(level)

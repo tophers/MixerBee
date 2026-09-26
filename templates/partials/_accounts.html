@@ -1,0 +1,85 @@
+<div class="modal-overlay account-modal-overlay" x-show="$store.settings.accountOpen" x-cloak>
+    <div class="modal-window account-modal" @click.outside="$store.settings.accountOpen = false">
+        <div class="modal-header"><h2>Account settings</h2><button type="button" class="icon-btn" aria-label="Close account settings" @click="$store.settings.accountOpen = false">&times;</button></div>
+        <div class="modal-body">
+            <div class="account-summary">
+                <span class="account-avatar account-avatar-large" x-text="($store.settings.account?.username || '?').charAt(0).toUpperCase()"></span>
+                <div><strong x-text="$store.settings.account.username"></strong><span x-text="$store.settings.account.is_admin ? 'Installation owner' : 'Household member'"></span></div>
+            </div>
+            <form @submit.prevent="$store.settings.changePassword($event.submitter)">
+                <fieldset class="filter-group account-section"><legend>Change password</legend>
+                    <label class="control-item"><span>Current password</span><input type="password" x-model="$store.settings.currentPassword" autocomplete="current-password" required maxlength="256"></label>
+                    <label class="control-item"><span>New password (at least 10 characters)</span><input type="password" x-model="$store.settings.nextPassword" autocomplete="new-password" required minlength="10" maxlength="256"></label>
+                    <p class="account-help">Changing your password signs out every browser session. Scheduled jobs keep running.</p>
+                    <button class="account-form-submit" type="submit">Change password</button>
+                </fieldset>
+            </form>
+            <div x-show="$store.settings.account.is_admin" class="mt-md">
+                <fieldset class="filter-group account-section"><legend>Webhook administration</legend>
+                    <label class="control-item">
+                        <span>MixerBee URL reachable by media servers</span>
+                        <div class="input-with-button">
+                            <input type="url" x-model="$store.settings.webhook_public_base_url" placeholder="http://192.168.1.20:9000">
+                            <button type="button" class="secondary small" @click="$store.settings.saveWebhookBaseUrl($event.currentTarget)">Save</button>
+                        </div>
+                        <p class="account-help">Use the address Emby and Jellyfin can reach. Include any reverse-proxy path, but no API path or query string.</p>
+                    </label>
+
+                    <div class="account-section-heading webhook-request-heading">
+                        <h3>Setup requests</h3>
+                        <span x-text="$store.settings.webhookRequests.length + ' active'"></span>
+                    </div>
+                    <p class="account-help" x-show="!$store.settings.webhookRequests.length">No household webhook setup requests need attention.</p>
+                    <div class="webhook-request-list">
+                        <template x-for="request in $store.settings.webhookRequests" :key="request.connection_id">
+                            <article class="webhook-request-card">
+                                <div class="flex-row justify-between align-center gap-sm">
+                                    <div>
+                                        <strong x-text="request.connection_label || request.media_username"></strong>
+                                        <div class="webhook-request-meta">
+                                            <span x-text="request.mixerbee_username"></span>
+                                            <span>·</span>
+                                            <span x-text="request.server_type === 'jellyfin' ? 'Jellyfin' : 'Emby'"></span>
+                                            <span>·</span>
+                                            <span x-text="request.media_username"></span>
+                                        </div>
+                                    </div>
+                                    <span class="badge" :class="$store.settings.webhookStatusClass(request.status)" x-text="$store.settings.webhookStatusLabel(request.status)"></span>
+                                </div>
+                                <div class="webhook-request-server" x-text="request.server_url"></div>
+                                <label class="control-item mt-xs"><span>Webhook URL</span>
+                                    <div class="input-with-button">
+                                        <input type="text" readonly :value="request.webhook_url" @click="$el.select()">
+                                        <button type="button" class="secondary small" @click="$store.settings.copyToClipboard(request.webhook_url, 'Webhook URL')">Copy</button>
+                                    </div>
+                                </label>
+                                <details class="webhook-request-help">
+                                    <summary>Setup instructions</summary>
+                                    <p x-show="request.server_type === 'emby'">In Emby, add a Webhook notification for this media user. Use <code>application/json</code> and enable Playback Stop, Mark Played/Unplayed, and New Media Added.</p>
+                                    <p x-show="request.server_type === 'jellyfin'">In Jellyfin’s Webhook plugin, add a Generic Destination for this media user. Enable Item Added, Playback Stop, User Data Saved, and Send All Properties.</p>
+                                </details>
+                                <div class="flex-row justify-between align-center gap-sm mt-xs">
+                                    <small class="text-subtle" x-text="'Requested ' + new Date(request.requested_at * 1000).toLocaleString()"></small>
+                                    <button type="button" class="secondary small" x-show="request.status === 'setup_requested'" @click="$store.settings.acknowledgeWebhookRequest(request.connection_id, $event.currentTarget)">Mark installed</button>
+                                    <span class="text-subtle" x-show="request.status === 'waiting_for_event'">Waiting for an event…</span>
+                                </div>
+                            </article>
+                        </template>
+                    </div>
+                </fieldset>
+
+                <div class="account-section-heading"><h3>Household accounts</h3><span x-text="$store.settings.accounts.length + ' account' + ($store.settings.accounts.length === 1 ? '' : 's')"></span></div>
+                <ul class="account-list"><template x-for="member in $store.settings.accounts" :key="member.id"><li><span class="account-avatar" x-text="member.username.charAt(0).toUpperCase()"></span><strong x-text="member.username"></strong><span class="account-role" x-text="member.is_admin ? 'Owner' : 'Member'"></span></li></template></ul>
+                <form @submit.prevent="$store.settings.createAccount($event.submitter)">
+                    <fieldset class="filter-group account-section"><legend>Add a household member</legend>
+                        <label class="control-item"><span>Username</span><input type="text" x-model="$store.settings.newUsername" autocomplete="off" required maxlength="64" pattern="[A-Za-z0-9_.-]+"></label>
+                        <label class="control-item"><span>Initial password (at least 10 characters)</span><input type="password" x-model="$store.settings.newPassword" autocomplete="new-password" required minlength="10" maxlength="256"></label>
+                        <p class="account-help">New members start with an empty workspace and add their own media connections.</p>
+                        <button class="account-form-submit" type="submit">Create account</button>
+                    </fieldset>
+                </form>
+            </div>
+        </div>
+        <div class="modal-footer"><button type="button" class="secondary" @click="$store.settings.accountOpen = false">Done</button></div>
+    </div>
+</div>

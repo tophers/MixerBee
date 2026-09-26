@@ -163,7 +163,9 @@
                 <template x-for="c in ($store.manager.contentsModal.items || [])" :key="c.Id">
                     <li x-sort:item class="list-item-divider flex-row justify-between align-center" :data-id="c.Id || c.id">
                         <div class="flex-row align-center gap-md grow-1">
-                            <div class="drag-handle opacity-60" x-sort:handle x-html="$store.icons.move"></div>
+                            <div class="drag-handle opacity-60"
+                                 x-show="!['BoxSet', 'Collection'].includes($store.manager.contentsModal.parentItem?.Type) || $store.settings.can_manage_collections"
+                                 x-sort:handle x-html="$store.icons.move"></div>
                             <div>
                                 <div class="bold" x-text="c.Name || c.name"></div>
                                 <div class="text-subtle curated-preview-text" style="font-size: 0.8rem;">
@@ -181,6 +183,7 @@
                             </button>
                             <button type="button"
                                     class="secondary small icon-only btn-danger-outline"
+                                    x-show="!['BoxSet', 'Collection'].includes($store.manager.contentsModal.parentItem?.Type) || $store.settings.can_manage_collections"
                                     @click="$store.manager.removeItem(c)"
                                     title="Remove from list"
                                     x-html="$store.icons.trash">
@@ -193,6 +196,7 @@
         <div class="modal-footer">
             <button type="button" class="secondary mr-auto" @click="$store.manager.contentsModal.isOpen = false">Close</button>
             <button type="button" class="primary"
+                    x-show="!['BoxSet', 'Collection'].includes($store.manager.contentsModal.parentItem?.Type) || $store.settings.can_manage_collections"
                     :disabled="!$store.manager.contentsModal.hasChanges"
                     @click="$store.manager.saveContentOrder($el)">
                 Save Order
@@ -384,11 +388,11 @@
      style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;">
     <div class="modal-window" @click.outside="if(!$store.modals.ollamaModels.isOpen) $store.settings.hide()">
         <div class="modal-header">
-            <h2>Settings</h2>
+            <h2 x-text="$store.settings.connection_id ? 'Connection settings' : 'Add connection'"></h2>
             <button class="icon-btn" @click="$store.settings.hide()">&times;</button>
         </div>
         <div class="modal-body">
-            <p class="mb-md">Configure your media server and AI preferences. Some changes will require a restart to apply.</p>
+            <p class="mb-md">Configure this connection’s media server and AI preferences. Changes apply without restarting MixerBee.</p>
             <div class="modal-form-layout">
                 <fieldset class="filter-group">
                     <legend>App</legend>
@@ -429,6 +433,7 @@
 
                 <fieldset class="filter-group mt-md">
                     <legend>Server Connection</legend>
+                    <label class="control-item"><span>Connection name</span><input type="text" x-model="$store.settings.label" maxlength="100" placeholder="e.g. My Emby server"></label>
                     <label class="control-item">
                         <span>Server Type</span>
                         <select x-model="$store.settings.server_type">
@@ -480,7 +485,7 @@
                             <label class="control-item">
                                 <span>Active Ollama Model</span>
                                 <div class="flex-row align-center gap-md">
-                                    <input type="text" x-model="$store.settings.ollama_model" readonly class="grow-1 opacity-70" style="cursor: default;">
+                                    <input type="text" x-model="$store.settings.ollama_model" class="grow-1">
                                     <button type="button" class="secondary small" @click="$store.modals.ollamaAction.show()">Manage Models...</button>
                                 </div>
                             </label>
@@ -495,74 +500,129 @@
 
                 <fieldset class="filter-group mt-md">
                     <legend>Integrations</legend>
-                    <label class="control-item">
-                        <span>External API Key</span>
-                        <div class="input-with-button">
-                            <input :type="$store.settings.is_external_key_visible ? 'text' : 'password'" x-model="$store.settings.external_api_key" placeholder="Set a key for external integrations">
-                            <button type="button" class="secondary small" @click="$store.settings.toggleExternalKeyVisibility()">
-                                <span x-html="$store.settings.is_external_key_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
-                            </button>
+                    <p x-show="!$store.settings.connection_id">Save this connection before configuring external integrations.</p>
+                    <div x-show="$store.settings.connection_id">
+                        <div class="flex-row align-center justify-between mt-xs mb-xs">
+                            <span class="bold" style="font-size: 0.9rem;">API Access</span>
+                            <span class="badge" :class="$store.settings.external_api_key_set ? 'badge-success' : 'badge-subtle'" x-text="$store.settings.external_api_key_set ? 'Enabled' : 'Disabled'"></span>
                         </div>
-                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
-                            Use this key in the <code>X-MixerBee-Key</code> header for external API access.
-                        </p>
-                    </label>
+                        <label class="control-item mt-sm">
+                            <span>External API Key</span>
+                            <div class="input-with-button">
+                                <input :type="$store.settings.is_external_key_visible ? 'text' : 'password'" x-model="$store.settings.external_api_key" placeholder="Not set — external API access disabled">
+                                <button type="button" class="secondary small" @click="$store.settings.toggleExternalKeyVisibility()">
+                                    <span x-html="$store.settings.is_external_key_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                                </button>
+                                <button type="button" class="secondary small" x-show="$store.settings.external_api_key" @click="$store.settings.copyToClipboard($store.settings.external_api_key, 'External API key')">Copy</button>
+                            </div>
+                            <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
+                                Use this key of at least 16 characters in the <code>X-MixerBee-Key</code> header for external scripts calling <code>/api/external/*</code> endpoints. Disabling the key blocks external access.
+                            </p>
+                            <div class="flex-row gap-sm mt-xs">
+                                <button type="button" class="secondary small" @click="$store.settings.saveExternalKey($event.currentTarget)">Save Key</button>
+                                <button type="button" class="secondary small" @click="$store.settings.regenerateExternalKey($event.currentTarget)">Generate Random</button>
+                                <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.external_api_key || $store.settings.external_api_key_set" @click="$store.settings.clearExternalKey($event.currentTarget)">Disable</button>
+                            </div>
+                        </label>
+                    </div>
                 </fieldset>
 
-                <fieldset class="filter-group mt-md">
-                    <legend>Access &amp; Security</legend>
+                <fieldset class="filter-group mt-md" x-data="{ showWebhookHelp: false }">
+                    <legend>Webhooks</legend>
+                    <p x-show="!$store.settings.connection_id">Save this connection before configuring webhooks.</p>
+                    <div x-show="$store.settings.connection_id">
+                        <div class="flex-row align-center justify-between mt-xs mb-xs">
+                            <div class="flex-row align-center gap-xs">
+                                <span class="bold" style="font-size: 0.9rem;">Live Synchronization</span>
+                                <div class="help-tooltip-container" tabindex="0" @click="showWebhookHelp = !showWebhookHelp" title="Click to pin setup guide">
+                                    <span class="icon-subtle" x-html="$store.icons.info"></span>
+                                    <div class="help-tooltip-popover">
+                                        <div class="bold mb-xs" style="color: var(--accent, #f5a623);">Emby Configuration</div>
+                                        <div class="mb-sm">
+                                            1. <strong>Settings → Notifications → Add Notification</strong><br>
+                                            2. Select <strong>Webhook</strong><br>
+                                            3. Paste the <strong>Webhook URL</strong> below<br>
+                                            4. Content Type: <code>application/json</code><br>
+                                            5. Events: <strong>Playback Stop</strong>, <strong>Mark Played/Unplayed</strong>, <strong>New Media Added</strong>
+                                        </div>
+                                        <div class="bold mb-xs" style="color: var(--accent, #f5a623);">Jellyfin Configuration</div>
+                                        <div>
+                                            1. <strong>Dashboard → Plugins → Webhook</strong><br>
+                                            2. Add Generic Destination with the <strong>Webhook URL</strong><br>
+                                            3. Check: <strong>Item Added</strong>, <strong>Playback Stop</strong>, <strong>User Data Saved</strong><br>
+                                            4. Enable: <strong>Send All Properties</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <span class="badge" :class="$store.settings.webhookStatusClass()" x-text="$store.settings.webhookStatusLabel()"></span>
+                        </div>
 
-                    <label class="control-item">
-                        <span>Access Key</span>
-                        <div class="input-with-button">
-                            <input :type="$store.settings.is_access_key_visible ? 'text' : 'password'" x-model="$store.settings.access_key" placeholder="Paste a custom key, or use Generate below">
-                            <button type="button" class="secondary small" @click="$store.settings.toggleAccessKeyVisibility()">
-                                <span x-html="$store.settings.is_access_key_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
-                            </button>
-                            <button type="button" class="secondary small" @click="$store.settings.copyToClipboard($store.settings.access_key, 'Access key')">Copy</button>
+                        <!-- Expandable / Pinned Webhook Guide -->
+                        <div x-show="showWebhookHelp" x-transition class="callout-info mb-sm mt-xs" style="font-size: 0.8rem; padding: 0.75rem; background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px;">
+                            <div class="flex-row justify-between align-center mb-xs">
+                                <strong style="color: var(--accent, #f5a623);">Webhook Setup Instructions</strong>
+                                <button type="button" class="icon-btn" style="padding:0; font-size:1.1rem; line-height:1;" @click="showWebhookHelp = false">&times;</button>
+                            </div>
+                            <div class="mb-xs"><strong>Emby:</strong> Server Settings → Notifications → Add Notification → Webhook. Paste this connection's full Webhook URL into the Webhook URL field. Set Request Content Type to <code>application/json</code>. Check: <em>Playback Stop</em>, <em>Mark Played/Unplayed</em>, and <em>New Media Added</em>.</div>
+                            <div><strong>Jellyfin:</strong> Dashboard → Plugins → Webhook → Add Destination. Paste this Webhook URL into the Webhook URL field. Check: <em>Item Added</em>, <em>Playback Stop</em>, <em>User Data Saved</em>. Ensure <em>Send All Properties</em> is checked.</div>
                         </div>
-                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
-                            <template x-if="$store.settings.is_access_key_set">
-                                <span>Required to use MixerBee's UI/API from any browser or device. This browser is already
-                                unlocked with it. Editing and saving here takes effect immediately (no restart) and updates
-                                this browser automatically — any other unlocked browser/device will need the new key.</span>
-                            </template>
-                            <template x-if="!$store.settings.is_access_key_set">
-                                <span>Not set — MixerBee is open to anyone who can reach it on your network. Set one to
-                                require it for the UI and API (except <code>/api/webhook</code>, see below).</span>
-                            </template>
-                        </p>
-                        <div class="flex-row gap-sm mt-xs">
-                            <button type="button" class="secondary small" @click="$store.settings.saveAccessKey($event.currentTarget)">Save Key</button>
-                            <button type="button" class="secondary small" @click="$store.settings.regenerateAccessKey($event.currentTarget)">Generate Random</button>
-                            <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.is_access_key_set" @click="$store.settings.clearAccessKey($event.currentTarget)">Disable</button>
-                        </div>
-                    </label>
 
-                    <label class="control-item mt-md">
-                        <span>Webhook Secret (optional)</span>
-                        <div class="input-with-button">
-                            <input :type="$store.settings.is_webhook_secret_visible ? 'text' : 'password'" x-model="$store.settings.webhook_secret" placeholder="Not set — /api/webhook accepts any request">
-                            <button type="button" class="secondary small" @click="$store.settings.toggleWebhookSecretVisibility()">
-                                <span x-html="$store.settings.is_webhook_secret_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                        <label class="control-item mt-sm">
+                            <span>Webhook Secret</span>
+                            <div class="input-with-button">
+                                <input :type="$store.settings.is_webhook_secret_visible ? 'text' : 'password'" x-model="$store.settings.webhook_secret" placeholder="Not set — webhooks disabled">
+                                <button type="button" class="secondary small" @click="$store.settings.toggleWebhookSecretVisibility()">
+                                    <span x-html="$store.settings.is_webhook_secret_visible ? $store.icons.eyeOff : $store.icons.eye"></span>
+                                </button>
+                                <button type="button" class="secondary small" x-show="$store.settings.getWebhookUrl()" @click="$store.settings.copyToClipboard($store.settings.getWebhookUrl(), 'Webhook URL')">Copy URL</button>
+                            </div>
+                            <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
+                                Generating a secret prepares the receiver, but live synchronization is connected only after the media server sends a valid event. Disabling the secret disables webhooks for this connection.
+                            </p>
+                            <div class="flex-row gap-sm mt-xs">
+                                <button type="button" class="secondary small" @click="$store.settings.saveWebhookSecret($event.currentTarget)">Save Secret</button>
+                                <button type="button" class="secondary small" @click="$store.settings.regenerateWebhookSecret($event.currentTarget)">Generate Random</button>
+                                <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.webhook_secret" @click="$store.settings.clearWebhookSecret($event.currentTarget)">Disable</button>
+                            </div>
+                        </label>
+
+                        <div x-show="$store.settings.webhook_secret && $store.settings.webhook_status !== 'connected'" class="webhook-status-callout mt-sm">
+                            <p x-show="$store.settings.webhook_status === 'setup_requested'">
+                                The MixerBee installation owner has been notified. A Jellyfin or Emby server administrator must add the URL below for this media user.
+                            </p>
+                            <p x-show="$store.settings.webhook_status === 'waiting_for_event'">
+                                The owner marked setup complete. MixerBee is waiting for the first valid media-server event to verify the connection.
+                            </p>
+                            <p x-show="$store.settings.webhook_status === 'needs_setup'">
+                                A Jellyfin or Emby server administrator must add the URL below before live synchronization will work.
+                            </p>
+                            <button type="button" class="secondary small"
+                                    x-show="!$store.settings.account.is_admin && $store.settings.webhook_status !== 'setup_requested'"
+                                    @click="$store.settings.requestWebhookSetup($event.currentTarget)">
+                                Notify MixerBee owner
                             </button>
-                            <button type="button" class="secondary small" x-show="$store.settings.webhook_secret" @click="$store.settings.copyToClipboard($store.settings.webhook_secret, 'Webhook secret')">Copy</button>
                         </div>
-                        <p class="text-subtle" style="font-size: 0.8em; margin-top: 0.25rem;">
-                            The Access Key above does NOT apply to <code>/api/webhook</code>, since Emby/Jellyfin notification
-                            plugins can't send custom headers. Set a secret here, then append
-                            <code>?token=&lt;secret&gt;</code> to the webhook URL in your Emby Notification config
-                            (Dashboard &gt; Notifications &gt; MixerBee) to require it. Leave unset to keep today's open behavior.
-                        </p>
-                        <div class="flex-row gap-sm mt-xs">
-                            <button type="button" class="secondary small" @click="$store.settings.saveWebhookSecret($event.currentTarget)">Save Secret</button>
-                            <button type="button" class="secondary small" @click="$store.settings.regenerateWebhookSecret($event.currentTarget)">Generate Random</button>
-                            <button type="button" class="secondary small btn-danger-outline" x-show="$store.settings.webhook_secret" @click="$store.settings.clearWebhookSecret($event.currentTarget)">Disable</button>
+                        <div x-show="$store.settings.webhook_status === 'connected'" class="webhook-connected-callout mt-sm">
+                            MixerBee has received a valid event from this media server. Live synchronization is connected.
                         </div>
-                    </label>
+
+                        <div x-show="$store.settings.getWebhookUrl()" class="mt-md">
+                            <label class="control-item">
+                                <div class="flex-row align-center justify-between">
+                                    <span>Media Server Webhook URL</span>
+                                    <span class="text-subtle" style="font-size: 0.75rem;">Paste into Emby / Jellyfin Webhook URL</span>
+                                </div>
+                                <div class="input-with-button">
+                                    <input type="text" readonly :value="$store.settings.getWebhookUrl()" @click="$el.select()">
+                                    <button type="button" class="secondary small" @click="$store.settings.copyToClipboard($store.settings.getWebhookUrl(), 'Webhook URL')">Copy URL</button>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                 </fieldset>
 
-                <fieldset class="filter-group mt-md danger-zone">
+                <fieldset x-show="$store.settings.connection_id" class="filter-group mt-md danger-zone">
                     <legend>Maintenance & Recovery</legend>
                     <div class="flex-column gap-sm">
                         <div class="flex-row justify-between align-center gap-md">
@@ -579,6 +639,14 @@
                                 Full Nuclear Reset
                             </button>
                         </div>
+                        <div class="divider mt-md mb-sm"></div>
+                        <div class="flex-row justify-between align-center gap-md mobile-column">
+                            <div class="grow-1">
+                                <div class="bold" style="font-size: 0.9rem;">Remove Connection</div>
+                                <div class="text-subtle" style="font-size: 0.75rem;">Deletes this connection's saved credentials, local presets, schedules, and AI index. Media-server playlists and collections are left in place.</div>
+                            </div>
+                            <button type="button" class="secondary small btn-danger-outline shrink-0" @click="$store.settings.removeConnection($event.currentTarget)">Remove</button>
+                        </div>
                     </div>
                 </fieldset>
             </div>
@@ -587,7 +655,7 @@
             <span x-text="'v' + $store.settings.version" class="mr-auto" style="font-size: 0.85rem; color: var(--text-subtle); font-family: monospace;"></span>
             <button type="button" class="secondary mr-auto" @click="$store.settings.testConnection($event.currentTarget)">Test Connection</button>
             <button type="button" class="secondary" @click="$store.settings.hide()">Cancel</button>
-            <button type="button" @click="$store.settings.saveSettings($event.currentTarget)">Save & Restart</button>
+            <button type="button" @click="$store.settings.saveSettings($event.currentTarget)">Save connection</button>
         </div>
     </div>
 </div>
@@ -601,6 +669,10 @@
         </div>
         <div class="modal-body">
             <p>Select a model to use for AI generation. Star your favorites to make them available in the builder's quick-switcher.</p>
+
+            <div class="callout-info mb-md" style="font-size: 0.85rem; padding: 0.6rem 0.85rem; background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px; margin-bottom: 1rem;">
+                <strong>Recommendation:</strong> Models with <strong>Tooling / Function Calling</strong> capabilities (such as <code>llama3.1+</code>, <code>qwen2.5+</code>, <code>mistral</code>, or <code>command-r</code>) are highly recommended if not required to construct valid smart playlist blocks. Simple chat-only or legacy models will struggle or fail to produce structured playlist blocks.
+            </div>
 
             <label class="control-item">
                 <div class="model-name-header">

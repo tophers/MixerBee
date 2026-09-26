@@ -152,14 +152,21 @@ export const managerStore = {
 
     async convertItem(item) {
         const uid = Alpine.store('settings').activeUserId;
+        const canManageCollections = Alpine.store('settings').can_manage_collections;
         const targetType = item.Type === 'Playlist' ? 'Collection' : 'Playlist';
+        if (targetType === 'Collection' && !canManageCollections) {
+            return toast('This media account cannot create collections.', false);
+        }
+        const deleteOriginal = targetType === 'Collection' || canManageCollections;
         try {
             await confirmModal.show({
-                title: `Convert to ${targetType}?`,
-                text: `Swap "${item.Name}" to a ${targetType}? Original will be deleted.`,
-                confirmText: 'Convert'
+                title: deleteOriginal ? `Convert to ${targetType}?` : 'Copy to Playlist?',
+                text: deleteOriginal
+                    ? `Swap "${item.Name}" to a ${targetType}? Original will be deleted.`
+                    : `Create a personal playlist from "${item.Name}"? The collection will remain unchanged.`,
+                confirmText: deleteOriginal ? 'Convert' : 'Copy'
             });
-            const res = await useApi(api.post(`api/convert_item`, { item_id: item.Id, user_id: uid, target_type: targetType, new_name: item.Name, delete_original: true }));
+            const res = await useApi(api.post(`api/convert_item`, { item_id: item.Id, user_id: uid, target_type: targetType, new_name: item.Name, delete_original: deleteOriginal }));
             if (res.status === 'ok') await this.load();
         } catch (e) { }
     },

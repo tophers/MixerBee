@@ -56,28 +56,32 @@
             
             <div x-init="$store.ai.fetchMoodDiscovery()">
                 <div class="textarea-wrapper">
-                    <textarea id="ai-prompt-input" rows="2" placeholder="e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone" x-model="$store.ai.prompt"></textarea>
+                    <textarea id="ai-prompt-input" rows="2"
+                              :placeholder="$store.mixer.blocks.some(b => b.is_ai_generated) ? 'e.g., make it more upbeat, or drop the slowest movie' : 'e.g., Gritty, neon-drenched 90s cyberpunk thrillers, followed by 3 episodes of The Twilight Zone'"
+                              x-model="$store.ai.prompt"></textarea>
                     <button type="button" class="icon-btn clear-btn" title="Clear text" x-cloak x-show="$store.ai.prompt.length > 0" @click="$store.ai.clearPrompt()">
                         <span x-html="$store.icons.xCircle"></span>
                     </button>
                 </div>
-                
-                <!-- Mood Discovery Slots -->
+
+                <!-- Mood Discovery Slots (prompt starters — hidden while refining an existing AI playlist) -->
+                <template x-if="!$store.mixer.blocks.some(b => b.is_ai_generated)">
+                <div>
                 <div class="mood-discovery-bar flex-row align-center gap-xs" x-show="$store.ai.activeMoods.length > 0" x-transition>
                     <span class="text-subtle mr-xs hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Mood: </span>
                     <div class="flex-row gap-xs grow-1 overflow-hidden">
                         <template x-for="(mood, i) in $store.ai.activeMoods" :key="'mood-'+i">
-                            <button type="button" 
-                                    class="mood-slot-btn" 
+                            <button type="button"
+                                    class="mood-slot-btn"
                                     @click="$store.ai.appendMood(i)"
                                     title="Click to add to prompt">
                                 <span class="mood-slot-text" x-text="mood"></span>
                             </button>
                         </template>
                     </div>
-                    <button type="button" 
-                            class="icon-btn mood-refresh-btn" 
-                            @click="$store.ai.refreshMoodSlots()" 
+                    <button type="button"
+                            class="icon-btn mood-refresh-btn"
+                            @click="$store.ai.refreshMoodSlots()"
                             :class="$store.ai.isLoadingMoods ? 'spin' : ''"
                             title="Refresh Moods">
                         <span x-html="$store.icons.refresh" style="--icon-size: 14px;"></span>
@@ -86,7 +90,9 @@
                 <div class="prompt-starter-overlay" x-show="$store.ai.prompt.length === 0 && $store.ai.samplePrompt" x-transition x-cloak>
                     <span class="text-subtle hide-mobile" style="font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em;">Try: </span>
                     <button type="button" class="link-btn mood-discovery-bar" @click="$store.ai.useSamplePrompt()" x-text="$store.ai.samplePrompt"></button>
-                </div> 
+                </div>
+                </div>
+                </template>
 
                 <div class="ai-prompt-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.75rem;">
                     
@@ -129,7 +135,7 @@
                             <span x-html="$store.icons.sliders"></span>
                         </button>
                         <button id="generate-with-ai-btn" type="button" class="secondary m-0" @click="$store.ai.generateWithAi()" :disabled="$store.ai.isGenerating">
-                            <span x-text="$store.ai.isGenerating ? 'Thinking...' : 'Generate with AI'"></span>
+                            <span x-text="$store.ai.isGenerating ? 'Thinking...' : ($store.mixer.blocks.some(b => b.is_ai_generated) ? 'Refine with AI' : 'Generate with AI')"></span>
                         </button>
                     </div>
                 </div>
@@ -193,7 +199,7 @@
                 </select>
                 <div class="toggle-pill action-bar-pill flex-basis-sync" x-show="$store.mixer.buildMode === 'create'" x-cloak>
                     <span class="pill-btn" :class="!$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = false">Playlist</span>
-                    <span class="pill-btn" :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
+                    <span class="pill-btn" x-show="$store.settings.can_manage_collections" x-cloak :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
                 </div>
                 <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1 flex-basis-sync" style="min-width: 0;">
                     <option value="">-- Target --</option>

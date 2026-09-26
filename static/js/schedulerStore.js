@@ -19,6 +19,7 @@ export const schedulerStore = {
                     return {
                         ...entry,
                         _uid: generateUUID(),
+                        preset_id: entry.preset_id || "",
                         job_type: entry.job_type || "builder",
                         playlist_name: entry.playlist_name || entry.preset_name || "Scheduled Mix",
                         user_id: entry.user_id || Alpine.store('settings').activeUserId || "",
@@ -43,15 +44,20 @@ export const schedulerStore = {
 
     async saveSchedule(entry, btnEl) {
         if (!entry) return;
+        if (entry.create_as_collection && !Alpine.store('settings').can_manage_collections) {
+            return toast('This media account cannot manage collections. Choose Playlist output.', false);
+        }
         const uid = Alpine.store('settings').activeUserId;
         let freq = entry.schedule_details.frequency;
         if (freq !== 'interval') freq = (entry.schedule_details?.days_of_week?.length === 7) ? "daily" : "weekly";
 
+        const presetId = entry.preset_id || "";
         const payload = {
             user_id: uid,
             job_type: entry.job_type || "builder",
             playlist_name: entry.playlist_name || "Scheduled Mix",
-            preset_name: entry.preset_name || "",
+            preset_id: presetId,
+            preset_name: presetId ? Alpine.store('presets').nameForId(presetId) : "",
             quick_playlist_data: entry.quick_playlist_data || null,
             enrichment_data: entry.enrichment_data || null,
             schedule_details: {
@@ -94,7 +100,7 @@ export const schedulerStore = {
     addEntry() {
         const newEntry = {
             id: null, _uid: generateUUID(), job_type: "builder", playlist_name: "New Scheduled Mix",
-            preset_name: "", user_id: Alpine.store('settings').activeUserId, create_as_collection: false,
+            preset_id: "", preset_name: "", user_id: Alpine.store('settings').activeUserId, create_as_collection: false,
             enrichment_data: { batch_size: 15, timeout: 120 },
             schedule_details: { time: "12:00", frequency: "daily", interval_minutes: 30, days_of_week: [0, 1, 2, 3, 4, 5, 6] }
         };

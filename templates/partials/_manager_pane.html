@@ -61,11 +61,13 @@
                                             x-html="$store.icons.eye"></button>
                                     <button type="button"
                                             class="secondary small icon-only"
+                                            x-show="item.Type !== 'Playlist' || $store.settings.can_manage_collections"
                                             @click="$store.manager.convertItem(item)"
-                                            title="Convert Type"
+                                            :title="item.Type === 'Playlist' ? 'Convert to Collection' : ($store.settings.can_manage_collections ? 'Convert to Playlist' : 'Copy to Playlist')"
                                             x-html="$store.icons.refresh"></button>
                                     <button type="button"
                                             class="secondary small icon-only danger-hover"
+                                            x-show="!['BoxSet', 'Collection'].includes(item.Type) || $store.settings.can_manage_collections"
                                             @click="$store.manager.deleteItem(item)"
                                             title="Delete Entire List"
                                             x-html="$store.icons.trash"></button>

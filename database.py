@@ -9,16 +9,18 @@ import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
 
-from app_state import CONFIG_DIR
+from runtime_paths import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "mixerbee.db"
 
 @contextmanager
 def get_db_connection():
     """Yields a database connection and guarantees it is closed afterward."""
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=10.0)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
     finally:
@@ -57,4 +59,8 @@ def init_db():
             )
         """)
         
+        import accounts
+        accounts.initialize_schema(conn)
+        from connections import initialize_schema
+        initialize_schema(conn)
         conn.commit()

@@ -1,229 +1,263 @@
-"""
-routers/config.py – APIRouter for configuration and settings management.
-"""
-
+"""Settings belong to the signed-in account's selected media connection."""
+import json
 import logging
-import os
 import secrets
-import sys
 import threading
 import time
-import requests
-import json
-from fastapi import APIRouter, HTTPException, Depends, Body
-from fastapi.responses import JSONResponse
+import uuid
 
+import requests
+from fastapi import APIRouter, HTTPException, Depends, Body, Request
+
+import accounts
 import app as core
-import models
-import app_state
 import database
+import models
+from connections import get_media_client, save_authenticated_connection, webhook_status
+from app.media_client import Connection, MediaClient
+from app.cache import refresh_cache
 from app.ai.vector_store import get_vector_space, reset_media_collection, index_library_for_vibes
-from .dependencies import get_current_auth_headers
+from .dependencies import get_current_auth_headers, owned_connection
 
 router = APIRouter()
 
-def _trigger_restart(delay: int = 2):
-    time.sleep(delay)
-    logging.warning("RESTART: Re-executing process.")
-    os.execv(sys.executable, [sys.executable] + sys.argv)
 
-@router.get("/api/config_status")
-def api_config_status():
-    if not app_state.is_configured:
-        app_state.load_and_authenticate()
-
-    return {
-        "is_configured": app_state.is_configured,
-        "is_ai_configured": bool(app_state.GEMINI_API_KEY or app_state.AI_PROVIDER == "ollama"),
-        "server_type": app_state.SERVER_TYPE,
-        "version": core.CLIENT_VERSION,
-        "ai_provider": app_state.AI_PROVIDER,
-        "ollama_model": app_state.OLLAMA_MODEL,
-        "starred_models": app_state.STARRED_MODELS,
-        "vector_space": get_vector_space(),
-        "access_key_set": bool(app_state.ACCESS_KEY)
-    }
-
-@router.get("/api/settings")
-def api_get_settings():
-    """Returns the current runtime settings to populate the UI."""
-    return {
-        "server_type": app_state.SERVER_TYPE or "emby",
-        "emby_url": core.EMBY_URL or "",
-        "emby_user": core.EMBY_USER or "",
-        "emby_pass": core.EMBY_PASS or "",
-        "ai_provider": app_state.AI_PROVIDER or "gemini",
-        "gemini_key": app_state.GEMINI_API_KEY or "",
-        "ollama_url": app_state.OLLAMA_URL or "http://localhost:11434",
-        "ollama_model": app_state.OLLAMA_MODEL or "qwen2.5:7b",
-        "ollama_timeout": app_state.OLLAMA_TIMEOUT or 120,
-        "starred_models": app_state.STARRED_MODELS,
-        "external_api_key": app_state.EXTERNAL_API_KEY or "",
-        "access_key": app_state.ACCESS_KEY or "",
-        "webhook_secret": app_state.WEBHOOK_SECRET or "",
-        "version": core.CLIENT_VERSION,
-        "vector_space": get_vector_space()
-    }
-
-@router.get("/api/auth/check")
-def api_auth_check():
-    """No-op endpoint the frontend pings to confirm a stored X-MixerBee-Key is still valid.
-    Reaching this handler at all already proves the access-key middleware accepted it."""
-    return {"status": "ok"}
-
-@router.post("/api/settings/access_key/regenerate")
-def api_regenerate_access_key(payload: dict = Body(default={})):
-    """Rotates (or sets a custom) access key that gates the whole API/UI. Takes effect
-    immediately, no restart."""
-    custom = (payload.get("key") or "").strip()
-    if custom and len(custom) < 8:
-        raise HTTPException(status_code=400, detail="Access key must be at least 8 characters.")
-
-    app_state.ACCESS_KEY = custom or secrets.token_urlsafe(24)
-    with database.get_db_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_ACCESS_KEY', ?)", (app_state.ACCESS_KEY,))
-        conn.commit()
-    return {"status": "ok", "log": ["Access key updated."], "access_key": app_state.ACCESS_KEY}
-
-@router.post("/api/settings/access_key/clear")
-def api_clear_access_key():
-    """Disables the access-key gate entirely, restoring MixerBee's default open-on-the-LAN
-    behavior. Like every other /api/settings/* route, this one is itself gated by the
-    current Access Key while one is set - disabling the gate requires already being
-    unlocked with it, same as any other Settings change."""
-    app_state.ACCESS_KEY = None
-    with database.get_db_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_ACCESS_KEY', ?)", ("",))
-        conn.commit()
-    return {"status": "ok", "log": ["Access key disabled. MixerBee is now open to anyone who can reach it."], "access_key": ""}
-
-@router.post("/api/settings/webhook_secret/regenerate")
-def api_regenerate_webhook_secret(payload: dict = Body(default={})):
-    """Generates (or sets a custom) webhook token. Admin still needs to add ?token=...
-    to the notification URL in Emby/Jellyfin for it to take effect."""
-    custom = (payload.get("key") or "").strip()
-    if custom and len(custom) < 8:
-        raise HTTPException(status_code=400, detail="Webhook secret must be at least 8 characters.")
-
-    app_state.WEBHOOK_SECRET = custom or secrets.token_urlsafe(16)
-    with database.get_db_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_WEBHOOK_SECRET', ?)", (app_state.WEBHOOK_SECRET,))
-        conn.commit()
-    return {"status": "ok", "log": ["Webhook secret updated. Add it to your Emby/Jellyfin notification URL as ?token=..."], "webhook_secret": app_state.WEBHOOK_SECRET}
-
-@router.post("/api/settings/webhook_secret/clear")
-def api_clear_webhook_secret():
-    """Disables webhook token enforcement, restoring today's open /api/webhook behavior."""
-    app_state.WEBHOOK_SECRET = None
-    with database.get_db_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('MIXERBEE_WEBHOOK_SECRET', ?)", ("",))
-        conn.commit()
-    return {"status": "ok", "log": ["Webhook token disabled."], "webhook_secret": ""}
-
-@router.get("/api/ollama/status")
-def api_ollama_status():
-    """Proxies request to Ollama to get installed and running models."""
-    if not app_state.OLLAMA_URL:
-        raise HTTPException(status_code=400, detail="Ollama URL not configured")
-    
+def get_local_ip():
+    import socket
     try:
-        tags_resp = requests.get(f"{app_state.OLLAMA_URL}/api/tags", timeout=5)
-        tags_data = tags_resp.json() if tags_resp.ok else {"models": []}
-        
-        ps_resp = requests.get(f"{app_state.OLLAMA_URL}/api/ps", timeout=5)
-        ps_data = ps_resp.json() if ps_resp.ok else {"models": []}
-        
-        return {
-            "installed": tags_data.get("models", []),
-            "running": ps_data.get("models", [])
-        }
-    except Exception as e:
-        logging.error(f"Failed to fetch Ollama status: {e}")
-        return {"installed": [], "running": [], "error": str(e)}
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.settimeout(0.5)
+        s.connect(('10.254.254.254', 1))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
 
-@router.post("/api/settings/model")
-def api_update_active_model(req: models.ModelUpdateRequest):
-    """Snappy update for just the active Ollama model without restart."""
-    app_state.OLLAMA_MODEL = req.ollama_model
+
+def settings_payload(row):
+    ai = json.loads(row['ai_settings']) if row else {}
+    api_key = (row['api_key'] if (row and 'api_key' in row.keys()) else '') or ''
+    api_key_hash = (row['api_key_hash'] if (row and 'api_key_hash' in row.keys()) else '') or ''
     with database.get_db_connection() as conn:
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('OLLAMA_MODEL', ?)", (req.ollama_model,))
-        conn.commit()
-    return {"status": "ok", "model": req.ollama_model}
+        public_base = conn.execute("SELECT value FROM settings WHERE key='webhook_public_base_url'").fetchone()
+    payload = {
+        'connection_id': row['id'] if row else None, 'label': row['label'] if row else '',
+        'server_type': row['server_type'] if row else 'emby',
+        'emby_url': row['base_url'] if row else '', 'emby_user': row['username'] if row else '',
+        'emby_pass': row['password'] if row else '',
+        'ai_provider': ai.get('AI_PROVIDER', 'ollama'), 'gemini_key': ai.get('GEMINI_API_KEY', ''),
+        'ollama_url': ai.get('OLLAMA_URL', 'http://localhost:11434'),
+        'ollama_model': ai.get('OLLAMA_MODEL', 'qwen2.5:7b'),
+        'ollama_timeout': ai.get('OLLAMA_TIMEOUT', 120), 'starred_models': ai.get('STARRED_MODELS', []),
+        'external_api_key': api_key, 'external_api_key_set': bool(api_key or api_key_hash),
+        'webhook_secret': row['webhook_secret'] if row else '',
+        'webhook_public_base_url': public_base['value'] if public_base else '',
+        'version': core.CLIENT_VERSION,
+        'server_ip': get_local_ip(),
+        'vector_space': get_vector_space(media=get_media_client(row['id'])) if row else 'cosine'
+    }
+    payload['webhook_status'] = webhook_status(payload | ({
+        key: row[key] for key in ('webhook_secret_updated_at', 'webhook_setup_requested_at',
+                                  'webhook_setup_acknowledged_at', 'webhook_verified_at')
+    } if row else {}))
+    return payload
 
-@router.post("/api/settings/test")
+
+@router.get('/api/config_status')
+def api_config_status(request: Request):
+    row = owned_connection(request, required=False)
+    settings = settings_payload(row)
+    return {k: settings[k] for k in ('server_type', 'version', 'ai_provider', 'ollama_model', 'starred_models', 'vector_space')} | {
+        'is_configured': bool(row), 'is_ai_configured': bool(settings['gemini_key'] or settings['ai_provider'] == 'ollama')}
+
+
+@router.get('/api/settings')
+def api_get_settings(request: Request):
+    return settings_payload(owned_connection(request, required=False))
+
+
+@router.post('/api/settings/external_api_key/regenerate')
+def api_regenerate_external_api_key(request: Request, payload: dict = Body(default={})):
+    row = owned_connection(request, payload.get('connection_id'))
+    custom = str(payload.get('key') or '').strip()
+    if custom and not 16 <= len(custom) <= 256:
+        raise HTTPException(400, 'External API key must contain 16–256 characters.')
+    key = custom or secrets.token_urlsafe(24)
+    with database.get_db_connection() as conn:
+        other = conn.execute('SELECT id FROM media_connections WHERE api_key_hash=?', (accounts.token_hash(key),)).fetchone()
+        if other and other['id'] != row['id']:
+            raise HTTPException(400, 'That integration key is already in use. Choose a different key.')
+        conn.execute('UPDATE media_connections SET api_key=?, api_key_hash=? WHERE id=?',
+                     (key, accounts.token_hash(key), row['id']))
+        conn.commit()
+    return {'status': 'ok', 'external_api_key': key, 'log': ['External API key updated.']}
+
+
+@router.post('/api/settings/external_api_key/clear')
+def api_clear_external_api_key(request: Request, payload: dict = Body(default={})):
+    row = owned_connection(request, payload.get('connection_id'))
+    with database.get_db_connection() as conn:
+        conn.execute("UPDATE media_connections SET api_key='', api_key_hash='' WHERE id=?", (row['id'],))
+        conn.commit()
+    return {'status': 'ok', 'external_api_key': '', 'log': ['External API access disabled for this connection.']}
+
+
+@router.post('/api/settings/webhook_secret/regenerate')
+def api_regenerate_webhook_secret(request: Request, payload: dict = Body(default={})):
+    row = owned_connection(request, payload.get('connection_id'))
+    custom = str(payload.get('key') or '').strip()
+    if custom and not 16 <= len(custom) <= 256:
+        raise HTTPException(400, 'Webhook secret must contain 16–256 characters.')
+    secret = custom or secrets.token_urlsafe(24)
+    now = time.time()
+    requested_at = None if request.state.account['is_admin'] else now
+    with database.get_db_connection() as conn:
+        conn.execute('''UPDATE media_connections SET webhook_secret=?, webhook_secret_updated_at=?,
+            webhook_setup_requested_at=?, webhook_setup_acknowledged_at=NULL,
+            webhook_verified_at=NULL, webhook_last_received_at=NULL WHERE id=?''',
+            (secret, now, requested_at, row['id']))
+        conn.commit()
+    message = ('Webhook secret updated. The MixerBee owner has been asked to configure the media server.'
+               if requested_at else 'Webhook secret updated. Configure its URL on the media server.')
+    return {'status': 'ok', 'webhook_secret': secret,
+            'webhook_status': 'setup_requested' if requested_at else 'needs_setup', 'log': [message]}
+
+
+@router.post('/api/settings/webhook/setup-request')
+def api_request_webhook_setup(request: Request, payload: dict = Body(default={})):
+    row = owned_connection(request, payload.get('connection_id'))
+    if not row['webhook_secret']:
+        raise HTTPException(409, 'Generate a webhook secret before requesting setup.')
+    with database.get_db_connection() as conn:
+        conn.execute('''UPDATE media_connections SET webhook_setup_requested_at=?,
+            webhook_setup_acknowledged_at=NULL WHERE id=?''', (time.time(), row['id']))
+        conn.commit()
+    return {'status': 'ok', 'webhook_status': 'setup_requested',
+            'log': ['The MixerBee owner has been notified about this webhook setup.']}
+
+
+@router.post('/api/settings/webhook_secret/clear')
+def api_clear_webhook_secret(request: Request, payload: dict = Body(default={})):
+    row = owned_connection(request, payload.get('connection_id'))
+    with database.get_db_connection() as conn:
+        conn.execute('''UPDATE media_connections SET webhook_secret='', webhook_secret_updated_at=NULL,
+            webhook_setup_requested_at=NULL, webhook_setup_acknowledged_at=NULL,
+            webhook_verified_at=NULL, webhook_last_received_at=NULL WHERE id=?''', (row['id'],))
+        conn.commit()
+    return {'status': 'ok', 'webhook_secret': '', 'log': ['Webhooks disabled for this connection.']}
+
+
+@router.get('/api/ollama/status')
+def api_ollama_status(request: Request, url: str | None = None):
+    settings = settings_payload(owned_connection(request, required=False))
+    base_url = (url or settings['ollama_url']).rstrip('/')
+    validate_url(base_url)
+    try:
+        tags = requests.get(f'{base_url}/api/tags', timeout=5)
+        running = requests.get(f'{base_url}/api/ps', timeout=5)
+        return {'installed': tags.json().get('models', []) if tags.ok else [],
+                'running': running.json().get('models', []) if running.ok else []}
+    except requests.RequestException:
+        return {'installed': [], 'running': [], 'error': 'Could not reach Ollama.'}
+
+
+@router.post('/api/settings/model')
+def api_update_active_model(req: models.ModelUpdateRequest, request: Request):
+    row = owned_connection(request)
+    ai = json.loads(row['ai_settings'])
+    ai['OLLAMA_MODEL'] = req.ollama_model
+    with database.get_db_connection() as conn:
+        conn.execute('UPDATE media_connections SET ai_settings=? WHERE id=?', (json.dumps(ai), row['id']))
+        conn.commit()
+    return {'status': 'ok', 'model': req.ollama_model}
+
+
+def validate_url(url):
+    from urllib.parse import urlsplit
+    parsed = urlsplit(url)
+    if parsed.scheme not in ('http', 'https') or not parsed.hostname or parsed.username or parsed.password:
+        raise HTTPException(400, 'Use an http:// or https:// server URL without embedded credentials.')
+
+
+def authenticate_candidate(req):
+    validate_url(req.emby_url.strip())
+    if req.server_type not in ('emby', 'jellyfin'):
+        raise HTTPException(400, 'Choose Emby or Jellyfin.')
+    candidate = MediaClient(Connection(uuid.uuid4().hex, req.emby_url.strip().rstrip('/'),
+                                       req.server_type, req.emby_user.strip(), req.emby_pass))
+    try:
+        return candidate.authenticate()
+    finally:
+        candidate.session.close()
+
+
+@router.post('/api/settings/test')
 def api_test_settings(req: models.SettingsRequest):
-    """Temporary authentication attempt to verify credentials without saving."""
     try:
-        uid, token = core.authenticate(
-            req.emby_user.strip(),
-            req.emby_pass,
-            req.emby_url.strip(),
-            req.server_type
-        )
+        authenticate_candidate(req)
+        return {'status': 'ok', 'log': ['Connection successful! Credentials and URL verified.']}
+    except Exception:
+        return {'status': 'error', 'log': ['Connection failed. Check the URL, username, password, and server availability.']}
 
-        hdr = core.auth_headers(token, uid)
-        is_valid, status = core.client.test_connection(hdr)
 
-        if is_valid:
-            return {"status": "ok", "log": ["Connection successful! Credentials and URL verified."]}
-        else:
-            return {"status": "error", "log": [f"Server reached, but returned unexpected status: {status}"]}
+def warm_connection(media):
+    refresh_cache(media)
+    ai = media.connection.ai_settings
+    if ai.get('GEMINI_API_KEY') or ai.get('AI_PROVIDER') == 'ollama':
+        index_library_for_vibes(media.user_id, media)
 
-    except Exception as e:
-        logging.error(f"Settings test failed: {e}")
-        return {"status": "error", "log": [f"Connection failed: {str(e)}"]}
 
-@router.post("/api/settings")
-def api_save_settings(req: models.SettingsRequest):
-    """Saves settings to both .env and the database."""
-
-    settings_dict = {
-        "SERVER_TYPE": req.server_type,
-        "EMBY_URL": req.emby_url.strip(),
-        "EMBY_USER": req.emby_user.strip(),
-        "EMBY_PASS": req.emby_pass,
-        "AI_PROVIDER": req.ai_provider,
-        "OLLAMA_URL": req.ollama_url.strip(),
-        "OLLAMA_MODEL": req.ollama_model.strip(),
-        "OLLAMA_TIMEOUT": str(req.ollama_timeout),
-        "GEMINI_API_KEY": req.gemini_key.strip() if req.gemini_key else "",
-        "STARRED_MODELS": json.dumps(req.starred_models or []),
-        "EXTERNAL_API_KEY": req.external_api_key.strip() if req.external_api_key else ""
-    }
-
-    try:
-        core.authenticate(req.emby_user, req.emby_pass, req.emby_url, req.server_type)
-
+@router.post('/api/settings')
+def api_save_settings(req: models.SettingsRequest, request: Request):
+    if req.connection_id:
+        owned_connection(request, req.connection_id)
+    if req.ai_provider not in ('gemini', 'ollama'):
+        raise HTTPException(400, 'Choose Gemini or Ollama.')
+    validate_url(req.ollama_url or 'http://localhost:11434')
+    if not 10 <= req.ollama_timeout <= 600:
+        raise HTTPException(400, 'Ollama timeout must be between 10 and 600 seconds.')
+    key = (req.external_api_key or '').strip()
+    if key and not 16 <= len(key) <= 256:
+        raise HTTPException(400, 'External API key must contain 16–256 characters.')
+    # Each integration token identifies exactly one connection.
+    if key:
         with database.get_db_connection() as conn:
-            for k, v in settings_dict.items():
-                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (k, v))
+            other = conn.execute('SELECT id FROM media_connections WHERE api_key_hash=?', (accounts.token_hash(key),)).fetchone()
+        if other and other['id'] != req.connection_id:
+            raise HTTPException(400, 'That integration key is already in use. Choose a different key.')
+    try:
+        auth = authenticate_candidate(req)
+    except Exception as exc:
+        raise HTTPException(400, 'Could not authenticate. Check the server URL and media credentials.') from exc
+    ai = {'AI_PROVIDER': req.ai_provider, 'GEMINI_API_KEY': req.gemini_key or '',
+          'OLLAMA_URL': (req.ollama_url or '').rstrip('/'), 'OLLAMA_MODEL': req.ollama_model or '',
+          'OLLAMA_TIMEOUT': req.ollama_timeout, 'STARRED_MODELS': req.starred_models or []}
+    try:
+        media = save_authenticated_connection(req.emby_url.strip(), req.server_type, req.emby_user.strip(), req.emby_pass,
+            auth, ai, owner_id=request.state.account['id'], existing_id=req.connection_id, label=req.label.strip())
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    with database.get_db_connection() as conn:
+        if key or req.clear_external_api_key:
+            conn.execute('UPDATE media_connections SET api_key=?, api_key_hash=? WHERE id=?',
+                         (key if key else '', accounts.token_hash(key) if key else '', media.connection.id))
+        conn.execute('UPDATE account_sessions SET connection_id=? WHERE token_hash=?',
+                     (media.connection.id, request.state.account['token_hash']))
+        conn.commit()
+    threading.Thread(target=warm_connection, args=(media,), daemon=True).start()
+    return {'status': 'ok', 'connection_id': media.connection.id, 'log': ['Connection saved. Library refresh started.']}
 
-            env_keys = ["SERVER_TYPE", "EMBY_URL", "EMBY_USER", "EMBY_PASS", "AI_PROVIDER", "OLLAMA_URL", "OLLAMA_MODEL", "OLLAMA_TIMEOUT", "GEMINI_API_KEY", "EXTERNAL_API_KEY"]
-            env_content = "\n".join([f'{k}="{settings_dict[k]}"' for k in env_keys if settings_dict.get(k) is not None])
-
-            with open(app_state.ENV_PATH, "w") as f:
-                f.write(env_content)
-
-            final_hash = app_state.get_env_hash()
-            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('env_hash', ?)", (final_hash,))
-            conn.commit()
-
-        threading.Thread(target=_trigger_restart, daemon=True).start()
-
-        return {"status": "ok", "log": ["Settings saved. Application restarting..."]}
-    except Exception as e:
-        logging.error(f"Save failed: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to authenticate or save: {str(e)}")
 
 @router.post("/api/settings/reset_vector_db")
 def api_reset_vector_db(req: models.ResetVectorDbRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     """Triggers a manual reset of the vector database."""
     try:
-        reset_media_collection(preserve_enrichments=req.preserve_enrichments)
+        reset_media_collection(preserve_enrichments=req.preserve_enrichments, media=auth_deps["media"])
         
         threading.Thread(
             target=index_library_for_vibes,
-            args=(auth_deps["login_uid"], auth_deps["hdr"]),
+            args=(auth_deps["login_uid"], auth_deps["media"]),
             daemon=True
         ).start()
 

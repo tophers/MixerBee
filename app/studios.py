@@ -8,7 +8,7 @@ from app.logger import get_logger
 
 logger = get_logger("MixerBee.Studios")
 
-def aggregate_all_studios(user_id: str, hdr: Dict[str, str]) -> List[str]:
+def aggregate_all_studios(user_id: str, media: client.MediaClient) -> List[str]:
     """Called by the background cache refresher to get all studios."""
     logger.info(f"Fetching all movie studios for user {user_id} using native endpoint...")
     
@@ -18,7 +18,7 @@ def aggregate_all_studios(user_id: str, hdr: Dict[str, str]) -> List[str]:
             "Limit": 5000 
         }
         
-        r = client.SESSION.get(f"{client.EMBY_URL}/Studios", params=params, headers=hdr, timeout=30)
+        r = media.get("/Studios", params=params, timeout=30)
         r.raise_for_status()
         
         studios_batch = r.json().get("Items", [])
@@ -34,7 +34,7 @@ def aggregate_all_studios(user_id: str, hdr: Dict[str, str]) -> List[str]:
 def get_studios(name: str, library_data: Dict[str, Any]) -> List[Dict[str, str]]:
     """
     Utility: Searches a provided library data dictionary for studios.
-    No longer needs user_id or hdr because it doesn't touch the network.
+    No longer needs user_id or media because it doesn't touch the network.
     """
     cached_studios = library_data.get("studioData", [])
 

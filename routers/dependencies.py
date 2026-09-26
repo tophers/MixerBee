@@ -3,99 +3,59 @@ routers/dependencies.py – APIRouter
 """
 
 import logging
-import secrets
-import time
-import threading
-from fastapi import HTTPException, status, Header
+from fastapi import HTTPException, Request
 
-import app_state
-import app.client as client
+def _ensure_fresh_auth(connection_id) -> dict:
+    """Authenticate one explicit connection; never fall back to shared app state."""
+    from connections import get_media_client
+    if not connection_id:
+        raise HTTPException(409, "Add a media connection in Settings.")
+    try:
+        media = get_media_client(connection_id)
+        media.ensure_authenticated()
+        return {"media": media, "login_uid": media.user_id, "connection_id": connection_id}
+    except Exception as exc:
+        logging.warning("Saved media connection unavailable: %s", type(exc).__name__)
+        raise HTTPException(503, "Media connection unavailable. Check this account's server and credentials.") from exc
 
-_last_token_check = 0
-TOKEN_TTL_SECONDS = 300
 
-_token_check_lock = threading.Lock()
+def media_for_user(auth_deps, user_id):
+    media = auth_deps["media"]
+    if media.user_id != user_id:
+        raise HTTPException(403, "Requested user does not match the active media connection.")
+    return media
 
-def get_current_auth_headers(x_mixerbee_key: str = Header(None)) -> dict:
-    """
-    FastAPI Dependency to ensure the app is configured and the auth token is valid.
-    Supports external API key / access key bypass via X-MixerBee-Key header (the global
-    access-key middleware in web.py has already validated this header for every /api/*
-    request by the time this dependency runs when a gate is configured; this re-check
-    matters for direct/external callers when it isn't).
 
-    Once authorized, control always falls through into the same TOKEN_TTL/re-auth logic
-    below regardless of how the caller got here - browser traffic sends X-MixerBee-Key on
-    every request once an Access Key is set, so this must not shortcut past staleness
-    detection, or a browser session, unlike an unheadered one, would never notice an
-    expired/invalidated Emby token and recover from it.
-    """
-    global _last_token_check
+def require_collection_permission(media):
+    if not media.can_manage_collections():
+        raise HTTPException(403, "This media-server account cannot manage collections. Use a playlist instead.")
+    return media
 
-    if x_mixerbee_key:
-        valid_keys = [k for k in (app_state.ACCESS_KEY, app_state.EXTERNAL_API_KEY) if k]
-        if not valid_keys or not any(secrets.compare_digest(x_mixerbee_key, k) for k in valid_keys):
-            logging.warning(f"Unauthorized API attempt with key: {x_mixerbee_key[:4]}...")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or unconfigured API Key."
-            )
 
-    if not app_state.is_configured:
-        logging.warning("Auth dependency called but app_state is not configured. Attempting to recover...")
-        if not app_state.load_and_authenticate():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Application is not configured. Please provide server details in settings."
-            )
+def owned_connection(request: Request, connection_id=None, required=True):
+    session = request.state.account
+    cid = connection_id or request.headers.get('x-mixerbee-connection') or session['connection_id']
+    if not cid:
+        if required:
+            raise HTTPException(409, "Add a media connection in Settings.")
+        return None
+    import database
+    with database.get_db_connection() as conn:
+        row = conn.execute('SELECT * FROM media_connections WHERE id=? AND owner_id=?', (cid, session['id'])).fetchone()
+    if not row:
+        raise HTTPException(404, "Connection not found.")
+    return dict(row)
 
-    now = time.time()
 
-    if (now - _last_token_check) < TOKEN_TTL_SECONDS:
-        return {
-            "hdr": app_state.HDR,
-            "token": app_state.token,
-            "login_uid": app_state.login_uid
-        }
+def get_current_auth_headers(request: Request) -> dict:
+    cid = getattr(request.state, 'external_connection_id', None)
+    if cid is None:
+        cid = owned_connection(request)['id']
+    return _ensure_fresh_auth(cid)
 
-    with _token_check_lock:
-        now = time.time()
-        if (now - _last_token_check) < TOKEN_TTL_SECONDS:
-            return {
-                "hdr": app_state.HDR,
-                "token": app_state.token,
-                "login_uid": app_state.login_uid
-            }
 
-        is_valid, status_code = client.test_connection(app_state.HDR)
-
-        if is_valid:
-            _last_token_check = now
-            return {
-                "hdr": app_state.HDR,
-                "token": app_state.token,
-                "login_uid": app_state.login_uid
-            }
-
-        if status_code in (401, 403):
-            logging.warning("Auth token is expired or invalid. Attempting to re-authenticate...")
-            if app_state.load_and_authenticate():
-                _last_token_check = time.time()
-                logging.info("Successfully re-authenticated and refreshed token.")
-                return {
-                    "hdr": app_state.HDR,
-                    "token": app_state.token,
-                    "login_uid": app_state.login_uid
-                }
-            else:
-                logging.error("Failed to re-authenticate after token expired.")
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Could not re-authenticate with the media server. Check your credentials."
-                )
-
-        logging.error(f"Media server connection test failed with status code: {status_code}")
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Could not connect to the media server. Status: {status_code}"
-        )
+def get_auth_data(connection_id: str) -> dict:
+    """Jobs must resolve their own persisted connection, never the UI's active one."""
+    if not connection_id:
+        raise ValueError("Background jobs require a saved connection ID.")
+    return _ensure_fresh_auth(connection_id)

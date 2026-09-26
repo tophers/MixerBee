@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 import app as core
 import models
 import app_state
-from .dependencies import get_current_auth_headers
+from .dependencies import get_current_auth_headers, media_for_user
 
 router = APIRouter()
 
@@ -36,7 +36,7 @@ def api_quick_builds(req: models.QuickBuildRequest, auth_deps: dict = Depends(ge
     kwargs = {
         "user_id": req.user_id,
         "playlist_name": req.playlist_name,
-        "hdr": core.auth_headers(auth_deps["token"], req.user_id),
+        "media": media_for_user(auth_deps, req.user_id),
         "log": []
     }
 
@@ -49,8 +49,10 @@ def api_quick_builds(req: models.QuickBuildRequest, auth_deps: dict = Depends(ge
         result = func_to_call(**kwargs)
 
         if new_item_id := result.get("new_item_id"):
-            result["newItemUrl"] = core.construct_item_url(new_item_id)
+            result["newItemUrl"] = core.construct_item_url(new_item_id, auth_deps["media"])
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

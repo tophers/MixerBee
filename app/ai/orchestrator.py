@@ -11,10 +11,12 @@ from typing import List, Dict, Optional, Literal, Any
 from pydantic import BaseModel, Field, field_validator, AliasChoices
 from contextvars import ContextVar
 
-import app_state
-from .tools import AVAILABLE_TOOLS
+from app.media_client import current_media, media_operation
+from .tools import AVAILABLE_TOOLS, tools_for_connection
 from app.logger import get_logger, refresh_logger_level
 from .vector_store import media_collection
+from .. import items as items_api
+from ..builder import format_duration_ticks
 from models import AiTweaks
 
 logger = get_logger("MixerBee.AI")
@@ -136,6 +138,74 @@ def _consolidate_blocks(blocks: List[Dict[str, Any]], target_size: int = 10) -> 
     result.extend(others)
     return result
 
+def _fetch_movie_item_details(existing_blocks: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """Batches one live lookup of Genres/Cast/Director/RunTimeTicks for every movie id on the board."""
+    movie_ids = []
+    for block in existing_blocks:
+        b_type = block.get("vibe_type") or block.get("type")
+        if b_type != "movie":
+            continue
+        items_list = block.get("_previewItems") or []
+        if items_list:
+            movie_ids.extend(it.get("Id") for it in items_list if it.get("Id"))
+        else:
+            movie_ids.extend(block.get("filters", {}).get("ids", []))
+
+    if not movie_ids:
+        return {}
+
+    try:
+        return items_api.get_item_details_by_ids(current_media().user_id, movie_ids, current_media())
+    except Exception as e:
+        logger.warning(f"Could not fetch item details for refine manifest, falling back to titles only: {e}")
+        return {}
+
+def _build_playlist_manifest(existing_blocks: List[Dict[str, Any]]) -> str:
+    """Renders the current AI-generated blocks on the user's board into text the LLM can revise against."""
+    item_details = _fetch_movie_item_details(existing_blocks)
+
+    lines = ["### CURRENT PLAYLIST (already built, on the user's board) ###"]
+    for i, block in enumerate(existing_blocks, start=1):
+        b_type = block.get("vibe_type") or block.get("type")
+        title = block.get("title") or block.get("ai_title") or "Untitled"
+        lines.append(f"\nBlock {i} [{b_type}] \"{title}\":")
+
+        if b_type == "movie":
+            items = block.get("_previewItems") or []
+            if items:
+                for it in items:
+                    item_id = it.get("Id", "")
+                    line = f"  - ID: \"{item_id}\" | \"{it.get('name', 'Unknown')}\""
+                    detail = item_details.get(item_id)
+                    if detail:
+                        if detail.get("Genres"):
+                            line += f" | Genres: {', '.join(detail['Genres'])}"
+                        if detail.get("Cast"):
+                            line += f" | Cast: {', '.join(detail['Cast'])}"
+                        if detail.get("Directors"):
+                            line += f" | Director: {', '.join(detail['Directors'])}"
+                        if detail.get("RunTimeTicks"):
+                            line += f" | Runtime: {format_duration_ticks(detail['RunTimeTicks'])}"
+                    lines.append(line)
+            else:
+                ids = block.get("filters", {}).get("ids", [])
+                if ids:
+                    lines.append(f"  - (titles not yet resolved) IDs: {', '.join(ids)}")
+        elif b_type == "tv":
+            for show in block.get("shows", []):
+                name = show.get("name") or show.get("id") or "Unknown show"
+                lines.append(
+                    f"  - Show: \"{name}\" (season {show.get('season', 1)}, "
+                    f"starting ep {show.get('episode', 1)}, unwatched={show.get('unwatched', False)})"
+                )
+            lines.append(f"  - Episodes per show: {block.get('count', 3)}")
+        elif b_type == "music":
+            music = block.get("music", {})
+            genres = music.get("filters", {}).get("genres", [])
+            lines.append(f"  - Mode: {music.get('mode', 'genre')}, Genres: {genres}, Count: {music.get('count', 15)}")
+
+    return "\n".join(lines)
+
 def _map_tv_block(ai_block: AIBlock) -> Optional[Dict[str, Any]]:
     active_tweaks = ai_tweaks_context.get()
     is_unwatched = active_tweaks.only_unwatched if active_tweaks else False
@@ -234,9 +304,9 @@ def _get_ollama_tool_schema(func) -> Dict:
     return schema
 
 def _call_ollama(messages: List[Dict], tools: list = None, json_schema: Dict = None, enable_thinking: bool = False, phase_name: str = "General", temperature: float = 0.2) -> Dict:
-    url = f"{app_state.OLLAMA_URL}/api/chat"
+    url = f"{current_media().connection.ai_settings.get('OLLAMA_URL', 'http://localhost:11434')}/api/chat"
     payload = {
-        "model": app_state.OLLAMA_MODEL,
+        "model": current_media().connection.ai_settings.get('OLLAMA_MODEL', 'qwen2.5:7b'),
         "messages": messages,
         "stream": False,
         "options": {"temperature": temperature if not json_schema else 0.0, "seed": 42}
@@ -247,7 +317,7 @@ def _call_ollama(messages: List[Dict], tools: list = None, json_schema: Dict = N
 
     logger.info(f"--- OLLAMA REQUEST ({phase_name}) ---")
 
-    timeout_val = getattr(app_state, 'OLLAMA_TIMEOUT', 120)
+    timeout_val = current_media().connection.ai_settings.get('OLLAMA_TIMEOUT', 120)
 
     resp = requests.post(url, json=payload, timeout=timeout_val)
     resp.raise_for_status()
@@ -335,6 +405,87 @@ def _run_ollama_researcher(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str
 
     return finding_groups, id_type_map
 
+ARCHITECT_BLOCK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "blocks": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "block_type": {"type": "string", "enum": ["tv", "movie", "music"]},
+                    "ai_title": {"type": "string"},
+                    "reasoning": {"type": "string"},
+                    "tv_ids": {"type": "array", "items": {"type": "string"}},
+                    "tv_shows": {"type": "array", "items": {"type": "string"}},
+                    "tv_count": {"type": "integer"},
+                    "movie_ids": {"type": "array", "items": {"type": "string"}},
+                    "music_mode": {"type": "string", "enum": ["album", "artist_top", "artist_random", "genre"]},
+                    "music_genres": {"type": "array", "items": {"type": "string"}},
+                    "music_count": {"type": "integer"}
+                },
+                "required": ["block_type", "ai_title", "reasoning"]
+            }
+        }
+    },
+    "required": ["blocks"]
+}
+
+def _architect_pass_ollama(system_prompt: str, user_message: str, id_type_map: Dict[str, str], phase_name: str = "Architect") -> List[Dict[str, Any]]:
+    """Runs one Ollama Architect call and maps its JSON block list into frontend blocks."""
+    generated_blocks = []
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_message}
+    ]
+
+    try:
+        response = _call_ollama(messages, json_schema=ARCHITECT_BLOCK_SCHEMA, enable_thinking=False, phase_name=phase_name, temperature=0.0)
+        raw_content = response["message"]["content"]
+        data = json.loads(raw_content)
+
+        if not data.get("blocks"):
+            logger.warning(f"Architect returned valid JSON but 0 blocks. Raw content: {raw_content}")
+
+        for b_data in data.get("blocks", []):
+            valid_movies, valid_tv = [], []
+            raw_ids = b_data.get("movie_ids", []) + b_data.get("tv_ids", [])
+
+            for rid in raw_ids:
+                actual_type = id_type_map.get(rid)
+                if actual_type == "Series" or (actual_type is None and b_data.get("block_type") == "tv"):
+                    valid_tv.append(rid)
+                else:
+                    valid_movies.append(rid)
+
+            if valid_movies or b_data.get("movie_genres"):
+                m_block = b_data.copy()
+                m_block.update({
+                    "block_type": "movie",
+                    "movie_ids": valid_movies,
+                    "tv_ids": [],
+                    "tv_shows": []
+                })
+                if (fb := _map_to_frontend_block(AIBlock(**m_block))):
+                    generated_blocks.append(fb)
+
+            if valid_tv or b_data.get("tv_shows"):
+                t_block = b_data.copy()
+                t_block.update({
+                    "block_type": "tv",
+                    "tv_ids": valid_tv,
+                    "movie_ids": [],
+                    "movie_genres": [],
+                    "tv_count": b_data.get("tv_count", 3)
+                })
+                if (fb := _map_to_frontend_block(AIBlock(**t_block))):
+                    generated_blocks.append(fb)
+
+    except Exception as e:
+        logger.error(f"Architect pass '{phase_name}' failed: {e}")
+
+    return generated_blocks
+
 def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str, List[str]]:
     logger.info(f"--- STARTING DIVIDE-AND-CONQUER GENERATION: '{prompt}' ---")
 
@@ -345,7 +496,7 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
     if not finding_groups:
         msg = "Researcher found no items in your library matching that prompt within the current Relevancy Threshold."
         logger.warning(f"Researcher empty: {msg}")
-        return [], f"ollama:{app_state.OLLAMA_MODEL}", [msg]
+        return [], f"ollama:{current_media().connection.ai_settings.get('OLLAMA_MODEL', 'qwen2.5:7b')}", [msg]
 
     strictness_rule = ""
     if tweaks.strictness == "genre_verified":
@@ -371,32 +522,6 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
 
     Respond ONLY with raw JSON."""
 
-    schema = {
-        "type": "object",
-        "properties": {
-            "blocks": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "block_type": {"type": "string", "enum": ["tv", "movie", "music"]},
-                        "ai_title": {"type": "string"},
-                        "reasoning": {"type": "string"},
-                        "tv_ids": {"type": "array", "items": {"type": "string"}},
-                        "tv_shows": {"type": "array", "items": {"type": "string"}},
-                        "tv_count": {"type": "integer"},
-                        "movie_ids": {"type": "array", "items": {"type": "string"}},
-                        "music_mode": {"type": "string", "enum": ["album", "artist_top", "artist_random", "genre"]},
-                        "music_genres": {"type": "array", "items": {"type": "string"}},
-                        "music_count": {"type": "integer"}
-                    },
-                    "required": ["block_type", "ai_title", "reasoning"]
-                }
-            }
-        },
-        "required": ["blocks"]
-    }
-
     all_generated_blocks = []
 
     for group in finding_groups:
@@ -405,55 +530,10 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
 
         logger.info(f"--- ARCHITECT PROCESSING GROUP: '{query_text}' ---")
 
-        messages = [
-            {"role": "system", "content": builder_system},
-            {"role": "user", "content": f"USER PROMPT: {prompt}\n\nCURRENT FINDINGS GROUP: {query_text}\n\n{group_context}"}
-        ]
-
-        try:
-            response = _call_ollama(messages, json_schema=schema, enable_thinking=False, phase_name=f"Architect ({query_text})", temperature=0.0)
-            raw_content = response["message"]["content"]
-            data = json.loads(raw_content)
-
-            if not data.get("blocks"):
-                logger.warning(f"Architect returned valid JSON but 0 blocks. Raw content: {raw_content}")
-
-            for b_data in data.get("blocks", []):
-                valid_movies, valid_tv = [], []
-                raw_ids = b_data.get("movie_ids", []) + b_data.get("tv_ids", [])
-
-                for rid in raw_ids:
-                    actual_type = id_type_map.get(rid)
-                    if actual_type == "Series" or (actual_type is None and b_data.get("block_type") == "tv"):
-                        valid_tv.append(rid)
-                    else:
-                        valid_movies.append(rid)
-
-                if valid_movies or b_data.get("movie_genres"):
-                    m_block = b_data.copy()
-                    m_block.update({
-                        "block_type": "movie",
-                        "movie_ids": valid_movies,
-                        "tv_ids": [],
-                        "tv_shows": []
-                    })
-                    if (fb := _map_to_frontend_block(AIBlock(**m_block))):
-                        all_generated_blocks.append(fb)
-
-                if valid_tv or b_data.get("tv_shows"):
-                    t_block = b_data.copy()
-                    t_block.update({
-                        "block_type": "tv",
-                        "tv_ids": valid_tv,
-                        "movie_ids": [],
-                        "movie_genres": [],
-                        "tv_count": b_data.get("tv_count", 3)
-                    })
-                    if (fb := _map_to_frontend_block(AIBlock(**t_block))):
-                        all_generated_blocks.append(fb)
-
-        except Exception as e:
-            logger.error(f"Failed to process group '{query_text}': {e}")
+        user_message = f"USER PROMPT: {prompt}\n\nCURRENT FINDINGS GROUP: {query_text}\n\n{group_context}"
+        all_generated_blocks.extend(
+            _architect_pass_ollama(builder_system, user_message, id_type_map, phase_name=f"Architect ({query_text})")
+        )
 
     final_list = _consolidate_blocks(all_generated_blocks, target_size=tweaks.target_size)
 
@@ -463,11 +543,11 @@ def _generate_with_ollama(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
         logs.append(f"Successfully generated {len(final_list)} consolidated blocks.")
 
     logger.info(f"--- SUCCESS: Generated {len(final_list)} consolidated blocks ---")
-    return final_list, f"ollama:{app_state.OLLAMA_MODEL}", logs
+    return final_list, f"ollama:{current_media().connection.ai_settings.get('OLLAMA_MODEL', 'qwen2.5:7b')}", logs
 
 def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str, Any]], str, List[str]]:
-    if not app_state.GEMINI_API_KEY: raise ValueError("Gemini key missing.")
-    client = genai.Client(api_key=app_state.GEMINI_API_KEY)
+    if not current_media().connection.ai_settings.get('GEMINI_API_KEY', ''): raise ValueError("Gemini key missing.")
+    client = genai.Client(api_key=current_media().connection.ai_settings.get('GEMINI_API_KEY', ''))
     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     logger.info(f"--- STARTING GEMINI GENERATION: '{prompt}' ---")
     
@@ -499,7 +579,7 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
         model=model_name,
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
-            tools=AVAILABLE_TOOLS,
+            tools=tools_for_connection(),
             temperature=tweaks.temperature
         )
     )
@@ -532,19 +612,171 @@ def _generate_with_gemini(prompt: str, tweaks: AiTweaks) -> tuple[List[Dict[str,
 
     return final_list, model_name, logs
 
-def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None) -> tuple[List[Dict[str, Any]], str, List[str]]:
+def _refine_with_ollama(prompt: str, tweaks: AiTweaks, manifest: str) -> tuple[List[Dict[str, Any]], str, List[str]]:
+    logger.info(f"--- STARTING REFINEMENT (Ollama): '{prompt}' ---")
+    logs = [f"Refining playlist with: '{prompt}'"]
+
+    finding_groups, id_type_map = _run_ollama_researcher(prompt, tweaks)
+    combined_findings = "\n\n".join(g["context"] for g in finding_groups) if finding_groups \
+        else "(No new candidates were searched for; work only from the CURRENT PLAYLIST above.)"
+
+    strictness_rule = ""
+    if tweaks.strictness == "genre_verified":
+        strictness_rule = "7. GENRE FILTERING (CRITICAL): Check the 'Genres' field on any NEW CANDIDATES. If one doesn't match the vibe, discard it."
+    else:
+        strictness_rule = "7. VIBE FIRST CURATION: Trust the 'Found via' labels on any NEW CANDIDATES."
+
+    custom_prompt = f"\n\nUSER DIRECTIVE: {tweaks.system_prompt}" if tweaks.system_prompt else ""
+    builder_system = f"""You are the MixerBee Master Architect, REVISING an existing playlist.
+
+    ### BLOCK LOGIC (IMPORTANT) ###
+    - For TV, provide Series IDs in 'tv_ids'.
+    - Set 'tv_count' to the number of sequential episodes you want to play per show.
+    - For Movies, provide Movie IDs in 'movie_ids'.
+    - NEVER use titles in ID arrays. Use ONLY the raw numeric strings from the "ID:" field.
+
+    ### RULES ###
+    1. THIS IS A REVISION, NOT A FRESH BUILD. Re-emit every block and item from the
+       CURRENT PLAYLIST unchanged UNLESS the REQUESTED CHANGE concerns it.
+    2. TO REMOVE ITEMS BY DESCRIPTION (e.g. "remove the bond films", "drop the slow one"):
+       look at the titles already listed under CURRENT PLAYLIST, use your own knowledge
+       to work out which ones match the description, and simply exclude those IDs from
+       that block's id list. Decide this from CURRENT PLAYLIST alone — do not wait on
+       NEW CANDIDATES to tell you what to remove.
+    3. Genres/Cast/Director/Runtime shown per movie item are REAL facts pulled from the
+       library, not guesses. Use them directly for actor/director/genre/runtime requests
+       (e.g. "remove movies with an actor", "remove the longest film") — do not rely on
+       your own memory of a movie's cast or runtime when this data is already given.
+    4. APPLY THE REQUESTED CHANGE ONLY WHERE RELEVANT: add/remove movie IDs, add/remove
+       TV shows, adjust tv_count, or adjust music genres/mode.
+    5. If asked to remove something entirely, simply leave it out of your output. Do not
+       emit an empty block.
+    6. If new items are needed to satisfy the request, pull them from NEW CANDIDATES.
+    {strictness_rule}
+    8. REASONING: Briefly explain what you changed.{custom_prompt}
+
+    Respond ONLY with raw JSON.
+
+    Example: if REQUESTED CHANGE is "remove the bond films" and CURRENT PLAYLIST's movie
+    block lists ID "111" | "Skyfall (2012)" and ID "222" | "Casino Royale (2006)" among
+    others, output that block's movie_ids with 111 and 222 excluded and every other ID
+    kept."""
+
+    user_message = f"REQUESTED CHANGE: {prompt}\n\n{manifest}\n\n### NEW CANDIDATES (if any) ###\n{combined_findings}"
+    all_generated_blocks = _architect_pass_ollama(builder_system, user_message, id_type_map, phase_name="Architect (Refine)")
+
+    final_list = _consolidate_blocks(all_generated_blocks, target_size=tweaks.target_size)
+
+    if not final_list:
+        logs.append("No blocks were produced by the refinement.")
+    else:
+        logs.append(f"Successfully refined into {len(final_list)} consolidated blocks.")
+
+    return final_list, f"ollama:{current_media().connection.ai_settings.get('OLLAMA_MODEL', 'qwen2.5:7b')}", logs
+
+def _refine_with_gemini(prompt: str, tweaks: AiTweaks, manifest: str) -> tuple[List[Dict[str, Any]], str, List[str]]:
+    if not current_media().connection.ai_settings.get('GEMINI_API_KEY', ''): raise ValueError("Gemini key missing.")
+    client = genai.Client(api_key=current_media().connection.ai_settings.get('GEMINI_API_KEY', ''))
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    logger.info(f"--- STARTING GEMINI REFINEMENT: '{prompt}' ---")
+
+    logs = [f"Gemini refining playlist with: '{prompt}'"]
+
+    strictness_rule = ""
+    if tweaks.strictness == "genre_verified":
+        strictness_rule = "Use the provided 'Genres' to filter out bad matches on any NEW candidates. Keep all the good matches!"
+    else:
+        strictness_rule = "Trust the 'Found via' labels on any NEW candidates."
+
+    custom_prompt = f"\n\nUSER DIRECTIVE: {tweaks.system_prompt}" if tweaks.system_prompt else ""
+    system_instruction = f"""You are a Research assistant and Master Architect, REVISING an existing playlist.
+
+    ### TV BLOCK LOGIC ###
+    - Provide Series IDs in 'tv_ids'.
+    - Set 'tv_count' to the number of sequential episodes to watch per show.
+
+    ### RULES ###
+    1. THIS IS A REVISION, NOT A FRESH BUILD. You will be given the CURRENT PLAYLIST
+       and a REQUESTED CHANGE. Re-emit every block/item unchanged unless the requested
+       change concerns it.
+    2. TO REMOVE ITEMS BY DESCRIPTION (e.g. "remove the bond films", "drop the slow one"):
+       look at the titles already listed under CURRENT PLAYLIST, use your own knowledge
+       to work out which ones match the description, and simply exclude those IDs from
+       that block's id list. Decide this from CURRENT PLAYLIST alone — do not wait on a
+       tool search to tell you what to remove.
+    3. Genres/Cast/Director/Runtime shown per movie item are REAL facts pulled from the
+       library, not guesses. Use them directly for actor/director/genre/runtime requests
+       (e.g. "remove movies with an actor", "remove the longest film") — do not rely on
+       your own memory of a movie's cast or runtime when this data is already given.
+    4. If you need genuinely new items to satisfy the request, use your tools to search
+       for them.
+    5. APPLY THE CHANGE ONLY WHERE RELEVANT: add/remove movie IDs, add/remove/adjust
+       TV shows, or adjust music genres/mode.
+    6. If asked to remove something entirely, simply leave it out of your output.
+    7. TYPE MATCHING: "Type: Series" -> "tv" block (tv_ids). "Type: Movie" -> "movie" block (movie_ids).
+    8. {strictness_rule}
+    9. POPULATE IDs: Output raw numeric IDs in 'movie_ids'/'tv_ids' arrays. DO NOT put titles in ID arrays!{custom_prompt}
+
+    Example: if REQUESTED CHANGE is "remove the bond films" and CURRENT PLAYLIST's movie
+    block lists ID "111" | "Skyfall (2012)" and ID "222" | "Casino Royale (2006)" among
+    others, output that block's movie_ids with 111 and 222 excluded and every other ID
+    kept.
+    """
+
+    chat = client.chats.create(
+        model=model_name,
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            tools=tools_for_connection(),
+            temperature=tweaks.temperature
+        )
+    )
+    research_response = chat.send_message(f"REQUESTED CHANGE: {prompt}\n\n{manifest}")
+    logger.info(f"--- GEMINI REFINE FINDINGS ---\n{research_response.text}")
+
+    builder_response = client.models.generate_content(
+        model=model_name,
+        contents=f"REQUESTED CHANGE: {prompt}\n\n{manifest}\n\nContext: {research_response.text}",
+        config=types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            response_mime_type="application/json",
+            response_schema=list[AIBlock],
+            temperature=0.0
+        )
+    )
+    if not builder_response or builder_response.parsed is None:
+        return [], model_name, ["Architect failed to parse results."]
+
+    valid_blocks = [fb for b in builder_response.parsed if (fb := _map_to_frontend_block(b)) is not None]
+    final_list = _consolidate_blocks(valid_blocks, target_size=tweaks.target_size)
+
+    if not final_list:
+        logs.append("No blocks were produced by the refinement.")
+    else:
+        logs.append(f"Successfully refined into {len(final_list)} blocks.")
+
+    return final_list, model_name, logs
+
+@media_operation
+def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None, existing_blocks: Optional[List[Dict[str, Any]]] = None, *, media=None) -> tuple[List[Dict[str, Any]], str, List[str]]:
     refresh_logger_level()
     actual_tweaks = tweaks or AiTweaks()
     token = ai_tweaks_context.set(actual_tweaks)
 
     try:
-        if app_state.AI_PROVIDER == "ollama":
+        if existing_blocks:
+            manifest = _build_playlist_manifest(existing_blocks)
+            if current_media().connection.ai_settings.get('AI_PROVIDER', 'gemini') == "ollama":
+                return _refine_with_ollama(prompt, actual_tweaks, manifest)
+            return _refine_with_gemini(prompt, actual_tweaks, manifest)
+        if current_media().connection.ai_settings.get('AI_PROVIDER', 'gemini') == "ollama":
             return _generate_with_ollama(prompt, actual_tweaks)
         return _generate_with_gemini(prompt, actual_tweaks)
     finally:
         ai_tweaks_context.reset(token)
 
-def process_enrichment_queue(batch_size: int, timeout: int) -> Dict[str, Any]:
+@media_operation
+def process_enrichment_queue(batch_size: int, timeout: int, *, media=None) -> Dict[str, Any]:
     """Pulls a batch of un-enriched media, calls the LLM for vibe tags, and updates the Vector DB."""
     refresh_logger_level()
     logger.info(f"--- STARTING METADATA ENRICHMENT (Batch: {batch_size}) ---")
@@ -578,14 +810,14 @@ def process_enrichment_queue(batch_size: int, timeout: int) -> Dict[str, Any]:
 
             try:
                 vibe_tags_str = ""
-                if app_state.AI_PROVIDER == "ollama":
+                if current_media().connection.ai_settings.get('AI_PROVIDER', 'gemini') == "ollama":
                     messages = [
                         {"role": "system", "content": "You are a media tagging AI. Output only raw JSON."},
                         {"role": "user", "content": prompt}
                     ]
-                    url = f"{app_state.OLLAMA_URL}/api/chat"
+                    url = f"{current_media().connection.ai_settings.get('OLLAMA_URL', 'http://localhost:11434')}/api/chat"
                     payload = {
-                        "model": app_state.OLLAMA_MODEL,
+                        "model": current_media().connection.ai_settings.get('OLLAMA_MODEL', 'qwen2.5:7b'),
                         "messages": messages,
                         "stream": False,
                         "format": schema,
@@ -598,9 +830,9 @@ def process_enrichment_queue(batch_size: int, timeout: int) -> Dict[str, Any]:
                     parsed = json.loads(content)
                     vibe_tags_str = ", ".join(parsed.get("tags", []))
                 else:
-                    if not app_state.GEMINI_API_KEY: raise ValueError("Gemini API Key missing")
+                    if not current_media().connection.ai_settings.get('GEMINI_API_KEY', ''): raise ValueError("Gemini API Key missing")
                     model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-                    client = genai.Client(api_key=app_state.GEMINI_API_KEY)
+                    client = genai.Client(api_key=current_media().connection.ai_settings.get('GEMINI_API_KEY', ''))
                     resp = client.models.generate_content(
                         model=model_name,
                         contents=prompt,

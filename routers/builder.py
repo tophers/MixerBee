@@ -13,12 +13,12 @@ import app_state
 from app.cache import get_library_data
 from app.ai import generate_smart_blocks
 from preset_manager import preset_manager
-from .dependencies import get_current_auth_headers
+from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission
 
 router = APIRouter()
 
-def _get_random_movie_block() -> Dict:
-    cached_data = get_library_data()
+def _get_random_movie_block(media) -> Dict:
+    cached_data = get_library_data(media)
     all_genres = cached_data.get("movieGenreData", [])
     all_libraries = cached_data.get("libraryData", [])
 
@@ -40,8 +40,8 @@ def _get_random_movie_block() -> Dict:
 
     return {"type": "movie", "filters": filters}
 
-def _get_random_tv_block() -> Dict:
-    cached_data = get_library_data()
+def _get_random_tv_block(media) -> Dict:
+    cached_data = get_library_data(media)
     all_series = cached_data.get("seriesData", [])
     if not all_series:
         return None
@@ -62,8 +62,8 @@ def _get_random_tv_block() -> Dict:
         "interleave": True
     }
 
-def _get_random_music_block() -> Dict:
-    cached_data = get_library_data()
+def _get_random_music_block(media) -> Dict:
+    cached_data = get_library_data(media)
     all_artists = cached_data.get("artistData", [])
     all_genres = cached_data.get("musicGenreData", [])
 
@@ -101,15 +101,17 @@ def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
         "music": _get_random_music_block
     }
 
+    lib_data = get_library_data(auth_deps["media"])
     possible_block_types = [
         block_type for block_type, generator in block_generators.items()
-        if generator is not _get_random_tv_block or get_library_data().get("seriesData")
+        if (generator is not _get_random_tv_block or lib_data.get("seriesData"))
+        and (generator is not _get_random_music_block or lib_data.get("artistData") or lib_data.get("musicGenreData"))
     ]
     if not possible_block_types:
         raise HTTPException(status_code=404, detail="Not enough library data to generate a random block.")
 
     chosen_type = random.choice(possible_block_types)
-    random_block = block_generators[chosen_type]()
+    random_block = block_generators[chosen_type](auth_deps["media"])
 
     if not random_block:
          raise HTTPException(status_code=500, detail=f"Failed to generate a random '{chosen_type}' block.")
@@ -118,14 +120,15 @@ def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
 
 @router.post("/api/create_from_text")
 def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
-    if app_state.AI_PROVIDER == "gemini" and not app_state.GEMINI_API_KEY:
+    ai = auth_deps["media"].connection.ai_settings
+    if ai.get("AI_PROVIDER", "gemini") == "gemini" and not ai.get("GEMINI_API_KEY"):
         raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
     
-    if app_state.AI_PROVIDER not in ["gemini", "ollama"]:
+    if ai.get("AI_PROVIDER", "gemini") not in ["gemini", "ollama"]:
         raise HTTPException(status_code=501, detail="AI Provider is not correctly configured.")
 
     try:
-        blocks, model_used, logs = generate_smart_blocks(req.prompt, req.tweaks)
+        blocks, model_used, logs = generate_smart_blocks(req.prompt, req.tweaks, req.existing_blocks, media=auth_deps["media"])
 
         for block in blocks:
             if block.get("type") == "movie" and "filters" in block:
@@ -135,7 +138,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
                         resolved_people = []
                         for person_info in filters[person_key]:
                             if name := person_info.get("Name"):
-                                found_people = core.get_people(name, auth_deps["hdr"])
+                                found_people = core.get_people(name, auth_deps["media"])
                                 if found_people:
                                     resolved_people.append(found_people[0])
                         filters[person_key] = resolved_people
@@ -146,6 +149,8 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
             "model_used": model_used,
             "log": logs if logs else [f"Successfully generated using {model_used}."]
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error("Failed to generate from text", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -153,35 +158,38 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
 @router.post("/api/movies/preview_count")
 def api_movies_preview_count(req: models.MovieFinderRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
-        user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+        media = media_for_user(auth_deps, req.user_id)
         filters = req.filters.copy()
         filters['duration_minutes'] = None
         filters['limit'] = None
-        found_movies = core.find_movies(user_id=req.user_id, filters=filters, hdr=user_specific_hdr)
+        found_movies = core.find_movies(user_id=req.user_id, filters=filters, media=media)
         return {"count": len(found_movies)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(400, str(e))
 
 @router.post("/api/music/preview_count")
 def api_music_preview_count(req: models.MusicFinderRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
-        user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+        media = media_for_user(auth_deps, req.user_id)
         filters = req.filters.copy()
         filters['limit'] = None
-        found_songs = core.find_songs(user_id=req.user_id, filters=filters, hdr=user_specific_hdr)
+        found_songs = core.find_songs(user_id=req.user_id, filters=filters, media=media)
         return {"count": len(found_songs)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(400, str(e))
 
 @router.post("/api/builder/preview")
 def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
-        user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
-        items = core.generate_items_from_blocks(req.user_id, req.blocks, user_specific_hdr, [])
+        media = media_for_user(auth_deps, req.user_id)
+        items = core.generate_items_from_blocks(req.user_id, req.blocks, media, [])
         formatted_items = core.format_items_for_preview(items)
 
-        item_ids = [item["Id"] for item in items if item.get("Id")]
-        total_duration_ticks = core.get_runtime_ticks_for_ids(req.user_id, item_ids, user_specific_hdr) if item_ids else 0
+        total_duration_ticks = sum((item.get("RunTimeTicks") or 0) for item in items)
 
         return {
             "status": "ok",
@@ -189,13 +197,15 @@ def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Dep
             "total_duration_ticks": total_duration_ticks,
             "total_duration_formatted": core.format_duration_ticks(total_duration_ticks)
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error generating playlist preview: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred while generating the preview: {e}")
 
 @router.post("/api/create_mixed_playlist")
 def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict = Depends(get_current_auth_headers)):
-    user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+    media = media_for_user(auth_deps, req.user_id)
     result = {}
     
     if req.item_ids:
@@ -203,12 +213,13 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
             name=req.playlist_name,
             user_id=req.user_id,
             ids=req.item_ids,
-            hdr=user_specific_hdr,
+            media=media,
             log=[]
         )
         result = {"status": "ok" if new_item_id else "error", "new_item_id": new_item_id, "log": ["Playlist created from custom order."]}
     
     elif req.create_as_collection:
+        require_collection_permission(media)
         if not req.blocks or len(req.blocks) != 1 or (req.blocks[0].get("type") != "movie" and req.blocks[0].get("vibe_type") != "movie"):
             raise HTTPException(400, "Collections can only be created from a single movie block.")
 
@@ -217,7 +228,7 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
             user_id=req.user_id,
             collection_name=req.playlist_name,
             filters=movie_filters,
-            hdr=user_specific_hdr
+            media=media
         )
     else:
         if not req.blocks:
@@ -226,25 +237,27 @@ def api_create_mixed_playlist(req: models.MixedPlaylistRequest, auth_deps: dict 
             user_id=req.user_id,
             playlist_name=req.playlist_name,
             blocks=req.blocks,
-            hdr=user_specific_hdr
+            media=media
         )
 
     if new_item_id := result.get("new_item_id"):
-        result["newItemUrl"] = core.construct_item_url(new_item_id)
+        result["newItemUrl"] = core.construct_item_url(new_item_id, auth_deps["media"])
 
     return result
 
 @router.post("/api/playlists/{playlist_id}/add-items")
 def api_add_items_to_playlist(playlist_id: str, req: models.AddItemsRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
-        user_specific_hdr = core.auth_headers(auth_deps["token"], req.user_id)
+        media = media_for_user(auth_deps, req.user_id)
         result = core.add_items_to_playlist(
             user_id=req.user_id,
             playlist_id=playlist_id,
             blocks=req.blocks,
-            hdr=user_specific_hdr
+            media=media
         )
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error adding items to playlist {playlist_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -255,23 +268,23 @@ def api_external_build_preset(req: models.ExternalBuildRequest, auth_deps: dict 
     External API Endpoint: Loads a preset and creates a mixed playlist.
     """
     try:
-        all_presets = preset_manager.get_all_presets()
+        all_presets = preset_manager.get_all_presets(auth_deps["connection_id"])
         blocks = all_presets.get(req.preset_name)
         
         if not blocks:
             raise HTTPException(status_code=404, detail=f"Preset '{req.preset_name}' not found.")
 
-        user_specific_hdr = core.auth_headers(auth_deps["token"], auth_deps["login_uid"])
+        media = media_for_user(auth_deps, auth_deps["login_uid"])
         
         result = core.create_mixed_playlist(
             user_id=auth_deps["login_uid"],
             playlist_name=req.playlist_name,
             blocks=blocks,
-            hdr=user_specific_hdr
+            media=media
         )
 
         if new_item_id := result.get("new_item_id"):
-            result["newItemUrl"] = core.construct_item_url(new_item_id)
+            result["newItemUrl"] = core.construct_item_url(new_item_id, auth_deps["media"])
 
         return result
 

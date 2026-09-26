@@ -1,9 +1,36 @@
 <!-- templates/partials/_nav.html -->
 <div class="main-header-bar">
     <div class="header-user-display">
-        <button id="settings-btn" type="button" class="icon-btn" title="Settings" @click="$store.settings.show()">
-            <span x-html="$store.icons.settings"></span>
-        </button>
+        <div class="connection-switcher">
+            <label for="connection-select">Media connection</label>
+            <select id="connection-select" :value="$store.settings.selectedConnection" @change="$store.settings.selectConnection($event.target.value)">
+                <option value="" disabled x-text="$store.settings.connections.length ? 'Select a connection' : 'No connections yet'"></option>
+                <template x-for="connection in $store.settings.connections" :key="connection.id">
+                    <option :value="connection.id" :selected="connection.id === $store.settings.selectedConnection" x-text="connection.label || (connection.username + ' · ' + connection.base_url)"></option>
+                </template>
+            </select>
+            <button type="button" class="secondary header-add-connection" @click="$store.settings.newConnection()" title="Add media connection" aria-label="Add media connection">
+                <span aria-hidden="true">＋</span><span class="header-add-label">Add</span>
+            </button>
+        </div>
+
+        <div class="account-menu" @click.outside="$store.settings.accountMenuOpen = false">
+            <button type="button" class="secondary account-menu-trigger" @click="$store.settings.accountMenuOpen = !$store.settings.accountMenuOpen" :aria-expanded="$store.settings.accountMenuOpen.toString()">
+                <span class="account-avatar" x-text="($store.settings.account?.username || '?').charAt(0).toUpperCase()"></span>
+                <span class="account-menu-name" x-text="$store.settings.account?.username || 'Account'"></span>
+                <span x-show="$store.settings.pendingWebhookCount" x-cloak class="account-alert-badge" x-text="$store.settings.pendingWebhookCount" title="Webhook setup requests"></span>
+                <span class="account-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="account-menu-panel" x-show="$store.settings.accountMenuOpen" x-transition x-cloak>
+                <div class="account-menu-identity">
+                    <strong x-text="$store.settings.account?.username"></strong>
+                    <span>Local MixerBee account</span>
+                </div>
+                <button type="button" @click="$store.settings.accountMenuOpen = false; $store.settings.show()"><span x-html="$store.icons.settings"></span> Connection settings</button>
+                <button type="button" @click="$store.settings.accountMenuOpen = false; $store.settings.showAccount()"><span x-html="$store.icons.user"></span> Account settings</button>
+                <button type="button" class="account-menu-signout" @click="$store.settings.accountMenuOpen = false; $store.settings.logout()">Sign out</button>
+            </div>
+        </div>
     </div>
 </div>
 

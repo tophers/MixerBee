@@ -3,32 +3,34 @@ routers/webhooks.py – APIRouter
 """
 
 import secrets
+import time
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from typing import Dict, Any
 
 import app_state
+import database
 from scheduler import scheduler_manager
 from app.logger import get_logger
 
 logger = get_logger("MixerBee.Webhooks")
 router = APIRouter()
 
-def trigger_relevant_schedules(user_id: str = None, target_media_type: str = None):
+def trigger_relevant_schedules(user_id: str = None, target_media_type: str = None, connection_id: str = None):
     # target_media_type is accepted for logging/job-id purposes only (see
     # handle_media_webhook) and is deliberately NOT used to filter schedules here: a
     # schedule's block types can't be reliably mapped back to "tv"/"movie"/"music"
     # (e.g. curated/mirror blocks), and a show can appear in several playlists the
     # user wants kept current regardless of which one they were watching.
-    if not app_state.is_configured:
+    if not connection_id:
         return
 
     schedules = scheduler_manager.get_all_schedules()
     triggered_count = 0
 
     for sched in schedules:
-        if sched.get("job_type") == "enrichment":
+        if sched.get("connection_id") != connection_id or sched.get("job_type") == "enrichment":
             continue
 
         if user_id is None or sched.get("user_id") == user_id:
@@ -42,20 +44,17 @@ def trigger_relevant_schedules(user_id: str = None, target_media_type: str = Non
     logger.info(f"Finished live update. {triggered_count} schedule(s) refreshed.")
 
 @router.post("/api/webhook")
-async def handle_media_webhook(request: Request):
-    user_agent = request.headers.get("user-agent", "UNKNOWN").lower()
+async def legacy_webhook():
+    return JSONResponse(status_code=410, content={'detail': 'Use the connection-specific webhook URL from Settings.'})
 
-    if app_state.WEBHOOK_SECRET:
-        supplied = request.query_params.get("token") or request.headers.get("x-mixerbee-webhook-secret", "")
-        if not supplied or not secrets.compare_digest(supplied, app_state.WEBHOOK_SECRET):
-            logger.warning("Rejected webhook request: missing or invalid token.")
-            return JSONResponse(
-                status_code=401,
-                content={"status": "rejected", "reason": "Missing or invalid webhook token."}
-            )
 
-    if not app_state.is_configured:
-        return {"status": "ignored", "reason": "App not configured"}
+@router.post("/api/webhook/{connection_id}")
+async def handle_media_webhook(connection_id: str, request: Request):
+    with database.get_db_connection() as conn:
+        row = conn.execute('SELECT webhook_secret FROM media_connections WHERE id=? AND owner_id IS NOT NULL', (connection_id,)).fetchone()
+    supplied = request.query_params.get('token') or request.headers.get('x-mixerbee-webhook-secret', '')
+    if not row or not row['webhook_secret'] or not secrets.compare_digest(supplied, row['webhook_secret']):
+        return JSONResponse(status_code=401, content={'status': 'rejected', 'reason': 'Missing or invalid webhook token.'})
 
     try:
         payload: Dict[str, Any] = await request.json()
@@ -68,6 +67,14 @@ async def handle_media_webhook(request: Request):
 
     if not event_type_lower:
         return {"status": "ignored", "reason": "No Event type provided in payload"}
+
+    # A valid authenticated media-server event proves that the current URL is
+    # installed and reachable, even if this particular event does not rebuild a list.
+    now = time.time()
+    with database.get_db_connection() as conn:
+        conn.execute('''UPDATE media_connections SET webhook_last_received_at=?,
+            webhook_verified_at=? WHERE id=?''', (now, now, connection_id))
+        conn.commit()
 
     if event_type_lower == "playback.stop":
         played_to_completion = payload.get("PlaybackInfo", {}).get("PlayedToCompletion", False)
@@ -110,7 +117,7 @@ async def handle_media_webhook(request: Request):
         # triggered (see trigger_relevant_schedules), so keeping it in the id would let two
         # events of different types within the debounce window queue two full fan-out
         # sweeps instead of coalescing into one.
-        job_id = f"webhook_debounce_{user_id}"
+        job_id = f"webhook_debounce_{connection_id}_{user_id}"
 
         logger.info(f"Event matches triggers! Scheduling debounce rebuild for {debounce_seconds}s from now.")
 
@@ -118,7 +125,7 @@ async def handle_media_webhook(request: Request):
             func=trigger_relevant_schedules,
             trigger='date',
             run_date=run_time,
-            args=[user_id, target_media_type],
+            args=[user_id, target_media_type, connection_id],
             id=job_id,
             name=f"Debounced Webhook Update for {user_id} ({target_media_type or 'all'})",
             replace_existing=True 

@@ -32,3 +32,8 @@ venv/
 # Other
 .DS_Store
 .aider*
+CLAUDE.md
+GEMINI.md
+
+# One-time local account bootstrap token
+config/setup-token

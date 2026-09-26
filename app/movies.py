@@ -11,10 +11,10 @@ from app.logger import get_logger
 
 logger = get_logger("MixerBee.Movies")
 
-def get_movie_libraries(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_movie_libraries(user_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Fetches all movie libraries (folders) a specific user can see."""
     logger.info(f"Fetching movie libraries for user {user_id}...")
-    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Views", headers=hdr, timeout=10)
+    r = media.get(f"/Users/{user_id}/Views", timeout=10)
     r.raise_for_status()
     all_views = r.json().get("Items", [])
     movie_folders = [
@@ -25,19 +25,19 @@ def get_movie_libraries(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str
     logger.info(f"Found {len(movie_folders)} movie libraries.")
     return movie_folders
 
-def get_movie_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_movie_genres(user_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Fetches all movie genres available to a specific user."""
     logger.info(f"Fetching movie genres for user {user_id} using native endpoint...")
     params = {"IncludeItemTypes": "Movie", "UserId": user_id, "SortBy": "SortName"}
-    r = client.SESSION.get(f"{client.EMBY_URL}/Genres",
-                           params=params, headers=hdr, timeout=10)
+    r = media.get("/Genres",
+                           params=params, timeout=10)
     r.raise_for_status()
     genres = r.json().get("Items", [])
     logger.info(f"Found {len(genres)} movie genres.")
     return genres
 
 def find_movies(user_id: str, filters: Dict,
-                hdr: Dict[str, str]) -> List[Dict[str, str]]:
+                media: client.MediaClient) -> List[Dict[str, str]]:
     """Finds movies based on a set of filters."""
     logger.info(f"Finding movies for user {user_id} with filters: {filters}")
 
@@ -120,11 +120,11 @@ def find_movies(user_id: str, filters: Dict,
 
     if "PersonIds" in base_params or "ExcludePersonIds" in base_params:
         base_params["UserId"] = user_id
-        endpoint_url = f"{client.EMBY_URL}/Items"
+        endpoint_url = "/Items"
     else:
-        endpoint_url = f"{client.EMBY_URL}/Users/{user_id}/Items"
+        endpoint_url = f"/Users/{user_id}/Items"
 
-    r = client.SESSION.get(endpoint_url, params=base_params, headers=hdr, timeout=30)
+    r = media.get(endpoint_url, params=base_params, timeout=30)
     r.raise_for_status()
     all_movies = r.json().get("Items", [])
 

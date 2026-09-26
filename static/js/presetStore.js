@@ -6,6 +6,7 @@ import { presetModal, confirmModal, importPresetModal } from './modals.js';
 
 export const presetStore = {
     registry: {},
+    records: [],
     availableNames: [],
     currentName: '',
 
@@ -15,15 +16,24 @@ export const presetStore = {
 
     async refresh() {
         try {
-            const res = await useApi(api.get('api/presets'), null, true, false);
-            if (res.data && typeof res.data === 'object') {
-                this.registry = res.data;
-                this.availableNames.splice(0, this.availableNames.length, ...Object.keys(res.data));
+            const res = await useApi(api.get('api/presets/catalog'), null, true, false);
+            if (Array.isArray(res.data)) {
+                this.records = res.data;
+                this.registry = Object.fromEntries(res.data.map(record => [record.name, record.data]));
+                this.availableNames.splice(0, this.availableNames.length, ...res.data.map(record => record.name));
             }
         } catch (error) {
             console.error('Error populating presets:', error);
             toast('Could not load presets from server.', false);
         }
+    },
+
+    nameForId(id) {
+        return this.records.find(record => record.id === id)?.name || '';
+    },
+
+    idForName(name) {
+        return this.records.find(record => record.name === name)?.id || '';
     },
 
     async load(name) {
@@ -68,7 +78,9 @@ export const presetStore = {
         if (!this.currentName) return;
         try {
             await confirmModal.show({ title: 'Delete Preset?', text: `Delete "${this.currentName}"?`, confirmText: 'Delete' });
-            const res = await useApi(api.del(`api/presets/${this.currentName}`));
+            const presetId = this.idForName(this.currentName);
+            if (!presetId) return toast('Preset could not be found. Refresh and try again.', false);
+            const res = await useApi(api.del(`api/presets/id/${encodeURIComponent(presetId)}`));
             if (res.status === 'ok') {
                 await this.refresh();
                 this.currentName = '';

@@ -40,7 +40,7 @@ MixerBee supports both local Ollama and Google Gemini models.
 ### Management
 - **Manager Dashboard**: View, sort, search, and delete playlists or collections
 - **Conversion Tools**: Convert playlists to collections, or collections to playlists
-- **Notification History**: View build and background job history
+- **Notification History**: Review notifications from the current browser session
 - **Verbose Logging**: Optional detailed logging through the `.env` file
 
 ---
@@ -62,18 +62,33 @@ MixerBee supports both local Ollama and Google Gemini models.
 ## Installation and Setup
 
 ### Requirements
-- **Docker** recommended for deployment and database management
+- **Docker Hub image** recommended for deployment
 - **Python** 3.12+ for bare-metal installs
-- **Emby or Jellyfin** with admin access
+- **Emby or Jellyfin** account; a server admin account is only needed for server-wide operations such as collections
+
+The project's Docker image, test instance, and production instance run Python 3.14.3. Python 3.12+ is supported for custom installs.
 
 ### Quick Start
-MixerBee is available on Docker Hub and GitHub.
+The recommended installation uses the prebuilt Docker Hub image; no source checkout or local build is needed.
 
-1. Pull the container: `docker pull trulytilted/mixerbee`
+1. Start the container from the directory where you want to keep MixerBee's data:
+
+   ```sh
+   docker run -d \
+     --name mixerbee \
+     -p 9000:9000 \
+     -v "$(pwd)/mixerbee_config:/config" \
+     --restart unless-stopped \
+     trulytilted/mixerbee:latest
+   ```
+
 2. Open the UI at `http://your-ip:9000`
-3. Go to **Settings** and enter your server URL, credentials, and AI provider if you want to use AI features
+3. On first launch, create the local MixerBee owner account directly in the browser
+4. Add an Emby or Jellyfin connection for that account, then configure an AI provider if you want AI features
 
-See `INSTALL.md` for full setup details.
+Docker downloads the image if it is not already present. The `mixerbee_config` directory persists settings, presets, schedules, and the local vector database across container replacements.
+
+See [Installation](INSTALL.md) for updates and alternative installs, and [Usage and behavior](USAGE.md) for build behavior, schedules, and backups.
 
 ---
 
@@ -93,8 +108,10 @@ Library metadata used for embeddings is stored locally. If you use a local Ollam
 ## Notes
 - More detailed prompts usually produce better results
 - You can combine filters and prompt-based requests
-- Settings changed in the UI are stored in the database
-- `.env` changes are synced back into the app on restart
+- Each local MixerBee account has its own connections, presets, schedules, webhook URL, and AI settings
+- Household members can request webhook setup from the installation owner; MixerBee verifies the connection after the first valid media-server event
+- Schedules keep running for their saved connection when the user is signed out
+- Settings changed in the UI are stored in the database and apply without restarting MixerBee
 
 # Overview & Configuration
 
@@ -104,7 +121,11 @@ Library metadata used for embeddings is stored locally. If you use a local Ollam
 
 MixerBee requires a connection to your Emby/Jellyfin server and optionally an AI provider to provide additional functionality.
 
+*   **Local Accounts:** The first local account is the installation owner and can create household accounts. Each account starts with an independent workspace.
 *   **Server Connection:** Supports **Emby** or **Jellyfin**. Requires the server URL, username, and password. 
+*   **Connection Switching:** An account can save multiple media connections and switch between their presets, schedules, and library data from the header.
+*   **Connection Removal:** Removing a connection clears its MixerBee credentials, presets, schedules, and AI index while leaving media-server playlists and collections untouched.
+*   **Media Permissions:** Collection editing controls follow the selected Emby or Jellyfin user's administrator capability. Normal users can still copy a visible collection into a personal playlist.
 *   **AI Provider:** Choose between **Ollama (Local)** or **Google Gemini (Cloud)**.
     *   *Ollama Integration:* Requires Ollama URL (e.g., `http://localhost:11434`) and supports starring favorite models for quick-switching. Prefer/require tool-calling capable models.
 *   **Vector Database:** MixerBee uses a local ChromaDB instance (Cosine similarity) to index your library for semantic searching.
@@ -136,9 +157,12 @@ Music queue generator.
 *   **How it works:** Supports multiple modes: specific Albums, an Artist's Top Tracks, random Artist tracks, or broad Genre filters.
 
 ### Echo Block (Mirror)
-A semantic similarity engine using your local Vector DB.
-*   **How it works:** You provide "Seed" items (e.g., *Blade Runner*). The database uses Cosine distance to find other movies/shows in your library with the exact same "mood" or mathematical signature. You can use negative seeds to exclude concepts.
-*   **Settings:** You can adjust the *Exploration Depth* (Strict vs. Discovery) to control how closely the results must match the seeds.
+A semantic similarity search using your locally indexed library. "Mirror" is the internal block name; the UI calls it Echo.
+
+*   **How it works:** Choose positive seed movies or shows (e.g., *Blade Runner*) to find titles with similar metadata and mood. Negative seeds steer results away from unwanted similarities; they are not strict exclusion rules. Results are sampled from the matching pool and can vary between builds.
+*   **Settings:** Adjust *Exploration Depth* (Strict vs. Discovery), allow both movies and shows with *Mixed Echo*, or include the seed items in the output.
+*   **TV results:** A matched show contributes its next unwatched episode, falling back to its first available episode if none is unwatched.
+*   **Snapshots:** Save a preview as a snapshot to retain its selected items and order. Echo searches for similar media; it does not copy another block's selection.
 
 ### AI Vibe Block (Managed by AI)
 Generated exclusively via the AI text-prompt builder.

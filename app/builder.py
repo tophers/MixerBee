@@ -8,13 +8,14 @@ from typing import Dict, List, Any, Optional
 from itertools import zip_longest
 
 from . import client
+from .media_client import media_operation
 from . import items as items_api
 from .movies import find_movies
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
 from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_episode, get_first_available_episode, series_id
 
 
-def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+def _process_tv_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """Process a TV block: resolve shows to episodes with optional interleave."""
     items = []
     try:
@@ -31,7 +32,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 sid = items_api.sanitize_id(raw_show.get("id"))
 
                 if not sid and show_name:
-                    sid = series_id(show_name, hdr)
+                    sid = series_id(show_name, media)
 
                 if not sid:
                     continue
@@ -43,7 +44,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
                 # Fix: If the intent is unwatched, ignore any cached S/E numbers from the preset
                 # and dynamically fetch the true next unwatched episode right now.
                 if is_unwatched:
-                    ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                    ep_info = get_first_unwatched_episode(sid, user_id, media)
                     if ep_info:
                         s = ep_info.get("ParentIndexNumber")
                         e = ep_info.get("IndexNumber")
@@ -55,14 +56,14 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
 
                 # Fallback if we still don't have a starting point
                 if s is None or e is None:
-                    first_ep = get_first_available_episode(sid, user_id, hdr)
+                    first_ep = get_first_available_episode(sid, user_id, media)
                     if first_ep:
                         s = first_ep.get("ParentIndexNumber")
                         e = first_ep.get("IndexNumber")
                     else:
                         s, e = 1, 1
 
-                eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
+                eps = episodes(sid, s, e, count, media, user_id=user_id, only_unwatched=is_unwatched)
 
                 if eps:
                     groups.append(eps)
@@ -84,7 +85,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], 
     return items
 
 
-def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+def _process_movie_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """Process a movie block: resolve by explicit IDs or general filters."""
     items = []
     try:
@@ -104,20 +105,20 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
                 if limit_val is not None:
                     id_filters["limit"] = int(limit_val)
 
-                resolved_items = find_movies(user_id=user_id, filters=id_filters, hdr=hdr)
+                resolved_items = find_movies(user_id=user_id, filters=id_filters, media=media)
                 item_map = {item.get("Id"): item for item in resolved_items}
                 for rid in id_list:
                     if rid in item_map:
                         items.append(item_map[rid])
         else:
-            items = find_movies(user_id=user_id, filters=filters, hdr=hdr)
+            items = find_movies(user_id=user_id, filters=filters, media=media)
 
     except Exception as e:
         logging.error(f"Error processing Movie block {block_index}: {e}", exc_info=True)
     return items
 
 
-def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """Process an Echo (Mirror) block: AI-similarity-based content sampling."""
     items = []
     try:
@@ -129,17 +130,18 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
             target_ids = filters["ids"]
             resolved_map = {}
 
-            resolved_movies = find_movies(user_id=user_id, filters={"ids": target_ids}, hdr=hdr)
+            resolved_movies = find_movies(user_id=user_id, filters={"ids": target_ids}, media=media)
             for m in resolved_movies:
                 resolved_map[m["Id"]] = m
 
             remaining_ids = [tid for tid in target_ids if tid not in resolved_map]
             for rid in remaining_ids:
-                item_info = items_api.get_item_children(user_id, rid, hdr) # Fallback resolving
+                item_info = items_api.get_item_children(user_id, rid, media) # Fallback resolving
                 if item_info:
                     resolved_map[rid] = item_info[0]
                 else: # Try direct get if not children
-                    item_resp = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items/{rid}", headers=hdr, timeout=5)
+                    item_resp = media.get(f"/Users/{user_id}/Items/{rid}",
+                                                    params={"Fields": "RunTimeTicks"}, timeout=5)
                     if item_resp.ok:
                         resolved_map[rid] = item_resp.json()
 
@@ -185,13 +187,13 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
                     series_ids.append(m_id)
 
             if movie_ids:
-                resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
+                resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, media=media)
                 items.extend(resolved_movies)
 
             for sid in series_ids:
-                next_ep = get_first_unwatched_episode(sid, user_id, hdr)
+                next_ep = get_first_unwatched_episode(sid, user_id, media)
                 if not next_ep:
-                    next_ep = get_first_available_episode(sid, user_id, hdr)
+                    next_ep = get_first_available_episode(sid, user_id, media)
                 if next_ep:
                     items.append(next_ep)
 
@@ -208,12 +210,12 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
                     m_type = meta.get("type")
 
                     if m_type == "Movie":
-                        m_list = find_movies(user_id=user_id, filters={"ids": [sid]}, hdr=hdr)
+                        m_list = find_movies(user_id=user_id, filters={"ids": [sid]}, media=media)
                         if m_list: master_items.append(m_list[0])
                     elif m_type == "Series":
-                        next_ep = get_first_unwatched_episode(sid, user_id, hdr)
+                        next_ep = get_first_unwatched_episode(sid, user_id, media)
                         if not next_ep:
-                            next_ep = get_first_available_episode(sid, user_id, hdr)
+                            next_ep = get_first_available_episode(sid, user_id, media)
                         if next_ep: master_items.append(next_ep)
 
             items = master_items + items
@@ -223,7 +225,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, st
     return items
 
 
-def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+def _process_music_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """Process a music block: resolve songs by album, artist, or genre."""
     items = []
     try:
@@ -233,19 +235,19 @@ def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
 
         if mode == "album":
             if album_id := music_data.get("albumId"):
-                songs = get_songs_by_album(album_id, hdr)
+                songs = get_songs_by_album(album_id, media)
         elif mode == "artist_top":
             if artist_id := music_data.get("artistId"):
                 count = int(music_data.get("count", 10))
-                songs = get_songs_by_artist(artist_id, hdr, sort="Top", limit=count)
+                songs = get_songs_by_artist(artist_id, media, sort="Top", limit=count)
         elif mode == "artist_random":
             if artist_id := music_data.get("artistId"):
                 count = int(music_data.get("count", 10))
-                all_songs = get_songs_by_artist(artist_id, hdr, sort="Random")
+                all_songs = get_songs_by_artist(artist_id, media, sort="Random")
                 songs = random.sample(all_songs, min(count, len(all_songs))) if all_songs else []
         elif mode == "genre":
             filters = music_data.get("filters", {})
-            songs = find_songs(user_id=user_id, filters=filters, hdr=hdr)
+            songs = find_songs(user_id=user_id, filters=filters, media=media)
 
         if songs:
             items.extend(songs)
@@ -256,19 +258,19 @@ def _process_music_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str
     return items
 
 
-def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, str], log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
+def _process_curated_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
     """Process a curated block: combine explicit movies and TV shows with controlled ordering."""
     items = []
     try:
         # Snapshotted bypass
         filters = block.get("filters", {})
         if block.get("isSnapshot") and filters.get("ids"):
-            return _process_movie_block({"filters": {"ids": filters["ids"]}}, user_id, hdr, log_messages, block_index)
+            return _process_movie_block({"filters": {"ids": filters["ids"]}}, user_id, media, log_messages, block_index)
 
         movies_list = []
         movie_ids = [m.get("Id") for m in block.get("movies", []) if m.get("Id")]
         if movie_ids:
-            resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, hdr=hdr)
+            resolved_movies = find_movies(user_id=user_id, filters={"ids": movie_ids}, media=media)
             # Maintain explicit order
             movie_map = {m["Id"]: m for m in resolved_movies}
             movies_list = [movie_map[mid] for mid in movie_ids if mid in movie_map]
@@ -281,7 +283,7 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
                 show_name = raw_show.get("name")
                 sid = items_api.sanitize_id(raw_show.get("id"))
                 if not sid and show_name:
-                    sid = series_id(show_name, hdr)
+                    sid = series_id(show_name, media)
                 if not sid: continue
 
                 s = raw_show.get("season")
@@ -291,7 +293,7 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
 
                 # Fix: Same logic applied here for Curated Blocks
                 if is_unwatched:
-                    ep_info = get_first_unwatched_episode(sid, user_id, hdr)
+                    ep_info = get_first_unwatched_episode(sid, user_id, media)
                     if ep_info:
                         s, e = ep_info.get("ParentIndexNumber"), ep_info.get("IndexNumber")
                     else:
@@ -301,13 +303,13 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
                     if e is not None: e = int(e)
 
                 if s is None or e is None:
-                    first_ep = get_first_available_episode(sid, user_id, hdr)
+                    first_ep = get_first_available_episode(sid, user_id, media)
                     if first_ep:
                         s, e = first_ep.get("ParentIndexNumber"), first_ep.get("IndexNumber")
                     else:
                         s, e = 1, 1
 
-                eps = episodes(sid, s, e, count, hdr, user_id=user_id, only_unwatched=is_unwatched)
+                eps = episodes(sid, s, e, count, media, user_id=user_id, only_unwatched=is_unwatched)
                 if eps: groups.append(eps)
 
             if block.get("tv_interleave", False):
@@ -335,22 +337,24 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, hdr: Dict[str, s
     return items
 
 
-def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str], log_messages: List[str]) -> List[Dict[str, Any]]:
+@media_operation
+def generate_items_from_blocks(user_id: str, blocks: List[Dict[str, Any]], media: client.MediaClient, log_messages: List[str]) -> List[Dict[str, Any]]:
     """Dispatch block definitions to their respective processors."""
+    media.require_user(user_id)
     master_items_list: List[Dict[str, Any]] = []
 
     for i, block in enumerate(blocks, 1):
         block_type = block.get("type")
         if block_type == "tv" or (block_type == "vibe" and block.get("vibe_type") == "tv"):
-            master_items_list.extend(_process_tv_block(block, user_id, hdr, log_messages, i))
+            master_items_list.extend(_process_tv_block(block, user_id, media, log_messages, i))
         elif block_type == "movie" or (block_type == "vibe" and block.get("vibe_type") == "movie"):
-            master_items_list.extend(_process_movie_block(block, user_id, hdr, log_messages, i))
+            master_items_list.extend(_process_movie_block(block, user_id, media, log_messages, i))
         elif block_type == "music":
-            master_items_list.extend(_process_music_block(block, user_id, hdr, log_messages, i))
+            master_items_list.extend(_process_music_block(block, user_id, media, log_messages, i))
         elif block_type == "mirror" or block_type == "echo":
-            master_items_list.extend(_process_mirror_block(block, user_id, hdr, log_messages, i))
+            master_items_list.extend(_process_mirror_block(block, user_id, media, log_messages, i))
         elif block_type == "curated":
-            master_items_list.extend(_process_curated_block(block, user_id, hdr, log_messages, i))
+            master_items_list.extend(_process_curated_block(block, user_id, media, log_messages, i))
 
     return master_items_list
 
@@ -400,17 +404,17 @@ def format_duration_ticks(ticks: int) -> str:
     return f"{minutes}m"
 
 
-def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str]) -> Dict[str, Any]:
+def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[str, Any]], media: client.MediaClient) -> Dict[str, Any]:
     """Create a new playlist from resolved block items."""
     log_messages: List[str] = []
-    master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
+    master_items = generate_items_from_blocks(user_id, blocks, media, log_messages)
     master_item_ids = [item["Id"] for item in master_items if item.get("Id")]
 
     if not master_item_ids:
         log_messages.append("No items were found to add. Playlist not created.")
         return {"status": "error", "log": log_messages}
 
-    new_item_id = items_api.create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, hdr=hdr, log=log_messages)
+    new_item_id = items_api.create_playlist(name=playlist_name, user_id=user_id, ids=master_item_ids, media=media, log=log_messages)
     return {
         "status": "ok" if new_item_id else "error",
         "log": log_messages,
@@ -418,10 +422,10 @@ def create_mixed_playlist(user_id: str, playlist_name: str, blocks: List[Dict[st
     }
 
 
-def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str, Any]], hdr: Dict[str, str]) -> Dict[str, Any]:
+def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str, Any]], media: client.MediaClient) -> Dict[str, Any]:
     """Add items from block definitions to an existing playlist."""
     log_messages: List[str] = []
-    master_items = generate_items_from_blocks(user_id, blocks, hdr, log_messages)
+    master_items = generate_items_from_blocks(user_id, blocks, media, log_messages)
     master_item_ids = [item["Id"] for item in master_items if item.get("Id")]
 
     if not master_item_ids:
@@ -432,7 +436,7 @@ def add_items_to_playlist(user_id: str, playlist_id: str, blocks: List[Dict[str,
         playlist_id=playlist_id,
         item_ids=master_item_ids,
         user_id=user_id,
-        hdr=hdr,
+        media=media,
         log=log_messages
     )
 

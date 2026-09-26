@@ -87,7 +87,7 @@
                                                         <label class="field-label">Output Mode</label>
                                                         <div class="toggle-pill">
                                                             <span class="pill-btn" :class="!entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = false">Playlist</span>
-                                                            <span class="pill-btn" :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
+                                                            <span class="pill-btn" x-show="$store.settings.can_manage_collections" x-cloak :class="entry.create_as_collection ? 'active' : ''" @click="entry.create_as_collection = true">Collection</span>
                                                         </div>
                                                     </div>
                                                 </template>
@@ -96,10 +96,11 @@
                                             <template x-if="entry.job_type !== 'enrichment'">
                                                 <div class="mt-lg">
                                                     <label class="field-label">Automation Preset</label>
-                                                    <select x-model="entry.preset_name" class="mixer-select w-full">
+                                                    <select x-model="entry.preset_id" class="mixer-select w-full"
+                                                            @change="entry.preset_name = $store.presets.nameForId(entry.preset_id)">
                                                         <option value="">-- Select Builder Preset --</option>
-                                                        <template x-for="name in $store.presets.availableNames" :key="name">
-                                                            <option :value="name" x-text="name" :selected="name === entry.preset_name"></option>
+                                                        <template x-for="preset in $store.presets.records" :key="preset.id">
+                                                            <option :value="preset.id" x-text="preset.name"></option>
                                                         </template>
                                                     </select>
                                                 </div>

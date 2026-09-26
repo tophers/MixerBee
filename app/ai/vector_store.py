@@ -11,7 +11,8 @@ import chromadb
 import numpy as np
 
 import app.client as client
-from app_state import CONFIG_DIR
+from runtime_paths import CONFIG_DIR
+from app.media_client import current_media, media_operation
 from app.logger import get_logger, refresh_logger_level
 
 logger = get_logger("MixerBee.Vector")
@@ -19,19 +20,23 @@ logger = get_logger("MixerBee.Vector")
 CHROMA_PATH = CONFIG_DIR / "chroma_db"
 chroma_client = chromadb.PersistentClient(path=str(CHROMA_PATH))
 
-_active_collection: Optional[chromadb.Collection] = None
+_collections = {}
+_collection_lock = threading.RLock()
+_enrichment_backups = {}
+
+
+def collection_name():
+    return "mixerbee_" + current_media().connection.id
+
 
 def get_media_collection() -> chromadb.Collection:
-    """
-    Always returns the currently active 'mixerbee_media' collection handle.
-    """
-    global _active_collection
-    if _active_collection is None:
-        _active_collection = chroma_client.get_or_create_collection(
-            name="mixerbee_media",
-            metadata={"hnsw:space": "cosine"}
-        )
-    return _active_collection
+    name = collection_name()
+    with _collection_lock:
+        if name not in _collections:
+            _collections[name] = chroma_client.get_or_create_collection(
+                name=name, metadata={"hnsw:space": "cosine"})
+        return _collections[name]
+
 
 class CollectionProxy:
     """
@@ -45,7 +50,8 @@ class CollectionProxy:
 
 media_collection = CollectionProxy()
 
-def get_vector_space() -> str:
+@media_operation
+def get_vector_space(*, media=None) -> str:
     """Returns the distance metric currently used by the collection."""
     try:
         col = get_media_collection()
@@ -54,12 +60,11 @@ def get_vector_space() -> str:
     except:
         return "cosine"
 
-def reset_media_collection(preserve_enrichments: bool = True):
+@media_operation
+def reset_media_collection(preserve_enrichments: bool = True, *, media=None):
     """
     Manually resets the ChromaDB collection.
     """
-    import app_state
-    global _active_collection
     enriched_backups = {}
 
     try:
@@ -74,26 +79,39 @@ def reset_media_collection(preserve_enrichments: bool = True):
                         enriched_backups[item_id] = meta['vibe_tags']
                 logger.info(f"RESET: Backed up {len(enriched_backups)} enriched items.")
 
-        logger.info("RESET: Deleting 'mixerbee_media' collection...")
-        chroma_client.delete_collection(name="mixerbee_media")
+        logger.info("RESET: Deleting collection %s", collection_name())
+        chroma_client.delete_collection(name=collection_name())
     except Exception as e:
         logger.warning(f"RESET: Collection may not exist or error during wipe: {e}")
 
     logger.info("RESET: Recreating collection with Cosine similarity...")
 
-    _active_collection = None
+    with _collection_lock:
+        _collections.pop(collection_name(), None)
     get_media_collection()
 
     if preserve_enrichments and enriched_backups:
-        app_state.ENRICHMENT_BACKUP = enriched_backups
+        _enrichment_backups[current_media().connection.id] = enriched_backups
         logger.info("RESET: Backups queued for restoration on next library sync.")
 
-def ensure_cosine_similarity():
+
+def delete_connection_collection(connection_id: str):
+    """Remove a deleted connection's isolated AI index without recreating it."""
+    name = f'mixerbee_{connection_id}'
+    try:
+        chroma_client.delete_collection(name=name)
+    except Exception:
+        logger.info("No AI collection to remove for connection %s", connection_id)
+    with _collection_lock:
+        _collections.pop(name, None)
+    _enrichment_backups.pop(connection_id, None)
+
+@media_operation
+def ensure_cosine_similarity(*, media=None):
     """
     Checks if the collection is using L2 (Euclidean) and migrates to Cosine if so.
     Preserves 'vibe_tags' for any enriched items during the transition.
     """
-    import app_state
     current_space = get_vector_space()
     if current_space == "cosine":
         return
@@ -115,15 +133,16 @@ def get_dynamic_limit(media_type: str) -> int:
             TYPE_COUNT_CACHE.clear()
             LAST_CACHE_TIME = time.time()
 
-        if media_type not in TYPE_COUNT_CACHE:
+        cache_key = (current_media().connection.id, media_type)
+        if cache_key not in TYPE_COUNT_CACHE:
             try:
                 res = media_collection.get(where={"type": media_type}, include=[])
-                TYPE_COUNT_CACHE[media_type] = len(res.get('ids', []))
+                TYPE_COUNT_CACHE[cache_key] = len(res.get('ids', []))
             except Exception as e:
                 logger.error(f"Failed to count {media_type}s: {e}")
-                TYPE_COUNT_CACHE[media_type] = 0
+                TYPE_COUNT_CACHE[cache_key] = 0
 
-        total_items = TYPE_COUNT_CACHE[media_type]
+        total_items = TYPE_COUNT_CACHE[cache_key]
 
     if total_items == 0:
         return 12
@@ -136,7 +155,6 @@ def get_dynamic_limit(media_type: str) -> int:
 
 def migrate_enrichment_fields():
     logger.info("Running schema migration check...")
-    import app_state
     try:
         total = media_collection.count()
         if total == 0: return
@@ -167,7 +185,8 @@ def migrate_enrichment_fields():
     except Exception as e:
         logger.error(f"Migration failed: {e}", exc_info=True)
 
-def calculate_library_iq() -> dict:
+@media_operation
+def calculate_library_iq(*, media=None) -> dict:
     try:
         total = media_collection.count()
         if total == 0:
@@ -182,7 +201,8 @@ def calculate_library_iq() -> dict:
         logger.error(f"Stats calculation failed: {e}")
         return {"total": 0, "enriched": 0}
 
-def get_discovery_tags(limit: int = 60) -> List[str]:
+@media_operation
+def get_discovery_tags(limit: int = 60, *, media=None) -> List[str]:
     """
     Extracts and aggregates unique vibe_tags from all enriched media.
     Checks both boolean and string variants to be safe.
@@ -217,14 +237,15 @@ def get_discovery_tags(limit: int = 60) -> List[str]:
         logger.error(f"Failed to aggregate discovery tags: {e}")
         return []
 
-def index_library_for_vibes(user_id: str, hdr: dict):
+@media_operation
+def index_library_for_vibes(user_id: str, media: client.MediaClient):
     """Fetches metadata from Emby and embeds locally. Restores AI tags from backup if available."""
-    import app_state
+    media.require_user(user_id)
     refresh_logger_level()
     migrate_enrichment_fields()
     logger.info("Vector DB Checking for Library Updates")
 
-    backup_tags = getattr(app_state, 'ENRICHMENT_BACKUP', {})
+    backup_tags = _enrichment_backups.get(media.connection.id, {})
 
     try:
         existing_data = media_collection.get(include=[])
@@ -243,7 +264,7 @@ def index_library_for_vibes(user_id: str, hdr: dict):
                 "Limit": limit,
                 "Fields": ""
             }
-            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
+            r = media.get(f"/Users/{user_id}/Items", params=params, timeout=30)
             r.raise_for_status()
             items = r.json().get("Items", [])
             if not items: break
@@ -274,7 +295,7 @@ def index_library_for_vibes(user_id: str, hdr: dict):
                 "UserId": user_id,
                 "Fields": "Overview,Genres,ProductionYear,PremiereDate,DateCreated"
             }
-            r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=30)
+            r = media.get(f"/Users/{user_id}/Items", params=params, timeout=30)
             r.raise_for_status()
 
             new_items = r.json().get("Items", [])
@@ -332,9 +353,8 @@ def index_library_for_vibes(user_id: str, hdr: dict):
                 )
             logger.info(f"Processed {min(i+batch_size, len(ids_to_add))} / {len(ids_to_add)} items.")
 
-        if hasattr(app_state, 'ENRICHMENT_BACKUP') and app_state.ENRICHMENT_BACKUP:
-            app_state.ENRICHMENT_BACKUP = {}
-            logger.info("MIGRATION: Enrichment restoration buffer cleared.")
+        _enrichment_backups.pop(media.connection.id, None)
+        logger.info("MIGRATION: Enrichment restoration buffer cleared.")
 
         logger.info("Vector Update Complete")
 
@@ -455,7 +475,8 @@ def search_by_vibe(query: str = None, media_type: str = None, limit: int = None,
         logger.error(f"Vibe search failed: {e}")
         return []
 
-def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit: int = 10, threshold: float = 0.65, mixed_echo: bool = False):
+@media_operation
+def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit: int = 10, threshold: float = 0.65, mixed_echo: bool = False, *, media=None):
     """
     Finds items similar to a weighted average of multiple seed items, minus negative seeds.
     """
@@ -543,8 +564,9 @@ def search_by_composite_similarity(positive_ids: list, negative_ids: list, limit
         logger.error(f"Composite similarity search failed: {e}", exc_info=True)
         return []
 
-def search_by_similarity(item_id: str, limit: int = 10, threshold: float = 0.65) -> List[Dict[str, str]]:
+@media_operation
+def search_by_similarity(item_id: str, limit: int = 10, threshold: float = 0.65, *, media=None) -> List[Dict[str, str]]:
     """
     Finds items mathematically similar to a specific seed item.
     """
-    return search_by_composite_similarity(positive_ids=[item_id], negative_ids=[], limit=limit, threshold=threshold)
+    return search_by_composite_similarity(positive_ids=[item_id], negative_ids=[], limit=limit, threshold=threshold, media=media)

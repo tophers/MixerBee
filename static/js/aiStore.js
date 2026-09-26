@@ -39,12 +39,16 @@ export const aiStore = {
     async generateWithAi() {
         if (!this.prompt.trim()) return toast('Prompt required.', false);
         this.isGenerating = true;
+        const mixer = Alpine.store('mixer');
+        const aiBlocks = mixer.blocks.filter(b => b.is_ai_generated);
+        const isRefine = aiBlocks.length > 0;
+
         try {
-            const res = await useApi(api.post('api/create_from_text', {
-                prompt: this.prompt,
-                tweaks: this.tweaks
-            }));
-            
+            const payload = { prompt: this.prompt, tweaks: this.tweaks };
+            if (isRefine) payload.existing_blocks = aiBlocks;
+
+            const res = await useApi(api.post('api/create_from_text', payload));
+
             if (res.status === 'ok' && Array.isArray(res.data?.blocks)) {
                 if (res.data.blocks.length === 0) {
                     const failMsg = res.data.log?.[0] || "No items matched your library.";
@@ -52,8 +56,18 @@ export const aiStore = {
                         actionText: "Tweaks",
                         actionCallback: () => aiTweaksModal.show()
                     });
+                } else if (isRefine) {
+                    const manualBefore = [];
+                    const manualAfter = [];
+                    let seenAi = false;
+                    mixer.blocks.forEach(b => {
+                        if (b.is_ai_generated) { seenAi = true; return; }
+                        (seenAi ? manualAfter : manualBefore).push(b);
+                    });
+                    await mixer.loadBlocks([...manualBefore, ...res.data.blocks, ...manualAfter], false);
+                    this.prompt = '';
                 } else {
-                    await Alpine.store('mixer').loadBlocks(res.data.blocks, true);
+                    await mixer.loadBlocks(res.data.blocks, true);
                 }
             }
         } catch (e) {

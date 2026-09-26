@@ -10,45 +10,45 @@ from app.logger import get_logger
 
 logger = get_logger("MixerBee.TV")
 
-def get_all_series(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_all_series(user_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Fetches a complete list of all TV Series for a given user."""
     logger.info(f"Fetching all TV series for user {user_id}...")
-    r = client.SESSION.get(
-        f"{client.EMBY_URL}/Users/{user_id}/Items",
+    r = media.get(
+        f"/Users/{user_id}/Items",
         params={"IncludeItemTypes": "Series", "Recursive": "true"},
-        headers=hdr, timeout=10,
+        timeout=10,
     )
     r.raise_for_status()
     items = r.json().get("Items", [])
     logger.info(f"Found {len(items)} TV series.")
     return [{"id": it["Id"], "name": it["Name"]} for it in items]
 
-def search_series(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def search_series(name: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Searches for a series by name and returns a list of matches."""
     logger.info(f"Searching for TV series matching: '{name}'")
-    r = client.SESSION.get(f"{client.EMBY_URL}/Items",
+    r = media.get("/Items",
                            params={"IncludeItemTypes": "Series",
                                    "SearchTerm": name,
                                    "Recursive": "true"},
-                           headers=hdr, timeout=10)
+                           timeout=10)
     r.raise_for_status()
     items = r.json().get("Items", [])
     logger.info(f"Found {len(items)} matches for '{name}'.")
     return [{"Id": it["Id"], "Name": it["Name"]} for it in items]
 
-def series_id(name: str, hdr: Dict[str, str]) -> Optional[str]:
+def series_id(name: str, media: client.MediaClient) -> Optional[str]:
     """Finds the exact series ID for a given name."""
-    r = client.SESSION.get(f"{client.EMBY_URL}/Items",
+    r = media.get("/Items",
                            params={"IncludeItemTypes": "Series",
                                    "SearchTerm": name, "Recursive": "true"},
-                           headers=hdr, timeout=10)
+                           timeout=10)
     for it in r.json().get("Items", []):
         if it["Name"].lower() == name.lower():
             return it["Id"]
     return None
 
 def episodes(sid: str, season: int, episode: int, count: int,
-             hdr: Dict[str, str], user_id: str, end_season: Optional[int] = None,
+             media: client.MediaClient, user_id: str, end_season: Optional[int] = None,
              end_episode: Optional[int] = None, only_unwatched: bool = True) -> List[Dict]:
     """
     Gets a list of episodes for a series, either by count or within a specified S/E range.
@@ -56,15 +56,15 @@ def episodes(sid: str, season: int, episode: int, count: int,
     """
     params = {
         "UserId": user_id,
-        "Fields": "UserData,ParentIndexNumber,IndexNumber"
+        "Fields": "UserData,ParentIndexNumber,IndexNumber,RunTimeTicks"
     }
 
     if only_unwatched:
         params["IsPlayed"] = "false"
 
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{sid}/Episodes",
-                               params=params, headers=hdr, timeout=10)
+        r = media.get(f"/Shows/{sid}/Episodes",
+                               params=params, timeout=10)
         r.raise_for_status()
 
         all_eps = sorted(r.json()["Items"],
@@ -93,13 +93,13 @@ def episodes(sid: str, season: int, episode: int, count: int,
         return []
 
 def get_specific_episode(series_id: str, season: int,
-                         episode: int, hdr: Dict[str, str]) -> Optional[Dict]:
+                         episode: int, media: client.MediaClient) -> Optional[Dict]:
     """Gets data for a single, specific episode."""
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
+        r = media.get(f"/Shows/{series_id}/Episodes",
                                params={"Season": season,
-                                       "Fields": "Name,ParentIndexNumber,IndexNumber"},
-                               headers=hdr, timeout=10)
+                                       "Fields": "Name,ParentIndexNumber,IndexNumber,RunTimeTicks"},
+                               timeout=10)
         r.raise_for_status()
         items = r.json().get("Items", [])
 
@@ -110,15 +110,15 @@ def get_specific_episode(series_id: str, season: int,
         pass
     return None
 
-def get_first_available_episode(series_id: str, user_id: str, hdr: Dict[str, str]) -> Optional[Dict]:
+def get_first_available_episode(series_id: str, user_id: str, media: client.MediaClient) -> Optional[Dict]:
     """Finds the very first available episode for a series in the user's library (e.g. if they only have S9)."""
     params = {
         "UserId": user_id,
-        "Fields": "Name,ParentIndexNumber,IndexNumber"
+        "Fields": "Name,ParentIndexNumber,IndexNumber,RunTimeTicks"
     }
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
-                               params=params, headers=hdr, timeout=15)
+        r = media.get(f"/Shows/{series_id}/Episodes",
+                               params=params, timeout=15)
         r.raise_for_status()
 
         all_eps = sorted(r.json().get("Items", []),
@@ -135,16 +135,16 @@ def get_first_available_episode(series_id: str, user_id: str, hdr: Dict[str, str
     return None
 
 def get_first_unwatched_episode(series_id: str, user_id: str,
-                                hdr: Dict[str, str]) -> Optional[Dict]:
+                                media: client.MediaClient) -> Optional[Dict]:
     """Finds the first unwatched episode for a series for a given user."""
     params = {
         "UserId": user_id,
         "IsPlayed": "false",
-        "Fields": "Name,UserData,ParentIndexNumber,IndexNumber,DateCreated"
+        "Fields": "Name,UserData,ParentIndexNumber,IndexNumber,DateCreated,RunTimeTicks"
     }
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
-                               params=params, headers=hdr, timeout=15)
+        r = media.get(f"/Shows/{series_id}/Episodes",
+                               params=params, timeout=15)
         r.raise_for_status()
 
         all_eps = sorted(r.json().get("Items", []),
@@ -161,18 +161,18 @@ def get_first_unwatched_episode(series_id: str, user_id: str,
     return None
 
 def get_random_unwatched_episode(series_id: str, user_id: str,
-                                 hdr: Dict[str, str]) -> Optional[Dict]:
+                                 media: client.MediaClient) -> Optional[Dict]:
     """Finds a random unwatched episode for a series for a given user."""
     params = {
         "UserId": user_id,
         "IsPlayed": "false",
         "SortBy": "Random",
         "Limit": 20,
-        "Fields": "UserData,ParentIndexNumber,IndexNumber"
+        "Fields": "UserData,ParentIndexNumber,IndexNumber,RunTimeTicks"
     }
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
-                               params=params, headers=hdr, timeout=15)
+        r = media.get(f"/Shows/{series_id}/Episodes",
+                               params=params, timeout=15)
         r.raise_for_status()
         all_eps = r.json().get("Items", [])
 
@@ -186,8 +186,8 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
             }
 
         params.pop("IsPlayed")
-        r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Episodes",
-                               params=params, headers=hdr, timeout=15)
+        r = media.get(f"/Shows/{series_id}/Episodes",
+                               params=params, timeout=15)
         r.raise_for_status()
         all_eps = r.json().get("Items", [])
         valid_eps = [ep for ep in all_eps if ep.get("ParentIndexNumber", 0) > 0]
@@ -204,14 +204,14 @@ def get_random_unwatched_episode(series_id: str, user_id: str,
 
     return None
 
-def mark_unplayed(series_id: str, user_id: str, hdr: Dict[str, str], season_number: Optional[int] = None) -> bool:
+def mark_unplayed(series_id: str, user_id: str, media: client.MediaClient, season_number: Optional[int] = None) -> bool:
     """Removes the watch history for an entire series or a specific season."""
     target_id = series_id
 
     if season_number is not None:
         try:
-            r = client.SESSION.get(f"{client.EMBY_URL}/Shows/{series_id}/Seasons",
-                                   params={"UserId": user_id}, headers=hdr, timeout=10)
+            r = media.get(f"/Shows/{series_id}/Seasons",
+                                   params={"UserId": user_id}, timeout=10)
             r.raise_for_status()
             seasons = r.json().get("Items", [])
 
@@ -226,6 +226,6 @@ def mark_unplayed(series_id: str, user_id: str, hdr: Dict[str, str], season_numb
             return False
 
     logger.info(f"Marking item {target_id} as unplayed for user {user_id}")
-    r = client.SESSION.delete(f"{client.EMBY_URL}/Users/{user_id}/PlayedItems/{target_id}", headers=hdr, timeout=10)
+    r = media.delete(f"/Users/{user_id}/PlayedItems/{target_id}", timeout=10)
     r.raise_for_status()
     return True

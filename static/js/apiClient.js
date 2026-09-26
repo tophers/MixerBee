@@ -1,15 +1,8 @@
 // static/js/apiClient.js
 
-export const ACCESS_KEY_STORAGE_KEY = 'mixerbeeAccessKey';
-
-export function getStoredAccessKey() {
-    return localStorage.getItem(ACCESS_KEY_STORAGE_KEY) || '';
-}
-
-export function setStoredAccessKey(key) {
-    if (key) localStorage.setItem(ACCESS_KEY_STORAGE_KEY, key);
-    else localStorage.removeItem(ACCESS_KEY_STORAGE_KEY);
-}
+let session = {};
+export function setSession(value) { session = value; }
+export function getSession() { return session; }
 
 export const api = {
     async request(endpoint, body = null, method = 'GET') {
@@ -18,7 +11,11 @@ export const api = {
 
         const fetchOptions = {
             method: method.toUpperCase(),
-            headers: { 'Content-Type': 'application/json', 'X-MixerBee-Key': getStoredAccessKey() }
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-MixerBee-Request': '1',
+                'X-MixerBee-CSRF': session.csrf_token || '',
+                'X-MixerBee-Account': session.account?.id || '',
+                'X-MixerBee-Connection': session.connection_id || '' }
         };
 
         if (!['GET', 'HEAD', 'DELETE'].includes(fetchOptions.method) && body) {
@@ -28,7 +25,7 @@ export const api = {
         try {
             const r = await fetch(finalUrl, fetchOptions);
 
-            if (r.status === 401) {
+            if (r.status === 401 || r.status === 409) {
                 document.dispatchEvent(new CustomEvent('mixerbee:unauthorized'));
             }
 

@@ -7,7 +7,7 @@ from typing import Dict, List
 from . import client
 
 
-def get_people(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_people(name: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """
     Searches for people in the library by name.
 
@@ -18,7 +18,7 @@ def get_people(name: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
         "searchTerm": name,
         "Limit": 20
     }
-    r = client.SESSION.get(f"{client.EMBY_URL}/Persons", params=params, headers=hdr, timeout=10)
+    r = media.get("/Persons", params=params, timeout=10)
     r.raise_for_status()
     items = r.json().get("Items", [])
 

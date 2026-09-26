@@ -2,20 +2,41 @@
 routers/scheduler.py – APIRouter
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from apscheduler.triggers.cron import CronTrigger
 
 import models
 import scheduler
-import app_state
+from preset_manager import preset_manager
+from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission
 
 router = APIRouter()
 
+
+def bind_schedule_preset(schedule_data, connection_id):
+    """Resolve a submitted preset to its immutable ID within this connection."""
+    if schedule_data.get('job_type') not in ('builder', 'preset') or schedule_data.get('blocks'):
+        schedule_data['preset_id'] = None
+        schedule_data['preset_name'] = None
+        return schedule_data
+    preset_id = schedule_data.get('preset_id')
+    preset_name = schedule_data.get('preset_name')
+    record = (preset_manager.get_preset_by_id(preset_id, connection_id) if preset_id
+              else preset_manager.get_preset_by_name(preset_name, connection_id) if preset_name else None)
+    if (preset_id or preset_name) and not record:
+        raise ValueError('The selected preset does not exist in this media connection.')
+    if record:
+        schedule_data['preset_id'] = record['id']
+        schedule_data['preset_name'] = record['name']
+    else:
+        schedule_data['preset_id'] = None
+        schedule_data['preset_name'] = None
+    return schedule_data
+
 @router.get("/api/schedules")
-def api_get_schedules():
-    if not app_state.is_configured: return []
-    schedules = scheduler.scheduler_manager.get_all_schedules()
+def api_get_schedules(auth_deps: dict = Depends(get_current_auth_headers)):
+    schedules = [s for s in scheduler.scheduler_manager.get_all_schedules() if s.get("connection_id") == auth_deps["connection_id"]]
     cache_headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
@@ -24,8 +45,7 @@ def api_get_schedules():
     return JSONResponse(content=schedules, headers=cache_headers)
 
 @router.post("/api/schedules")
-def api_create_schedule(req: models.ScheduleRequest):
-    if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")
+def api_create_schedule(req: models.ScheduleRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
         crontab = ""
         if req.schedule_details.frequency == "interval":
@@ -44,19 +64,27 @@ def api_create_schedule(req: models.ScheduleRequest):
             
             CronTrigger.from_crontab(crontab)
 
+        media = media_for_user(auth_deps, req.user_id)
+        if req.create_as_collection:
+            require_collection_permission(media)
         schedule_data_to_save = req.model_dump(exclude_none=True)
+        schedule_data_to_save["connection_id"] = auth_deps["connection_id"]
         schedule_data_to_save['crontab'] = crontab
+        bind_schedule_preset(schedule_data_to_save, auth_deps["connection_id"])
 
         schedule_id = scheduler.scheduler_manager.add_schedule(schedule_data_to_save)
+        if not schedule_id:
+            raise HTTPException(status_code=500, detail="Failed to save schedule.")
         return {"status": "ok", "log": ["Schedule created successfully."], "id": schedule_id}
 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"Invalid schedule format: {e}")
 
 @router.put("/api/schedules/{schedule_id}")
-def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
-    if not app_state.is_configured:
-        raise HTTPException(status_code=400, detail="Not configured")
+def api_update_schedule(schedule_id: str, req: models.ScheduleRequest, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
     try:
         crontab = ""
         if req.schedule_details.frequency == "interval":
@@ -75,8 +103,13 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
             
             CronTrigger.from_crontab(crontab)
 
+        media = media_for_user(auth_deps, req.user_id)
+        if req.create_as_collection:
+            require_collection_permission(media)
         schedule_data_to_save = req.model_dump(exclude_none=True)
+        schedule_data_to_save["connection_id"] = auth_deps["connection_id"]
         schedule_data_to_save['crontab'] = crontab
+        bind_schedule_preset(schedule_data_to_save, auth_deps["connection_id"])
 
         success = scheduler.scheduler_manager.update_schedule(schedule_id, schedule_data_to_save)
         if not success:
@@ -88,15 +121,19 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest):
         raise HTTPException(status_code=400, detail=f"Invalid schedule format: {e}")
 
 @router.post("/api/schedules/{schedule_id}/run")
-def api_run_schedule_now(schedule_id: str):
-    if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")
+def api_run_schedule_now(schedule_id: str, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
     result = scheduler.scheduler_manager.run_schedule_now(schedule_id)
     if not result:
         raise HTTPException(status_code=404, detail="Schedule not found.")
     return result
 
 @router.delete("/api/schedules/{schedule_id}")
-def api_delete_schedule(schedule_id: str):
-    if not app_state.is_configured: raise HTTPException(status_code=400, detail="Not configured")
+def api_delete_schedule(schedule_id: str, auth_deps: dict = Depends(get_current_auth_headers)):
+    existing = scheduler.scheduler_manager.schedules.get(schedule_id)
+    if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
+        raise HTTPException(404, "Schedule not found.")
     scheduler.scheduler_manager.remove_schedule(schedule_id)
     return {"status": "ok", "log": ["Schedule deleted."]}

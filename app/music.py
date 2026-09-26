@@ -11,7 +11,7 @@ from app.logger import get_logger
 
 logger = get_logger("MixerBee.Music")
 
-def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_music_genres(user_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """
     Fetches all music genres for a user by aggregating them from all albums.
     """
@@ -25,7 +25,7 @@ def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
     }
 
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=params, headers=hdr, timeout=60)
+        r = media.get(f"/Users/{user_id}/Items", params=params, timeout=60)
         r.raise_for_status()
 
         all_albums = r.json().get("Items", [])
@@ -48,9 +48,9 @@ def get_music_genres(user_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
         logger.error(f"Failed to aggregate music genres for user {user_id}: {e}", exc_info=True)
         return []
 
-def get_music_artists(hdr: Dict[str, str]) -> List[Dict[str, str]]:
-    """Fetches all music artists from Emby for the user specified in the header."""
-    user_id = hdr.get("X-Emby-User-Id")
+def get_music_artists(media: client.MediaClient) -> List[Dict[str, str]]:
+    """Fetches all music artists from Emby for the connected user."""
+    user_id = media.user_id
     logger.info(f"Fetching all music album artists for user {user_id}...")
     params = {
         "Recursive": "true",
@@ -59,15 +59,15 @@ def get_music_artists(hdr: Dict[str, str]) -> List[Dict[str, str]]:
         "UserId": user_id,
         "AlbumArtistOnly": "true"
     }
-    r = client.SESSION.get(f"{client.EMBY_URL}/Artists", params=params, headers=hdr, timeout=20)
+    r = media.get("/Artists", params=params, timeout=20)
     r.raise_for_status()
     artists = r.json().get("Items", [])
     logger.info(f"Found {len(artists)} music album artists.")
     return artists
 
-def get_random_artist(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
+def get_random_artist(media: client.MediaClient) -> Optional[Dict[str, str]]:
     """Fetches a random music artist directly via the API."""
-    user_id = hdr.get("X-Emby-User-Id")
+    user_id = media.user_id
     logger.info("Fetching a random music artist natively...")
     params = {
         "IncludeItemTypes": "MusicArtist",
@@ -77,7 +77,7 @@ def get_random_artist(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
         "UserId": user_id
     }
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=10)
+        r = media.get("/Items", params=params, timeout=10)
         r.raise_for_status()
         items = r.json().get("Items", [])
         if items:
@@ -86,9 +86,9 @@ def get_random_artist(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
         logger.error(f"Failed to fetch random artist: {e}")
     return None
 
-def get_random_album(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
+def get_random_album(media: client.MediaClient) -> Optional[Dict[str, str]]:
     """Fetches a random music album directly via the API."""
-    user_id = hdr.get("X-Emby-User-Id")
+    user_id = media.user_id
     logger.info("Fetching a random music album natively...")
     params = {
         "IncludeItemTypes": "MusicAlbum",
@@ -99,7 +99,7 @@ def get_random_album(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
         "UserId": user_id
     }
     try:
-        r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=10)
+        r = media.get("/Items", params=params, timeout=10)
         r.raise_for_status()
         items = r.json().get("Items", [])
         if items:
@@ -108,9 +108,9 @@ def get_random_album(hdr: Dict[str, str]) -> Optional[Dict[str, str]]:
         logger.error(f"Failed to fetch random album: {e}")
     return None
 
-def get_albums_by_artist(artist_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_albums_by_artist(artist_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Fetches all albums for a given artist."""
-    user_id = hdr.get("X-Emby-User-Id")
+    user_id = media.user_id
     logger.info(f"Fetching albums for artist ID {artist_id}...")
     params = {
         "IncludeItemTypes": "MusicAlbum",
@@ -121,40 +121,40 @@ def get_albums_by_artist(artist_id: str, hdr: Dict[str, str]) -> List[Dict[str, 
         "SortOrder": "Descending",
         "UserId": user_id
     }
-    r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=15)
+    r = media.get("/Items", params=params, timeout=15)
     r.raise_for_status()
     albums = r.json().get("Items", [])
     logger.info(f"Found {len(albums)} albums.")
     return albums
 
 
-def get_songs_by_album(album_id: str, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def get_songs_by_album(album_id: str, media: client.MediaClient) -> List[Dict[str, str]]:
     """Fetches all songs for a given album, sorted by track number."""
-    user_id = hdr.get("X-Emby-User-Id")
+    user_id = media.user_id
     logger.info(f"Fetching songs for album ID {album_id}...")
     params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "ParentId": album_id,
-        "Fields": "Id,Name,IndexNumber,ParentIndexNumber,ArtistItems,Album",
+        "Fields": "Id,Name,IndexNumber,ParentIndexNumber,ArtistItems,Album,RunTimeTicks",
         "SortBy": "ParentIndexNumber,IndexNumber",
         "UserId": user_id
     }
-    r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=15)
+    r = media.get("/Items", params=params, timeout=15)
     r.raise_for_status()
     songs = r.json().get("Items", [])
     logger.info(f"Found {len(songs)} songs.")
     return songs
 
-def get_songs_by_artist(artist_id: str, hdr: Dict[str, str], sort: str = "PlayCount", limit: Optional[int] = None) -> List[Dict[str, str]]:
+def get_songs_by_artist(artist_id: str, media: client.MediaClient, sort: str = "PlayCount", limit: Optional[int] = None) -> List[Dict[str, str]]:
     """Fetches songs for an artist, fully leveraging API sorting and limits."""
-    user_id = hdr.get("X-Emby-User-Id")
+    user_id = media.user_id
     logger.info(f"Fetching songs for artist ID {artist_id} (Sort: {sort}, Limit: {limit})...")
     params = {
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "ArtistIds": artist_id,
-        "Fields": "Id,Name,PlayCount,ArtistItems,Album",
+        "Fields": "Id,Name,PlayCount,ArtistItems,Album,RunTimeTicks",
         "UserId": user_id,
     }
 
@@ -169,14 +169,14 @@ def get_songs_by_artist(artist_id: str, hdr: Dict[str, str], sort: str = "PlayCo
     if limit:
         params["Limit"] = limit
 
-    r = client.SESSION.get(f"{client.EMBY_URL}/Items", params=params, headers=hdr, timeout=20)
+    r = media.get("/Items", params=params, timeout=20)
     r.raise_for_status()
     songs = r.json().get("Items", [])
 
     logger.info(f"Returning {len(songs)} tracks for artist.")
     return songs
 
-def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[str, str]]:
+def find_songs(user_id: str, filters: Dict, media: client.MediaClient) -> List[Dict[str, str]]:
     """Finds songs based on a set of filters, utilizing API randomness where possible."""
     logger.info(f"Finding songs for user {user_id} with filters: {filters}")
     
@@ -184,7 +184,7 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
         "IncludeItemTypes": "Audio",
         "Recursive": "true",
         "UserId": user_id,
-        "Fields": "Genres,UserData,PlayCount,ArtistItems,Album",
+        "Fields": "Genres,UserData,PlayCount,ArtistItems,Album,RunTimeTicks",
         "Limit": 3000
     }
 
@@ -196,7 +196,7 @@ def find_songs(user_id: str, filters: Dict, hdr: Dict[str, str]) -> List[Dict[st
         if sort_by in ("PlayCount", "DateCreated"):
             base_params["SortOrder"] = "Descending"
 
-    r = client.SESSION.get(f"{client.EMBY_URL}/Users/{user_id}/Items", params=base_params, headers=hdr, timeout=30)
+    r = media.get(f"/Users/{user_id}/Items", params=base_params, timeout=30)
     r.raise_for_status()
     all_songs = r.json().get("Items", [])
     logger.info(f"Retrieved {len(all_songs)} initial songs from API.")

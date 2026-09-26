@@ -45,3 +45,18 @@ AVAILABLE_TOOLS = [
     verify_artist,
     search_by_vibe 
 ]
+
+
+def tools_for_connection():
+    """Capture context for SDKs that invoke tool callbacks on another thread."""
+    from contextvars import copy_context
+    from functools import wraps
+    context = copy_context()
+
+    def bind(tool):
+        @wraps(tool)
+        def call(*args, **kwargs):
+            return context.copy().run(tool, *args, **kwargs)
+        return call
+
+    return [bind(tool) for tool in AVAILABLE_TOOLS]

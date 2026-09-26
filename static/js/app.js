@@ -22,6 +22,7 @@ const hydrateStores = () => {
     Object.assign(Alpine.store('ai'), aiStore);
     Object.assign(Alpine.store('presets'), presetStore);
     Object.assign(Alpine.store('settings'), settingsStore);
+    Object.defineProperties(Alpine.store('settings'), Object.getOwnPropertyDescriptors(settingsStore));
     Object.assign(Alpine.store('scheduler'), schedulerStore);
     Object.assign(Alpine.store('manager'), managerStore);
     Object.assign(Alpine.store('ui'), uiStore);
@@ -38,9 +39,7 @@ const hydrateStores = () => {
     modalStore.importAction = importAction;
     modalStore.presetAction = presetModal;
 
-    Alpine.store('mixer').init();
     Alpine.store('ai').init();
-    Alpine.store('presets').init();
 };
 
 async function initializeApp() {
@@ -58,6 +57,7 @@ async function initializeApp() {
 
         const sStore = Alpine.store('settings');
         body.dataset.theme = sStore.theme;
+        await sStore.initAccount();
 
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 
@@ -81,13 +81,15 @@ async function initializeApp() {
 
         Object.assign(sStore, {
             version: config.data?.version || '',
+            is_configured: !!config.data?.is_configured,
+            connection_unavailable: false,
+            connection_error: '',
             server_type: config.data?.server_type || 'emby',
             ai_provider: config.data?.ai_provider || 'gemini',
             ollama_model: config.data?.ollama_model || '',
             is_ai_configured: !!config.data?.is_ai_configured,
             starred_models: config.data?.starred_models || [],
-            vector_space: config.data?.vector_space || 'cosine',
-            is_access_key_set: !!config.data?.access_key_set
+            vector_space: config.data?.vector_space || 'cosine'
         });
 
         if (!config.data?.is_configured) return;
@@ -97,11 +99,19 @@ async function initializeApp() {
             useApi(api.get('api/library_data'), null, true, false)
         ]);
 
+        if (defUser.status !== 'ok' || libraryData.status !== 'ok') {
+            const failed = defUser.status !== 'ok' ? defUser : libraryData;
+            sStore.connection_unavailable = true;
+            sStore.connection_error = failed.error?.detail || 'MixerBee could not reach this media account. Check the server and saved credentials.';
+            return;
+        }
+
         sStore.activeUserId = defUser.data?.id;
         sStore.activeUserName = defUser.data?.name;
-        localStorage.setItem('mixerbeeGlobalState', JSON.stringify({ userId: defUser.data?.id }));
+        sStore.can_manage_collections = !!defUser.data?.can_manage_collections;
 
         Object.assign(Alpine.store('mixer').library, libraryData.data);
+        Alpine.store('mixer').init(defUser.data?.connection_id);
         await Alpine.store('presets').refresh();
 
     } catch (err) {
@@ -112,22 +122,7 @@ async function initializeApp() {
     }
 }
 
-const bootstrap = () => {
-    if (sessionStorage.getItem('isReloading') === 'true') {
-        const poll = setInterval(async () => {
-            try {
-                const r = await fetch('api/config_status');
-                if (r.ok) {
-                    clearInterval(poll);
-                    sessionStorage.removeItem('isReloading');
-                    setTimeout(initializeApp, 250);
-                }
-            } catch(e) {}
-        }, 1500);
-    } else {
-        initializeApp();
-    }
-};
+const bootstrap = () => { initializeApp(); };
 
 if (typeof Alpine !== 'undefined') bootstrap();
 else document.addEventListener('alpine:init', bootstrap);

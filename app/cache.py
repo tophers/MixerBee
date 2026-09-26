@@ -1,70 +1,53 @@
-"""
-app/cache.py - Manages a persistent, background-refreshed cache for library data
-"""
-
+"""Library metadata cached independently for each authenticated connection."""
 import threading
-from typing import Dict, Any, List
+from . import tv, movies, studios, music
+from .media_client import current_media
 from app.logger import get_logger
 
-from . import tv, movies, studios, client,  music, users
+logger = get_logger('MixerBee.Cache')
+CACHE = {}
+_locks = {}
+_guard = threading.Lock()
 
-logger = get_logger("MixerBee.Cache")
 
-_cache_key = ["data"]
-CACHE: Dict[str, Any] = {_cache_key[0]: {}}
+def get_library_data(media=None):
+    media = media or current_media()
+    return CACHE.get(media.connection.id, {})
 
-_refresh_lock = threading.Lock()
 
-def get_library_data() -> Dict[str, Any]:
-    """Safely retrieves the current data from the cache."""
-    return CACHE.get(_cache_key[0], {})
-
-def _fetch_all_data(auth_details: Dict[str, str]) -> Dict[str, Any]:
-    """
-    The core data fetching logic. This function contacts the media server
-    to get all the necessary data for the application's UI.
-    """
+def refresh_cache(media):
+    key = media.connection.id
+    with _guard:
+        lock = _locks.setdefault(key, threading.Lock())
+    if not lock.acquire(blocking=False):
+        return
     try:
-        token = auth_details.get("token")
-        login_uid = auth_details.get("login_uid")
-
-        if not all([token, login_uid]):
-            logger.warning("Cannot refresh cache, missing auth details.")
-            return {}
-
-        hdr = client.auth_headers(token, login_uid)
-
-        logger.info("Starting background refresh of all library data...")
-        
+        uid = media.user_id
         data = {
-            "seriesData": tv.get_all_series(login_uid, hdr),
-            "movieGenreData": movies.get_movie_genres(login_uid, hdr),
-            "libraryData": movies.get_movie_libraries(login_uid, hdr),
-            "artistData": music.get_music_artists(hdr),
-            "musicGenreData": music.get_music_genres(login_uid, hdr),
-            "studioData": studios.aggregate_all_studios(login_uid, hdr),
+            'seriesData': tv.get_all_series(uid, media),
+            'movieGenreData': movies.get_movie_genres(uid, media),
+            'libraryData': movies.get_movie_libraries(uid, media),
+            'artistData': music.get_music_artists(media),
+            'musicGenreData': music.get_music_genres(uid, media),
+            'studioData': studios.aggregate_all_studios(uid, media),
         }
-        logger.info("Background refresh completed successfully.")
-        return data
+        CACHE[key] = data
+    except Exception:
+        # Do not serve an older visibility snapshot after an authorization failure.
+        CACHE.pop(key, None)
+        logger.exception('Library cache refresh failed for connection %s', key)
+    finally:
+        lock.release()
 
-    except Exception as e:
-        logger.error(f"An error occurred during background refresh: {e}", exc_info=True)
-        return {}
 
-def refresh_cache(auth_details: Dict[str, str] = None):
-    """
-    Public function to trigger a cache refresh. It's thread-safe.
-    """
-    if not auth_details:
-        from app_state import token, login_uid
-        auth_details = {"token": token, "login_uid": login_uid}
+def refresh_all_caches():
+    from connections import all_media_clients
+    for media in all_media_clients():
+        refresh_cache(media)
 
-    if _refresh_lock.acquire(blocking=False):
-        try:
-            new_data = _fetch_all_data(auth_details)
-            if new_data:
-                CACHE[_cache_key[0]] = new_data
-        finally:
-            _refresh_lock.release()
-    else:
-        logger.info("Refresh is already in progress. Skipping.")
+
+def forget_connection(connection_id):
+    """Drop all process-local cache state for a removed connection."""
+    with _guard:
+        CACHE.pop(connection_id, None)
+        _locks.pop(connection_id, None)

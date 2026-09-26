@@ -16,10 +16,10 @@ from apscheduler.jobstores.base import JobLookupError
 
 import app as core
 import app.items as items_api
-from app.cache import refresh_cache
+from app.cache import refresh_all_caches
 import app_state
 import database
-from routers.dependencies import get_current_auth_headers
+from routers.dependencies import get_auth_data
 from app.logger import get_logger
 
 logger = get_logger("MixerBee.Scheduler")
@@ -55,35 +55,52 @@ def run_playlist_job(**schedule_data) -> Dict:
     result = {}
 
     try:
+        connection_id = schedule_data.get("connection_id")
+        if not connection_id:
+            raise ValueError("Schedule has no assigned connection. Recreate it under the intended account.")
+        auth_data = get_auth_data(connection_id)
+        media = auth_data["media"].require_user(user_id)
         if job_type == "enrichment":
             from app.ai import process_enrichment_queue
             enrich_data = schedule_data.get("enrichment_data", {})
             batch_size = enrich_data.get("batch_size", 15)
             timeout = enrich_data.get("timeout", 120)
             
-            result = process_enrichment_queue(batch_size=batch_size, timeout=timeout)
+            result = process_enrichment_queue(batch_size=batch_size, timeout=timeout, media=media)
             
         else:
             import preset_manager as pm
             from routers.builder import _get_random_movie_block, _get_random_tv_block
 
-            auth_data = get_current_auth_headers(None)
-            hdr = core.auth_headers(auth_data["token"], user_id=user_id)
 
             if job_type == "builder":
                 blocks = schedule_data.get("blocks")
+                preset_id = schedule_data.get("preset_id")
                 preset_name = schedule_data.get("preset_name")
 
-                if not blocks and preset_name:
-                    all_presets = pm.preset_manager.get_all_presets()
-                    blocks = all_presets.get(preset_name)
-                    if blocks:
-                        logger.info(f"Resolved blocks for job {schedule_id} from preset '{preset_name}'")
+                if not blocks and preset_id:
+                    record = pm.preset_manager.get_preset_by_id(preset_id, connection_id)
+                    if not record:
+                        msg = f"The preset assigned to job '{schedule_id}' no longer exists. Reassign the schedule."
+                        logger.error(msg)
+                        return {"status": "error", "log": [msg]}
+                    blocks = record['data']
+                    preset_name = record['name']
+                    logger.info("Resolved blocks for job %s from preset ID %s ('%s')", schedule_id, preset_id, preset_name)
+                elif not blocks and preset_name:
+                    # Compatibility for jobs created before preset IDs were introduced.
+                    record = pm.preset_manager.get_preset_by_name(preset_name, connection_id)
+                    if not record:
+                        msg = f"Preset '{preset_name}' assigned to job '{schedule_id}' no longer exists. Reassign the schedule."
+                        logger.error(msg)
+                        return {"status": "error", "log": [msg]}
+                    blocks = record['data']
+                    logger.info(f"Resolved legacy job {schedule_id} from preset '{preset_name}'")
 
                 if not blocks:
                     logger.info(f"No blocks found for job {schedule_id}.")
                     
-                    potential_options = [b for b in [_get_random_movie_block(), _get_random_tv_block()] if b is not None]
+                    potential_options = [b for b in [_get_random_movie_block(media), _get_random_tv_block(media)] if b is not None]
                     
                     if potential_options:
                         blocks = [random.choice(potential_options)]
@@ -104,14 +121,14 @@ def run_playlist_job(**schedule_data) -> Dict:
                         user_id=user_id,
                         collection_name=playlist_name,
                         filters=blocks[0].get("filters", {}),
-                        hdr=hdr
+                        media=media
                     )
                 else:
                     result = core.create_mixed_playlist(
                         user_id=user_id,
                         playlist_name=playlist_name,
                         blocks=blocks,
-                        hdr=hdr
+                        media=media
                     )
 
             elif job_type == "quick_playlist":
@@ -123,7 +140,7 @@ def run_playlist_job(**schedule_data) -> Dict:
                     raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
 
                 options = quick_playlist_data.get("options", {})
-                result = func_to_call(user_id=user_id, playlist_name=playlist_name, hdr=hdr, log=log_messages, **options)
+                result = func_to_call(user_id=user_id, playlist_name=playlist_name, media=media, log=log_messages, **options)
 
         final_log = result.get("log", ["No log messages returned from build process."])
         final_status = result.get("status", "error")
@@ -230,6 +247,24 @@ class Scheduler:
         
         return None
 
+    @staticmethod
+    def _bind_legacy_preset(schedule_data: Dict):
+        """Upgrade internal callers that still submit a preset name without its ID."""
+        if schedule_data.get('job_type') not in ('builder', 'preset') or schedule_data.get('blocks'):
+            schedule_data['preset_id'] = None
+            schedule_data['preset_name'] = None
+            return schedule_data
+        if (not schedule_data.get('preset_id') and schedule_data.get('preset_name')
+                and schedule_data.get('connection_id')):
+            import preset_manager as pm
+            record = pm.preset_manager.get_preset_by_name(
+                schedule_data['preset_name'], schedule_data['connection_id']
+            )
+            if record:
+                schedule_data['preset_id'] = record['id']
+                schedule_data['preset_name'] = record['name']
+        return schedule_data
+
     def _update_schedule_last_run(self, schedule_id: str, last_run_info: Dict):
         """Safely updates the last_run status in both the DB and in-memory cache."""
         try:
@@ -248,13 +283,21 @@ class Scheduler:
         schedules = {}
         try:
             with database.get_db_connection() as conn:
-                rows = conn.execute("SELECT id, playlist_name, user_id, job_type, crontab, config_data, last_run FROM schedules").fetchall()
+                rows = conn.execute('''SELECT s.id, s.playlist_name, s.user_id, s.job_type, s.crontab,
+                    s.config_data, s.last_run, s.connection_id, s.preset_id,
+                    p.name AS current_preset_name
+                    FROM schedules s LEFT JOIN connection_presets p ON p.id=s.preset_id''').fetchall()
 
             for row in rows:
                 schedule_data = dict(row)
+                current_preset_name = schedule_data.pop('current_preset_name')
                 config_data = json.loads(row['config_data']) if row['config_data'] else {}
                 last_run = json.loads(row['last_run']) if row['last_run'] else None
+                config_data.pop("connection_id", None)
+                config_data.pop("preset_id", None)
                 schedule_data.update(config_data)
+                if schedule_data.get('preset_id') and current_preset_name:
+                    schedule_data['preset_name'] = current_preset_name
                 schedule_data['config_data'], schedule_data['last_run'] = config_data, last_run
                 schedules[row['id']] = schedule_data
 
@@ -329,7 +372,7 @@ class Scheduler:
 
     def start(self):
         self.scheduler.add_job(
-            func=refresh_cache,
+            func=refresh_all_caches,
             trigger='interval',
             minutes=app_state.CACHE_REFRESH_MINUTES,
             id='cache_refresh_job',
@@ -340,7 +383,9 @@ class Scheduler:
         self.schedules = self._load_schedules()
         for schedule_id, schedule_data in self.schedules.items():
             trigger = self._get_trigger(schedule_data)
-            if trigger:
+            if not schedule_data.get("connection_id"):
+                logger.warning("Schedule %s has no verified connection; leaving it inactive.", schedule_id)
+            if trigger and schedule_data.get("connection_id"):
                 self.scheduler.add_job(
                     func=scheduled_job_wrapper,
                     trigger=trigger,
@@ -353,7 +398,7 @@ class Scheduler:
         if not self.scheduler.running:
             self.scheduler.start()
 
-        job_count = len(self.schedules)
+        job_count = sum(bool(s.get("connection_id")) for s in self.schedules.values())
         total_jobs = len(self.scheduler.get_jobs())
         logger.info(f"Scheduler started with {job_count} user schedule(s) and {total_jobs - job_count} system job(s).")
 
@@ -361,6 +406,9 @@ class Scheduler:
     def add_schedule(self, schedule_data: Dict) -> str:
         schedule_id = str(uuid.uuid4())
         schedule_data['id'] = schedule_id
+        if not schedule_data.get('connection_id'):
+            raise ValueError('A schedule requires a saved connection.')
+        self._bind_legacy_preset(schedule_data)
         try:
             with database.get_db_connection() as conn:
                 config_payload = {
@@ -372,8 +420,8 @@ class Scheduler:
                     "create_as_collection": schedule_data.get("create_as_collection", False)
                 }
                 conn.execute(
-                    "INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data) VALUES (?, ?, ?, ?, ?, ?)",
-                    (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab", ""), json.dumps(config_payload))
+                    "INSERT INTO schedules (id, playlist_name, user_id, job_type, crontab, config_data, connection_id, preset_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (schedule_id, schedule_data.get("playlist_name"), schedule_data.get("user_id"), schedule_data.get("job_type"), schedule_data.get("crontab", ""), json.dumps(config_payload), schedule_data["connection_id"], schedule_data.get("preset_id"))
                 )
                 conn.commit()
         except Exception as e:
@@ -396,6 +444,9 @@ class Scheduler:
         if schedule_id not in self.schedules:
             logger.warning(f"Attempted to update non-existent schedule {schedule_id}")
             return False
+        if schedule_data.get("connection_id") != self.schedules[schedule_id].get("connection_id"):
+            return False
+        self._bind_legacy_preset(schedule_data)
         try:
             with database.get_db_connection() as conn:
                 config_payload = {
@@ -409,7 +460,7 @@ class Scheduler:
                 conn.execute(
                     """
                     UPDATE schedules
-                    SET playlist_name = ?, user_id = ?, job_type = ?, crontab = ?, config_data = ?
+                    SET playlist_name = ?, user_id = ?, job_type = ?, crontab = ?, config_data = ?, preset_id = ?
                     WHERE id = ?
                     """,
                     (
@@ -418,6 +469,7 @@ class Scheduler:
                         schedule_data.get("job_type"),
                         schedule_data.get("crontab", ""),
                         json.dumps(config_payload),
+                        schedule_data.get("preset_id"),
                         schedule_id
                     )
                 )

@@ -6,12 +6,15 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 class SettingsRequest(BaseModel):
+    connection_id: Optional[str] = None
+    label: str = Field(default="", max_length=100)
+    clear_external_api_key: bool = False
     server_type: str
     emby_url: str
     emby_user: str
     emby_pass: str
     gemini_key: Optional[str] = None
-    ai_provider: Optional[str] = "gemini"
+    ai_provider: Optional[str] = "ollama"
     ollama_url: Optional[str] = "http://localhost:11434"
     ollama_model: Optional[str] = "llama3.1"
     ollama_timeout: int = 120
@@ -67,6 +70,7 @@ class ScheduleRequest(BaseModel):
     playlist_name: str
     user_id: str
     schedule_details: ScheduleDetails
+    preset_id: Optional[str] = None
     preset_name: Optional[str] = None
     blocks: Optional[List[Dict[str, Any]]] = None
     quick_playlist_data: Optional[QuickPlaylistScheduleData] = None
@@ -85,6 +89,7 @@ class AiTweaks(BaseModel):
 class AiPromptRequest(BaseModel):
     prompt: str
     tweaks: Optional[AiTweaks] = None
+    existing_blocks: Optional[List[Dict[str, Any]]] = None
 
 class QuickBuildRequest(BaseModel):
     user_id: str

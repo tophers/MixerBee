@@ -6,20 +6,25 @@
     {% include 'partials/_access_gate.html' %}
     {% include 'partials/_nav.html' %}
 
-    <div id="not-configured-warning" class="container" x-show="!$store.settings.activeUserId" x-cloak>
-        <div class="warning-box">
+    <div id="not-configured-warning" class="container" x-show="!$store.settings.is_configured" x-cloak>
+        <div class="warning-box connection-status-box">
             <span x-html="$store.icons.alert"></span>
-            <h3>Application Not Configured</h3>
-            <p>MixerBee can't connect to your server. Please open the settings and provide your server details.</p>
-            <button id="not-configured-settings-btn" @click="$store.settings.show()">Open Settings</button>
+            <h3>No media connection yet</h3>
+            <p>Add an Emby or Jellyfin connection to start this account's workspace.</p>
+            <button id="not-configured-settings-btn" @click="$store.settings.newConnection()">Add connection</button>
         </div>
     </div>
 
-    <div id="access-key-nag" x-show="$store.settings.activeUserId && !$store.settings.is_access_key_set && !$store.settings.access_key_warning_dismissed" x-cloak>
-        <span x-html="$store.icons.alert"></span>
-        <span>No Access Key is set — anyone who can reach this address on your network can use MixerBee and see your Emby settings.</span>
-        <button type="button" class="secondary small" @click="$store.settings.show()">Set One</button>
-        <button type="button" class="icon-btn" @click="$store.settings.dismissAccessKeyWarning()">&times;</button>
+    <div id="connection-unavailable-warning" class="container" x-show="$store.settings.is_configured && $store.settings.connection_unavailable" x-cloak>
+        <div class="warning-box connection-status-box">
+            <span x-html="$store.icons.alert"></span>
+            <h3>Media connection unavailable</h3>
+            <p x-text="$store.settings.connection_error"></p>
+            <div class="flex-row justify-center gap-sm">
+                <button type="button" class="secondary" @click="$store.settings.retryConnection()">Try again</button>
+                <button type="button" @click="$store.settings.show()">Check connection</button>
+            </div>
+        </div>
     </div>
 
     <div id="main-content-area" class="has-fixed-footer" x-show="$store.settings.activeUserId" x-cloak>
@@ -35,6 +40,7 @@
     </div>
 
     {% include 'partials/_modals.html' %}
+    {% include 'partials/_accounts.html' %}
 
     <script src="static/vendor/alpinesort.min.js" defer></script>
     <script src="static/vendor/alpine.min.js" defer></script>

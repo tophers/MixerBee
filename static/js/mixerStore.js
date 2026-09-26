@@ -20,7 +20,9 @@ export const mixerStore = {
 
     _previewDebouncers: {},
 
-    init() {
+    init(connectionId) {
+        if (!connectionId) return;
+        this.autosaveKey = `mixerbee_autosave:${connectionId}`;
         try {
             const saved = localStorage.getItem(this.autosaveKey);
             if (saved) {
@@ -432,6 +434,11 @@ export const mixerStore = {
         if (this.blocks.length === 0) return toast('Add a block.', false);
         const uid = Alpine.store('settings').activeUserId;
         const preparedBlocks = this.getPreparedBlocks();
+
+        if (this.createAsCollection && !Alpine.store('settings').can_manage_collections) {
+            this.createAsCollection = false;
+            return toast('This media account cannot manage collections. Build a playlist instead.', false);
+        }
 
         if (this.buildMode === 'add') {
             if (!this.existingPlaylistId) return toast("Select playlist.", false);
