@@ -94,13 +94,18 @@ export const importAction = {
 };
 
 export function initModals() {
-     Alpine.store('modals', {
-        confirm: { isOpen: false, title: '', text: '', confirmText: 'Confirm', isDanger: false },
+    let store = Alpine.store('modals');
+    if (!store) {
+        store = Alpine.store('modals', {});
+    }
+
+    const defaultData = {
+        confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false },
         preset: { isOpen: false, name: '', existingNames: [] },
         playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
         import: { isOpen: false, code: '', name: '' },
         smartBuild: { isOpen: false, items: [] },
-        preview: { isOpen: false, items: [], title: 'Playlist Preview', totalDuration: '' },
+        preview: { isOpen: false, items: [], title: 'Playlist Preview', totalDuration: '', parentBlockUid: null },
         resetWatch: { isOpen: false, showName: '', season: '' },
         history: { isOpen: false, toastHistory: [] },
         ollamaModels: { isOpen: false },
@@ -122,13 +127,29 @@ export function initModals() {
             albums: [],
             loadingAlbums: false
         }
-    });
-    
-    Alpine.store('modals').ollamaAction = ollamaModelsModal;
-    Alpine.store('modals').aiTweaksAction = aiTweaksModal;
-    Alpine.store('modals').recipeLibraryAction = recipeLibraryModal;
-    Alpine.store('modals').saveRecipeAction = saveRecipeModal;
-    Alpine.store('modals').mixRulesAction = mixRulesModal;
-    Alpine.store('modals').renamePresetAction = renamePresetModal;
-    Alpine.store('modals').musicQuickBuildAction = musicQuickBuildModal;
+    };
+
+    for (const [key, val] of Object.entries(defaultData)) {
+        if (!store[key]) {
+            store[key] = val;
+        } else {
+            Object.assign(store[key], val);
+        }
+    }
+
+    store.confirmAction = confirmModal;
+    store.presetAction = presetModal;
+    store.playlistAction = smartPlaylistModal;
+    store.importAction = importAction;
+    store.smartBuildAction = smartBuildModal;
+    store.previewAction = previewModal;
+    store.resetWatchAction = resetWatchModal;
+    store.historyAction = toastHistoryModal;
+    store.ollamaAction = ollamaModelsModal;
+    store.aiTweaksAction = aiTweaksModal;
+    store.recipeLibraryAction = recipeLibraryModal;
+    store.saveRecipeAction = saveRecipeModal;
+    store.mixRulesAction = mixRulesModal;
+    store.renamePresetAction = renamePresetModal;
+    store.musicQuickBuildAction = musicQuickBuildModal;
 }

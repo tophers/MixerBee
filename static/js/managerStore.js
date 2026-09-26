@@ -341,5 +341,117 @@ export const managerStore = {
             const res = await useApi(api.post(`api/delete_item`, { item_id: item.Id, user_id: uid }));
             if (res.status === 'ok') await this.load();
         } catch (e) { }
+    },
+
+    historyModal: {
+        isOpen: false,
+        isLoading: false,
+        runs: [],
+        selectedRun: null,
+        compareRunId: '',
+        diffResult: null,
+        isComparing: false,
+        replayName: '',
+        missingItems: [],
+        isReplaying: false
+    },
+
+    async openHistoryModal() {
+        this.historyModal.isOpen = true;
+        this.historyModal.selectedRun = null;
+        this.historyModal.diffResult = null;
+        this.historyModal.compareRunId = '';
+        this.historyModal.missingItems = [];
+        await this.loadBuildRuns();
+    },
+
+    async loadBuildRuns() {
+        this.historyModal.isLoading = true;
+        try {
+            const res = await useApi(api.get('api/build_runs'), null, true, false);
+            if (res && res.data) {
+                this.historyModal.runs = Array.isArray(res.data) ? res.data : (res.data.runs || []);
+            }
+        } catch (e) {
+            console.error('Failed to load build runs:', e);
+            toast('Failed to load build history', false);
+        } finally {
+            this.historyModal.isLoading = false;
+        }
+    },
+
+    async selectBuildRun(runId) {
+        if (!runId) {
+            this.historyModal.selectedRun = null;
+            return;
+        }
+        this.historyModal.isLoading = true;
+        this.historyModal.diffResult = null;
+        this.historyModal.compareRunId = '';
+        this.historyModal.missingItems = [];
+        try {
+            const res = await useApi(api.get(`api/build_runs/${runId}`), null, true, false);
+            if (res && res.data) {
+                this.historyModal.selectedRun = res.data.run || res.data;
+                const summary = this.historyModal.selectedRun.summary || '';
+                const m = summary.match(/Created playlist '([^']+)'/);
+                const baseName = m ? m[1] : (this.historyModal.selectedRun.preset_id || 'Mix');
+                const dateStr = new Date().toISOString().slice(0, 10);
+                this.historyModal.replayName = `${baseName} — replay ${dateStr}`;
+            }
+        } catch (e) {
+            console.error('Failed to load build run details:', e);
+            toast('Failed to load run details', false);
+        } finally {
+            this.historyModal.isLoading = false;
+        }
+    },
+
+    async compareBuildRun(compareId) {
+        if (!this.historyModal.selectedRun || !compareId) {
+            this.historyModal.diffResult = null;
+            return;
+        }
+        this.historyModal.isComparing = true;
+        try {
+            const res = await useApi(api.get(`api/build_runs/${this.historyModal.selectedRun.id}/diff/${compareId}`), null, true, false);
+            if (res && res.data) {
+                this.historyModal.diffResult = res.data.diff;
+            }
+        } catch (e) {
+            console.error('Failed to diff runs:', e);
+            toast('Comparison failed', false);
+        } finally {
+            this.historyModal.isComparing = false;
+        }
+    },
+
+    async replayBuildRun(btnEl) {
+        const run = this.historyModal.selectedRun;
+        if (!run) return;
+        const uid = Alpine.store('settings').activeUserId;
+        this.historyModal.isReplaying = true;
+        try {
+            const payload = {
+                playlist_name: this.historyModal.replayName || undefined,
+                user_id: uid,
+                dry_run: false
+            };
+            const res = await useApi(api.post(`api/build_runs/${run.id}/replay`, payload), btnEl);
+            if (res && (res.status === 'ok' || res.data?.status === 'ok')) {
+                const data = res.data || res;
+                toast(`Playlist created: ${data.playlist_name || 'Replay'}`, true);
+                if (data.missing_items?.length > 0) {
+                    toast(`Note: ${data.missing_items.length} missing items omitted.`, false);
+                }
+                this.historyModal.isOpen = false;
+                await this.load();
+            }
+        } catch (e) {
+            toast(e.message || 'Replay failed', false);
+        } finally {
+            this.historyModal.isReplaying = false;
+        }
     }
 };
+

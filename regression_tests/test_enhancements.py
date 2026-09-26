@@ -365,6 +365,367 @@ class EnhancementTests(unittest.TestCase):
 
         self.assertNotEqual(fp1, fp_modified)
 
+    def test_movie_constraint_filters_matching(self):
+        """Verify matches_movie_constraints correctly respects runtime, rating, favorites, content rating, and audio/subs."""
+        item = {
+            "Id": "m1",
+            "Name": "The Prestige",
+            "RunTimeTicks": 130 * 60 * 10_000_000, # 130 mins
+            "CommunityRating": 8.5,
+            "OfficialRating": "PG-13",
+            "UserData": {"IsFavorite": True},
+            "MediaStreams": [
+                {"Type": "Audio", "Language": "eng"},
+                {"Type": "Subtitle", "Language": "fre"}
+            ]
+        }
+
+        # Passes all matching criteria
+        filters_match = {
+            "min_runtime_minutes": 100,
+            "max_runtime_minutes": 150,
+            "min_community_rating": 8.0,
+            "favorites_only": True,
+            "allowed_content_ratings": ["PG-13", "R"],
+            "audio_languages": ["English"],
+            "subtitle_languages": ["French"]
+        }
+        self.assertTrue(core.matches_movie_constraints(item, filters_match))
+
+        # Fails runtime min
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "min_runtime_minutes": 140}))
+        # Fails runtime max
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "max_runtime_minutes": 120}))
+        # Fails community rating
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "min_community_rating": 9.0}))
+        # Fails favorites only
+        item_nonfav = {**item, "UserData": {"IsFavorite": False}}
+        self.assertFalse(core.matches_movie_constraints(item_nonfav, filters_match))
+        # Fails content rating
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "allowed_content_ratings": ["G", "PG"]}))
+        # Fails audio language
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "audio_languages": ["Japanese"]}))
+        # Fails subtitle language
+        self.assertFalse(core.matches_movie_constraints(item, {**filters_match, "subtitle_languages": ["German"]}))
+
+    def test_scheduler_propagates_mix_options_from_preset(self):
+        """Verify scheduler.run_playlist_job resolves mix_options from preset and forwards to create_mixed_playlist."""
+        conn_id = "conn_1"
+        preset_options = {
+            "freshness": {"last_successful_builds": 3, "history_scope": "series"},
+            "duplicate_policy": {"max_movies_per_franchise": 1}
+        }
+        # Save preset with mix_options
+        p_id = preset_manager.save_preset(
+            preset_name="Scheduled Test Mix",
+            preset_data=[{"type": "movie", "filters": {}}],
+            connection_id=conn_id,
+            mix_options=preset_options
+        )
+
+
+        schedule_data = {
+            "id": "sched_mix_1",
+            "connection_id": conn_id,
+            "job_type": "builder",
+            "playlist_name": "Friday Scheduled Mix",
+            "preset_id": p_id,
+            "trigger_source": "clock"
+        }
+
+        fake_media = Mock()
+        fake_media.connection.id = conn_id
+        fake_media.user_id = "uid"
+
+        with patch("scheduler.core.create_mixed_playlist") as mock_build:
+            mock_build.return_value = {"status": "ok", "new_item_id": "pl_123", "log": []}
+            scheduler.run_playlist_job(
+                schedule_data=schedule_data,
+                schedule_id="sched_mix_1",
+                user_id="uid",
+                playlist_name="Friday Scheduled Mix",
+                connection_id=conn_id,
+                media=fake_media
+            )
+
+            mock_build.assert_called_once()
+            _, kwargs = mock_build.call_args
+            self.assertEqual(kwargs.get("mix_options"), preset_options)
+            self.assertEqual(kwargs.get("preset_id"), p_id)
+            self.assertEqual(kwargs.get("schedule_id"), "sched_mix_1")
+            self.assertEqual(kwargs.get("trigger_source"), "clock")
+
+    def test_build_history_repository_diff_and_replay(self):
+        """Verify build history recording, query filters, lineup diff, and replay execution."""
+        conn_id = "conn_1"
+        user_id = "uid"
+
+        # 1. Record an initial build run
+        run_id = build_history.record_build_start(
+            connection_id=conn_id,
+            operation="playlist",
+            user_id=user_id,
+            trigger_source="manual",
+            preset_id="preset_abc",
+            series_key="series_replay_test"
+        )
+        items_run = [
+            {"media_id": "item_1", "Name": "Movie Alpha", "Type": "Movie", "runtime_ticks": 100},
+            {"media_id": "item_2", "Name": "Movie Beta", "Type": "Movie", "runtime_ticks": 200},
+            {"media_id": "item_deleted", "Name": "Movie Missing", "Type": "Movie", "runtime_ticks": 150}
+        ]
+        build_history.record_build_finish(
+            run_id=run_id,
+            output_id="pl_original",
+            outcome="ok",
+            summary="Created playlist 'Summer Hits' with 3 items",
+            rows=items_run
+        )
+
+        # Query recent build runs with preset filter
+        runs = build_history.get_recent_build_runs(conn_id, limit=10, preset_id="preset_abc")
+        self.assertTrue(len(runs) >= 1)
+        self.assertEqual(runs[0]["id"], run_id)
+
+        # Query detail
+        detail = build_history.get_build_run_detail(run_id, conn_id)
+        self.assertIsNotNone(detail)
+        self.assertEqual(len(detail["items"]), 3)
+
+        # Diff computation
+        new_items = [
+            {"media_id": "item_1"},
+            {"media_id": "item_new"}
+        ]
+        diff = build_history.compute_run_diff(detail["items"], new_items)
+        self.assertEqual(diff["retained_count"], 1) # item_1
+        self.assertEqual(diff["added_count"], 1)    # item_new
+        self.assertEqual(diff["removed_count"], 2)  # item_2, item_deleted
+
+        # 2. Replay the build run with item_deleted inaccessible on media server
+        fake_media = Mock()
+        fake_media.connection.id = conn_id
+        fake_media.user_id = user_id
+        # When media server is queried for items, item_deleted is omitted (deleted from library)
+        fake_media.get.return_value.status_code = 200
+        fake_media.get.return_value.json.return_value = {
+            "Items": [
+                {"Id": "item_1", "Name": "Movie Alpha"},
+                {"Id": "item_2", "Name": "Movie Beta"}
+            ]
+        }
+
+        with patch("app.items.get_playlists", return_value=[{"Name": "Summer Hits — replay 2026-09-26"}]), \
+             patch("app.items.create_playlist", return_value="pl_replayed_123") as mock_create_pl:
+            replay_res = build_history.replay_build_run(
+                run_id=run_id,
+                connection_id=conn_id,
+                user_id=user_id,
+                media=fake_media
+            )
+
+            self.assertEqual(replay_res["status"], "ok")
+            self.assertEqual(replay_res["replay_origin_id"], run_id)
+            self.assertEqual(replay_res["item_count"], 2)
+            self.assertEqual(len(replay_res["missing_items"]), 1)
+            self.assertEqual(replay_res["missing_items"][0]["media_id"], "item_deleted")
+            # Distinct name with collision detection
+            self.assertTrue("Summer Hits — replay" in replay_res["playlist_name"])
+            self.assertTrue("(1)" in replay_res["playlist_name"])
+
+            # Verify playlist created with available items only, preserving order
+            mock_create_pl.assert_called_once()
+            _, kwargs = mock_create_pl.call_args
+            self.assertEqual(kwargs.get("ids"), ["item_1", "item_2"])
+
+    def test_scheduler_album_roulette_resolution(self):
+        """Verify scheduled Album Roulette resolves specific album or rotates random album."""
+        fake_media = Mock()
+        fake_media.connection.id = "conn_1"
+        fake_media.user_id = "uid"
+
+        # 1. Explicit album_id provided
+        schedule_data_specific = {
+            "id": "sched_album_1",
+            "connection_id": "conn_1",
+            "job_type": "quick_playlist",
+            "playlist_name": "My Album",
+            "quick_playlist_data": {
+                "quick_playlist_type": "album_roulette",
+                "options": {"album_id": "album_specific_99"}
+            }
+        }
+        mock_album_pl = Mock(return_value={"status": "ok", "new_item_id": "pl_alb", "log": []})
+        with patch.dict(scheduler.QUICK_PLAYLIST_MAP, {"album_roulette": mock_album_pl}):
+            res = scheduler.run_playlist_job(
+                schedule_data=schedule_data_specific,
+                schedule_id="sched_album_1",
+                user_id="uid",
+                playlist_name="My Album",
+                connection_id="conn_1",
+                media=fake_media
+            )
+            self.assertEqual(res.get("status"), "ok")
+            mock_album_pl.assert_called_once()
+            _, kwargs = mock_album_pl.call_args
+            self.assertEqual(kwargs.get("album_id"), "album_specific_99")
+
+        # 2. Dynamic random album resolution when album_id is 'random' or omitted
+        schedule_data_random = {
+            "id": "sched_album_2",
+            "connection_id": "conn_1",
+            "job_type": "quick_playlist",
+            "playlist_name": "Scheduled Auto Playlist",
+            "quick_playlist_data": {
+                "quick_playlist_type": "album_roulette",
+                "options": {"album_id": "random"}
+            }
+        }
+        mock_album_pl_rand = Mock(return_value={"status": "ok", "new_item_id": "pl_rand", "log": []})
+        with patch("scheduler.core.get_random_album", return_value={"Id": "rand_alb_77", "Name": "Abbey Road"}), \
+             patch.dict(scheduler.QUICK_PLAYLIST_MAP, {"album_roulette": mock_album_pl_rand}):
+            res = scheduler.run_playlist_job(
+                schedule_data=schedule_data_random,
+                schedule_id="sched_album_2",
+                user_id="uid",
+                playlist_name="Scheduled Auto Playlist",
+                connection_id="conn_1",
+                media=fake_media
+            )
+            self.assertEqual(res.get("status"), "ok")
+            mock_album_pl_rand.assert_called_once()
+            _, kwargs = mock_album_pl_rand.call_args
+            self.assertEqual(kwargs.get("album_id"), "rand_alb_77")
+            self.assertEqual(kwargs.get("playlist_name"), "Album: Abbey Road")
+
+    def test_build_history_router_endpoints(self):
+        """Verify API endpoints for build history: list, detail, diff, and replay."""
+        from fastapi.testclient import TestClient
+        import web
+        from routers.dependencies import get_current_auth_headers
+
+        conn_id = "conn_1"
+        user_id = "uid"
+
+        r1 = build_history.record_build_start(
+            connection_id=conn_id,
+            operation="playlist",
+            user_id=user_id,
+            trigger_source="manual",
+            preset_id="preset_test"
+        )
+        build_history.record_build_finish(
+            run_id=r1,
+            output_id="pl_1",
+            outcome="ok",
+            summary="Created playlist 'Test 1' with 2 items",
+            rows=[
+                {"media_id": "item_1", "Name": "Movie 1", "Type": "Movie"},
+                {"media_id": "item_2", "Name": "Movie 2", "Type": "Movie"}
+            ]
+        )
+
+        r2 = build_history.record_build_start(
+            connection_id=conn_id,
+            operation="playlist",
+            user_id=user_id,
+            trigger_source="clock",
+            preset_id="preset_test"
+        )
+        build_history.record_build_finish(
+            run_id=r2,
+            output_id="pl_2",
+            outcome="ok",
+            summary="Created playlist 'Test 2' with 2 items",
+            rows=[
+                {"media_id": "item_2", "Name": "Movie 2", "Type": "Movie"},
+                {"media_id": "item_3", "Name": "Movie 3", "Type": "Movie"}
+            ]
+        )
+
+        fake_media = Mock()
+        fake_media.connection.id = conn_id
+        fake_media.user_id = user_id
+        fake_media.require_user.return_value = fake_media
+        fake_media.get.return_value.status_code = 200
+        fake_media.get.return_value.json.return_value = {
+            "Items": [{"Id": "item_1", "Name": "Movie 1"}, {"Id": "item_2", "Name": "Movie 2"}]
+        }
+
+        auth_override = {
+            "media": fake_media,
+            "login_uid": user_id,
+            "connection_id": conn_id,
+            "user_id": user_id
+        }
+
+        web.app.dependency_overrides[get_current_auth_headers] = lambda: auth_override
+        try:
+            import accounts
+            accounts._attempts.clear()
+            with database.get_db_connection() as conn:
+                conn.execute("UPDATE accounts SET password_hash=? WHERE id='acc1'", (accounts.hash_password("test-password"),))
+                conn.commit()
+
+            client = TestClient(web.app)
+            login = client.post("/api/auth/login", headers={"X-MixerBee-Request": "1"}, json={
+                "username": "admin", "password": "test-password"
+            })
+            self.assertEqual(login.status_code, 200, login.text)
+            client.headers["X-MixerBee-CSRF"] = login.json()["csrf_token"]
+
+            # 1. GET /api/build_runs
+            resp = client.get("/api/build_runs")
+
+
+
+
+
+            self.assertEqual(resp.status_code, 200, resp.text)
+            data = resp.json()
+
+            self.assertEqual(data["status"], "ok")
+            self.assertTrue(len(data["runs"]) >= 2)
+
+            # 2. GET /api/build_runs/{run_id}
+            resp_detail = client.get(f"/api/build_runs/{r1}")
+            self.assertEqual(resp_detail.status_code, 200)
+            self.assertEqual(resp_detail.json()["run"]["id"], r1)
+            self.assertEqual(len(resp_detail.json()["run"]["items"]), 2)
+
+            # 404 for nonexistent run
+            resp_404 = client.get("/api/build_runs/nonexistent_id")
+            self.assertEqual(resp_404.status_code, 404)
+
+            # 3. GET /api/build_runs/{run_id}/diff/{compare_run_id}
+            resp_diff = client.get(f"/api/build_runs/{r1}/diff/{r2}")
+            self.assertEqual(resp_diff.status_code, 200)
+            diff = resp_diff.json()["diff"]
+            self.assertEqual(diff["retained_count"], 1) # item_2
+            self.assertEqual(diff["added_count"], 1)    # item_3
+            self.assertEqual(diff["removed_count"], 1)  # item_1
+
+            # 4. POST /api/build_runs/{run_id}/replay (dry run)
+            resp_replay_dry = client.post(f"/api/build_runs/{r1}/replay", json={"dry_run": True})
+            self.assertEqual(resp_replay_dry.status_code, 200)
+            self.assertTrue(resp_replay_dry.json()["dry_run"])
+            self.assertEqual(resp_replay_dry.json()["available_items_count"], 2)
+
+            # 5. POST /api/build_runs/{run_id}/replay (actual replay)
+            with patch("app.items.get_playlists", return_value=[]), \
+                 patch("app.items.create_playlist", return_value="pl_new_replay"):
+                resp_replay = client.post(f"/api/build_runs/{r1}/replay", json={"playlist_name": "My Replay Mix"})
+                self.assertEqual(resp_replay.status_code, 200)
+                rep_data = resp_replay.json()
+                self.assertEqual(rep_data["status"], "ok")
+                self.assertEqual(rep_data["new_item_id"], "pl_new_replay")
+                self.assertEqual(rep_data["playlist_name"], "My Replay Mix")
+                self.assertEqual(rep_data["replay_origin_id"], r1)
+        finally:
+            web.app.dependency_overrides.pop(get_current_auth_headers, None)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -23,7 +23,11 @@ export const aiStore = {
     samplePrompt: '',
     isLoadingMoods: false,
 
+    _initialized: false,
     init() {
+        if (this._initialized) return;
+        this._initialized = true;
+
         Alpine.watch(() => Alpine.store('settings').activeUserId, (uid) => {
             if (uid && this.moodPool.length === 0 && !this.isLoadingMoods) {
                 this.fetchMoodDiscovery();

@@ -31,11 +31,13 @@ export const mixerStore = {
     _previewDebouncers: {},
 
     get canUndo() {
-        return this.past.length > 0;
+        return (this.past || []).length > 0;
     },
+    set canUndo(_) {},
     get canRedo() {
-        return this.future.length > 0;
+        return (this.future || []).length > 0;
     },
+    set canRedo(_) {},
 
     hasActiveRules() {
         const o = this.mix_options;

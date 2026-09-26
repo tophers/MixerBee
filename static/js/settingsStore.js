@@ -99,9 +99,11 @@ export const settingsStore = {
     get webhookUrl() {
         return this.getWebhookUrl();
     },
+    set webhookUrl(_) {},
     get pendingWebhookCount() {
         return (this.webhookRequests || []).filter(item => item.status === 'setup_requested').length;
     },
+    set pendingWebhookCount(_) {},
     webhookStatusLabel(status = this.webhook_status) {
         return ({ disabled: 'Disabled', needs_setup: 'Server setup required', setup_requested: 'Setup requested',
             waiting_for_event: 'Waiting for event', connected: 'Connected' })[status] || 'Unknown';

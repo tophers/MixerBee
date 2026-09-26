@@ -183,4 +183,10 @@ class OverlapReportRequest(BaseModel):
     item_ids: Optional[List[str]] = None
     user_id: str
 
+class ReplayRunRequest(BaseModel):
+    playlist_name: Optional[str] = None
+    user_id: Optional[str] = None
+    dry_run: bool = False
+
+
 

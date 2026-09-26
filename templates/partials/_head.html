@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <link rel="modulepreload" href="static/js/app.js">
     <script src="static/js/header.js"></script>
     <script>
         document.addEventListener('alpine:init', () => {
@@ -58,7 +59,11 @@
                 star: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'></polygon></svg>`
             });
 
-            Alpine.store('ui', { currentTab: 'mixed', setTab: () => {} });
+            Alpine.store('ui', {
+                currentTab: 'mixed',
+                showAiBuilder: false,
+                setTab: () => {}
+            });
             Alpine.store('ai', { 
                 prompt: '', 
                 isGenerating: false,
@@ -73,12 +78,164 @@
                 useSamplePrompt: () => {},
                 clearPrompt: () => {},
                 generateWithAi: () => {},
-                quickSwitchModel: () => {}
+                quickSwitchModel: () => {},
+                init: () => {}
             });
-            Alpine.store('mixer', { blocks: [], library: { seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [] }});
-            Alpine.store('presets', { currentName: '', availableNames: [], records: [], registry: {}, load: () => {}, refresh: () => {}, nameForId: () => '', idForName: () => '' });
-            Alpine.store('scheduler', { schedule: [], isLoading: true, loadSchedule: () => {} });
-            Alpine.store('manager', { items: [], searchQuery: '', sortColumn: 'Name', sortDirection: 'asc', filteredItems: [], libraryIq: { total: 0, enriched: 0, percentage: 0 }, contentsModal: { isOpen: false, title: '', items: [], isLoading: false }, load: () => {} });
+            Alpine.store('mixer', {
+                blocks: [],
+                mix_options: {
+                    freshness: { last_successful_builds: 0, history_scope: 'series', watched_within_days: 0, cooldown_days: 0, exhaustion_policy: 'shorter' },
+                    duplicate_policy: { cross_block_policy: 'suppress', max_movies_per_franchise: 0 },
+                    sequencing: { mode: 'sequential', pattern: [], exhaustion_policy: 'continue' },
+                    runtime_budget: { mode: 'off', target_minutes: 0, allowed_overrun_minutes: 0, end_local_time: '', timezone: '' }
+                },
+                library: {
+                    seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [], studioData: []
+                },
+                buildMode: 'create',
+                createAsCollection: false,
+                existingPlaylistId: '',
+                userPlaylists: [],
+                past: [],
+                future: [],
+                get canUndo() { return (this.past || []).length > 0; },
+                set canUndo(_) {},
+                get canRedo() { return (this.future || []).length > 0; },
+                set canRedo(_) {},
+                hasActiveRules: () => false,
+                isDirty: () => false,
+                captureDraft: () => ({ blocks: [], mix_options: {} }),
+                beginEdit: () => {},
+                undo: () => {},
+                redo: () => {},
+                restoreDraft: () => {},
+                markSaved: () => {},
+                addBlock: () => {},
+                addShowRow: () => {},
+                addToken: () => {},
+                buildFromPreview: () => {},
+                buildPlaylist: () => {},
+                clearAllBlocks: () => {},
+                createEchoFromItem: () => {},
+                cycleEchoToken: () => {},
+                cycleTokenState: () => {},
+                deleteBlock: () => {},
+                deleteShowRow: () => {},
+                duplicateBlock: () => {},
+                ensureBlockState: () => {},
+                fetchEpisodeTitle: () => {},
+                fetchItemChildren: () => {},
+                fetchMediaSuggestions: () => {},
+                fetchSuggestions: () => {},
+                getTvBlockSummary: () => '',
+                loadArtistAlbums: () => Promise.resolve([]),
+                openRecipeLibrary: () => {},
+                previewPlaylist: () => {},
+                promptResetWatch: () => {},
+                refreshUserPlaylists: () => {},
+                removeToken: () => {},
+                reselectBlock: () => {},
+                revertToSaved: () => {},
+                saveBlockAsRecipe: () => {},
+                showSmartBuildMenu: () => {},
+                snapshotFromPreview: () => {},
+                syncNextUnwatched: () => {},
+                syncOrderFromDom: () => {},
+                syncPreviewOrder: () => {},
+                unlockBlock: () => {},
+                updatePreviewCount: () => {},
+                init: () => {},
+                loadBlocks: () => Promise.resolve()
+            });
+            Alpine.store('presets', {
+                currentName: '',
+                availableNames: [],
+                records: [],
+                registry: {},
+                load: () => {},
+                refresh: () => {},
+                nameForId: () => '',
+                idForName: () => '',
+                saveAs: () => {},
+                updateCurrent: () => {},
+                promptRename: () => {},
+                deleteCurrent: () => {},
+                exportCurrent: () => {},
+                import: () => {}
+            });
+            Alpine.store('scheduler', {
+                schedule: [],
+                isLoading: true,
+                loadSchedule: () => {},
+                saveSchedule: () => {},
+                addEntry: () => '',
+                removeEntry: () => {},
+                toggleEnabled: () => {},
+                toggleDay: () => {},
+                runNow: () => {},
+                snooze: () => {},
+                formatRulesSummary: () => 'Default mix rules (no active constraints).',
+                loadAlbumsForArtist: () => {}
+            });
+            Alpine.store('manager', {
+                items: [],
+                filtered: [],
+                searchQuery: '',
+                sortColumn: 'Name',
+                sortDirection: 'asc',
+                viewFilter: 'All',
+                isLoading: false,
+                selectedIds: [],
+                libraryIq: { total: 0, enriched: 0, percentage: 0 },
+                contentsModal: { isOpen: false, parentItem: null, title: '', items: [], isLoading: false, hasChanges: false },
+                overlapModal: { isOpen: false, isLoading: false, data: null },
+                enrichmentStatus: {
+                    status: 'idle',
+                    total_items: 0,
+                    processed_items: 0,
+                    succeeded_items: 0,
+                    failed_items: 0,
+                    remaining_items: 0,
+                    queue_depth: 0,
+                    last_message: '',
+                    elapsed_seconds: 0
+                },
+                historyModal: {
+                    isOpen: false,
+                    isLoading: false,
+                    runs: [],
+                    selectedRun: null,
+                    compareRunId: '',
+                    diffResult: null,
+                    isComparing: false,
+                    replayName: '',
+                    missingItems: [],
+                    isReplaying: false
+                },
+                isAllSelected: () => false,
+                toggleSelect: () => {},
+                selectAll: () => {},
+                toggleSort: () => {},
+                applyFilters: () => {},
+                load: () => {},
+                loadIq: () => {},
+                pollEnrichmentStatus: () => {},
+                startEnrichment: () => {},
+                stopEnrichment: () => {},
+                runSemanticRefresh: () => {},
+                bulkDeleteSelected: () => {},
+                checkOverlaps: () => {},
+                viewContents: () => {},
+                saveContentOrder: () => {},
+                removeItem: () => {},
+                convertItem: () => {},
+                deleteItem: () => {},
+                openHistoryModal: () => {},
+                loadBuildRuns: () => {},
+                selectBuildRun: () => {},
+                compareBuildRun: () => {},
+                replayBuildRun: () => {}
+            });
             Alpine.store('settings', {
                 account: {}, accountOpen: false, accountMenuOpen: false, accounts: [], webhookRequests: [],
                 connections: [], selectedConnection: '', connection_id: null, label: '',
@@ -91,8 +248,13 @@
                 external_api_key: '', external_api_key_set: false, is_external_key_visible: false,
                 webhook_secret: '', webhook_status: 'disabled', webhook_public_base_url: '', is_webhook_secret_visible: false, server_ip: '',
                 newUsername: '', newPassword: '', currentPassword: '', nextPassword: '',
-                getWebhookUrl: () => '', webhookUrl: '', pendingWebhookCount: 0,
+                getWebhookUrl: () => '',
+                get webhookUrl() { return this.getWebhookUrl(); },
+                set webhookUrl(_) {},
+                get pendingWebhookCount() { return (this.webhookRequests || []).filter(item => item.status === 'setup_requested').length; },
+                set pendingWebhookCount(_) {},
                 webhookStatusLabel: () => '', webhookStatusClass: () => 'badge-subtle',
+                theme: localStorage.getItem('mixerbeeTheme') || 'dark',
                 show: () => {}, hide: () => {}, initAccount: () => {}, selectConnection: () => {},
                 logout: () => {}, showAccount: () => {}, createAccount: () => {}, changePassword: () => {},
                 removeConnection: () => {}, newConnection: () => {}, retryConnection: () => {},
@@ -103,7 +265,56 @@
                 acknowledgeWebhookRequest: () => {}, saveWebhookBaseUrl: () => {}, regenerateExternalKey: () => {}, saveExternalKey: () => {},
                 clearExternalKey: () => {}, resetVectorDb: () => {}, testConnection: () => {}, saveSettings: () => {}
             });
-            Alpine.store('modals', { confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false }, preset: { isOpen: false, existingNames: [], name: '' }, playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true }, import: { isOpen: false, code: '', name: '' }, smartBuild: { isOpen: false, items: [] }, preview: { isOpen: false, items: [], title: 'Preview' }, resetWatch: { isOpen: false, showName: '', season: '' }, history: { isOpen: false, toastHistory: [] }, ollamaModels: { isOpen: false }, aiTweaks: { isOpen: false }, confirmAction: { show: () => new Promise(() => {}), close: () => {} }, playlistAction: { show: () => new Promise(() => {}), close: () => {} }, smartBuildAction: { show: () => new Promise(() => {}), close: () => {} }, presetAction: { show: () => new Promise(() => {}), close: () => {} }, previewAction: { show: () => new Promise(() => {}), close: () => {} }, resetWatchAction: { show: () => new Promise(() => {}), close: () => {} }, historyAction: { show: () => {}, close: () => {}, clear: () => {} }, importAction: { show: () => new Promise(() => {}), close: () => {}, performImport: () => {} }, aiTweaksAction: { show: () => new Promise(() => {}), close: () => {} } });
+
+            const createStubModalAction = () => ({
+                show: () => new Promise(() => {}),
+                close: () => {}
+            });
+
+            Alpine.store('modals', {
+                confirm: { isOpen: false, existingNames: [], title: '', text: '', confirmText: 'Confirm', isDanger: false },
+                preset: { isOpen: false, existingNames: [], name: '' },
+                playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
+                import: { isOpen: false, code: '', name: '' },
+                smartBuild: { isOpen: false, items: [] },
+                preview: { isOpen: false, items: [], title: 'Preview', totalDuration: '', parentBlockUid: null },
+                resetWatch: { isOpen: false, showName: '', season: '' },
+                history: { isOpen: false, toastHistory: [] },
+                ollamaModels: { isOpen: false },
+                aiTweaks: { isOpen: false },
+                recipeLibrary: { isOpen: false, recipes: [], starters: [], filterQuery: '', activeTab: 'saved' },
+                saveRecipe: { isOpen: false, name: '', description: '', tags: '', is_favorite: false, blockToSave: null },
+                mixRules: { isOpen: false },
+                renamePreset: { isOpen: false, presetId: '', oldName: '', newName: '' },
+                musicQuickBuild: {
+                    isOpen: false,
+                    type: 'artist_spotlight',
+                    title: '',
+                    playlistName: '',
+                    count: 25,
+                    selectedArtistId: '',
+                    selectedGenre: '',
+                    selectedAlbumId: '',
+                    selectedAlbumName: '',
+                    albums: [],
+                    loadingAlbums: false
+                },
+                confirmAction: createStubModalAction(),
+                presetAction: createStubModalAction(),
+                playlistAction: createStubModalAction(),
+                importAction: { ...createStubModalAction(), performImport: () => {} },
+                smartBuildAction: createStubModalAction(),
+                previewAction: createStubModalAction(),
+                resetWatchAction: createStubModalAction(),
+                historyAction: { show: () => {}, close: () => {}, clear: () => {} },
+                ollamaAction: createStubModalAction(),
+                aiTweaksAction: createStubModalAction(),
+                recipeLibraryAction: createStubModalAction(),
+                saveRecipeAction: createStubModalAction(),
+                mixRulesAction: createStubModalAction(),
+                renamePresetAction: createStubModalAction(),
+                musicQuickBuildAction: createStubModalAction()
+            });
         });
     </script>
 </head>

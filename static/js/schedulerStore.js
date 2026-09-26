@@ -27,7 +27,7 @@ export const schedulerStore = {
                         enabled: entry.enabled !== false,
                         snoozed_until: entry.snoozed_until || null,
                         trigger_sources: entry.trigger_sources || ['clock', 'watch', 'library'],
-                        quick_playlist_data: entry.quick_playlist_data || { quick_playlist_type: 'recently_added', options: { count: 25 } },
+                        quick_playlist_data: entry.quick_playlist_data ? { ...entry.quick_playlist_data, options: entry.quick_playlist_data.options || {} } : { quick_playlist_type: 'recently_added', options: { count: 25 } },
                         enrichment_data: entry.enrichment_data || { batch_size: 15, timeout: 120 },
                         schedule_details: {
                             time: details.time || entry.time || "12:00",
@@ -71,6 +71,7 @@ export const schedulerStore = {
                 interval_minutes: parseInt(entry.schedule_details.interval_minutes) || 30
             },
             create_as_collection: !!entry.create_as_collection,
+            mix_options: entry.mix_options || (presetId ? (Alpine.store('presets').records.find(r => r.id === presetId)?.mix_options || null) : null),
             enabled: entry.enabled !== false,
             snoozed_until: entry.snoozed_until || null,
             trigger_sources: entry.trigger_sources || ['clock', 'watch', 'library']
@@ -152,5 +153,44 @@ export const schedulerStore = {
         else days.push(dayNum);
         entry.schedule_details.days_of_week = days.sort((a,b) => a - b);
         this.schedule = [...this.schedule];
+    },
+
+    formatRulesSummary(mixOptions) {
+        if (!mixOptions) return 'Default mix rules (no active constraints).';
+        const parts = [];
+        if (mixOptions.freshness?.last_successful_builds > 0) {
+            parts.push(`Cooldown: ${mixOptions.freshness.last_successful_builds} builds`);
+        }
+        if (mixOptions.freshness?.watched_within_days > 0) {
+            parts.push(`Exclude watched < ${mixOptions.freshness.watched_within_days}d`);
+        }
+        if (mixOptions.duplicate_policy?.max_movies_per_franchise > 0) {
+            parts.push(`Max ${mixOptions.duplicate_policy.max_movies_per_franchise} per franchise`);
+        }
+        if (mixOptions.sequencing?.mode && mixOptions.sequencing.mode !== 'sequential') {
+            parts.push(`Sequencing: ${mixOptions.sequencing.mode}`);
+        }
+        if (mixOptions.runtime_budget?.mode && mixOptions.runtime_budget.mode !== 'off' && mixOptions.runtime_budget.target_minutes > 0) {
+            parts.push(`Budget: ${mixOptions.runtime_budget.target_minutes}m`);
+        }
+        return parts.length > 0 ? parts.join(' • ') : 'Default mix rules (no active constraints).';
+    },
+
+    async loadAlbumsForArtist(entry, artistId) {
+        if (!artistId) {
+            entry._artistAlbums = [];
+            return;
+        }
+        entry._loadingAlbums = true;
+        try {
+            const albums = await Alpine.store('mixer').loadArtistAlbums(artistId);
+            entry._artistAlbums = albums || [];
+        } catch (e) {
+            console.error('Failed to load artist albums for scheduler:', e);
+            entry._artistAlbums = [];
+        } finally {
+            entry._loadingAlbums = false;
+            this.schedule = [...this.schedule];
+        }
     }
 };

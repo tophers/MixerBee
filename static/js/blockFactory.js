@@ -36,6 +36,13 @@ export function ensureBlockState(block, library) {
         block.filters.year_from = block.filters.year_from ?? 1900;
         block.filters.year_to = block.filters.year_to ?? new Date().getFullYear() + 2;
         block.filters.release_within_days = block.filters.release_within_days ?? 0;
+        block.filters.min_runtime_minutes = block.filters.min_runtime_minutes ?? null;
+        block.filters.max_runtime_minutes = block.filters.max_runtime_minutes ?? null;
+        block.filters.min_community_rating = block.filters.min_community_rating ?? null;
+        block.filters.favorites_only = block.filters.favorites_only ?? false;
+        block.filters.allowed_content_ratings = block.filters.allowed_content_ratings ?? [];
+        block.filters.audio_languages = block.filters.audio_languages ?? [];
+        block.filters.subtitle_languages = block.filters.subtitle_languages ?? [];
         block.filters.ids = block.filters.ids ?? [];
 
         block._limitMode = block._limitMode ?? (block.filters.duration_minutes ? 'duration' : 'count');

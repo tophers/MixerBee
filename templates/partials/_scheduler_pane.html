@@ -4,9 +4,14 @@
             <div class="flex-row items-baseline gap-sm">
                 <h2 class="m-0">Automated Jobs</h2>
             </div>
-            <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
-                <span x-html="$store.icons.plus"></span> Add New Job
-            </button>
+            <div class="flex-row gap-xs">
+                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.openHistoryModal()">
+                    <span x-html="$store.icons.clock"></span> Build History
+                </button>
+                <button type="button" class="primary align-center gap-xs" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
+                    <span x-html="$store.icons.plus"></span> Add New Job
+                </button>
+            </div>
         </div>
 
         <div class="table-container card">
@@ -113,6 +118,12 @@
                                                             <option :value="preset.id" x-text="preset.name"></option>
                                                         </template>
                                                     </select>
+                                                    <div class="mt-sm p-sm rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color, rgba(255,255,255,0.1));" x-show="entry.preset_id">
+                                                        <div class="flex-row items-center gap-xs text-subtle" style="font-size: 0.8rem;">
+                                                            <span class="bold">Active Rules:</span>
+                                                            <span x-text="$store.scheduler.formatRulesSummary(entry.mix_options || ($store.presets.records.find(r => r.id === entry.preset_id)?.mix_options))"></span>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </template>
 
@@ -154,6 +165,70 @@
                                                                 <option :value="g.Name" x-text="g.Name"></option>
                                                             </template>
                                                         </select>
+                                                    </div>
+
+                                                    <!-- Album Roulette Picker -->
+                                                    <div class="mt-md" x-show="entry.quick_playlist_data.quick_playlist_type === 'album_roulette'">
+                                                        <label class="field-label">Album Selection</label>
+                                                        <div class="flex-row gap-sm align-center mb-sm">
+                                                            <button type="button" class="secondary small align-center gap-xs" @click="
+                                                                const res = await useApi(api.get('api/music/random_album'), $el, true, false);
+                                                                if (res && res.data) {
+                                                                    if (!entry.quick_playlist_data.options) entry.quick_playlist_data.options = {};
+                                                                    const albId = res.data.Id || res.data.id;
+                                                                    const albName = res.data.Name || res.data.name;
+                                                                    entry.quick_playlist_data.options.album_id = albId;
+                                                                    entry._selectedAlbumName = albName;
+                                                                    if (!entry.playlist_name || entry.playlist_name === 'New Scheduled Mix' || entry.playlist_name === 'Scheduled Auto Playlist') {
+                                                                        entry.playlist_name = 'Album: ' + albName;
+                                                                    }
+                                                                }
+                                                            ">
+                                                                <span x-html="$store.icons.shuffle"></span> Surprise Me (Pick Random)
+                                                            </button>
+                                                            <button type="button" class="secondary small align-center gap-xs" @click="
+                                                                if (!entry.quick_playlist_data.options) entry.quick_playlist_data.options = {};
+                                                                entry.quick_playlist_data.options.album_id = 'random';
+                                                                entry._selectedAlbumName = 'Random album chosen on each run';
+                                                            ">
+                                                                <span x-html="$store.icons.refresh"></span> Rotate Every Run
+                                                            </button>
+                                                        </div>
+
+                                                        <div class="card p-sm mb-sm" x-show="entry._selectedAlbumName || entry.quick_playlist_data?.options?.album_id" style="background: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                                            <span class="text-subtle">Target Album: </span>
+                                                            <span class="bold color-accent" x-text="entry.quick_playlist_data?.options?.album_id === 'random' ? 'Random album chosen on each run' : (entry._selectedAlbumName || entry.quick_playlist_data?.options?.album_id)"></span>
+                                                        </div>
+
+                                                        <div class="flex-col gap-sm">
+                                                            <div>
+                                                                <label class="field-label" style="font-size: 0.75rem;">Filter by Artist</label>
+                                                                <select x-model="entry._selectedArtistId" class="mixer-select w-full" @change="$store.scheduler.loadAlbumsForArtist(entry, entry._selectedArtistId)">
+                                                                    <option value="">-- Choose Artist --</option>
+                                                                    <template x-for="art in ($store.mixer.library.artistData || [])" :key="art.Id || art.id">
+                                                                        <option :value="art.Id || art.id" x-text="art.Name || art.name"></option>
+                                                                    </template>
+                                                                </select>
+                                                            </div>
+
+                                                            <div x-show="(entry._artistAlbums || []).length > 0">
+                                                                <label class="field-label" style="font-size: 0.75rem;">Choose Album</label>
+                                                                <select x-model="entry.quick_playlist_data.options.album_id" class="mixer-select w-full" @change="
+                                                                    const alb = (entry._artistAlbums || []).find(a => (a.Id || a.id) === $el.value);
+                                                                    if (alb) {
+                                                                        entry._selectedAlbumName = alb.Name || alb.name;
+                                                                        if (!entry.playlist_name || entry.playlist_name === 'New Scheduled Mix' || entry.playlist_name === 'Scheduled Auto Playlist') {
+                                                                            entry.playlist_name = 'Album: ' + (alb.Name || alb.name);
+                                                                        }
+                                                                    }
+                                                                ">
+                                                                    <option value="">-- Select Album --</option>
+                                                                    <template x-for="alb in (entry._artistAlbums || [])" :key="alb.Id || alb.id">
+                                                                        <option :value="alb.Id || alb.id" x-text="alb.Name || alb.name"></option>
+                                                                    </template>
+                                                                </select>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </template>

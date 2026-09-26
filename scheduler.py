@@ -31,9 +31,14 @@ from quick_playlist_registry import QUICK_PLAYLIST_MAP
 LEGACY_TYPE_MAP = {"continue_watching": "next_up", "forgotten_favorites": "from_the_vault"}
 
 def run_playlist_job(**schedule_data) -> Dict:
-    schedule_id = schedule_data.get("id")
+    if "schedule_data" in schedule_data and isinstance(schedule_data["schedule_data"], dict):
+        nested = schedule_data.pop("schedule_data")
+        schedule_data = {**nested, **schedule_data}
+
+    schedule_id = schedule_data.get("id") or schedule_data.get("schedule_id")
     user_id = schedule_data.get("user_id")
     playlist_name = schedule_data.get("playlist_name")
+
 
     raw_type = schedule_data.get("job_type", "builder")
     job_type = "builder" if raw_type == "preset" else raw_type
@@ -51,8 +56,12 @@ def run_playlist_job(**schedule_data) -> Dict:
         connection_id = schedule_data.get("connection_id")
         if not connection_id:
             raise ValueError("Schedule has no assigned connection. Recreate it under the intended account.")
-        auth_data = get_auth_data(connection_id)
-        media = auth_data["media"].require_user(user_id)
+        media = schedule_data.get("media")
+        if not media:
+            auth_data = get_auth_data(connection_id)
+            media = auth_data["media"].require_user(user_id)
+
+
         if job_type == "enrichment":
             from app.ai.enrichment_manager import enrichment_guard
             enrich_data = schedule_data.get("enrichment_data", {})
@@ -77,6 +86,7 @@ def run_playlist_job(**schedule_data) -> Dict:
                 blocks = schedule_data.get("blocks")
                 preset_id = schedule_data.get("preset_id")
                 preset_name = schedule_data.get("preset_name")
+                mix_options = schedule_data.get("mix_options")
 
                 if not blocks and preset_id:
                     record = pm.preset_manager.get_preset_by_id(preset_id, connection_id)
@@ -86,6 +96,8 @@ def run_playlist_job(**schedule_data) -> Dict:
                         return {"status": "error", "log": [msg]}
                     blocks = record['data']
                     preset_name = record['name']
+                    if not mix_options and record.get('mix_options'):
+                        mix_options = record['mix_options']
                     logger.info("Resolved blocks for job %s from preset ID %s ('%s')", schedule_id, preset_id, preset_name)
                 elif not blocks and preset_name:
                     # Compatibility for jobs created before preset IDs were introduced.
@@ -95,7 +107,13 @@ def run_playlist_job(**schedule_data) -> Dict:
                         logger.error(msg)
                         return {"status": "error", "log": [msg]}
                     blocks = record['data']
+                    if not mix_options and record.get('mix_options'):
+                        mix_options = record['mix_options']
                     logger.info(f"Resolved legacy job {schedule_id} from preset '{preset_name}'")
+                elif preset_id and not mix_options:
+                    record = pm.preset_manager.get_preset_by_id(preset_id, connection_id)
+                    if record and record.get('mix_options'):
+                        mix_options = record['mix_options']
 
                 if not blocks:
                     logger.info(f"No blocks found for job {schedule_id}.")
@@ -124,11 +142,16 @@ def run_playlist_job(**schedule_data) -> Dict:
                         media=media
                     )
                 else:
+                    trigger_src = schedule_data.get("trigger_source", "clock")
                     result = core.create_mixed_playlist(
                         user_id=user_id,
                         playlist_name=playlist_name,
                         blocks=blocks,
-                        media=media
+                        media=media,
+                        mix_options=mix_options,
+                        trigger_source=trigger_src,
+                        schedule_id=schedule_id,
+                        preset_id=preset_id
                     )
 
             elif job_type == "quick_playlist":
@@ -139,8 +162,21 @@ def run_playlist_job(**schedule_data) -> Dict:
                 if not func_to_call:
                     raise ValueError(f"Unknown quick_playlist_type '{quick_playlist_type}'")
 
-                options = quick_playlist_data.get("options", {})
+                options = dict(quick_playlist_data.get("options", {}))
+                if quick_playlist_type == "album_roulette":
+                    if not options.get("album_id") or options.get("album_id") == "random":
+                        rand_album = core.get_random_album(media)
+                        if rand_album and (rand_album.get("Id") or rand_album.get("id")):
+                            options["album_id"] = rand_album.get("Id") or rand_album.get("id")
+                            if playlist_name in ("New Scheduled Mix", "Scheduled Auto Playlist", "Album Roulette"):
+                                playlist_name = f"Album: {rand_album.get('Name') or rand_album.get('name')}"
+                        else:
+                            msg = "No albums found in library for Album Roulette."
+                            logger.error(msg)
+                            return {"status": "error", "log": [msg]}
+
                 result = func_to_call(user_id=user_id, playlist_name=playlist_name, media=media, log=log_messages, **options)
+
 
         final_log = result.get("log", ["No log messages returned from build process."])
         final_status = result.get("status", "error")

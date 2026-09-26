@@ -300,3 +300,87 @@ def api_external_build_preset(req: models.ExternalBuildRequest, auth_deps: dict 
     except Exception as e:
         logging.error(f"External build_preset failed for preset '{req.preset_name}'", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/api/build_runs")
+@router.get("/api/build-runs")
+def api_get_build_runs(
+    limit: int = 50,
+    preset_id: Optional[str] = None,
+    schedule_id: Optional[str] = None,
+    operation: Optional[str] = None,
+    auth_deps: dict = Depends(get_current_auth_headers)
+):
+    runs = core.build_history.get_recent_build_runs(
+        connection_id=auth_deps["connection_id"],
+        limit=limit,
+        preset_id=preset_id,
+        schedule_id=schedule_id,
+        operation=operation
+    )
+    return {"status": "ok", "runs": runs}
+
+@router.get("/api/build_runs/{run_id}")
+@router.get("/api/build-runs/{run_id}")
+def api_get_build_run_detail(
+    run_id: str,
+    auth_deps: dict = Depends(get_current_auth_headers)
+):
+    detail = core.build_history.get_build_run_detail(run_id, auth_deps["connection_id"])
+    if not detail:
+        raise HTTPException(status_code=404, detail=f"Build run '{run_id}' not found.")
+    return {"status": "ok", "run": detail}
+
+@router.get("/api/build_runs/{run_id}/diff/{compare_run_id}")
+@router.get("/api/build-runs/{run_id}/diff/{compare_run_id}")
+def api_diff_build_runs(
+    run_id: str,
+    compare_run_id: str,
+    auth_deps: dict = Depends(get_current_auth_headers)
+):
+    run_a = core.build_history.get_build_run_detail(run_id, auth_deps["connection_id"])
+    if not run_a:
+        raise HTTPException(status_code=404, detail=f"Build run '{run_id}' not found.")
+    run_b = core.build_history.get_build_run_detail(compare_run_id, auth_deps["connection_id"])
+    if not run_b:
+        raise HTTPException(status_code=404, detail=f"Build run '{compare_run_id}' not found.")
+
+    diff = core.build_history.compute_run_diff(run_a.get("items", []), run_b.get("items", []))
+    return {
+        "status": "ok",
+        "run_id": run_id,
+        "compare_run_id": compare_run_id,
+        "diff": diff
+    }
+
+@router.post("/api/build_runs/{run_id}/replay")
+@router.post("/api/build-runs/{run_id}/replay")
+def api_replay_build_run(
+    run_id: str,
+    req: Optional[models.ReplayRunRequest] = None,
+    auth_deps: dict = Depends(get_current_auth_headers)
+):
+    target_user_id = (req.user_id if req and req.user_id else None) or auth_deps["login_uid"]
+    media = media_for_user(auth_deps, target_user_id)
+    playlist_name = req.playlist_name if req else None
+    dry_run = req.dry_run if req else False
+
+    try:
+        result = core.build_history.replay_build_run(
+            run_id=run_id,
+            connection_id=auth_deps["connection_id"],
+            user_id=target_user_id,
+            media=media,
+            playlist_name=playlist_name,
+            dry_run=dry_run
+        )
+        if result.get("status") == "error" and not dry_run and result.get("available_items_count") == 0:
+            raise HTTPException(status_code=400, detail=result.get("message", "Replay failed."))
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error replaying build run {run_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+

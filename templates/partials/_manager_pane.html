@@ -9,10 +9,15 @@
                        @input.debounce.250ms="$store.manager.applyFilters()"
                        class="grow-1 m-0">
             </div>
-            <div class="toggle-pill m-0 shrink-0">
-                <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
-                <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
-                <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+            <div class="flex-row gap-sm align-center shrink-0">
+                <div class="toggle-pill m-0 shrink-0">
+                    <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
+                    <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
+                    <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+                </div>
+                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.openHistoryModal()">
+                    <span x-html="$store.icons.clock"></span> Build History
+                </button>
             </div>
         </div>
 

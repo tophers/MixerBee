@@ -173,27 +173,43 @@ def record_build_finish(
         logger.error(f"Failed to record build finish for {run_id}: {e}", exc_info=True)
 
 
-def get_recent_build_runs(connection_id: str, limit: int = 50) -> List[Dict[str, Any]]:
-    """Fetches recent build runs for a connection."""
+def get_recent_build_runs(
+    connection_id: str,
+    limit: int = 50,
+    preset_id: Optional[str] = None,
+    schedule_id: Optional[str] = None,
+    operation: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """Fetches recent build runs for a connection with optional filters."""
     try:
         with database.get_db_connection() as conn:
             init_history_schema(conn)
-            rows = conn.execute(
-                """
+            query = """
                 SELECT id, connection_id, stable_series_key, trigger_source,
                        schedule_id, preset_id, output_id, operation, started_at,
                        finished_at, outcome, summary, replay_origin_id
                 FROM build_runs
                 WHERE connection_id = ?
-                ORDER BY started_at DESC
-                LIMIT ?
-                """,
-                (connection_id, limit)
-            ).fetchall()
+            """
+            params: List[Any] = [connection_id]
+            if preset_id:
+                query += " AND preset_id = ?"
+                params.append(preset_id)
+            if schedule_id:
+                query += " AND schedule_id = ?"
+                params.append(schedule_id)
+            if operation:
+                query += " AND operation = ?"
+                params.append(operation)
+            query += " ORDER BY started_at DESC LIMIT ?"
+            params.append(limit)
+
+            rows = conn.execute(query, params).fetchall()
             return [dict(r) for r in rows]
     except Exception as e:
         logger.error(f"Failed to fetch recent build runs: {e}", exc_info=True)
         return []
+
 
 
 def get_build_run_detail(run_id: str, connection_id: str) -> Optional[Dict[str, Any]]:
@@ -313,3 +329,168 @@ def compute_run_diff(old_items: List[Dict[str, Any]], new_items: List[Dict[str, 
         "retained_count": retained_count,
         "order_changed": order_changed
     }
+
+
+def replay_build_run(
+    run_id: str,
+    connection_id: str,
+    user_id: str,
+    media: Any,
+    playlist_name: Optional[str] = None,
+    dry_run: bool = False
+) -> Dict[str, Any]:
+    """
+    Replays a historical build run into a new playlist, verifying item accessibility,
+    reporting missing/inaccessible items, and preserving the historical lineup order.
+    """
+    import re
+    detail = get_build_run_detail(run_id, connection_id)
+    if not detail:
+        raise ValueError(f"Build run '{run_id}' not found for this connection.")
+
+    items = detail.get("items", [])
+    if not items:
+        return {
+            "status": "error",
+            "message": "This run contains no recorded items to replay.",
+            "available_items_count": 0,
+            "missing_items": [],
+            "total_items": 0
+        }
+
+    # Verify accessibility against the media server
+    all_media_ids = [it["media_id"] for it in items if it.get("media_id")]
+    unique_ids = list(dict.fromkeys(all_media_ids))
+    available_id_set: Set[str] = set()
+
+    chunk_size = 100
+    for i in range(0, len(unique_ids), chunk_size):
+        chunk = unique_ids[i:i + chunk_size]
+        try:
+            r = media.get(
+                f"/Users/{user_id}/Items" if hasattr(media, "server_type") else "/Items",
+                params={"Ids": ",".join(chunk), "UserId": user_id, "Fields": "Id,Name"}
+            )
+            if r.status_code == 200:
+                data = r.json()
+                ret_items = data.get("Items", [])
+                for ret in ret_items:
+                    available_id_set.add(str(ret.get("Id", "")))
+            else:
+                for mid in chunk:
+                    available_id_set.add(mid)
+        except Exception as e:
+            logger.warning(f"Failed to verify batch items accessibility: {e}")
+            for mid in chunk:
+                available_id_set.add(mid)
+
+    # Determine missing items
+    missing_items = []
+    seen_missing = set()
+    for it in items:
+        mid = str(it.get("media_id", ""))
+        if mid not in available_id_set and mid not in seen_missing:
+            seen_missing.add(mid)
+            missing_items.append({
+                "media_id": mid,
+                "title": it.get("title_snapshot") or "Unknown",
+                "media_type": it.get("media_type") or "Unknown"
+            })
+
+    # Preserve remaining accepted items in their original order
+    valid_items = [it for it in items if str(it.get("media_id", "")) in available_id_set]
+    valid_ids = [str(it["media_id"]) for it in valid_items]
+
+    if dry_run:
+        return {
+            "status": "ok",
+            "dry_run": True,
+            "run_id": run_id,
+            "total_items": len(items),
+            "available_items_count": len(valid_ids),
+            "missing_items": missing_items,
+            "available_items": [
+                {"media_id": it["media_id"], "title": it.get("title_snapshot"), "media_type": it.get("media_type")}
+                for it in valid_items
+            ]
+        }
+
+    if not valid_ids:
+        return {
+            "status": "error",
+            "message": "None of the items from this build run are currently accessible in your library.",
+            "missing_items": missing_items,
+            "available_items_count": 0
+        }
+
+    # Determine distinct playlist name
+    from app import items as items_api
+    if not playlist_name:
+        orig_name = "Mix"
+        summary = detail.get("summary") or ""
+        m = re.search(r"Created playlist '([^']+)'", summary)
+        if m:
+            orig_name = m.group(1)
+        elif detail.get("preset_id"):
+            orig_name = detail.get("preset_id")
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        candidate_name = f"{orig_name} — replay {today}"
+    else:
+        candidate_name = playlist_name
+
+    # Check for name collisions to ensure distinct name
+    try:
+        existing = items_api.get_playlists(user_id=user_id, media=media)
+        existing_names = {p.get("Name") for p in existing}
+        final_name = candidate_name
+        counter = 1
+        while final_name in existing_names:
+            final_name = f"{candidate_name} ({counter})"
+            counter += 1
+    except Exception:
+        final_name = candidate_name
+
+    replay_run_id = record_build_start(
+        connection_id=connection_id,
+        operation="playlist",
+        user_id=user_id,
+        trigger_source="replay",
+        replay_origin_id=run_id,
+        preset_id=detail.get("preset_id"),
+        schedule_id=detail.get("schedule_id"),
+        series_key=f"replay_{run_id}",
+        definition_snapshot={"replay_origin_id": run_id, "original_run_id": run_id}
+    )
+
+    log_messages: List[str] = [f"Replaying lineup from run {run_id}."]
+    if missing_items:
+        log_messages.append(f"Omitted {len(missing_items)} inaccessible/deleted items.")
+
+    new_playlist_id = items_api.create_playlist(
+        name=final_name,
+        user_id=user_id,
+        ids=valid_ids,
+        media=media,
+        log=log_messages
+    )
+
+    outcome = "ok" if new_playlist_id else "error"
+    record_build_finish(
+        run_id=replay_run_id,
+        output_id=new_playlist_id,
+        outcome=outcome,
+        summary=f"Replayed run {run_id} into '{final_name}' ({len(valid_ids)} items)",
+        rows=valid_items
+    )
+
+    return {
+        "status": outcome,
+        "run_id": replay_run_id,
+        "replay_origin_id": run_id,
+        "new_item_id": new_playlist_id,
+        "playlist_name": final_name,
+        "item_count": len(valid_ids),
+        "missing_items": missing_items,
+        "log": log_messages
+    }
+

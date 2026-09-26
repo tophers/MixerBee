@@ -176,6 +176,9 @@ class MediaClient:
             url += '&serverId=' + quote(c.server_id, safe='')
         return url
 
+    def as_active(self):
+        return media_scope(self)
+
 
 _current_media = ContextVar('mixerbee_media_connection')
 

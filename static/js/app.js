@@ -14,37 +14,58 @@ import { managerStore } from './managerStore.js';
 import { uiStore } from './uiStore.js';
 
 let isAppInitialized = false;
+let storesHydrated = false;
 
-const hydrateStores = () => {
+const safeMergeStore = (target, source) => {
+    if (!target || !source) return;
+    const descriptors = Object.getOwnPropertyDescriptors(source);
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+        if (descriptor.get || descriptor.set) {
+            try {
+                Object.defineProperty(target, key, descriptor);
+            } catch (e) {}
+        } else {
+            try {
+                target[key] = descriptor.value;
+            } catch (e) {
+                try {
+                    Object.defineProperty(target, key, descriptor);
+                } catch (e2) {}
+            }
+        }
+    }
+};
+
+export const hydrateStores = () => {
     if (typeof Alpine === 'undefined') return;
+    if (storesHydrated) return;
+    storesHydrated = true;
 
-    Object.assign(Alpine.store('mixer'), mixerStore);
-    Object.assign(Alpine.store('ai'), aiStore);
-    Object.assign(Alpine.store('presets'), presetStore);
-    Object.assign(Alpine.store('settings'), settingsStore);
-    Object.defineProperties(Alpine.store('settings'), Object.getOwnPropertyDescriptors(settingsStore));
-    Object.assign(Alpine.store('scheduler'), schedulerStore);
-    Object.assign(Alpine.store('manager'), managerStore);
-    Object.assign(Alpine.store('ui'), uiStore);
+    safeMergeStore(Alpine.store('mixer'), mixerStore);
+    safeMergeStore(Alpine.store('ai'), aiStore);
+    safeMergeStore(Alpine.store('presets'), presetStore);
+    safeMergeStore(Alpine.store('settings'), settingsStore);
+    safeMergeStore(Alpine.store('scheduler'), schedulerStore);
+    safeMergeStore(Alpine.store('manager'), managerStore);
+    safeMergeStore(Alpine.store('ui'), uiStore);
 
     initModals();
-
-    const modalStore = Alpine.store('modals');
-    modalStore.confirmAction = confirmModal;
-    modalStore.playlistAction = smartPlaylistModal;
-    modalStore.smartBuildAction = smartBuildModal;
-    modalStore.previewAction = previewModal;
-    modalStore.resetWatchAction = resetWatchModal;
-    modalStore.historyAction = toastHistoryModal;
-    modalStore.importAction = importAction;
-    modalStore.presetAction = presetModal;
 
     Alpine.store('ai').init();
 };
 
+// Immediately hydrate real store references if Alpine is ready
+if (typeof Alpine !== 'undefined') {
+    hydrateStores();
+} else {
+    document.addEventListener('alpine:init', hydrateStores, { once: true });
+}
+
 async function initializeApp() {
     if (isAppInitialized) return;
     isAppInitialized = true;
+
+    hydrateStores();
 
     const loadingOverlay = document.getElementById('loading-overlay');
     try {
@@ -52,8 +73,6 @@ async function initializeApp() {
 
         const body = document.body;
         const toastBadge = document.getElementById('toast-badge');
-
-        hydrateStores();
 
         const sStore = Alpine.store('settings');
         body.dataset.theme = sStore.theme;

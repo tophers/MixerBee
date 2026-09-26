@@ -102,6 +102,18 @@
                                         <template x-if="block._limitMode === 'duration' && block._limitDurationRaw">
                                             <span class="badge badge-outline-subtle" x-text="block._limitDurationRaw + (block._limitDurationUnit === 60 ? ' Hours' : ' Mins')"></span>
                                         </template>
+                                        <template x-if="block.filters?.favorites_only">
+                                            <span class="badge badge-accent">FAVORITES</span>
+                                        </template>
+                                        <template x-if="block.filters?.min_community_rating">
+                                            <span class="badge" x-text="'★ ' + block.filters.min_community_rating + '+'"></span>
+                                        </template>
+                                        <template x-if="block.filters?.min_runtime_minutes || block.filters?.max_runtime_minutes">
+                                            <span class="badge badge-outline-subtle" x-text="(block.filters.min_runtime_minutes || 0) + '-' + (block.filters.max_runtime_minutes || '∞') + 'm'"></span>
+                                        </template>
+                                        <template x-if="(block.filters?.allowed_content_ratings || []).length > 0">
+                                            <span class="badge badge-outline-subtle" x-text="block.filters.allowed_content_ratings.join(', ')"></span>
+                                        </template>
                                     </span>
                                 </template>
                             </div>
@@ -291,6 +303,106 @@
                             </button>
                         </div>
                     </fieldset>
+
+                    <fieldset class="filter-group">
+                        <legend>Viewing Constraints & Ratings</legend>
+                        <div class="flex-row align-center gap-lg flex-wrap mb-md">
+                            <div class="flex-row align-center gap-xs">
+                                <label class="field-label m-0">Min Runtime:</label>
+                                <input type="number" min="0" placeholder="0" class="themed-input w-80 text-center m-0"
+                                       x-model.number="block.filters.min_runtime_minutes"
+                                       @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                <span class="text-subtle">mins</span>
+                            </div>
+                            <div class="flex-row align-center gap-xs">
+                                <label class="field-label m-0">Max Runtime:</label>
+                                <input type="number" min="0" placeholder="Any" class="themed-input w-80 text-center m-0"
+                                       x-model.number="block.filters.max_runtime_minutes"
+                                       @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                <span class="text-subtle">mins</span>
+                            </div>
+                        </div>
+
+                        <div class="flex-row align-center gap-lg flex-wrap mb-md">
+                            <div class="flex-row align-center gap-xs">
+                                <label class="field-label m-0">Min Rating:</label>
+                                <input type="number" min="0" max="10" step="0.5" placeholder="0.0" class="themed-input w-80 text-center m-0"
+                                       x-model.number="block.filters.min_community_rating"
+                                       @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
+                                <span class="text-subtle">/ 10</span>
+                            </div>
+                            <label class="align-center gap-xs pointer m-0">
+                                <input type="checkbox" x-model="block.filters.favorites_only"
+                                       @change="$store.mixer.updatePreviewCount(block)">
+                                <span>Favorites Only</span>
+                            </label>
+                        </div>
+
+                        <div class="mb-md">
+                            <label class="field-label mb-xs">Allowed Content Ratings</label>
+                            <div class="flex-row flex-wrap gap-xs">
+                                <template x-for="cr in ['G', 'PG', 'PG-13', 'R', 'NC-17', 'Unrated']" :key="cr">
+                                    <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;"
+                                            :class="(block.filters?.allowed_content_ratings || []).includes(cr) ? 'active' : ''"
+                                            @click="
+                                                if (!block.filters.allowed_content_ratings) block.filters.allowed_content_ratings = [];
+                                                if (block.filters.allowed_content_ratings.includes(cr)) {
+                                                    block.filters.allowed_content_ratings = block.filters.allowed_content_ratings.filter(r => r !== cr);
+                                                } else {
+                                                    block.filters.allowed_content_ratings.push(cr);
+                                                }
+                                                $store.mixer.updatePreviewCount(block);
+                                            "
+                                            x-text="cr">
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div class="flex-row gap-lg flex-wrap">
+                            <div class="grow-1">
+                                <label class="field-label mb-xs">Audio Language</label>
+                                <div class="flex-row flex-wrap gap-xs">
+                                    <template x-for="lang in ['English', 'Spanish', 'French', 'German', 'Japanese', 'Korean']" :key="'aud_' + lang">
+                                        <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;"
+                                                :class="(block.filters?.audio_languages || []).includes(lang) ? 'active' : ''"
+                                                @click="
+                                                    if (!block.filters.audio_languages) block.filters.audio_languages = [];
+                                                    if (block.filters.audio_languages.includes(lang)) {
+                                                        block.filters.audio_languages = block.filters.audio_languages.filter(l => l !== lang);
+                                                    } else {
+                                                        block.filters.audio_languages.push(lang);
+                                                    }
+                                                    $store.mixer.updatePreviewCount(block);
+                                                "
+                                                x-text="lang">
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="grow-1">
+                                <label class="field-label mb-xs">Subtitle Language</label>
+                                <div class="flex-row flex-wrap gap-xs">
+                                    <template x-for="lang in ['English', 'Spanish', 'French', 'German', 'Japanese', 'Korean']" :key="'sub_' + lang">
+                                        <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;"
+                                                :class="(block.filters?.subtitle_languages || []).includes(lang) ? 'active' : ''"
+                                                @click="
+                                                    if (!block.filters.subtitle_languages) block.filters.subtitle_languages = [];
+                                                    if (block.filters.subtitle_languages.includes(lang)) {
+                                                        block.filters.subtitle_languages = block.filters.subtitle_languages.filter(l => l !== lang);
+                                                    } else {
+                                                        block.filters.subtitle_languages.push(lang);
+                                                    }
+                                                    $store.mixer.updatePreviewCount(block);
+                                                "
+                                                x-text="lang">
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
+
                     <fieldset class="filter-group">
                         <legend>Block Size Limits</legend>
                         <div class="flex-column gap-sm mb-xs">
