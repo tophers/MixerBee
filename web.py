@@ -15,13 +15,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import threading
-from app.ai.vector_store import index_library_for_vibes, ensure_cosine_similarity
+from concurrent.futures import ThreadPoolExecutor
+from app.ai.vector_store import ensure_cosine_similarity, ensure_library_indexed
 
 import scheduler
 import app_state
 import database
 from app.cache import refresh_cache
+from app import build_history
 from routers import config, builder, library, quick_playlists, presets
+from routers import assist as assist_router
 from routers import scheduler as scheduler_router
 from routers import webhooks
 from routers import accounts as account_routes
@@ -40,24 +43,41 @@ async def lifespan(app: FastAPI):
         app_state.load_and_authenticate()
         logging.info("MixerBee initial setup required: Open the web UI to create the owner account.")
 
+    # A build killed mid-flight (container stop, SIGKILL) leaves its row at 'running'
+    # forever. Nothing can still be running in a process that just started.
+    build_history.reconcile_interrupted_runs()
+
+    def warm_one(media):
+        try:
+            ensure_cosine_similarity(media=media)
+            refresh_cache(media)
+            # Indexing is unconditional: Echo blocks and semantic search read this
+            # index and need no AI provider, so warming it must not depend on one.
+            ensure_library_indexed(media.user_id, media)
+        except Exception:
+            logging.warning("Could not warm saved connection %s", media.connection.id)
+
     def warm_connections():
         from connections import all_media_clients
-        for media in all_media_clients():
-            try:
-                ensure_cosine_similarity(media=media)
-                refresh_cache(media)
-                settings = media.connection.ai_settings
-                if settings.get('GEMINI_API_KEY') or settings.get('AI_PROVIDER') == 'ollama':
-                    index_library_for_vibes(media.user_id, media)
-            except Exception:
-                logging.warning("Could not warm saved connection %s", media.connection.id)
+        clients = list(all_media_clients())
+        if not clients:
+            return
+        # Warm connections concurrently: one unreachable server used to stall every
+        # connection queued behind it for its full timeout budget.
+        with ThreadPoolExecutor(max_workers=min(4, len(clients)),
+                                thread_name_prefix='warm') as pool:
+            list(pool.map(warm_one, clients))
     threading.Thread(target=warm_connections, daemon=True).start()
 
     scheduler.scheduler_manager.start()
 
     yield
 
-    scheduler.scheduler_manager.scheduler.shutdown()
+    # wait=True: APScheduler's executor wraps concurrent.futures.ThreadPoolExecutor,
+    # whose non-daemon workers are joined at interpreter exit regardless, so wait=False
+    # never shortened shutdown -- it only let the rest of teardown run underneath a
+    # build that was still mutating the media server. Let in-flight builds finish.
+    scheduler.scheduler_manager.scheduler.shutdown(wait=True)
 
 app = FastAPI(title="MixerBee API", root_path=ROOT_PATH, lifespan=lifespan)
 
@@ -114,6 +134,7 @@ app.include_router(account_routes.router)
 app.include_router(config.router)
 app.include_router(builder.router)
 app.include_router(library.router)
+app.include_router(assist_router.router)
 app.include_router(quick_playlists.router)
 app.include_router(scheduler_router.router)
 app.include_router(presets.router)

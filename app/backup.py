@@ -22,6 +22,21 @@ from app.logger import get_logger
 logger = get_logger("MixerBee.Backup")
 
 
+def _replace_dir(src: Path, dest: Path):
+    """Make dest an exact copy of src, discarding whatever dest held before.
+
+    copytree(dirs_exist_ok=True) merges: it overwrites the paths it finds in src and
+    leaves everything else in place. For ChromaDB that means per-collection segment
+    directories from the displaced index survive alongside a chroma.sqlite3 that has
+    no rows for them -- a state the store was never in. Clearing dest first avoids it.
+    """
+    if dest.exists():
+        shutil.rmtree(dest, ignore_errors=True)
+    # dirs_exist_ok covers a partial rmtree (an open handle on Windows, say); the
+    # merge fallback is still better than not copying at all.
+    shutil.copytree(src, dest, dirs_exist_ok=True)
+
+
 def create_backup_archive(target_path: Optional[Path] = None) -> Path:
     """
     Creates a zip archive containing an online SQLite backup of mixerbee.db,
@@ -159,6 +174,7 @@ def restore_backup_archive(archive_path: Path) -> Dict[str, Any]:
 
     temp_dir = Path(tempfile.mkdtemp(prefix="mixerbee_restore_"))
     pre_restore_backup = temp_dir / "mixerbee_pre_restore.db"
+    live_chroma_backup = None
 
     try:
         # 1. Create safety rollback backup of live DB
@@ -189,7 +205,22 @@ def restore_backup_archive(archive_path: Path) -> Dict[str, Any]:
             if live_chroma.exists():
                 live_chroma_backup = temp_dir / "chroma_db_live_backup"
                 shutil.copytree(live_chroma, live_chroma_backup, dirs_exist_ok=True)
-            shutil.copytree(extracted_chroma, live_chroma, dirs_exist_ok=True)
+            # Replace rather than merge: dirs_exist_ok only overwrites paths present
+            # in the source, so collection directories that exist solely in the live
+            # index would survive next to a chroma.sqlite3 that no longer lists them.
+            _replace_dir(extracted_chroma, live_chroma)
+            # Memoized collection handles point at what was just overwritten.
+            # NOTE: this drops the cached Collection objects only. vector_store's
+            # chroma_client is a module-level PersistentClient created at import and
+            # still holds an open connection to the chroma.sqlite3 we just replaced,
+            # so AI search can keep serving the pre-restore index until a restart.
+            # Rebuilding that client safely needs the warm/enrichment threads quiesced
+            # first; until then, restarting after a restore is still advised.
+            try:
+                from app.ai.vector_store import drop_collection_cache
+                drop_collection_cache()
+            except Exception as cache_err:
+                logger.warning("Could not drop vector collection cache: %s", cache_err)
 
         # 5. Reload connections and schedules in memory
         try:
@@ -197,7 +228,7 @@ def restore_backup_archive(archive_path: Path) -> Dict[str, Any]:
             import scheduler
             database.init_db()
             connections.reload_connections()
-            scheduler.scheduler_manager._load_schedules()
+            scheduler.scheduler_manager.reload_schedules()
             logger.info("MixerBee subsystems reloaded after restore.")
         except Exception as reload_err:
             logger.warning("Subsystems reload notification: %s", reload_err)
@@ -210,6 +241,20 @@ def restore_backup_archive(archive_path: Path) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error("Restore failed! Attempting rollback to pre-restore state: %s", e, exc_info=True)
+        # The Chroma safety copy lives under temp_dir, which `finally` deletes -- roll
+        # it back here, while it still exists. Previously it was taken and then thrown
+        # away without ever being used, so a half-applied Chroma restore was permanent.
+        if live_chroma_backup is not None and live_chroma_backup.is_dir():
+            try:
+                _replace_dir(live_chroma_backup, CONFIG_DIR / "chroma_db")
+                try:
+                    from app.ai.vector_store import drop_collection_cache
+                    drop_collection_cache()
+                except Exception:
+                    pass
+                logger.info("Rollback restored the previous ChromaDB directory.")
+            except Exception as chroma_err:
+                logger.critical("ChromaDB rollback failed! %s", chroma_err, exc_info=True)
         if pre_restore_backup.exists():
             try:
                 with database.get_db_connection() as live_conn:

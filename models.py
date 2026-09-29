@@ -13,16 +13,30 @@ class SettingsRequest(BaseModel):
     emby_url: str
     emby_user: str
     emby_pass: str
-    gemini_key: Optional[str] = None
-    ai_provider: Optional[str] = "ollama"
-    ollama_url: Optional[str] = "http://localhost:11434"
-    ollama_model: Optional[str] = "llama3.1"
-    ollama_timeout: int = 120
-    starred_models: Optional[List[str]] = Field(default_factory=list)
     external_api_key: Optional[str] = None
+    # AI fields are accepted for compatibility with older clients and ignored: saving a
+    # media connection no longer writes ai_settings, so a stale form can never blank a
+    # provider the user configured in the AI Hub. Use AiSettingsUpdateRequest instead.
+    gemini_key: Optional[str] = None
+    ai_provider: Optional[str] = None
+    ollama_url: Optional[str] = None
+    ollama_model: Optional[str] = None
+    ollama_timeout: Optional[int] = None
+    starred_models: Optional[List[str]] = None
 
 class ModelUpdateRequest(BaseModel):
     ollama_model: str
+
+class AiSettingsUpdateRequest(BaseModel):
+    # None means "leave this field as stored". Defaults here would make a partial post
+    # silently blank out settings the caller never mentioned -- that is how a saved
+    # Gemini key gets destroyed. An empty string is still an explicit clear.
+    ai_provider: Optional[str] = None
+    gemini_key: Optional[str] = None
+    ollama_url: Optional[str] = None
+    ollama_model: Optional[str] = None
+    ollama_timeout: Optional[int] = None
+    starred_models: Optional[List[str]] = None
 
 class MovieFinderRequest(BaseModel):
     user_id: str
@@ -190,3 +204,27 @@ class ReplayRunRequest(BaseModel):
 
 
 
+class AssistItem(BaseModel):
+    """One movie on the Playlist Assist canvas as the browser reports it."""
+    Id: str
+    locked: bool = False
+    Name: Optional[str] = None
+
+
+class AssistChatMessage(BaseModel):
+    role: str = "user"
+    content: str = ""
+
+
+class AssistChatRequest(BaseModel):
+    prompt: str
+    revision_id: Optional[str] = None
+    current_items: List[AssistItem] = Field(default_factory=list)
+    chat_history: List[AssistChatMessage] = Field(default_factory=list)
+
+
+class AssistSaveRequest(BaseModel):
+    playlist_name: str
+    description: str = ""
+    item_ids: List[str] = Field(default_factory=list)
+    user_id: Optional[str] = None

@@ -31,6 +31,9 @@
         <div x-show="$store.ui.currentTab === 'mixed'">
             {% include 'partials/_builder_pane.html' %}
         </div>
+        <div x-show="$store.ui.currentTab === 'assist' && $store.settings.generative_ai_available">
+            {% include 'partials/_assist_pane.html' %}
+        </div>
         <div x-show="$store.ui.currentTab === 'scheduler'">
             {% include 'partials/_scheduler_pane.html' %}
         </div>

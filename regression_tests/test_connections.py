@@ -340,7 +340,10 @@ class ConnectionTests(unittest.TestCase):
 
     def test_ai_provider_is_loaded_from_job_connection(self):
         from app.ai import orchestrator
-        a = self.save(ai={'AI_PROVIDER': 'ollama', 'OLLAMA_MODEL': 'alice-model'})
+        # A configured Ollama setup needs both a URL and a model: a bare provider name
+        # is the ambiguous default state that no longer counts as configured.
+        a = self.save(ai={'AI_PROVIDER': 'ollama', 'OLLAMA_URL': 'http://ollama.local:11434',
+                          'OLLAMA_MODEL': 'alice-model'})
         self.save('bob', ai={'AI_PROVIDER': 'gemini', 'GEMINI_API_KEY': 'bob-key'})
         def generate(prompt, tweaks):
             self.assertEqual(current_media().connection.ai_settings['OLLAMA_MODEL'], 'alice-model')

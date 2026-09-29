@@ -2,6 +2,10 @@
 list
 gen
 tools/
+# Locally generated diff dumps. Git already stores every diff; a committed snapshot
+# is redundant and goes stale immediately.
+*.patch
+*.diff
 schedules.json
 presets.json
 mixerbee.db

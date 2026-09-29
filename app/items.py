@@ -395,6 +395,98 @@ def create_playlist(name: str, user_id: str, ids: List[str], media: client.Media
             log.append(msg)
             return None
 
+def delete_playlist_by_id(playlist_id: str, media: client.MediaClient, log: List[str]) -> bool:
+    """Deletes exactly one playlist by ID.
+
+    Rollbacks must use this, never delete_playlist(): that one searches by name and
+    would happily destroy a pre-existing user playlist that merely shares the name.
+    """
+    if not playlist_id:
+        return False
+    if delete_item_by_id(playlist_id, media):
+        log.append(f"Removed incomplete playlist (ID: {playlist_id}).")
+        return True
+    msg = f"CRITICAL: Failed to delete incomplete playlist (ID: {playlist_id}). Orphaned playlist remains on server."
+    logger.error(msg)
+    log.append(msg)
+    return False
+
+def set_playlist_overview(playlist_id: str, user_id: str, overview: str, media: client.MediaClient, log: List[str]) -> bool:
+    """Writes a description onto an existing playlist.
+
+    POST /Playlists takes no Overview, so the description needs a second call that
+    posts back the full item DTO. This is cosmetic: callers must treat failure as a
+    partial success and keep the playlist rather than rolling it back.
+    """
+    if overview is None:
+        return True
+    try:
+        r = media.get(f"/Users/{user_id}/Items", params={"Ids": playlist_id}, timeout=10)
+        r.raise_for_status()
+        items = r.json().get("Items", [])
+        if not items:
+            log.append("Playlist created, but its description could not be applied (item not found).")
+            return False
+        dto = items[0]
+        dto["Overview"] = overview
+        resp = media.post(f"/Items/{playlist_id}", json=dto, timeout=15)
+        resp.raise_for_status()
+        return True
+    except requests.RequestException as e:
+        msg = f"Playlist created, but the description could not be saved: {e}"
+        logger.warning(msg)
+        log.append(msg)
+        return False
+
+def create_playlist_exclusive(name: str, user_id: str, ids: List[str], media: client.MediaClient, log: List[str]) -> Optional[str]:
+    """Creates a brand-new playlist and never touches an existing one.
+
+    create_playlist() adopts a same-named playlist and replaces its contents. Playlist
+    Assist must not do that: the user curated this list by hand, and silently wiping
+    an unrelated playlist that happens to share the name is unrecoverable. On a failure
+    after creation, the rollback deletes by the ID we just created.
+    """
+    if not ids:
+        log.append("No items to add. Playlist not created.")
+        return None
+
+    first_chunk = ids[:50]
+    logger.info(f"Creating new playlist '{name}' on server (exclusive create).")
+    try:
+        resp = media.post(
+            "/Playlists",
+            params={"Name": name, "UserId": user_id, "Ids": ",".join(first_chunk)},
+            timeout=15
+        )
+    except requests.RequestException as e:
+        msg = f"Failed to create playlist '{name}': {e}"
+        logger.error(msg)
+        log.append(msg)
+        return None
+
+    if not resp.ok:
+        msg = f"Failed to create playlist (HTTP {resp.status_code}): {resp.text}"
+        logger.error(msg)
+        log.append(msg)
+        return None
+
+    new_id = resp.json().get("Id")
+    if not new_id:
+        msg = "Media server created the playlist but returned no ID."
+        logger.error(msg)
+        log.append(msg)
+        return None
+
+    log.append(f"Playlist '{name}' created successfully.")
+
+    if len(ids) > 50:
+        if not add_items_to_playlist_by_ids(new_id, ids[50:], user_id, media, log):
+            log.append("Failed to append all items. Rolling back by deleting the new playlist.")
+            delete_playlist_by_id(new_id, media, log)
+            return None
+
+    return new_id
+
 def create_recently_added_playlist(user_id: str, playlist_name: str, count: int, media: client.MediaClient, log: List[str]):
     """Creates a playlist of the most recently added movies and next-up episodes."""
     try:

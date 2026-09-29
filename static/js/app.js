@@ -12,6 +12,7 @@ import { settingsStore } from './settingsStore.js';
 import { schedulerStore } from './schedulerStore.js';
 import { managerStore } from './managerStore.js';
 import { uiStore } from './uiStore.js';
+import { assistStore } from './assistStore.js';
 
 let isAppInitialized = false;
 let storesHydrated = false;
@@ -48,10 +49,12 @@ export const hydrateStores = () => {
     safeMergeStore(Alpine.store('scheduler'), schedulerStore);
     safeMergeStore(Alpine.store('manager'), managerStore);
     safeMergeStore(Alpine.store('ui'), uiStore);
+    safeMergeStore(Alpine.store('assist'), assistStore);
 
     initModals();
 
     Alpine.store('ai').init();
+    Alpine.store('assist').init();
 };
 
 // Immediately hydrate real store references if Alpine is ready
@@ -104,12 +107,13 @@ async function initializeApp() {
             connection_unavailable: false,
             connection_error: '',
             server_type: config.data?.server_type || 'emby',
-            ai_provider: config.data?.ai_provider || 'gemini',
+            ai_provider: config.data?.ai_provider || '',
             ollama_model: config.data?.ollama_model || '',
-            is_ai_configured: !!config.data?.is_ai_configured,
             starred_models: config.data?.starred_models || [],
             vector_space: config.data?.vector_space || 'cosine'
         });
+        // Authoritative AI capability, applied before any AI store starts work.
+        sStore.applyCapability(config.data);
 
         if (!config.data?.is_configured) return;
 
@@ -132,6 +136,18 @@ async function initializeApp() {
         Object.assign(Alpine.store('mixer').library, libraryData.data);
         Alpine.store('mixer').init(defUser.data?.connection_id);
         await Alpine.store('presets').refresh();
+
+        // The backend stays authoritative for a tab left open in the background: a
+        // preference changed in another tab or another browser is picked up on focus,
+        // and again whenever a request is refused on policy grounds.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') sStore.refreshCapability();
+        });
+        document.addEventListener('mixerbee:policy-rejected', (event) => {
+            if (event.detail?.reason === 'disabled_by_user' || event.detail?.reason === 'ai_not_configured') {
+                sStore.refreshCapability();
+            }
+        });
 
     } catch (err) {
         console.error("Initialization Error:", err.message);

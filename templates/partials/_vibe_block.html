@@ -15,7 +15,7 @@
                         </div>
 
                         <div class="grow-1">
-                            <div class="summary-label">AI Curated Mix</div>
+                            <div class="summary-label" x-text="$store.settings.generative_ai_available ? 'AI Curated Mix' : 'Saved Selection'"></div>
                             <div class="summary-content mb-sm">
                                 <template x-if="block._previewLoading">
                                     <div class="text-subtle italic curated-preview-text">Validating items in your library...</div>
@@ -43,14 +43,15 @@
                             </div>
 
                             <div class="flex-row flex-wrap gap-sm align-center">
-                                <span class="badge ai-chip">✨ AI Curated</span>
+                                <span class="badge ai-chip" x-show="$store.settings.generative_ai_available" x-cloak>✨ AI Curated</span>
                                 <span class="badge badge-outline-subtle" x-text="block.vibe_type === 'tv' ? $store.mixer.getTvBlockSummary(block) : 'Filtered Selection'"></span>
                             </div>
                         </div>
                     </div>
 
                     <div class="mt-md curated-footer">
-                        <p class="text-subtle italic m-0 curated-preview-text" style="font-size: 0.75rem;">This block is managed by AI and cannot be manually filtered.</p>
+                        <p class="text-subtle italic m-0 curated-preview-text" style="font-size: 0.75rem;"
+                           x-text="$store.settings.generative_ai_available ? 'This block is managed by AI and cannot be manually filtered.' : 'This is a saved selection and cannot be manually filtered. It still previews and builds normally.'"></p>
                         <button type="button" class="secondary small align-center gap-xs" @click="$store.mixer.previewPlaylist($el, [block])">
                             <span x-html="$store.icons.list"></span> Full List
                         </button>

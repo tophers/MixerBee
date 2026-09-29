@@ -44,6 +44,27 @@ export const saveRecipeModal = createModalLogic('saveRecipe');
 export const mixRulesModal = createModalLogic('mixRules');
 export const renamePresetModal = createModalLogic('renamePreset');
 export const musicQuickBuildModal = createModalLogic('musicQuickBuild');
+const aiHubBase = createModalLogic('aiHub');
+// The hub edits the same saved AI fields as the Settings modal, but opens straight
+// from the header pill. Settings' own opener is what loads those values, so without
+// this the hub's inputs show constructor defaults and saving writes them over the
+// stored configuration -- erasing the Gemini key and resetting the Ollama settings.
+export const aiHubModal = {
+    ...aiHubBase,
+    async show(data = {}) {
+        const settings = Alpine.store('settings');
+        // Guarded here as well as in the templates: the hub holds the provider controls,
+        // so a stale click must not reopen it once the account has opted out.
+        if (settings?.ai_disabled) {
+            toast('AI features are turned off for this account.', false);
+            return;
+        }
+        if (settings && typeof settings.hydrate === 'function' && !settings.isHydrated) {
+            await settings.hydrate();
+        }
+        return aiHubBase.show(data);
+    }
+};
 
 export const toastHistoryModal = {
     show() {
@@ -114,6 +135,7 @@ export function initModals() {
         saveRecipe: { isOpen: false, name: '', description: '', tags: '', is_favorite: false, blockToSave: null },
         mixRules: { isOpen: false },
         renamePreset: { isOpen: false, presetId: '', oldName: '', newName: '' },
+        aiHub: { isOpen: false },
         musicQuickBuild: {
             isOpen: false,
             type: 'artist_spotlight',
@@ -147,6 +169,7 @@ export function initModals() {
     store.historyAction = toastHistoryModal;
     store.ollamaAction = ollamaModelsModal;
     store.aiTweaksAction = aiTweaksModal;
+    store.aiHubAction = aiHubModal;
     store.recipeLibraryAction = recipeLibraryModal;
     store.saveRecipeAction = saveRecipeModal;
     store.mixRulesAction = mixRulesModal;

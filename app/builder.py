@@ -5,8 +5,8 @@ app/builder.py -  module for constructing mixed playlists from content blocks.
 import logging
 import random
 import uuid
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Any, Optional, Set
 from itertools import zip_longest
 
 from . import client

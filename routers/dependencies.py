@@ -54,6 +54,26 @@ def get_current_auth_headers(request: Request) -> dict:
     return _ensure_fresh_auth(cid)
 
 
+def require_generative_ai(auth_deps: dict) -> dict:
+    """Shared HTTP guard for provider generation and enrichment.
+
+    Raises 403 with reason ``disabled_by_user`` for a deliberate opt-out and 409 with
+    ``ai_not_configured`` for missing setup, so a stale tab can tell the two apart and
+    refresh its capability state instead of only showing an error.
+
+    Never applied to semantic refresh, vector reset/reindex, similarity search, or Echo
+    resolution: those are core library features with no provider requirement.
+    """
+    from app import ai_policy
+    from fastapi import HTTPException
+    try:
+        return ai_policy.require_generative(auth_deps["connection_id"])
+    except ai_policy.AIDisabled as exc:
+        raise HTTPException(403, {"detail": str(exc), "reason": ai_policy.REASON_DISABLED}) from exc
+    except ai_policy.AINotConfigured as exc:
+        raise HTTPException(409, {"detail": str(exc), "reason": "ai_not_configured"}) from exc
+
+
 def get_auth_data(connection_id: str) -> dict:
     """Jobs must resolve their own persisted connection, never the UI's active one."""
     if not connection_id:

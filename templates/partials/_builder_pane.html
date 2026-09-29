@@ -62,14 +62,26 @@
             </div>
         </div>
 
-        <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.is_ai_configured && $store.ui.showAiBuilder" x-transition x-cloak>
+        <fieldset id="ai-generator-container" class="filter-group" x-data x-show="$store.settings.generative_ai_available && $store.ui.showAiBuilder" x-transition x-cloak>
             <div class="flex-row justify-between align-center mb-sm">
-                <legend class="m-0" style="padding: 0; margin-left: 0.5rem;">AI Block Builder</legend>
+                <div class="flex-row align-center gap-sm">
+                    <legend class="m-0" style="padding: 0; margin-left: 0.5rem;">AI Block Builder</legend>
+                    <button type="button" class="secondary small align-center gap-xs p-xs"
+                            @click="$store.modals.aiHubAction.show()"
+                            :title="'Library IQ: ' + ($store.ai.libraryIq?.percentage || 0) + '% · Click to open AI & Library Intelligence'">
+                        <span class="color-accent" x-html="$store.icons.zap" style="--icon-size: 13px;"></span>
+                        <span style="font-size: 0.72rem; font-weight: 600;" x-text="'IQ: ' + ($store.ai.libraryIq?.percentage || 0) + '%'"></span>
+                    </button>
+                </div>
                 <button type="button" class="icon-btn" @click="$store.ui.showAiBuilder = false" title="Close AI Builder" style="font-size: 1.5rem;">
                     &times;
                 </button>
             </div>
             
+            <!-- x-init fires even inside a hidden x-show, so the generator body is
+                 mounted conditionally instead: no mood discovery request is made for an
+                 account that cannot use the generator. -->
+            <template x-if="$store.settings.generative_ai_available && $store.ui.showAiBuilder">
             <div x-init="$store.ai.fetchMoodDiscovery()">
                 <div class="textarea-wrapper">
                     <textarea id="ai-prompt-input" rows="2"
@@ -156,6 +168,7 @@
                     </div>
                 </div>
             </div>
+            </template>
         </fieldset>
 
         <div id="mixed-playlist-blocks" 
@@ -200,7 +213,7 @@
                     </div>
                 </div>
                 
-                <button type="button" class="secondary m-0 align-center gap-xs" x-show="$store.settings.is_ai_configured" @click="$store.ui.showAiBuilder = !$store.ui.showAiBuilder" title="AI Builder">
+                <button type="button" class="secondary m-0 align-center gap-xs" x-show="$store.settings.generative_ai_available" x-cloak @click="$store.ui.showAiBuilder = !$store.ui.showAiBuilder" title="AI Builder">
                     <span x-html="$store.icons.zap"></span> <span class="hide-mobile">AI<span class="hide-compact"> Builder</span></span>
                 </button>
                 

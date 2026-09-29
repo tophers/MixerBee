@@ -271,7 +271,7 @@
 </div>
 
 <!-- AI Advanced Tweaks Modal -->
-<div class="modal-overlay" x-show="$store.modals.aiTweaks.isOpen" x-cloak>
+<div class="modal-overlay" x-show="$store.modals.aiTweaks.isOpen && $store.settings.generative_ai_available" x-cloak>
     <div class="modal-window" @click.outside="$store.modals.aiTweaksAction.close()">
         <div class="modal-header">
             <h2>AI Advanced Tweaks</h2>
@@ -455,48 +455,41 @@
                     </label>
                 </fieldset>
 
+                <!-- Index maintenance lives here, outside the AI Hub, because Echo blocks
+                     and semantic search depend on it and neither needs an AI provider.
+                     Hiding the hub must never strand these controls. -->
                 <fieldset class="filter-group mt-md">
-                    <legend>AI Configuration</legend>
-                    <label class="control-item">
-                        <span>AI Provider</span>
-                        <select x-model="$store.settings.ai_provider" @change="if($el.value === 'ollama') $store.settings.fetchOllamaStatus()">
-                            <option value="gemini">Google Gemini (Cloud)</option>
-                            <option value="ollama">Ollama (Local)</option>
-                        </select>
-                    </label>
-
-                    <div x-show="$store.settings.ai_provider === 'gemini'" x-transition>
-                        <label class="control-item">
-                            <span>Gemini API Key</span>
-                            <div class="input-with-button">
-                                <input type="password" x-model="$store.settings.gemini_key" placeholder="Google Gemini API Key">
-                                <button type="button" class="secondary small" @click="$store.settings.removeGeminiKey()">Clear</button>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div x-show="$store.settings.ai_provider === 'ollama'" x-transition>
-                        <div class="flex-column gap-md">
-                            <label class="control-item">
-                                <span>Ollama Server URL</span>
-                                <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434" @change="$store.settings.fetchOllamaStatus()">
-                            </label>
-
-                            <label class="control-item">
-                                <span>Active Ollama Model</span>
-                                <div class="flex-row align-center gap-md">
-                                    <input type="text" x-model="$store.settings.ollama_model" class="grow-1">
-                                    <button type="button" class="secondary small" @click="$store.modals.ollamaAction.show()">Manage Models...</button>
-                                </div>
-                            </label>
-
-                            <label class="control-item">
-                                <span>Ollama Response Timeout (Seconds)</span>
-                                <input type="number" x-model.number="$store.settings.ollama_timeout" min="10" max="600">
-                            </label>
+                    <legend>Library Search &amp; Indexing</legend>
+                    <p class="text-subtle" style="font-size: 0.8rem;">MixerBee indexes this library locally so Echo blocks and “Find Similar” can match on meaning. This works without any AI provider.</p>
+                    <div x-show="!$store.settings.connection_id" class="text-subtle" style="font-size: 0.8rem;">Save this connection to build its search index.</div>
+                    <div x-show="$store.settings.connection_id" class="flex-column gap-sm">
+                        <button type="button" class="secondary small align-center gap-xs" @click="$store.ai.runSemanticRefresh($event.currentTarget)"
+                                title="Re-check server metadata for changes and update the search index">
+                            <span x-html="$store.icons.refresh" style="--icon-size: 13px;"></span> Re-index Changes
+                        </button>
+                        <div class="flex-row gap-sm">
+                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(true)">
+                                Rebuild Index (Keep Tags)
+                            </button>
+                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(false)">
+                                Full Reset
+                            </button>
                         </div>
                     </div>
                 </fieldset>
+
+                <!-- Provider setup is offered only while the account allows AI. It stays
+                     available when AI is allowed but not yet configured: that is exactly
+                     the state the hub exists to resolve. -->
+                <div class="callout-info mb-sm mt-md flex-row justify-between align-center p-sm" x-show="!$store.settings.ai_disabled" x-cloak style="background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px;">
+                    <div>
+                        <strong style="color: var(--accent, #f5a623);">AI features</strong>
+                        <div class="text-subtle" style="font-size: 0.8rem;" x-text="$store.settings.generative_ai_available ? 'Ollama, Gemini, Library IQ, and enrichment are managed in the AI Hub.' : 'Optional. Set up Gemini or Ollama in the AI Hub to enable Assist, the AI Block Builder, and Library IQ.'"></div>
+                    </div>
+                    <button type="button" class="secondary small shrink-0 align-center gap-xs" @click="$store.settings.hide(); $store.modals.aiHubAction.show()">
+                        <span x-html="$store.icons.zap"></span> <span x-text="$store.settings.generative_ai_available ? 'Open AI Hub' : 'Set up AI'"></span>
+                    </button>
+                </div>
 
                 <fieldset class="filter-group mt-md">
                     <legend>Integrations</legend>
@@ -625,21 +618,6 @@
                 <fieldset x-show="$store.settings.connection_id" class="filter-group mt-md danger-zone">
                     <legend>Maintenance & Recovery</legend>
                     <div class="flex-column gap-sm">
-                        <div class="flex-row justify-between align-center gap-md">
-                            <div class="grow-1">
-                                <div class="bold" style="font-size: 0.9rem;">Reset AI Database</div>
-                                <div class="text-subtle" style="font-size: 0.75rem;">Clear semantic search data and re-scan library. Use if searches go "off the rails".</div>
-                            </div>
-                        </div>
-                        <div class="flex-row gap-sm mt-xs">
-                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(true)">
-                                Wipe & Re-Index (Save Tags)
-                            </button>
-                            <button type="button" class="secondary small grow-1 btn-danger-outline" @click="$store.settings.resetVectorDb(false)">
-                                Full Nuclear Reset
-                            </button>
-                        </div>
-                        <div class="divider mt-md mb-sm"></div>
                         <div class="flex-row justify-between align-center gap-md mobile-column">
                             <div class="grow-1">
                                 <div class="bold" style="font-size: 0.9rem;">Remove Connection</div>
@@ -660,8 +638,150 @@
     </div>
 </div>
 
+<!-- AI & Library Intelligence Modal -->
+<div class="modal-overlay" x-show="$store.modals.aiHub.isOpen && !$store.settings.ai_disabled" x-cloak>
+    <div class="modal-window wide" @click.outside="if(!$store.modals.ollamaModels.isOpen) $store.modals.aiHubAction.close()">
+        <div class="modal-header">
+            <div class="flex-row align-center gap-xs">
+                <span class="color-accent" x-html="$store.icons.zap"></span>
+                <h2>AI & Library Intelligence</h2>
+            </div>
+            <button type="button" class="icon-btn" @click="$store.modals.aiHubAction.close()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p class="mb-md" x-text="$store.settings.generative_ai_available ? 'Manage your AI provider, model selection, and background enrichment.' : 'Set up an AI provider to enable Assist, the AI Block Builder, and Library IQ. Semantic search and Echo blocks work without one.'"></p>
+
+            <div class="modal-form-layout">
+                <!-- Enrichment and Library IQ appear only once a provider is configured.
+                     While AI is allowed but unconfigured the hub shows setup fields only,
+                     with no disabled AI actions. -->
+                <fieldset class="filter-group" x-show="$store.settings.generative_ai_available" x-cloak>
+                    <legend>Library Enrichment (IQ)</legend>
+                    <div class="card p-md bg-surface-alt">
+                        <div class="flex-row justify-between align-center flex-wrap gap-md mb-sm">
+                            <div class="flex-row align-center gap-sm">
+                                <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Mood Searches.">
+                                    <span x-html="$store.icons.zap"></span>
+                                    <span x-text="'Library IQ: ' + ($store.ai.libraryIq.percentage || 0) + '% (' + ($store.ai.libraryIq.enriched || 0) + ' / ' + ($store.ai.libraryIq.total || 0) + ' items)'"></span>
+                                </span>
+                                <span class="subtext text-sm" x-show="$store.ai.enrichmentStatus.queue_depth > 0"
+                                      x-text="$store.ai.enrichmentStatus.queue_depth + ' items awaiting tags'"></span>
+                            </div>
+                            <div class="flex-row align-center gap-sm flex-wrap">
+                                <button type="button" class="secondary small"
+                                        @click="$store.ai.runSemanticRefresh($el)"
+                                        title="Re-check server metadata for changes and update vector store without losing AI tags">
+                                    <span class="flex-row align-center gap-xs">
+                                        <span x-html="$store.icons.refresh" style="--icon-size: 13px;"></span>
+                                        Re-index Changes
+                                    </span>
+                                </button>
+                                <button type="button" class="primary small"
+                                        x-show="$store.ai.enrichmentStatus.status !== 'running' && $store.ai.enrichmentStatus.status !== 'stopping'"
+                                        @click="$store.ai.startEnrichment()">
+                                    <span class="flex-row align-center gap-xs">
+                                        <span x-html="$store.icons.zap" style="--icon-size: 13px;"></span>
+                                        Start Enrichment
+                                    </span>
+                                </button>
+                                <button type="button" class="danger small"
+                                        x-show="$store.ai.enrichmentStatus.status === 'running' || $store.ai.enrichmentStatus.status === 'stopping'"
+                                        :disabled="$store.ai.enrichmentStatus.status === 'stopping'"
+                                        @click="$store.ai.stopEnrichment()">
+                                    <span x-text="$store.ai.enrichmentStatus.status === 'stopping' ? 'Stopping...' : 'Stop Enrichment'"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Enrichment Progress Bar & Status -->
+                        <div class="w-full bg-surface rounded overflow-hidden" style="height: 8px;">
+                            <div class="bg-accent" :style="'width: ' + ($store.ai.libraryIq.percentage || 0) + '%; height: 100%; transition: width 0.3s;'"></div>
+                        </div>
+
+                        <div class="flex-row justify-between align-center mt-xs text-xs subtext" x-show="$store.ai.enrichmentStatus.last_message || $store.ai.enrichmentStatus.status === 'running'" x-cloak>
+                            <span x-text="$store.ai.enrichmentStatus.last_message || 'Enriching library in background...'"></span>
+                            <span x-show="$store.ai.enrichmentStatus.status === 'running'"
+                                  x-text="'Processed ' + $store.ai.enrichmentStatus.processed_items + ' (' + $store.ai.enrichmentStatus.succeeded_items + ' ok, ' + $store.ai.enrichmentStatus.failed_items + ' errors)'"></span>
+                        </div>
+
+                        <div class="mt-sm text-xs subtext flex-row align-center gap-xs">
+                            <span x-html="$store.icons.info" style="--icon-size: 13px; opacity: 0.8;"></span>
+                            <span>
+                                <strong>Tip:</strong> Want newly added media tagged automatically? Set up a recurring <strong>Enrichment</strong> job in the 
+                                <a href="#" style="color: var(--accent); text-decoration: underline;" @click.prevent="$store.modals.aiHubAction.close(); $store.ui.setTab('scheduler')">Scheduler</a>.
+                            </span>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Card 2: AI Provider & Model Configuration -->
+                <fieldset class="filter-group mt-md">
+                    <legend>AI Engine Configuration</legend>
+                    <label class="control-item">
+                        <span>AI Provider</span>
+                        <!-- "None" is a real, savable choice: it is the state a connection
+                             starts in and the way to switch AI off for one connection
+                             without deleting the credentials stored for it. -->
+                        <select x-model="$store.settings.ai_provider" @change="if($el.value === 'ollama') $store.settings.fetchOllamaStatus()">
+                            <option value="">None — AI features off for this connection</option>
+                            <option value="gemini">Google Gemini (Cloud)</option>
+                            <option value="ollama">Ollama (Local)</option>
+                        </select>
+                    </label>
+                    <p class="text-subtle" x-show="!$store.settings.ai_provider" x-cloak style="font-size: 0.8rem;">Pick a provider and fill in its details to turn on Assist, the AI Block Builder, and enrichment. Semantic search and Echo blocks keep working either way.</p>
+
+                    <div x-show="$store.settings.ai_provider === 'gemini'" x-transition>
+                        <label class="control-item">
+                            <span>Gemini API Key</span>
+                            <div class="input-with-button">
+                                <input type="password" x-model="$store.settings.gemini_key" placeholder="Google Gemini API Key">
+                                <button type="button" class="secondary small" @click="$store.settings.removeGeminiKey()">Clear</button>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div x-show="$store.settings.ai_provider === 'ollama'" x-transition>
+                        <div class="flex-column gap-md">
+                            <label class="control-item">
+                                <span>Ollama Server URL</span>
+                                <input type="text" x-model="$store.settings.ollama_url" placeholder="http://localhost:11434" @change="$store.settings.fetchOllamaStatus()">
+                            </label>
+
+                            <label class="control-item">
+                                <span>Active Ollama Model</span>
+                                <div class="flex-row align-center gap-md">
+                                    <!-- Placeholder, never a prefilled value: an example in
+                                         the box must not read back as a configured model. -->
+                                    <input type="text" x-model="$store.settings.ollama_model" class="grow-1" placeholder="e.g. qwen2.5:7b">
+                                    <button type="button" class="secondary small" @click="$store.modals.ollamaAction.show()">Manage Models...</button>
+                                </div>
+                            </label>
+
+                            <label class="control-item">
+                                <span>Ollama Response Timeout (Seconds)</span>
+                                <input type="number" x-model.number="$store.settings.ollama_timeout" min="10" max="600">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="flex-row justify-end mt-sm">
+                        <button type="button" class="primary small" @click="$store.ai.saveAiSettings($el)">Save AI Configuration</button>
+                    </div>
+                </fieldset>
+
+                <!-- Index maintenance deliberately lives in Connection settings under
+                     Library Search & Indexing: it is a core library control and must stay
+                     reachable when this hub is hidden. -->
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.aiHubAction.close()">Close</button>
+        </div>
+    </div>
+</div>
+
 <!-- Ollama Model Management Sub-Modal -->
-<div class="modal-overlay sub-modal" x-show="$store.modals.ollamaModels.isOpen" x-cloak @click.stop>
+<div class="modal-overlay sub-modal" x-show="$store.modals.ollamaModels.isOpen && !$store.settings.ai_disabled" x-cloak @click.stop>
     <div class="modal-window wide" @click.outside="$store.modals.ollamaAction.close">
         <div class="modal-header">
             <h2>Manage Ollama Models</h2>

@@ -515,7 +515,8 @@ class EnhancementTests(unittest.TestCase):
             ]
         }
 
-        with patch("app.items.get_playlists", return_value=[{"Name": "Summer Hits — replay 2026-09-26"}]), \
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        with patch("app.items.get_playlists", return_value=[{"Name": f"Summer Hits — replay {today}"}]), \
              patch("app.items.create_playlist", return_value="pl_replayed_123") as mock_create_pl:
             replay_res = build_history.replay_build_run(
                 run_id=run_id,

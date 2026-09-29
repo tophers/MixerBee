@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 import accounts
 import database
+from app import ai_policy
 from connections import webhook_status
 
 router = APIRouter()
@@ -29,7 +30,8 @@ def session_payload(session):
     if not session:
         return {'authenticated': False, 'setup_required': accounts.setup_required()}
     return {'authenticated': True, 'setup_required': False,
-            'account': {k: session[k] for k in ('id', 'username', 'is_admin')},
+            'account': {k: session[k] for k in ('id', 'username', 'is_admin')}
+                       | {'ai_disabled': bool(session.get('ai_disabled'))},
             'csrf_token': session['csrf_token'], 'connection_id': session['connection_id']}
 
 
@@ -95,6 +97,42 @@ def password(req: PasswordChange, request: Request, response: Response):
         raise HTTPException(400, str(exc)) from exc
     response.delete_cookie(accounts.cookie_name(request), path='/')
     return {'status': 'ok'}
+
+
+class AccountPreferences(BaseModel):
+    ai_disabled: bool
+
+
+@router.post('/api/account/preferences')
+def update_account_preferences(req: AccountPreferences, request: Request):
+    """The account-wide AI switch. Only ever updates the signed-in account.
+
+    Deliberately independent of media connections: it has to work with no connection
+    saved, an unreachable server, or no provider configured, because those are exactly
+    the states in which someone reaches for it.
+    """
+    session = request.state.account
+    try:
+        disabled = accounts.set_ai_disabled(session['id'], req.ai_disabled)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    if disabled:
+        # Persist first, then stop work: a worker that rechecks policy between batches
+        # must never see "allowed" after this response has been sent.
+        from app.ai.enrichment_manager import stop_all_for_account
+        stopped = stop_all_for_account(session['id'])
+    else:
+        stopped = 0
+
+    # owned_connection, not the raw header: the capability payload must describe a
+    # connection this account actually owns.
+    from .dependencies import owned_connection
+    caps = ai_policy.capability(session['id'], owned_connection(request, required=False))
+    log = ['AI features turned off for this account.' if disabled else 'AI features turned back on for this account.']
+    if stopped:
+        log.append(f'Signalled {stopped} running AI job(s) to stop.')
+    return {'status': 'ok', 'ai_disabled': disabled, 'log': log} | caps
 
 
 def require_admin(request):

@@ -260,16 +260,86 @@ class AccountTests(unittest.TestCase):
         owner, a = self.bootstrap()
         with database.get_db_connection() as conn:
             before = [tuple(r) for r in conn.execute('SELECT * FROM settings')]
-        r = self.save_http(owner, user='alice', connection_id=a.connection.id, label='My Emby', ai_provider='ollama', ollama_model='local-model')
+        # Configure AI deliberately first, through the endpoint that owns ai_settings.
+        r = owner.post('/api/settings/ai', json={'ai_provider': 'ollama',
+                                                'ollama_url': 'http://ollama.local:11434',
+                                                'ollama_model': 'local-model'})
+        self.assertEqual(r.status_code, 200, r.text)
+        r = self.save_http(owner, user='alice', connection_id=a.connection.id, label='My Emby',
+                           ai_provider='gemini', ollama_model='clobbered')
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()['connection_id'], a.connection.id)
         settings = owner.get('/api/settings').json()
+        # A connection save leaves ai_settings alone: the stale AI fields it posted must
+        # not overwrite the provider setup, which is how a saved key used to be erased.
         self.assertEqual(settings['ollama_model'], 'local-model')
+        self.assertEqual(settings['ai_provider'], 'ollama')
         self.assertEqual(settings['label'], 'My Emby')
         with database.get_db_connection() as conn:
             self.assertEqual(before, [tuple(r) for r in conn.execute('SELECT * FROM settings')])
         self.assertEqual(self.save_http(owner, user='wrong', connection_id=a.connection.id).status_code, 400)
         self.assertEqual(connections.get_media_client(a.connection.id).user_id, 'alice')
+
+    def test_ai_settings_endpoint(self):
+        owner, a = self.bootstrap()
+        with patch('routers.config.threading.Thread'):
+            res = owner.post('/api/settings/ai', json={
+                'ai_provider': 'gemini',
+                'gemini_key': 'test-gemini-key',
+                'ollama_url': 'http://localhost:11434',
+                'ollama_model': 'llama3.1',
+                'ollama_timeout': 90
+            })
+        self.assertEqual(res.status_code, 200, res.text)
+        settings = owner.get('/api/settings').json()
+        self.assertEqual(settings['ai_provider'], 'gemini')
+        self.assertEqual(settings['gemini_key'], 'test-gemini-key')
+        self.assertEqual(settings['ollama_timeout'], 90)
+
+        # Invalid provider rejected
+        bad_provider = owner.post('/api/settings/ai', json={'ai_provider': 'unsupported'})
+        self.assertEqual(bad_provider.status_code, 400)
+
+        # Invalid timeout rejected
+        bad_timeout = owner.post('/api/settings/ai', json={'ai_provider': 'ollama', 'ollama_timeout': 5})
+        self.assertEqual(bad_timeout.status_code, 400)
+
+    def test_ai_settings_partial_update_preserves_stored_values(self):
+        """A field the caller omits keeps its saved value.
+
+        The AI hub modal can be opened straight from the header, before the saved
+        settings have loaded into the store. A post shaped like that one must not
+        blank the Gemini key and reset the Ollama configuration.
+        """
+        owner, a = self.bootstrap()
+        with patch('routers.config.threading.Thread'):
+            full = owner.post('/api/settings/ai', json={
+                'ai_provider': 'gemini',
+                'gemini_key': 'keep-me',
+                'ollama_url': 'http://ollama.local:11434',
+                'ollama_model': 'llama3.1',
+                'ollama_timeout': 90,
+                'starred_models': ['llama3.1']
+            })
+        self.assertEqual(full.status_code, 200, full.text)
+
+        with patch('routers.config.threading.Thread'):
+            partial = owner.post('/api/settings/ai', json={'ai_provider': 'ollama'})
+        self.assertEqual(partial.status_code, 200, partial.text)
+
+        settings = owner.get('/api/settings').json()
+        self.assertEqual(settings['ai_provider'], 'ollama')
+        self.assertEqual(settings['gemini_key'], 'keep-me')
+        self.assertEqual(settings['ollama_url'], 'http://ollama.local:11434')
+        self.assertEqual(settings['ollama_model'], 'llama3.1')
+        self.assertEqual(settings['ollama_timeout'], 90)
+        self.assertEqual(settings['starred_models'], ['llama3.1'])
+
+        # An explicit empty string is still a deliberate clear (the "Remove key" button).
+        with patch('routers.config.threading.Thread'):
+            cleared = owner.post('/api/settings/ai', json={'gemini_key': ''})
+        self.assertEqual(cleared.status_code, 200, cleared.text)
+        self.assertEqual(owner.get('/api/settings').json()['gemini_key'], '')
 
     def test_concurrent_initial_setup_only_one_owner(self):
         def create(name):

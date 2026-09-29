@@ -31,7 +31,25 @@ export const api = {
         try {
             const r = await fetch(finalUrl, fetchOptions);
 
-            if (r.status === 401 || r.status === 409) {
+            let errData = null;
+            if (!r.ok) {
+                try { errData = await r.json(); } catch(e) { errData = { detail: `Server error: ${r.status}` }; }
+                // Some endpoints return a structured detail ({detail, reason}) so callers
+                // can tell an AI opt-out from missing setup. Flatten it: every existing
+                // consumer concatenates error.detail into a string, and an object there
+                // renders as "[object Object]".
+                const structured = errData?.detail;
+                if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
+                    errData = { ...errData, ...structured,
+                                detail: String(structured.detail ?? `Server error: ${r.status}`) };
+                }
+            }
+
+            // 401/409 normally mean the session or account changed, which reloads the
+            // page. A 409 that carries a machine-readable reason is a policy answer for
+            // one request, not a stale session -- reloading on it would throw away the
+            // user's Builder draft every time an unconfigured AI control is touched.
+            if ((r.status === 401 || r.status === 409) && !errData?.reason) {
                 document.dispatchEvent(new CustomEvent('mixerbee:unauthorized'));
             }
 
@@ -40,8 +58,12 @@ export const api = {
             }
 
             if (!r.ok) {
-                let errData;
-                try { errData = await r.json(); } catch(e) { errData = { detail: `Server error: ${r.status}` }; }
+                if (errData.reason) {
+                    // The server is authoritative: a policy rejection means this tab's
+                    // capability state is stale, so ask for the current one.
+                    document.dispatchEvent(new CustomEvent('mixerbee:policy-rejected',
+                        { detail: { reason: errData.reason, status: r.status } }));
+                }
                 return { data: null, error: errData, status: 'error' };
             }
             

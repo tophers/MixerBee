@@ -55,7 +55,10 @@ from .music import (
 from .items import (
     get_playlists,
     delete_playlist,
+    delete_playlist_by_id,
     create_playlist,
+    create_playlist_exclusive,
+    set_playlist_overview,
     remove_item_from_playlist,
     remove_item_from_collection,
     get_collections,

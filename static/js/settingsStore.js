@@ -11,6 +11,48 @@ export const settingsStore = {
     external_api_key_set: false, clear_external_api_key: false, can_manage_collections: false,
     is_configured: false, connection_unavailable: false, connection_error: '',
 
+    // AI capability, authoritative from the server. Both start false so nothing AI can
+    // render or fire a request before /api/config_status has been read.
+    ai_disabled: false, ai_provider_configured: false, generative_ai_available: false,
+    ai_unavailable_reason: '', retained_ai_schedules: 0, isSavingAiPreference: false,
+
+    // Writes onto the Alpine store proxy, so aiStore/assistStore pick the change up
+    // through their Alpine.watch on generative_ai_available. Must be called as
+    // Alpine.store('settings').applyCapability(...), never on the raw module object.
+    applyCapability(data) {
+        if (!data) return;
+        if ('ai_disabled' in data) this.ai_disabled = !!data.ai_disabled;
+        if ('ai_provider_configured' in data) this.ai_provider_configured = !!data.ai_provider_configured;
+        if ('generative_ai_available' in data) this.generative_ai_available = !!data.generative_ai_available;
+        if ('ai_unavailable_reason' in data) this.ai_unavailable_reason = data.ai_unavailable_reason || '';
+        if ('retained_ai_schedules' in data) this.retained_ai_schedules = data.retained_ai_schedules || 0;
+        // Legacy alias, kept in sync for any template still reading it.
+        this.is_ai_configured = this.generative_ai_available;
+        if (this.account) this.account.ai_disabled = this.ai_disabled;
+    },
+
+    async refreshCapability() {
+        const res = await api.get('api/config_status');
+        if (res?.data) this.applyCapability(res.data);
+    },
+
+    // The checkbox renders from ai_disabled via :checked and calls this on change, so
+    // this is the only writer. A rejected save therefore leaves the stored value in
+    // place and the box snaps back on its own, instead of the UI claiming a preference
+    // the server never accepted. useApi surfaces the server's own log message.
+    async setAiDisabled(disabled, btnEl) {
+        if (this.isSavingAiPreference) return;
+        this.isSavingAiPreference = true;
+        try {
+            const res = await useApi(api.post('api/account/preferences', { ai_disabled: !!disabled }), btnEl);
+            if (res.status === 'ok' && res.data) this.applyCapability(res.data);
+        } catch (e) {
+            toast('Could not save the AI preference.', false);
+        } finally {
+            this.isSavingAiPreference = false;
+        }
+    },
+
     async initAccount() {
         const session = getSession();
         this.account = session.account;
@@ -36,6 +78,9 @@ export const settingsStore = {
         this.accountMenuOpen = false;
         this.accountOpen = true;
         this.currentPassword = ''; this.nextPassword = ''; this.newPassword = '';
+        // Refresh so the checkbox and the retained-schedule count reflect the server,
+        // not a value this tab may have been holding since page load.
+        await this.refreshCapability();
         if (this.account.is_admin) {
             const [res] = await Promise.all([
                 useApi(api.get('api/accounts')),
@@ -77,8 +122,11 @@ export const settingsStore = {
         } catch (e) { }
     },
     newConnection() {
+        // A new connection selects no AI provider and stores no Ollama URL/model. The
+        // form shows localhost/model examples as placeholders instead, so saving media
+        // credentials can never look like a deliberate AI setup.
         Object.assign(this, { connection_id: null, label: '', server_type: 'emby', emby_url: '', emby_user: '', emby_pass: '',
-            gemini_key: '', ai_provider: 'ollama', ollama_url: 'http://localhost:11434', ollama_model: 'qwen2.5:7b',
+            gemini_key: '', ai_provider: '', ollama_url: '', ollama_model: '',
             ollama_timeout: 120, starred_models: [], external_api_key: '', external_api_key_set: false,
             clear_external_api_key: false, webhook_secret: '', ollama_installed: [], ollama_running: [],
             webhook_status: 'disabled', can_manage_collections: false, server_ip: '', isOpen: true });
@@ -116,14 +164,19 @@ export const settingsStore = {
     theme: localStorage.getItem('mixerbeeTheme') || 'dark',
     activeUserId: '', activeUserName: '', version: '',
     server_type: 'emby', emby_url: '', emby_user: '', emby_pass: '',
-    gemini_key: '', ai_provider: 'ollama', ollama_url: 'http://localhost:11434',
-    ollama_model: 'llama3.1', ollama_timeout: 120, starred_models: [],
+    gemini_key: '', ai_provider: '', ollama_url: '',
+    ollama_model: '', ollama_timeout: 120, starred_models: [],
+    is_ai_configured: false,
     external_api_key: '', external_api_key_set: false, is_external_key_visible: false, vector_space: 'cosine',
     webhook_secret: '', webhook_status: 'disabled', is_webhook_secret_visible: false, server_ip: '',
     
     ollama_installed: [], ollama_running: [], is_loading_ollama: false,
+    isHydrated: false,
 
-    async show() {
+    // Split out of show() so anything that edits saved settings can load the current
+    // values first. The AI hub modal writes the same fields from a different entry
+    // point, and saving unhydrated defaults over them erases the stored credentials.
+    async hydrate() {
         try {
             const res = await useApi(api.get('api/settings'), null, true, false);
             if (res.data) {
@@ -139,9 +192,20 @@ export const settingsStore = {
                     webhook_public_base_url: res.data.webhook_public_base_url || this.webhook_public_base_url || '',
                     server_ip: res.data.server_ip || ''
                 });
-                if (this.ai_provider === 'ollama') this.fetchOllamaStatus();
+                this.applyCapability(res.data);
+                // Only scan Ollama for a connection that deliberately selected it and is
+                // allowed to use AI. Opening ordinary connection settings used to probe
+                // localhost unconditionally.
+                if (this.ai_provider === 'ollama' && !this.ai_disabled) this.fetchOllamaStatus();
+                this.isHydrated = true;
+                return true;
             }
         } catch (err) { console.error("Failed to hydrate settings"); }
+        return false;
+    },
+
+    async show() {
+        await this.hydrate();
         this.isOpen = true;
     },
 
@@ -152,6 +216,9 @@ export const settingsStore = {
     },
 
     async fetchOllamaStatus() {
+        // Discovery is part of deliberate setup, so it is refused outright once the
+        // account has opted out -- never a background probe of the user's machine.
+        if (this.ai_disabled) return;
         this.is_loading_ollama = true;
         try {
             const res = await useApi(api.get(`api/ollama/status?url=${encodeURIComponent(this.ollama_url)}`), null, true, false);
@@ -316,14 +383,16 @@ export const settingsStore = {
         }
     },
 
+    // Index maintenance: never gated by the AI preference. Echo blocks and semantic
+    // search read this index, so rebuilding it has to stay possible with AI turned off.
     async resetVectorDb(preserveEnrichments = true) {
-        const title = preserveEnrichments ? 'Wipe & Re-Index?' : 'FULL Semantic Wipe?';
+        const title = preserveEnrichments ? 'Rebuild search index?' : 'Full index reset?';
         const text = preserveEnrichments
-            ? 'This will clear all AI search data and rebuild it from your library. Your existing AI "Mood Tags" will be saved and restored.'
-            : 'DANGER: This will permanently delete ALL AI semantic data AND all "Mood Tags" generated for your library.';
+            ? 'This clears the local search index and rebuilds it from your library. Existing AI mood tags are saved and restored, and Echo blocks keep working once the rebuild finishes.'
+            : 'DANGER: this permanently deletes the search index AND every AI mood tag generated for your library. The index rebuilds from your library metadata; the tags are not recoverable.';
 
         try {
-            await confirmModal.show({ title, text, confirmText: preserveEnrichments ? 'Re-Index' : 'Nuclear Wipe', isDanger: !preserveEnrichments });
+            await confirmModal.show({ title, text, confirmText: preserveEnrichments ? 'Rebuild' : 'Delete everything', isDanger: !preserveEnrichments });
             const res = await useApi(api.post('api/settings/reset_vector_db', { preserve_enrichments: preserveEnrichments }));
             if (res.status === 'ok') { this.hide(); }
         } catch (e) { }
@@ -331,11 +400,10 @@ export const settingsStore = {
 
     async testConnection(btnEl) {
         if (!this.emby_url || !this.emby_user) return toast('URL and Username are required.', false);
+        // Media credentials only: testing a server must never require AI settings.
         await useApi(api.post('api/settings/test', {
             server_type: this.server_type, emby_url: this.emby_url.trim(), emby_user: this.emby_user.trim(),
-            emby_pass: this.emby_pass, ai_provider: this.ai_provider, ollama_url: this.ollama_url.trim(),
-            ollama_model: this.ollama_model.trim(), ollama_timeout: parseInt(this.ollama_timeout),
-            gemini_key: this.gemini_key.trim(), starred_models: this.starred_models
+            emby_pass: this.emby_pass
         }), btnEl, false, true);
     },
 
@@ -344,12 +412,13 @@ export const settingsStore = {
         const res = await useApi(api.post('api/settings', {
             connection_id: this.connection_id, label: this.label, clear_external_api_key: this.clear_external_api_key,
             server_type: this.server_type, emby_url: this.emby_url.trim(), emby_user: this.emby_user.trim(),
-            emby_pass: this.emby_pass, gemini_key: this.gemini_key.trim(), ai_provider: this.ai_provider,
-            ollama_url: this.ollama_url.trim(), ollama_model: this.ollama_model.trim(), ollama_timeout: parseInt(this.ollama_timeout),
-            starred_models: this.starred_models, external_api_key: this.external_api_key.trim()
+            emby_pass: this.emby_pass, external_api_key: this.external_api_key.trim()
+            // No AI fields: this save must not be able to touch the stored provider
+            // setup. Provider changes go through saveAiSettings in the AI Hub.
         }), btnEl, false, true);
 
         if (res && res.status === 'ok') {
+            this.applyCapability(res.data);
             this.hide();
             toast('Connection saved.', true);
             setTimeout(() => window.location.reload(), 500);

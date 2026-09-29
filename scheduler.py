@@ -56,6 +56,18 @@ def run_playlist_job(**schedule_data) -> Dict:
         connection_id = schedule_data.get("connection_id")
         if not connection_id:
             raise ValueError("Schedule has no assigned connection. Recreate it under the intended account.")
+        # Policy first, before the media server is contacted: a suspended enrichment run
+        # should cost nothing and must not report a connection error. The schedule and its
+        # enabled flag are left alone, so no failure notification is produced and the next
+        # occurrence is normal once AI is turned back on.
+        if job_type == "enrichment":
+            from app.ai_policy import generative_available
+            if not generative_available(connection_id):
+                msg = (f"Enrichment job skipped for connection {connection_id}: AI features are "
+                       "unavailable for this account. The schedule is suspended, not deleted.")
+                logger.info(msg)
+                return {"status": "ok", "skipped": True, "suspended": True, "log": [msg]}
+
         media = schedule_data.get("media")
         if not media:
             auth_data = get_auth_data(connection_id)
@@ -236,6 +248,36 @@ def _run_once_and_record(schedule_data: Dict, schedule_id: Optional[str]):
         }
         scheduler_manager._update_schedule_last_run(schedule_id, last_run_info)
 
+def _schedule_exists_in_db(schedule_id: str) -> bool:
+    """Authoritative existence check for a schedule about to run.
+
+    APScheduler holds its jobs in memory, and the dispatched kwargs are a snapshot
+    taken when the job was added. Neither notices a schedule deleted from the database
+    (directly, or by a backup restore) once a run has already been handed to a pool
+    thread, so the run must confirm its schedule is still real before building.
+    """
+    try:
+        with database.get_db_connection() as conn:
+            row = conn.execute("SELECT 1 FROM schedules WHERE id = ?", (schedule_id,)).fetchone()
+        return row is not None
+    except Exception as e:
+        # A database problem is not evidence the schedule was deleted; let the run proceed.
+        logger.warning("Could not verify schedule %s before running: %s", schedule_id, e)
+        return True
+
+
+def _cancel_orphaned_jobs(schedule_id: str):
+    """Drop APScheduler jobs left behind for a schedule that no longer exists."""
+    for job_id in (schedule_id, f"run_{schedule_id}"):
+        try:
+            scheduler_manager.scheduler.remove_job(job_id)
+            logger.info("Removed orphaned job %s for deleted schedule %s", job_id, schedule_id)
+        except JobLookupError:
+            pass
+        except Exception:
+            pass
+
+
 def scheduled_job_wrapper(**schedule_data):
     schedule_id = schedule_data.get("id")
     source = schedule_data.get("trigger_source", "clock")
@@ -246,6 +288,14 @@ def scheduled_job_wrapper(**schedule_data):
     if not schedule_id:
         logger.warning("scheduled_job_wrapper received schedule data with no 'id'; running unguarded.")
         _run_once_and_record(schedule_data, None)
+        return
+
+    if not _schedule_exists_in_db(schedule_id):
+        logger.warning(
+            "Skipping run for schedule '%s': it no longer exists in the database.", schedule_id
+        )
+        scheduler_manager.schedules.pop(schedule_id, None)
+        _cancel_orphaned_jobs(schedule_id)
         return
 
     # Execution-time policy recheck:
@@ -267,6 +317,11 @@ def scheduled_job_wrapper(**schedule_data):
         current_data = schedule_data
         for pass_num in range(1, MAX_RERUN_PASSES + 1):
             if pass_num > 1:
+                if not _schedule_exists_in_db(schedule_id):
+                    logger.warning(
+                        "Aborting pending rerun for '%s': schedule was deleted mid-run.", schedule_id
+                    )
+                    break
                 # Recheck policy before queued rerun pass
                 current_data = scheduler_manager.schedules.get(schedule_id, current_data)
                 if not is_automatic_run_allowed(current_data, source):
@@ -291,9 +346,45 @@ def scheduled_job_wrapper(**schedule_data):
         lock.release()
 
 
+def vibe_index_catchup_job():
+    """Retry any vibe index that has not succeeded in this process.
+
+    A media server that was unreachable at startup used to leave its vibe index
+    unbuilt until a restart, because indexing was startup-only work.
+
+    This runs as its own APScheduler job rather than inside the cache refresh:
+    max_instances defaults to 1 per job, so an initial index of a large library --
+    minutes of embedding -- would otherwise make every cache refresh fire in that
+    window be rejected as "maximum number of running instances reached".
+    """
+    try:
+        from app.ai.vector_store import connection_needs_index, ensure_library_indexed
+        from connections import all_media_clients
+    except Exception as e:
+        logger.warning("Skipping semantic index catch-up: %s", e)
+        return
+
+    for media in all_media_clients():
+        try:
+            # No provider check: this index serves Echo blocks and similarity search on
+            # every usable connection, configured for AI or not.
+            if connection_needs_index(media.connection.id):
+                logger.info("Retrying vibe index for connection %s.", media.connection.id)
+                ensure_library_indexed(media.user_id, media)
+        except Exception as e:
+            logger.warning("Vibe index retry failed for connection %s: %s", media.connection.id, e)
+
+
 class Scheduler:
     def __init__(self):
-        self.scheduler = BackgroundScheduler(daemon=True)
+        # APScheduler's default misfire_grace_time is 1 second, which silently drops
+        # any fire that had to wait longer than that -- e.g. a cron that came due while
+        # the container was stopped or the host asleep, or while the executor pool was
+        # busy with a long build. coalesce collapses a backlog into a single catch-up run.
+        self.scheduler = BackgroundScheduler(
+            daemon=True,
+            job_defaults={'misfire_grace_time': 300, 'coalesce': True}
+        )
         self.schedules: Dict[str, Dict] = {}
         # Per-schedule run lock + "a rerun was requested while running" flag, keyed by
         # schedule id. _schedule_locks_guard protects both dicts so concurrent first-time
@@ -397,9 +488,11 @@ class Scheduler:
                         logger.info(f"Migrated legacy schedule type '{old_type}' to '{new_type}' for job {schedule_id}.")
                         self._update_schedule_config_in_db(schedule_id, data)
             return schedules
-        except Exception as e:
-            logger.error(f"Error loading schedules from database: {e}", exc_info=True)
-            return {}
+        except Exception:
+            # Callers must distinguish "no schedules" from "could not read them":
+            # treating a failed read as an empty table tears down every live job.
+            logger.exception("Error loading schedules from database")
+            raise
 
     def _update_schedule_config_in_db(self, schedule_id, schedule_data):
         try:
@@ -502,6 +595,75 @@ class Scheduler:
         logger.info(f"Snoozed schedule {schedule_id} until {snooze_until_iso}")
         return True
 
+    def _install_job(self, schedule_id: str, schedule_data: Dict) -> bool:
+        """Add or replace the APScheduler job for one schedule.
+
+        Returns True when the schedule is now scheduled. A schedule with no trigger or
+        no verified connection is left inactive, and any job it previously had is
+        removed so a stale trigger cannot keep firing.
+        """
+        trigger = self._get_trigger(schedule_data)
+        if not schedule_data.get("connection_id"):
+            logger.warning("Schedule %s has no verified connection; leaving it inactive.", schedule_id)
+        if trigger and schedule_data.get("connection_id"):
+            self.scheduler.add_job(
+                func=scheduled_job_wrapper,
+                trigger=trigger,
+                kwargs=schedule_data,
+                id=schedule_id,
+                name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
+                replace_existing=True
+            )
+            return True
+
+        try:
+            self.scheduler.remove_job(schedule_id)
+        except JobLookupError:
+            pass
+        return False
+
+    def reload_schedules(self) -> Dict[str, Dict]:
+        """Re-read every schedule from the database and resync APScheduler to match.
+
+        _load_schedules() is a pure read: on its own it changes neither self.schedules
+        nor the live jobs. A backup restore rewrites the schedules table underneath a
+        running scheduler, so without this resync deleted schedules keep their in-memory
+        jobs and restored ones never get a job until the process restarts.
+        """
+        try:
+            new_schedules = self._load_schedules()
+        except Exception:
+            logger.error(
+                "Schedule reload aborted; keeping the %d schedule(s) already loaded.",
+                len(self.schedules)
+            )
+            return self.schedules
+
+        previous_ids = set(self.schedules)
+        self.schedules = new_schedules
+
+        for stale_id in previous_ids - set(new_schedules):
+            for job_id in (stale_id, f"run_{stale_id}"):
+                try:
+                    self.scheduler.remove_job(job_id)
+                except JobLookupError:
+                    pass
+            with self._schedule_locks_guard:
+                self._schedule_locks.pop(stale_id, None)
+                self._rerun_pending.pop(stale_id, None)
+            logger.info("Reload dropped schedule %s and its jobs.", stale_id)
+
+        active = 0
+        for schedule_id, schedule_data in new_schedules.items():
+            if self._install_job(schedule_id, schedule_data):
+                active += 1
+
+        logger.info(
+            "Reloaded %d schedule(s) from the database (%d active, %d removed).",
+            len(new_schedules), active, len(previous_ids - set(new_schedules))
+        )
+        return new_schedules
+
     def start(self):
         self.scheduler.add_job(
             func=refresh_all_caches,
@@ -512,7 +674,23 @@ class Scheduler:
             replace_existing=True
         )
 
-        self.schedules = self._load_schedules()
+        self.scheduler.add_job(
+            func=vibe_index_catchup_job,
+            trigger='interval',
+            minutes=app_state.CACHE_REFRESH_MINUTES,
+            id='vibe_index_catchup_job',
+            name='Retry Unbuilt Vibe Indexes',
+            replace_existing=True
+        )
+
+        try:
+            self.schedules = self._load_schedules()
+        except Exception:
+            # Boot must not fail on an unreadable schedules table. get_all_schedules()
+            # retries the read on the next API call.
+            logger.error("Starting with no schedules loaded: the table could not be read.")
+            self.schedules = {}
+
         from datetime import timezone
         now_utc = datetime.now(timezone.utc)
 
@@ -531,18 +709,7 @@ class Scheduler:
                 except Exception:
                     pass
 
-            trigger = self._get_trigger(schedule_data)
-            if not schedule_data.get("connection_id"):
-                logger.warning("Schedule %s has no verified connection; leaving it inactive.", schedule_id)
-            if trigger and schedule_data.get("connection_id"):
-                self.scheduler.add_job(
-                    func=scheduled_job_wrapper,
-                    trigger=trigger,
-                    kwargs=schedule_data,
-                    id=schedule_id,
-                    name=schedule_data.get('playlist_name', 'Unnamed Schedule'),
-                    replace_existing=True
-                )
+            self._install_job(schedule_id, schedule_data)
 
         if not self.scheduler.running:
             self.scheduler.start()
@@ -684,7 +851,10 @@ class Scheduler:
 
     def get_all_schedules(self) -> List[Dict]:
         if not self.schedules and self.scheduler.running:
-             self.schedules = self._load_schedules()
+            try:
+                self.schedules = self._load_schedules()
+            except Exception:
+                logger.error("Could not load schedules for this request.")
         return list(self.schedules.values())
 
 scheduler_manager = Scheduler()

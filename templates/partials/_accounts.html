@@ -14,6 +14,24 @@
                     <button class="account-form-submit" type="submit">Change password</button>
                 </fieldset>
             </form>
+            <fieldset class="filter-group account-section"><legend>AI features</legend>
+                <label class="control-item flex-row align-center gap-sm">
+                    <!-- :checked, not x-model: setAiDisabled is the only writer, so a
+                         rejected save leaves the stored preference alone and the box
+                         re-renders from it rather than keeping an unsaved value. -->
+                    <input type="checkbox" :checked="$store.settings.ai_disabled"
+                           :disabled="$store.settings.isSavingAiPreference"
+                           @change="$store.settings.setAiDisabled($event.target.checked, $event.target)">
+                    <span>Disable AI features</span>
+                </label>
+                <p class="account-help">Hide Assist, AI Block Builder, and Library IQ, and stop Gemini/Ollama generation and tagging across your media connections. Echo and semantic search remain available.</p>
+                <p class="account-help">This applies to your whole MixerBee account — every device, session, and media connection, including ones you add later. It does not affect other accounts. Saved provider credentials and AI-generated tags are kept.</p>
+                <p class="account-help" x-show="$store.settings.ai_disabled && $store.settings.retained_ai_schedules" x-cloak>
+                    <strong x-text="$store.settings.retained_ai_schedules"></strong>
+                    <span x-text="($store.settings.retained_ai_schedules === 1 ? ' enrichment schedule is' : ' enrichment schedules are') + ' suspended and kept. They resume at their next normal run when you turn AI back on.'"></span>
+                </p>
+            </fieldset>
+
             <div x-show="$store.settings.account.is_admin" class="mt-md">
                 <fieldset class="filter-group account-section"><legend>Webhook administration</legend>
                     <label class="control-item">

@@ -179,7 +179,27 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
 .connection-switcher { display: flex; align-items: center; gap: var(--gap-sm); min-width: 0; flex: 1 1 auto; }
 .connection-switcher > label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .connection-switcher select { width: auto; max-width: 310px; min-width: 150px; margin: 0; flex: 1 1 240px; }
-.header-add-connection, .account-menu-trigger { margin: 0; min-height: 39px; box-shadow: none; }
+.header-add-connection, .account-menu-trigger, .header-iq-trigger { margin: 0; min-height: 39px; box-shadow: none; }
+.header-iq-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.header-iq-trigger .iq-zap-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+}
+.header-iq-trigger .iq-zap-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
 .header-add-connection { padding: 0.45rem 0.8rem; }
 .header-add-connection > span:first-child { font-size: 1.2rem; line-height: 1; }
 .account-menu { position: relative; flex: 0 0 auto; }
@@ -1362,6 +1382,7 @@ svg.mb-icon,
   .connection-switcher select { min-width: 0; max-width: none; flex-basis: 100px; font-size: 0.9rem; }
   .header-add-connection { min-width: 40px; padding: 0.4rem; }
   .header-add-label, .account-menu-name, .account-menu-chevron { display: none; }
+  .header-iq-trigger { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
   .account-menu-trigger { width: 40px; padding: 0.3rem; }
   .account-alert-badge { position: absolute; top: -6px; right: -6px; }
   .account-menu-panel { position: fixed; top: 58px; left: 0.7rem; right: 0.7rem; width: auto; }
@@ -1446,4 +1467,142 @@ svg.mb-icon,
   .episode-inputs input[type="number"] { padding: 0.6rem 0.3rem; font-size: 1.1rem; }
   table { font-size: 0.9rem; }
   th, td { padding: 0.6rem 0.5rem; }
+}
+
+/* Playlist Assist */
+.assist-container { max-width: 1100px; }
+.assist-placeholder {
+  padding: 2rem 1rem;
+  text-align: center;
+  border: 1px dashed var(--border-color-subtle);
+  border-radius: var(--radius);
+}
+
+.assist-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: var(--gap-md);
+  align-items: start;
+}
+
+.assist-chat,
+.assist-canvas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: var(--gap-md);
+}
+
+.assist-chat { position: sticky; top: var(--gap-sm); }
+.assist-chat-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-sm);
+  min-height: 240px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+.assist-chat-empty { display: flex; flex-direction: column; gap: var(--gap-xs); font-size: 0.9rem; }
+
+.assist-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.5rem 0.7rem;
+  border-radius: var(--radius);
+  background: var(--panel-alt);
+  border: 1px solid var(--border-color-subtle);
+}
+.assist-msg-user { background: rgba(var(--accent-rgb), 0.08); border-color: rgba(var(--accent-rgb), 0.3); }
+.assist-msg-error { background: rgba(var(--danger-rgb), 0.12); border-color: var(--danger); }
+.assist-msg-pending { opacity: 0.7; font-style: italic; }
+.assist-msg-role {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.assist-msg-body { white-space: pre-wrap; font-size: 0.92rem; }
+
+.assist-chat-input { display: flex; gap: var(--gap-sm); align-items: stretch; }
+.assist-chat-input textarea { resize: vertical; min-height: 44px; }
+
+.assist-meta { display: flex; flex-direction: column; }
+.assist-meta .field-label { margin-bottom: 0.25rem; }
+.assist-canvas-header { border-top: 1px solid var(--divider-color); padding-top: var(--gap-sm); font-size: 0.85rem; }
+
+.assist-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--gap-sm);
+}
+
+.assist-tile { display: flex; flex-direction: column; gap: 4px; }
+.assist-poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--panel-alt);
+  border: 2px solid transparent;
+}
+.assist-tile-pinned .assist-poster { border-color: var(--accent); }
+.assist-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.assist-poster img.assist-poster-missing { visibility: hidden; }
+
+.assist-tile-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+}
+.assist-tile-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  cursor: pointer;
+}
+.assist-tile-btn.is-active { background: var(--accent); border-color: var(--accent); }
+.assist-tile-remove:hover { background: var(--danger); border-color: var(--danger); }
+
+.assist-tile-caption { display: flex; flex-direction: column; font-size: 0.78rem; line-height: 1.2; }
+.assist-tile-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.assist-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--action-bar-bg);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-top: 1px solid var(--border-color);
+  box-shadow: var(--action-bar-shadow);
+  padding: 0.6rem 0;
+  z-index: 1000;
+  pointer-events: none;
+}
+.assist-action-bar-content { max-width: 1100px; flex-wrap: nowrap; }
+.assist-action-hint { font-size: 0.8rem; text-align: right; }
+
+@media (max-width: 800px) {
+  .assist-layout { grid-template-columns: minmax(0, 1fr); }
+  .assist-chat { position: static; }
+  .assist-chat-log { max-height: 38vh; }
+  .assist-action-hint { display: none; }
 }

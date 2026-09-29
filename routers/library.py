@@ -11,11 +11,24 @@ from pydantic import BaseModel
 import app as core
 import models
 import app_state
+from app import ai_policy
 from app.cache import get_library_data
 from app.ai.vector_store import calculate_library_iq, get_discovery_tags
-from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission
+from .dependencies import (get_current_auth_headers, media_for_user, require_collection_permission,
+                           require_generative_ai)
 
 router = APIRouter()
+
+# start_enrichment rechecks policy at the service layer, and RuntimeError is already
+# mapped to a 409 "already running" below. AINotConfigured subclasses RuntimeError, so
+# these have to be caught ahead of it or a missing setup reads as a busy worker.
+ai_policy_errors = (ai_policy.AIDisabled, ai_policy.AINotConfigured)
+
+
+def policy_http(exc):
+    status = 403 if isinstance(exc, ai_policy.AIDisabled) else 409
+    reason = ai_policy.REASON_DISABLED if status == 403 else "ai_not_configured"
+    return HTTPException(status, {"detail": str(exc), "reason": reason})
 
 @router.get("/api/library_data")
 def api_library_data(auth_deps: dict = Depends(get_current_auth_headers)) -> Dict[str, Any]:
@@ -30,7 +43,14 @@ def api_library_data(auth_deps: dict = Depends(get_current_auth_headers)) -> Dic
 
 @router.get("/api/library/iq")
 def api_library_iq(auth_deps: dict = Depends(get_current_auth_headers)) -> JSONResponse:
-    """Returns total vs enriched media counts from ChromaDB without caching."""
+    """Enrichment progress. Belongs to the enrichment feature, so it follows its policy.
+
+    Reported as unavailable without opening the vector store, so a disabled account
+    never pays a Chroma read for a panel it cannot see.
+    """
+    if not ai_policy.generative_available(auth_deps["connection_id"]):
+        return JSONResponse(content={"total": 0, "enriched": 0, "available": False},
+                            headers={"Cache-Control": "no-store"})
     stats = calculate_library_iq(media=auth_deps["media"])
     return JSONResponse(
         content=stats,
@@ -43,7 +63,13 @@ def api_library_iq(auth_deps: dict = Depends(get_current_auth_headers)) -> JSONR
 
 @router.get("/api/library/mood_discovery")
 def api_mood_discovery(auth_deps: dict = Depends(get_current_auth_headers)):
-    """Returns a random sampling of vibe tags from the enriched library."""
+    """Prompt starters built from enrichment tags, so they belong to the AI generator.
+
+    Returns an empty pool rather than an error: these are decorative suggestions and a
+    hidden generator has nothing to show them in.
+    """
+    if not ai_policy.generative_available(auth_deps["connection_id"]):
+        return {"status": "ok", "tags": [], "available": False}
     tags = get_discovery_tags(limit=60, media=auth_deps["media"])
     return {"status": "ok", "tags": tags}
 
@@ -377,6 +403,7 @@ def api_start_enrichment(
     auth_deps: dict = Depends(get_current_auth_headers)
 ) -> Dict[str, Any]:
     """Starts a background metadata enrichment process for the current connection."""
+    require_generative_ai(auth_deps)
     connection_id = auth_deps["connection_id"]
     media = auth_deps["media"]
     try:
@@ -387,6 +414,12 @@ def api_start_enrichment(
             max_items=req.max_items
         )
         return {"status": "ok", "state": res}
+    except HTTPException:
+        raise
+    except ai_policy_errors as policy_error:
+        # Checked outside the generic handler below: a policy refusal must reach the
+        # browser as 403/409 with its reason, not as a generic 500.
+        raise policy_http(policy_error) from policy_error
     except RuntimeError as re:
         raise HTTPException(status_code=409, detail=str(re))
     except ValueError as ve:

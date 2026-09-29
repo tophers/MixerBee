@@ -13,7 +13,7 @@ import app_state
 from app.cache import get_library_data
 from app.ai import generate_smart_blocks
 from preset_manager import preset_manager
-from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission
+from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission, require_generative_ai
 
 router = APIRouter()
 
@@ -120,12 +120,9 @@ def api_get_random_block(auth_deps: dict = Depends(get_current_auth_headers)):
 
 @router.post("/api/create_from_text")
 def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
-    ai = auth_deps["media"].connection.ai_settings
-    if ai.get("AI_PROVIDER", "gemini") == "gemini" and not ai.get("GEMINI_API_KEY"):
-        raise HTTPException(status_code=501, detail="Gemini API key is not configured on the server.")
-    
-    if ai.get("AI_PROVIDER", "gemini") not in ["gemini", "ollama"]:
-        raise HTTPException(status_code=501, detail="AI Provider is not correctly configured.")
+    # One shared check replaces the old per-endpoint provider reading, which disagreed
+    # with the other two and could not see the account-wide switch at all.
+    require_generative_ai(auth_deps)
 
     try:
         blocks, model_used, logs = generate_smart_blocks(req.prompt, req.tweaks, req.existing_blocks, media=auth_deps["media"])

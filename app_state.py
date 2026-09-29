@@ -153,10 +153,18 @@ def load_and_authenticate() -> bool:
             auth = candidate.authenticate()
         finally:
             candidate.session.close()
+        # Seed the provider selection only when .env actually named one *and* supplied
+        # its credentials. The module defaults above are fallbacks, not consent: writing
+        # them in would make every legacy import look like a deliberate AI setup.
+        provider = (AI_PROVIDER or "").strip().lower()
+        seeded_ai = {"GEMINI_API_KEY": GEMINI_API_KEY or "", "OLLAMA_URL": OLLAMA_URL or "",
+                     "OLLAMA_MODEL": OLLAMA_MODEL or "", "OLLAMA_TIMEOUT": OLLAMA_TIMEOUT,
+                     "AI_PROVIDER": ""}
+        if (provider == "gemini" and (GEMINI_API_KEY or "").strip()) or \
+           (provider == "ollama" and (OLLAMA_URL or "").strip() and (OLLAMA_MODEL or "").strip()):
+            seeded_ai["AI_PROVIDER"] = provider
         media = save_authenticated_connection(
-            core.EMBY_URL, SERVER_TYPE, core.EMBY_USER, core.EMBY_PASS, auth,
-            {"AI_PROVIDER": AI_PROVIDER, "GEMINI_API_KEY": GEMINI_API_KEY,
-             "OLLAMA_URL": OLLAMA_URL, "OLLAMA_MODEL": OLLAMA_MODEL, "OLLAMA_TIMEOUT": OLLAMA_TIMEOUT})
+            core.EMBY_URL, SERVER_TYPE, core.EMBY_USER, core.EMBY_PASS, auth, seeded_ai)
         SERVER_ID = media.connection.server_id
 
         DEFAULT_USER_NAME = core.EMBY_USER

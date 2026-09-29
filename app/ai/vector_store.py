@@ -25,6 +25,43 @@ _collections = {}
 _collection_lock = threading.RLock()
 _enrichment_backups = {}
 
+# Connections whose vibe index has been built successfully in this process. The
+# periodic refresh job retries the ones missing here, so a server that was down at
+# startup does not leave vibe search silently stale until the next restart.
+_indexed_connections = set()
+_index_state_lock = threading.Lock()
+# One indexing run per connection at a time. Saving settings and clicking reset both
+# spawn indexer threads, and two concurrent runs over the same collection duplicate
+# all the library I/O while racing each other's writes.
+_index_locks = {}
+
+
+def _index_lock_for(connection_id: str) -> threading.Lock:
+    with _index_state_lock:
+        return _index_locks.setdefault(connection_id, threading.Lock())
+
+
+def drop_collection_cache():
+    """Forget every memoized collection handle.
+
+    Required after the Chroma directory is replaced on disk (a backup restore),
+    since cached handles still point at the collections that were swapped out.
+    """
+    with _collection_lock:
+        _collections.clear()
+    with _index_state_lock:
+        _indexed_connections.clear()
+
+
+def forget_index_state(connection_id: str):
+    with _index_state_lock:
+        _indexed_connections.discard(connection_id)
+
+
+def connection_needs_index(connection_id: str) -> bool:
+    with _index_state_lock:
+        return connection_id not in _indexed_connections
+
 
 def collection_name():
     return "mixerbee_" + current_media().connection.id
@@ -124,15 +161,22 @@ def reset_media_collection(preserve_enrichments: bool = True, *, media=None):
                 logger.info(f"RESET: Backed up {len(enriched_backups)} enriched items.")
 
         logger.info("RESET: Deleting collection %s", collection_name())
-        chroma_client.delete_collection(name=collection_name())
+        with _collection_lock:
+            chroma_client.delete_collection(name=collection_name())
+            _collections.pop(collection_name(), None)
     except Exception as e:
         logger.warning(f"RESET: Collection may not exist or error during wipe: {e}")
+        with _collection_lock:
+            _collections.pop(collection_name(), None)
 
     logger.info("RESET: Recreating collection with Cosine similarity...")
-
-    with _collection_lock:
-        _collections.pop(collection_name(), None)
     get_media_collection()
+
+    # The collection is empty again, so this connection needs a fresh index even
+    # though one already succeeded in this process. Without this, a forced reindex
+    # that loses the race for the per-connection lock would leave vibe search empty
+    # and the periodic catch-up would skip the connection until the next restart.
+    forget_index_state(current_media().connection.id)
 
     if preserve_enrichments and enriched_backups:
         _enrichment_backups[current_media().connection.id] = enriched_backups
@@ -142,13 +186,14 @@ def reset_media_collection(preserve_enrichments: bool = True, *, media=None):
 def delete_connection_collection(connection_id: str):
     """Remove a deleted connection's isolated AI index without recreating it."""
     name = f'mixerbee_{connection_id}'
-    try:
-        chroma_client.delete_collection(name=name)
-    except Exception:
-        logger.info("No AI collection to remove for connection %s", connection_id)
     with _collection_lock:
+        try:
+            chroma_client.delete_collection(name=name)
+        except Exception:
+            logger.info("No AI collection to remove for connection %s", connection_id)
         _collections.pop(name, None)
     _enrichment_backups.pop(connection_id, None)
+    forget_index_state(connection_id)
 
 @media_operation
 def ensure_cosine_similarity(*, media=None):
@@ -281,9 +326,64 @@ def get_discovery_tags(limit: int = 60, *, media=None) -> List[str]:
         logger.error(f"Failed to aggregate discovery tags: {e}")
         return []
 
+def ai_enabled(media: client.MediaClient) -> bool:
+    """True when generative AI is available for this connection's owning account.
+
+    Kept as the single name callers already import, but it now answers the real
+    question: the account has not opted out *and* a provider was deliberately
+    configured. It is never a gate on indexing or similarity search -- those are core
+    library features that run without any provider.
+    """
+    from app.ai_policy import generative_available
+    return generative_available(media.connection.id)
+
+
+def ensure_library_indexed(user_id: str, media: client.MediaClient, force: bool = False) -> bool:
+    """Build this connection's vibe index unless it already succeeded in this process.
+
+    index_library_for_vibes diffs against what is already stored, so a repeat call on
+    an up-to-date index is cheap -- but it still lists the whole library, so success is
+    recorded and only connections that have not succeeded yet are retried.
+
+    Success is recorded only when the sync actually completed: index_library_for_vibes
+    reports failure rather than raising, and marking a failed run as indexed would
+    retire the connection from the periodic catch-up permanently.
+
+    A forced run waits for an in-flight one instead of skipping, so a reindex after a
+    reset cannot be silently dropped. Both callers run it on a daemon thread.
+    """
+    connection_id = media.connection.id
+    if not force and not connection_needs_index(connection_id):
+        return False
+
+    lock = _index_lock_for(connection_id)
+    if not lock.acquire(blocking=force):
+        logger.info("Vibe indexing already running for connection %s; skipping duplicate run.", connection_id)
+        return False
+    try:
+        if index_library_for_vibes(user_id, media):
+            with _index_state_lock:
+                _indexed_connections.add(connection_id)
+            return True
+        # Unconditionally requeue: a concurrent run may have recorded success in the
+        # meantime, and an index this run could not complete is not one to retire.
+        forget_index_state(connection_id)
+        logger.warning(
+            "Vibe indexing did not complete for connection %s; leaving it queued for retry.",
+            connection_id
+        )
+        return False
+    finally:
+        lock.release()
+
+
 @media_operation
-def index_library_for_vibes(user_id: str, media: client.MediaClient):
-    """Fetches metadata from Emby/Jellyfin and embeds locally. Restores AI tags from backup if available."""
+def index_library_for_vibes(user_id: str, media: client.MediaClient) -> bool:
+    """Fetches metadata from Emby/Jellyfin and embeds locally. Restores AI tags from backup if available.
+
+    Returns True when the sync ran to completion. Failures are logged rather than
+    raised, so callers that track indexing state must check the return value.
+    """
     media.require_user(user_id)
     refresh_logger_level()
     migrate_enrichment_fields()
@@ -327,7 +427,7 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
 
         if not ids_to_add:
             logger.info("Vector DB is up to date. No new items to index.")
-            return
+            return True
 
         logger.info(f"Found {len(ids_to_add)} items to index. Checking for AI tag restoration...")
 
@@ -424,9 +524,11 @@ def index_library_for_vibes(user_id: str, media: client.MediaClient):
         logger.info("MIGRATION: Enrichment restoration buffer cleared.")
 
         logger.info("Vector Update Complete")
+        return True
 
     except Exception as e:
         logger.error(f"Failed during library sync: {e}", exc_info=True)
+        return False
 
 
 @media_operation

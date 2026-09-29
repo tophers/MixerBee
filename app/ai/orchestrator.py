@@ -760,6 +760,10 @@ def _refine_with_gemini(prompt: str, tweaks: AiTweaks, manifest: str) -> tuple[L
 @media_operation
 def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None, existing_blocks: Optional[List[Dict[str, Any]]] = None, *, media=None) -> tuple[List[Dict[str, Any]], str, List[str]]:
     refresh_logger_level()
+    # Service-level gate, not just an HTTP one: scheduled jobs, external API keys and
+    # already-cached MediaClients all reach this function without passing a router.
+    from app.ai_policy import require_generative
+    require_generative(current_media().connection.id)
     actual_tweaks = tweaks or AiTweaks()
     token = ai_tweaks_context.set(actual_tweaks)
 
@@ -779,6 +783,9 @@ def generate_smart_blocks(prompt: str, tweaks: Optional[AiTweaks] = None, existi
 def process_enrichment_queue(batch_size: int, timeout: int, *, media=None, stop_event=None) -> Dict[str, Any]:
     """Pulls a batch of un-enriched media, calls the LLM for vibe tags, and updates the Vector DB."""
     refresh_logger_level()
+    from app.ai_policy import generative_available, require_generative
+    connection_id = current_media().connection.id
+    require_generative(connection_id)
     logger.info(f"--- STARTING METADATA ENRICHMENT (Batch: {batch_size}) ---")
 
     try:
@@ -799,6 +806,11 @@ def process_enrichment_queue(batch_size: int, timeout: int, *, media=None, stop_
         for i, item_id in enumerate(ids):
             if stop_event and getattr(stop_event, "is_set", lambda: False)():
                 logger.info("Enrichment batch interrupted by stop event.")
+                break
+            # Per item, not just per batch: a batch of 500 would otherwise keep calling
+            # the provider for minutes after the account turned AI off.
+            if not generative_available(connection_id):
+                logger.info("Enrichment batch stopped: AI policy no longer allows provider calls.")
                 break
 
             processed_count += 1
@@ -867,6 +879,12 @@ def process_enrichment_queue(batch_size: int, timeout: int, *, media=None, stop_
                     if not resp or not resp.parsed: raise ValueError("Gemini returned invalid response.")
                     vibe_tags_str = ", ".join(resp.parsed.tags)
 
+                # The provider call above cannot be recalled once sent. Its result is
+                # discarded rather than written if the policy changed while it was in
+                # flight, so a disable never leaves new generated tags behind.
+                if vibe_tags_str and not generative_available(connection_id):
+                    logger.info("Discarding enrichment result for %s: AI was turned off mid-request.", title)
+                    break
                 if vibe_tags_str:
                     meta['is_enriched'] = True
                     meta['vibe_tags'] = vibe_tags_str

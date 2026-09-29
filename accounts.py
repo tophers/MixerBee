@@ -29,6 +29,10 @@ def initialize_schema(conn):
         csrf_token TEXT NOT NULL, connection_id TEXT,
         expires_at REAL NOT NULL
     )''')
+    columns = {r['name'] for r in conn.execute('PRAGMA table_info(accounts)')}
+    for name, definition in (('ai_disabled', 'INTEGER NOT NULL DEFAULT 0'),):
+        if name not in columns:
+            conn.execute(f'ALTER TABLE accounts ADD COLUMN {name} {definition}')
 
 
 def setup_required():
@@ -98,7 +102,10 @@ def create_account(username, password, *, initial_only=False, bootstrap_token=No
         if initial_only and not first:
             raise PermissionError('Initial setup is already complete.')
         try:
-            conn.execute('INSERT INTO accounts VALUES (?, ?, ?, ?, ?, ?)',
+            # Named columns, not positional: this table gains columns over time and a
+            # bare VALUES tuple breaks the next time one is added.
+            conn.execute('INSERT INTO accounts (id, username, username_key, password_hash, is_admin, created_at)'
+                         ' VALUES (?, ?, ?, ?, ?, ?)',
                          (aid, username, username.casefold(), encoded, int(first), time.time()))
         except sqlite3.IntegrityError as exc:
             raise ValueError('That username is already in use.') from exc
@@ -107,7 +114,7 @@ def create_account(username, password, *, initial_only=False, bootstrap_token=No
             # vector namespaces, or browser draft keys.
             conn.execute('UPDATE media_connections SET owner_id=? WHERE owner_id IS NULL', (aid,))
         conn.commit()
-    return {'id': aid, 'username': username, 'is_admin': first}
+    return {'id': aid, 'username': username, 'is_admin': first, 'ai_disabled': False}
 
 
 def authenticate(username, password):
@@ -119,7 +126,8 @@ def authenticate(username, password):
         return None
     if not verify_password(password, row['password_hash']):
         return None
-    return {'id': row['id'], 'username': row['username'], 'is_admin': bool(row['is_admin'])}
+    return {'id': row['id'], 'username': row['username'], 'is_admin': bool(row['is_admin']),
+            'ai_disabled': bool(row['ai_disabled'])}
 
 
 def token_hash(value):
@@ -142,7 +150,7 @@ def read_session(token):
     if not token or len(token) > 256:
         return None
     with database.get_db_connection() as conn:
-        row = conn.execute('''SELECT a.id, a.username, a.is_admin, s.csrf_token,
+        row = conn.execute('''SELECT a.id, a.username, a.is_admin, a.ai_disabled, s.csrf_token,
             s.connection_id, s.token_hash FROM account_sessions s
             JOIN accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>?''',
             (token_hash(token), time.time())).fetchone()
@@ -162,6 +170,28 @@ def change_password(account_id, password):
         conn.execute('UPDATE accounts SET password_hash=? WHERE id=?', (encoded, account_id))
         conn.execute('DELETE FROM account_sessions WHERE account_id=?', (account_id,))
         conn.commit()
+
+
+def ai_disabled(account_id):
+    """The account-wide AI opt-out, read from the database rather than a cached session."""
+    with database.get_db_connection() as conn:
+        row = conn.execute('SELECT ai_disabled FROM accounts WHERE id=?', (account_id,)).fetchone()
+    return bool(row['ai_disabled']) if row else False
+
+
+def set_ai_disabled(account_id, disabled):
+    """Persist the account-wide AI preference.
+
+    Sessions stay valid: this is a preference, not a credential, and signing every
+    browser out would lose unsaved Builder drafts for no security benefit.
+    """
+    with database.get_db_connection() as conn:
+        cursor = conn.execute('UPDATE accounts SET ai_disabled=? WHERE id=?',
+                              (1 if disabled else 0, account_id))
+        conn.commit()
+    if not cursor.rowcount:
+        raise ValueError('Account not found.')
+    return bool(disabled)
 
 
 def cookie_name(request):

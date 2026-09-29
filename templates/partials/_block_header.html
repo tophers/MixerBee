@@ -3,11 +3,15 @@
     <div class="mixed-block-header">
         <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
         <h3 class="flex-row align-center gap-xs">
-            <template x-if="block.is_ai_generated || block.type === 'vibe'">
+            <!-- The badge is provenance, not a capability: the block itself resolves
+                 through ordinary TV/movie processing. It is dropped while AI is
+                 unavailable so the interface shows no AI branding the account cannot use,
+                 and the block keeps working either way. -->
+            <template x-if="(block.is_ai_generated || block.type === 'vibe') && $store.settings.generative_ai_available">
                 <span class="ai-badge-icon" :class="block.type === 'vibe' ? 'pulse-icon' : ''" x-html="$store.icons.zap"></span>
             </template>
             
-            <span x-text="block.title || (block.type === 'vibe' ? (block.vibe_type === 'tv' ? 'TV Vibes' : 'Movie Vibes') : '{{ default_title }}')"></span>
+            <span x-text="block.title || (block.type === 'vibe' ? ($store.settings.generative_ai_available ? (block.vibe_type === 'tv' ? 'TV Vibes' : 'Movie Vibes') : (block.vibe_type === 'tv' ? 'Saved Episode Selection' : 'Saved Movie Selection')) : '{{ default_title }}')"></span>
             
             <template x-if="block.isSnapshot">
                 <span class="color-accent ml-xs" title="Order Fixed (Snapshotted)" x-html="$store.icons.lock" style="--icon-size: 14px; opacity: 0.8;"></span>

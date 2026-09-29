@@ -2,7 +2,7 @@
 
 MixerBee is a self-hosted automation app for [Emby](https://emby.media/) and [Jellyfin](https://jellyfin.org). It lets you create playlists and collections from your media library using metadata filters, optional AI tools, and schedules.
 
-AI features are optional and stay disabled unless you configure them.
+AI features are optional and stay off until you deliberately configure a provider, and one checkbox in Account settings turns them off for your whole account. Semantic search and Echo blocks are core library features that work without any AI provider.
 
 MixerBee can be used to:
 - build mixed TV, movie, and music lists
@@ -84,7 +84,7 @@ The recommended installation uses the prebuilt Docker Hub image; no source check
 
 2. Open the UI at `http://your-ip:9000`
 3. On first launch, create the local MixerBee owner account directly in the browser
-4. Add an Emby or Jellyfin connection for that account, then configure an AI provider if you want AI features
+4. Add an Emby or Jellyfin connection for that account. Nothing else is required; add an AI provider later in the AI Hub only if you want the AI Builder, Assist, or mood tags
 
 Docker downloads the image if it is not already present. The `mixerbee_config` directory persists settings, presets, schedules, and the local vector database across container replacements.
 
@@ -126,10 +126,10 @@ MixerBee requires a connection to your Emby/Jellyfin server and optionally an AI
 *   **Connection Switching:** An account can save multiple media connections and switch between their presets, schedules, and library data from the header.
 *   **Connection Removal:** Removing a connection clears its MixerBee credentials, presets, schedules, and AI index while leaving media-server playlists and collections untouched.
 *   **Media Permissions:** Collection editing controls follow the selected Emby or Jellyfin user's administrator capability. Normal users can still copy a visible collection into a personal playlist.
-*   **AI Provider:** Choose between **Ollama (Local)** or **Google Gemini (Cloud)**.
-    *   *Ollama Integration:* Requires Ollama URL (e.g., `http://localhost:11434`) and supports starring favorite models for quick-switching. Prefer/require tool-calling capable models.
-*   **Vector Database:** MixerBee uses a local ChromaDB instance (Cosine similarity) to index your library for semantic searching.
-*   **Maintenance:** The settings panel includes options to reset and re-index the local Chroma database if searches become inaccurate, with the ability to preserve existing metadata enrichments.
+*   **AI Provider (optional):** Choose **None**, **Ollama (Local)**, or **Google Gemini (Cloud)** in the AI Hub. New connections start at **None**: the localhost URL and model shown in the form are placeholders, so saving media credentials never enables AI. Ollama needs a URL and a model name; Gemini needs an API key. Prefer tool-calling capable models for Ollama, and star favourites for quick-switching.
+*   **Account-wide AI switch:** Account settings has **Disable AI features**, which hides Assist, the AI Block Builder, Library IQ, and enrichment and stops all Gemini/Ollama requests across every connection you own, now and in future. Saved credentials and existing mood tags are kept; Echo and semantic search keep working. See [Usage and behavior](USAGE.md) for the full behaviour, including the one-time upgrade step for existing localhost Ollama setups.
+*   **Vector Database:** MixerBee uses a local ChromaDB instance (Cosine similarity) to index your library for semantic searching. This is core, not an AI feature: it is built from your library metadata on every connection, with or without a provider.
+*   **Maintenance:** **Connection settings → Library Search & Indexing** can re-index changed items or rebuild the index if searches become inaccurate, optionally preserving existing metadata enrichments. It stays available whatever the AI preference.
 
 ---
 
@@ -186,7 +186,7 @@ MixerBee can run tasks automatically in the background using cron-style scheduli
 
 *   **Scheduled Mixes:** Save any block configuration as a "Preset". The scheduler can run that preset daily, weekly, or on a specific interval, compiling a fresh playlist based on your latest watch history and library additions.
 *   **Auto Playlists:** Easily schedule maintenance playlists like "Recently Added", "Next Up", "Pilot Sampler", or "Forgotten Favorites".
-*   **Enrichment Queue:** Schedule the AI to process a batch of un-enriched media (e.g., 50 items a day) to slowly build your semantic database without hitting rate limits.
+*   **Enrichment Queue:** Schedule the AI to process a batch of un-enriched media (e.g., 50 items a day) to slowly build your semantic database without hitting rate limits. Enrichment schedules are suspended and kept — never deleted — while AI is disabled or unconfigured.
 
 ---
 

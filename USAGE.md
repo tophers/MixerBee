@@ -76,7 +76,7 @@ Interval schedules run every configured number of minutes. Restarting MixerBee r
 
 Builder schedules assigned to a preset load the latest contents of that stable preset when they run. Updating the preset changes future runs; unsaved Builder changes do not. A missing assigned preset stops the job with an error. An intentionally empty builder configuration may fall back to a randomly generated Movie or TV block.
 
-Scheduled collection builds require exactly one Movie block and an administrator-capable media connection. Enrichment schedules update the selected connection's semantic index and are not triggered by media-server webhooks.
+Scheduled collection builds require exactly one Movie block and an administrator-capable media connection. Enrichment schedules update the selected connection's semantic index and are not triggered by media-server webhooks. They are suspended, not deleted, while the owning account has AI disabled or the connection has no provider configured.
 
 **Run Now** queues a background run. Its initial response confirms queuing, not completion. Check the schedule's last-run result or application logs for the final status. If the same schedule is triggered while already running, MixerBee queues a follow-up pass instead of overlapping the two writes; repeated reruns are capped.
 
@@ -109,12 +109,36 @@ Each connection can have its own external API key under **Connection settings �
 
 ## AI providers and semantic indexes
 
-AI features are optional and configured independently for each connection. Ollama is the default provider for new settings; Gemini requires an API key.
+Two separate things live here, and only the first is optional:
+
+**Generative AI** — the AI Block Builder, Playlist Assist, and metadata enrichment (mood tags) — needs a provider. It is off until you deliberately configure one, per connection, in the AI Hub. A new connection selects *no* provider: the localhost URL and model name in the form are placeholders, not saved values, so saving media credentials never turns AI on. Gemini needs an API key; Ollama needs both a server URL and a model name.
+
+**Semantic search** — the local ChromaDB index, Echo blocks, and “Find Similar” — is a core library feature. It needs no provider and no account preference. MixerBee builds the index from your Emby/Jellyfin metadata on every usable connection. Enrichment tags improve those embeddings but are not required for them.
+
+### Turning AI off for an account
+
+Account settings has one checkbox, **Disable AI features**. It applies to your whole MixerBee account: every device, session, and media connection, including ones you add later. It does not affect other accounts, and MixerBee ownership grants nothing over another member's preference.
+
+While it is on:
+
+- Assist, the AI Block Builder, Library IQ, the AI Hub, and enrichment controls are hidden — not shown greyed out.
+- No Gemini or Ollama request is made, including provider discovery. Direct HTTP calls, external API keys, manual job runs, and clock/webhook jobs are refused too: the check reads the account that owns the connection, so a saved key cannot outrank it. Generation and enrichment return `403` with reason `disabled_by_user`; missing setup returns `409` with `ai_not_configured`.
+- A run already under way stops at its next provider call. A request already sent cannot be recalled, so it finishes on its own and its result is discarded rather than written.
+- Echo blocks, semantic search, index refresh, index reset, ordinary schedules, presets, recipes, the Manager, and Auto Playlists all keep working.
+- Provider credentials and previously generated tags are kept. Enrichment schedules are kept too, with their enabled flags intact; they are hidden, skipped without producing failure notifications, and resume at their next normal occurrence when you turn AI back on. No missed runs are replayed.
+- Previously AI-generated blocks and Vibe selections still preview and build. They resolve through ordinary TV/movie processing, so they are presented as saved selections rather than AI blocks.
+
+Index maintenance lives in **Connection settings → Library Search & Indexing**, outside the AI Hub, so hiding the hub can never strand it.
+
+### Upgrading from an earlier version
+
+Older versions pre-filled `http://localhost:11434` and a default model into every connection, so a saved Ollama provider did not prove you had chosen one. On first start after this upgrade, MixerBee keeps any provider it can tell was deliberate — a Gemini key, a non-default Ollama URL, model or timeout, a starred model, or an existing enrichment schedule — and clears the *selection* on connections that only ever held defaults. Nothing is deleted: the URL, model and key are preserved, so re-enabling is one save in the AI Hub. MixerBee never probes localhost to guess consent.
 
 Each connection has a separate ChromaDB collection and enrichment state. Reset/re-index operations apply only to the selected connection. Removing a connection deletes its local AI index. A large library may take time to warm or re-index after startup or migration.
 
-- **On-Demand Enrichment**: Initiate or halt background metadata enrichment directly from the Manager pane or via `POST /api/library/enrichment/start` and `stop`. An internal concurrency lock ensures manual enrichment runs and scheduled enrichment passes never conflict.
-- **Selective Semantic Refresh**: Instead of a full ChromaDB reset, `POST /api/library/semantic_refresh` analyzes current server metadata against stored fingerprints, re-embedding only added or changed items while strictly preserving existing vibe tags and enrichment status.
+- **On-Demand Enrichment**: Initiate or halt background metadata enrichment from the AI Hub or via `POST /api/library/enrichment/start` and `stop`. An internal concurrency lock ensures manual enrichment runs and scheduled enrichment passes never conflict. Starting is policy-gated; stopping stays available so a worker can always be halted.
+- **Selective Semantic Refresh**: Instead of a full ChromaDB reset, `POST /api/library/semantic_refresh` analyzes current server metadata against stored fingerprints, re-embedding only added or changed items while strictly preserving existing vibe tags and enrichment status. Never policy-gated, and it does not start enrichment.
+- **Account AI preference**: `POST /api/account/preferences` with `{"ai_disabled": true|false}` updates only the signed-in account. It works with no connection saved, an unreachable server, or no provider configured. `GET /api/config_status` and `GET /api/settings` return the resulting capability: `ai_disabled`, `ai_provider_configured`, `generative_ai_available`, `ai_unavailable_reason`, and `semantic_search_allowed`.
 
 ## Manager tools and bulk actions
 

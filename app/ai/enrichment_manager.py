@@ -46,6 +46,10 @@ class EnrichmentWorkerState:
         }
 
 _workers: Dict[str, EnrichmentWorkerState] = {}
+# Consecutive batches that processed items but enriched none of them before the
+# worker gives up, so an unreachable provider cannot be hammered indefinitely.
+MAX_BARREN_BATCHES = 3
+
 _worker_locks: Dict[str, threading.Lock] = {}
 _manager_lock = threading.Lock()
 
@@ -130,23 +134,16 @@ def start_enrichment(
     max_items: Optional[int] = None
 ) -> Dict[str, Any]:
     """
-    Validates AI configuration and starts a background enrichment worker.
-    Raises RuntimeError (or ValueError) if already running or invalid config.
+    Validates AI policy and starts a background enrichment worker.
+    Raises AIDisabled/AINotConfigured for policy, RuntimeError if already running.
     """
-    # 1. Validate AI settings
-    ai_settings = media.connection.ai_settings or {}
-    provider = ai_settings.get("AI_PROVIDER", "gemini")
-    if provider == "gemini":
-        gemini_key = ai_settings.get("GEMINI_API_KEY", "").strip()
-        if not gemini_key:
-            raise ValueError("Gemini API Key is not configured for this connection.")
-    elif provider == "ollama":
-        ollama_url = ai_settings.get("OLLAMA_URL", "").strip()
-        if not ollama_url:
-            raise ValueError("Ollama URL is not configured for this connection.")
-    else:
-        raise ValueError(f"Unknown AI Provider: {provider}")
+    # One policy check, from persisted records: the account must allow AI and the
+    # connection must have a deliberately configured provider. The caller turns
+    # AIDisabled into 403 and AINotConfigured into 409.
+    from app.ai_policy import require_generative
+    require_generative(connection_id)
 
+    ai_settings = media.connection.ai_settings or {}
     state = _get_worker(connection_id)
     lock = _worker_locks[connection_id]
 
@@ -177,12 +174,32 @@ def start_enrichment(
     state.last_message = f"Enrichment started ({state.total_items} items in queue)."
     state.stop_requested.clear()
 
+    try:
+        llm_timeout = int(ai_settings.get("OLLAMA_TIMEOUT") or 120)
+    except (TypeError, ValueError):
+        llm_timeout = 120
+
     def _worker():
         try:
             from .orchestrator import process_enrichment_queue
             logger.info("Enrichment worker thread started for connection %s", connection_id)
 
+            barren_batches = 0
+            halted_by_policy = False
             while not state.stop_requested.is_set():
+                # Recheck before every batch. Invalidating a cached MediaClient cannot
+                # reach a worker that already holds one, so the worker itself has to ask
+                # the database whether it is still allowed to call a provider.
+                try:
+                    require_generative(connection_id)
+                except Exception as policy_error:
+                    halted_by_policy = True
+                    state.status = "completed"
+                    state.last_message = f"Enrichment stopped: {policy_error}"
+                    logger.info("Enrichment halted for connection %s by AI policy: %s",
+                                connection_id, policy_error)
+                    break
+
                 current_batch = batch_size
                 if max_items is not None:
                     remaining_allowed = max_items - state.processed_items
@@ -192,7 +209,7 @@ def start_enrichment(
 
                 res = process_enrichment_queue(
                     batch_size=current_batch,
-                    timeout=120,
+                    timeout=llm_timeout,
                     media=media,
                     stop_event=state.stop_requested
                 )
@@ -215,6 +232,26 @@ def start_enrichment(
                     state.last_message = "Queue is empty. Library is 100% enriched."
                     break
 
+                # Per-item LLM failures leave the item un-enriched but still report
+                # status="ok", so a dead provider would otherwise re-fetch the same
+                # batch every 0.2s forever while holding this connection's lock.
+                if batch_succ == 0:
+                    barren_batches += 1
+                    if barren_batches >= MAX_BARREN_BATCHES:
+                        state.status = "error"
+                        state.last_message = (
+                            f"Enrichment stopped: {MAX_BARREN_BATCHES} consecutive batches "
+                            f"({batch_proc} items in the last one) failed to enrich. "
+                            "Check that the AI provider is reachable and configured."
+                        )
+                        logger.error(
+                            "Enrichment aborted for connection %s after %d barren batches.",
+                            connection_id, barren_batches
+                        )
+                        break
+                else:
+                    barren_batches = 0
+
                 if max_items is not None and state.processed_items >= max_items:
                     state.status = "completed"
                     state.last_message = f"Reached requested limit of {max_items} items."
@@ -222,7 +259,9 @@ def start_enrichment(
 
                 time.sleep(0.2)
 
-            if state.stop_requested.is_set():
+            # A policy halt keeps its own message: turning AI off also sets the stop
+            # event, and reporting that as "stopped by user" would hide the reason.
+            if state.stop_requested.is_set() and not halted_by_policy:
                 state.status = "completed"
                 state.last_message = "Enrichment stopped by user."
 
@@ -246,6 +285,27 @@ def start_enrichment(
     t.start()
 
     return state.to_dict()
+
+
+def stop_all_for_account(account_id: str) -> int:
+    """Signal every enrichment worker owned by one account to stop. Returns the count.
+
+    Called right after the account-wide AI preference is persisted. A request already
+    in flight to a provider cannot be recalled; it runs to its own timeout and its
+    result is discarded by the policy recheck before the write.
+    """
+    from app.ai_policy import owned_connection_ids
+    stopped = 0
+    for connection_id in owned_connection_ids(account_id):
+        with _manager_lock:
+            state = _workers.get(connection_id)
+        if state and state.status in ("running", "stopping"):
+            state.stop_requested.set()
+            if state.status == "running":
+                state.status = "stopping"
+                state.last_message = "Stop requested: AI features were turned off."
+            stopped += 1
+    return stopped
 
 
 def stop_enrichment(connection_id: str) -> Dict[str, Any]:

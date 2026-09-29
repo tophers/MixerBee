@@ -88,7 +88,12 @@
                                                 <select x-model="entry.job_type" class="w-full m-0" @change="if(entry.job_type === 'enrichment' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Library Enrichment'; if(entry.job_type === 'quick_playlist' && entry.playlist_name === 'New Scheduled Mix') entry.playlist_name = 'Scheduled Auto Playlist'">
                                                     <option value="builder">Standard Playlist / Collection</option>
                                                     <option value="quick_playlist">Auto Playlist</option>
-                                                    <option value="enrichment">Library Metadata Enrichment (AI)</option>
+                                                    <!-- Offered only while AI is available. Existing
+                                                         enrichment schedules are kept but hidden, so this
+                                                         option never appears as the only way to reach them. -->
+                                                    <template x-if="$store.settings.generative_ai_available">
+                                                        <option value="enrichment">Library Metadata Enrichment (AI)</option>
+                                                    </template>
                                                 </select>
                                             </div>
 
@@ -251,7 +256,7 @@
                                                 </div>
                                             </div>
 
-                                            <template x-if="entry.job_type === 'enrichment'">
+                                            <template x-if="entry.job_type === 'enrichment' && $store.settings.generative_ai_available">
                                                 <div class="filter-grid mt-lg" style="grid-template-columns: 1fr 1fr; gap: 2rem;">
                                                     <div>
                                                         <label class="field-label">Batch Size (Max: 500)</label>

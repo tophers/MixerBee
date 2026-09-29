@@ -16,7 +16,9 @@ import models
 from connections import get_media_client, save_authenticated_connection, webhook_status
 from app.media_client import Connection, MediaClient
 from app.cache import refresh_cache
-from app.ai.vector_store import get_vector_space, reset_media_collection, index_library_for_vibes
+from app import ai_policy
+from app.ai.vector_store import (ensure_library_indexed, get_vector_space,
+                                 reset_media_collection)
 from .dependencies import get_current_auth_headers, owned_connection
 
 router = APIRouter()
@@ -46,9 +48,12 @@ def settings_payload(row):
         'server_type': row['server_type'] if row else 'emby',
         'emby_url': row['base_url'] if row else '', 'emby_user': row['username'] if row else '',
         'emby_pass': row['password'] if row else '',
-        'ai_provider': ai.get('AI_PROVIDER', 'ollama'), 'gemini_key': ai.get('GEMINI_API_KEY', ''),
-        'ollama_url': ai.get('OLLAMA_URL', 'http://localhost:11434'),
-        'ollama_model': ai.get('OLLAMA_MODEL', 'qwen2.5:7b'),
+        # No provider defaults: an empty AI_PROVIDER is what marks a connection as
+        # having no deliberate AI setup, and pre-filling one here would undo that.
+        # The UI shows localhost/model examples as placeholders instead.
+        'ai_provider': str(ai.get('AI_PROVIDER') or ''), 'gemini_key': ai.get('GEMINI_API_KEY', ''),
+        'ollama_url': ai.get('OLLAMA_URL', ''),
+        'ollama_model': ai.get('OLLAMA_MODEL', ''),
         'ollama_timeout': ai.get('OLLAMA_TIMEOUT', 120), 'starred_models': ai.get('STARRED_MODELS', []),
         'external_api_key': api_key, 'external_api_key_set': bool(api_key or api_key_hash),
         'webhook_secret': row['webhook_secret'] if row else '',
@@ -68,13 +73,22 @@ def settings_payload(row):
 def api_config_status(request: Request):
     row = owned_connection(request, required=False)
     settings = settings_payload(row)
-    return {k: settings[k] for k in ('server_type', 'version', 'ai_provider', 'ollama_model', 'starred_models', 'vector_space')} | {
-        'is_configured': bool(row), 'is_ai_configured': bool(settings['gemini_key'] or settings['ai_provider'] == 'ollama')}
+    caps = ai_policy.capability(request.state.account['id'], row)
+    return {k: settings[k] for k in ('server_type', 'version', 'ai_provider', 'ollama_model', 'starred_models', 'vector_space')} | caps | {
+        'is_configured': bool(row),
+        # Enrichment schedules are hidden while AI is unavailable, not deleted. The
+        # count tells Account settings how many are waiting for a re-enable.
+        'retained_ai_schedules': ai_policy.retained_ai_schedule_count(request.state.account['id'])
+                                 if not caps['generative_ai_available'] else 0,
+        # Transitional alias for the old ambiguous flag: it now means exactly
+        # "generative AI is available", which is what every caller wanted.
+        'is_ai_configured': caps['generative_ai_available']}
 
 
 @router.get('/api/settings')
 def api_get_settings(request: Request):
-    return settings_payload(owned_connection(request, required=False))
+    row = owned_connection(request, required=False)
+    return settings_payload(row) | ai_policy.capability(request.state.account['id'], row)
 
 
 @router.post('/api/settings/external_api_key/regenerate')
@@ -150,8 +164,11 @@ def api_clear_webhook_secret(request: Request, payload: dict = Body(default={}))
 
 @router.get('/api/ollama/status')
 def api_ollama_status(request: Request, url: str | None = None):
+    # Discovery is part of deliberate setup, so it is allowed before a provider is
+    # chosen -- but never once the account has opted out of AI.
+    ai_policy.require_account_allows_ai_http(request.state.account['id'])
     settings = settings_payload(owned_connection(request, required=False))
-    base_url = (url or settings['ollama_url']).rstrip('/')
+    base_url = (url or settings['ollama_url'] or 'http://localhost:11434').rstrip('/')
     validate_url(base_url)
     try:
         tags = requests.get(f'{base_url}/api/tags', timeout=5)
@@ -165,12 +182,68 @@ def api_ollama_status(request: Request, url: str | None = None):
 @router.post('/api/settings/model')
 def api_update_active_model(req: models.ModelUpdateRequest, request: Request):
     row = owned_connection(request)
+    ai_policy.require_generative_http(row['id'], request.state.account['id'])
     ai = json.loads(row['ai_settings'])
     ai['OLLAMA_MODEL'] = req.ollama_model
     with database.get_db_connection() as conn:
         conn.execute('UPDATE media_connections SET ai_settings=? WHERE id=?', (json.dumps(ai), row['id']))
         conn.commit()
+    from connections import forget_media_client
+    forget_media_client(row['id'])
     return {'status': 'ok', 'model': req.ollama_model}
+
+
+@router.post('/api/settings/ai')
+def api_update_ai_settings(req: models.AiSettingsUpdateRequest, request: Request):
+    """Deliberate AI setup for one connection. This is the only writer of ai_settings."""
+    row = owned_connection(request)
+    # Allowed while unconfigured -- this endpoint is how setup completes -- but never
+    # once the account has opted out.
+    ai_policy.require_account_allows_ai_http(request.state.account['id'])
+    # '' clears the selection, which is how a user turns AI off for one connection
+    # without deleting the credentials they may want back later.
+    if req.ai_provider is not None and req.ai_provider not in ('', 'gemini', 'ollama'):
+        raise HTTPException(400, 'Choose Gemini or Ollama.')
+    if req.ollama_url:
+        validate_url(req.ollama_url)
+    if req.ollama_timeout is not None and not 10 <= req.ollama_timeout <= 600:
+        raise HTTPException(400, 'Ollama timeout must be between 10 and 600 seconds.')
+
+    # Merge onto the stored settings rather than rebuilding them: a field the caller
+    # omitted keeps its saved value instead of being blanked.
+    ai = json.loads(row['ai_settings']) if row['ai_settings'] else {}
+    if req.ai_provider is not None:
+        ai['AI_PROVIDER'] = req.ai_provider
+    if req.gemini_key is not None:
+        ai['GEMINI_API_KEY'] = req.gemini_key.strip()
+    if req.ollama_url is not None:
+        ai['OLLAMA_URL'] = req.ollama_url.rstrip('/')
+    if req.ollama_model is not None:
+        ai['OLLAMA_MODEL'] = req.ollama_model.strip()
+    if req.ollama_timeout is not None:
+        ai['OLLAMA_TIMEOUT'] = req.ollama_timeout
+    if req.starred_models is not None:
+        ai['STARRED_MODELS'] = req.starred_models
+
+    # Only the selected provider's requirements are validated. Saving a Gemini key
+    # must not demand an Ollama URL, and vice versa.
+    provider = str(ai.get('AI_PROVIDER') or '')
+    if provider == 'gemini' and not str(ai.get('GEMINI_API_KEY') or '').strip():
+        raise HTTPException(400, 'Add a Gemini API key to use Gemini.')
+    if provider == 'ollama' and not (str(ai.get('OLLAMA_URL') or '').strip() and str(ai.get('OLLAMA_MODEL') or '').strip()):
+        raise HTTPException(400, 'Add an Ollama server URL and model name to use Ollama.')
+
+    with database.get_db_connection() as conn:
+        conn.execute('UPDATE media_connections SET ai_settings=? WHERE id=?', (json.dumps(ai), row['id']))
+        conn.commit()
+    # Drop the cached client so the next request picks up the new settings. No indexing
+    # is kicked off here any more: the semantic index is a core library concern, not an
+    # AI-provider one, and connection saves, startup warming, and the periodic catch-up
+    # already build it whether or not a provider is configured.
+    from connections import forget_media_client
+    forget_media_client(row['id'])
+    caps = ai_policy.capability(request.state.account['id'], row | {'ai_settings': json.dumps(ai)})
+    return {'status': 'ok', 'log': ['AI settings updated.']} | caps
 
 
 def validate_url(url):
@@ -203,20 +276,20 @@ def api_test_settings(req: models.SettingsRequest):
 
 def warm_connection(media):
     refresh_cache(media)
-    ai = media.connection.ai_settings
-    if ai.get('GEMINI_API_KEY') or ai.get('AI_PROVIDER') == 'ollama':
-        index_library_for_vibes(media.user_id, media)
+    # Unconditional: the semantic index backs Echo blocks and similarity search, which
+    # are core library features and do not require an AI provider. Settings can be
+    # saved repeatedly; ensure_library_indexed collapses overlapping runs instead of
+    # stacking indexer threads on one collection.
+    ensure_library_indexed(media.user_id, media, force=True)
 
 
 @router.post('/api/settings')
 def api_save_settings(req: models.SettingsRequest, request: Request):
     if req.connection_id:
         owned_connection(request, req.connection_id)
-    if req.ai_provider not in ('gemini', 'ollama'):
-        raise HTTPException(400, 'Choose Gemini or Ollama.')
-    validate_url(req.ollama_url or 'http://localhost:11434')
-    if not 10 <= req.ollama_timeout <= 600:
-        raise HTTPException(400, 'Ollama timeout must be between 10 and 600 seconds.')
+    # No AI validation here on purpose: saving media credentials must never require a
+    # Gemini key, an Ollama URL, a model, or a live provider test. AI setup is a
+    # separate, deliberate step through /api/settings/ai.
     key = (req.external_api_key or '').strip()
     if key and not 16 <= len(key) <= 256:
         raise HTTPException(400, 'External API key must contain 16–256 characters.')
@@ -230,9 +303,11 @@ def api_save_settings(req: models.SettingsRequest, request: Request):
         auth = authenticate_candidate(req)
     except Exception as exc:
         raise HTTPException(400, 'Could not authenticate. Check the server URL and media credentials.') from exc
-    ai = {'AI_PROVIDER': req.ai_provider, 'GEMINI_API_KEY': req.gemini_key or '',
-          'OLLAMA_URL': (req.ollama_url or '').rstrip('/'), 'OLLAMA_MODEL': req.ollama_model or '',
-          'OLLAMA_TIMEOUT': req.ollama_timeout, 'STARRED_MODELS': req.starred_models or []}
+    # A new connection starts with no provider selected. save_authenticated_connection
+    # leaves an existing connection's AI settings untouched, so a general save can no
+    # longer blank a configured provider with this form's values.
+    ai = {'AI_PROVIDER': '', 'GEMINI_API_KEY': '', 'OLLAMA_URL': '', 'OLLAMA_MODEL': '',
+          'OLLAMA_TIMEOUT': 120, 'STARRED_MODELS': []}
     try:
         media = save_authenticated_connection(req.emby_url.strip(), req.server_type, req.emby_user.strip(), req.emby_pass,
             auth, ai, owner_id=request.state.account['id'], existing_id=req.connection_id, label=req.label.strip())
@@ -246,7 +321,9 @@ def api_save_settings(req: models.SettingsRequest, request: Request):
                      (media.connection.id, request.state.account['token_hash']))
         conn.commit()
     threading.Thread(target=warm_connection, args=(media,), daemon=True).start()
-    return {'status': 'ok', 'connection_id': media.connection.id, 'log': ['Connection saved. Library refresh started.']}
+    caps = ai_policy.capability_for_connection(media.connection.id, request.state.account['id'])
+    return {'status': 'ok', 'connection_id': media.connection.id,
+            'log': ['Connection saved. Library refresh started.']} | caps
 
 
 @router.post("/api/settings/reset_vector_db")
@@ -256,8 +333,9 @@ def api_reset_vector_db(req: models.ResetVectorDbRequest, auth_deps: dict = Depe
         reset_media_collection(preserve_enrichments=req.preserve_enrichments, media=auth_deps["media"])
         
         threading.Thread(
-            target=index_library_for_vibes,
+            target=ensure_library_indexed,
             args=(auth_deps["login_uid"], auth_deps["media"]),
+            kwargs={"force": True},
             daemon=True
         ).start()
 

@@ -61,6 +61,8 @@ def initialize_schema(conn):
     if 'preset_id' not in schedule_columns:
         conn.execute('ALTER TABLE schedules ADD COLUMN preset_id TEXT REFERENCES connection_presets(id)')
     backfill_schedule_preset_ids(conn)
+    from app.ai_policy import migrate_provider_optin
+    migrate_provider_optin(conn)
 
 
 def webhook_status(row):
@@ -103,8 +105,14 @@ def backfill_schedule_preset_ids(conn, connection_id=None):
             conn.execute('UPDATE schedules SET preset_id=? WHERE id=?', (preset['id'], row['id']))
 
 
-def save_authenticated_connection(base_url, server_type, username, password, auth, ai_settings, *, owner_id=None, existing_id=None, label=""):
-    """Only called after authentication. Existing connections survive active-user changes."""
+def save_authenticated_connection(base_url, server_type, username, password, auth, ai_settings=None, *, owner_id=None, existing_id=None, label=""):
+    """Only called after authentication. Existing connections survive active-user changes.
+
+    ``ai_settings`` seeds a *new* connection only. An update never rewrites the stored
+    AI settings: saving media credentials used to rebuild that JSON from whatever the
+    connection form happened to hold, which erased a provider key the user configured
+    from the AI Hub. Provider changes go through /api/settings/ai instead.
+    """
     user_id = auth['User']['Id']
     server_id = auth.get('ServerId') or ''
     base_url = base_url.rstrip('/')
@@ -132,8 +140,9 @@ def save_authenticated_connection(base_url, server_type, username, password, aut
             (id, base_url, server_type, username, password, user_id, server_id, ai_settings)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET base_url=excluded.base_url,
-            username=excluded.username, password=excluded.password, ai_settings=excluded.ai_settings''',
-            (connection_id, base_url, server_type, username, password, user_id, server_id, json.dumps(ai_settings)))
+            username=excluded.username, password=excluded.password''',
+            (connection_id, base_url, server_type, username, password, user_id, server_id,
+             json.dumps(dict(ai_settings or {}))))
         if owner_id:
             conn.execute('UPDATE media_connections SET owner_id=?, label=? WHERE id=?', (owner_id, label, connection_id))
         # Claim legacy presets once, never each time .env changes. Original tables
@@ -158,7 +167,15 @@ def save_authenticated_connection(base_url, server_type, username, password, aut
         if owner_id is None:
             conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('active_connection_id', ?)", (connection_id,))
         conn.commit()
-    connection = Connection(connection_id, base_url, server_type, username, password, user_id, server_id, dict(ai_settings))
+    # Read back rather than trusting the argument: on an update the stored AI settings
+    # were deliberately left alone, so they are the only correct value here.
+    with database.get_db_connection() as conn:
+        stored = conn.execute('SELECT ai_settings FROM media_connections WHERE id=?', (connection_id,)).fetchone()
+    try:
+        saved_ai = json.loads(stored['ai_settings'] or '{}') if stored else {}
+    except (TypeError, ValueError):
+        saved_ai = {}
+    connection = Connection(connection_id, base_url, server_type, username, password, user_id, server_id, saved_ai)
     media = MediaClient(connection, token=auth['AccessToken'], user_profile=auth.get('User'))
     with _clients_lock:
         _clients[connection_id] = media

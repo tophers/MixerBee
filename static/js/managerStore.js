@@ -14,104 +14,25 @@ export const managerStore = {
     isLoading: false,
     selectedIds: [],
 
-    libraryIq: { total: 0, enriched: 0, percentage: 0 },
+    get libraryIq() { return Alpine.store('ai')?.libraryIq || { total: 0, enriched: 0, percentage: 0 }; },
+    set libraryIq(_) {},
+    get enrichmentStatus() { return Alpine.store('ai')?.enrichmentStatus || { status: 'idle', total_items: 0, processed_items: 0, succeeded_items: 0, failed_items: 0, remaining_items: 0, queue_depth: 0, last_message: '', elapsed_seconds: 0 }; },
+    set enrichmentStatus(_) {},
+
     contentsModal: { isOpen: false, parentItem: null, title: '', items: [], isLoading: false, hasChanges: false },
     overlapModal: { isOpen: false, isLoading: false, data: null },
 
-    enrichmentStatus: {
-        status: 'idle',
-        total_items: 0,
-        processed_items: 0,
-        succeeded_items: 0,
-        failed_items: 0,
-        remaining_items: 0,
-        queue_depth: 0,
-        last_message: '',
-        elapsed_seconds: 0
-    },
-    enrichmentPollTimer: null,
-
-    async loadIq() {
-        try {
-            const res = await useApi(api.get('api/library/iq'), null, true, false);
-            if (res.data) {
-                this.libraryIq.total = res.data.total || 0;
-                this.libraryIq.enriched = res.data.enriched || 0;
-                this.libraryIq.percentage = res.data.total > 0 ? Math.round((res.data.enriched / res.data.total) * 100) : 0;
-            }
-        } catch (e) { console.error("Failed to load Library IQ", e); }
-    },
-
-    async pollEnrichmentStatus() {
-        try {
-            const res = await useApi(api.get('api/library/enrichment/status'), null, true, false);
-            if (res.data) {
-                Object.assign(this.enrichmentStatus, res.data);
-                if (res.data.status === 'running' || res.data.status === 'stopping') {
-                    if (!this.enrichmentPollTimer) {
-                        this.enrichmentPollTimer = setTimeout(() => {
-                            this.enrichmentPollTimer = null;
-                            this.pollEnrichmentStatus();
-                        }, 1500);
-                    }
-                } else {
-                    if (this.enrichmentPollTimer) {
-                        clearTimeout(this.enrichmentPollTimer);
-                        this.enrichmentPollTimer = null;
-                    }
-                    this.loadIq();
-                }
-            }
-        } catch (e) {
-            console.error("Enrichment status poll failed", e);
-        }
-    },
-
-    async startEnrichment() {
-        try {
-            const res = await useApi(api.post('api/library/enrichment/start', { batch_size: 10 }));
-            if (res.status === 'ok') {
-                toast("AI enrichment started in background.");
-                this.pollEnrichmentStatus();
-            }
-        } catch (e) {
-            toast(e.message || "Failed to start enrichment", false);
-        }
-    },
-
-    async stopEnrichment() {
-        try {
-            const res = await useApi(api.post('api/library/enrichment/stop'));
-            if (res.status === 'ok') {
-                toast("Stopping AI enrichment...");
-                this.pollEnrichmentStatus();
-            }
-        } catch (e) {
-            toast("Failed to stop enrichment", false);
-        }
-    },
-
-    async runSemanticRefresh(btnEl) {
-        try {
-            const res = await useApi(api.post('api/library/semantic_refresh'), btnEl);
-            if (res.status === 'ok' || res.data?.status === 'ok') {
-                const data = res.data || res;
-                toast(`Index refreshed: ${data.added} added, ${data.refreshed} updated, ${data.removed} removed.`);
-                this.loadIq();
-                this.pollEnrichmentStatus();
-            }
-        } catch (e) {
-            toast("Semantic refresh failed", false);
-        }
-    },
+    loadIq() { return Alpine.store('ai')?.loadIq(); },
+    pollEnrichmentStatus() { return Alpine.store('ai')?.pollEnrichmentStatus(); },
+    startEnrichment() { return Alpine.store('ai')?.startEnrichment(); },
+    stopEnrichment() { return Alpine.store('ai')?.stopEnrichment(); },
+    runSemanticRefresh(btnEl) { return Alpine.store('ai')?.runSemanticRefresh(btnEl); },
 
     async load() {
         const uid = Alpine.store('settings').activeUserId;
         if (!uid) return;
         this.isLoading = true;
         this.selectedIds = [];
-        this.loadIq();
-        this.pollEnrichmentStatus();
         try {
             const res = await useApi(api.get(`api/manageable_items?user_id=${uid}`));
             if (res.data) {

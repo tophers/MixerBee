@@ -9,7 +9,9 @@ from apscheduler.triggers.cron import CronTrigger
 import models
 import scheduler
 from preset_manager import preset_manager
-from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission
+from app import ai_policy
+from .dependencies import (get_current_auth_headers, media_for_user, require_collection_permission,
+                          require_generative_ai)
 
 router = APIRouter()
 
@@ -37,6 +39,12 @@ def bind_schedule_preset(schedule_data, connection_id):
 @router.get("/api/schedules")
 def api_get_schedules(auth_deps: dict = Depends(get_current_auth_headers)):
     schedules = [s for s in scheduler.scheduler_manager.get_all_schedules() if s.get("connection_id") == auth_deps["connection_id"]]
+    # Enrichment schedules and their enabled flags are kept, never deleted. While AI is
+    # unavailable they are held back from the list and reported as a count instead, so
+    # the Scheduler shows no controls the account cannot use and the user does not have
+    # to rebuild them after re-enabling.
+    if not ai_policy.generative_available(auth_deps["connection_id"]):
+        schedules = [s for s in schedules if s.get("job_type") != "enrichment"]
     cache_headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",
@@ -67,6 +75,10 @@ def api_create_schedule(req: models.ScheduleRequest, auth_deps: dict = Depends(g
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:
             require_collection_permission(media)
+        if req.job_type == "enrichment":
+            # Creating or editing an enrichment job is setting up AI work, so it needs
+            # the same policy as running it.
+            require_generative_ai(auth_deps)
         if req.job_type == "quick_playlist":
             if not req.quick_playlist_data:
                 raise ValueError("quick_playlist_data is required for quick_playlist job type.")
@@ -113,6 +125,10 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest, auth_deps
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:
             require_collection_permission(media)
+        if req.job_type == "enrichment":
+            # Creating or editing an enrichment job is setting up AI work, so it needs
+            # the same policy as running it.
+            require_generative_ai(auth_deps)
         if req.job_type == "quick_playlist":
             if not req.quick_playlist_data:
                 raise ValueError("quick_playlist_data is required for quick_playlist job type.")

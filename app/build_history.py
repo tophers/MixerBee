@@ -74,6 +74,38 @@ def init_history_schema(conn: sqlite3.Connection):
     """)
 
 
+def reconcile_interrupted_runs() -> int:
+    """Close out runs still marked 'running' from a previous process.
+
+    Build rows are opened before the work starts and closed when it finishes, so a
+    process that dies mid-build (container stop timing out into SIGKILL) strands the
+    row at 'running' permanently. Called at startup, where by definition no build from
+    this process can be in flight yet.
+    """
+    finished_at = datetime.now(timezone.utc).isoformat()
+    try:
+        with database.get_db_connection() as conn:
+            init_history_schema(conn)
+            cur = conn.execute(
+                """
+                UPDATE build_runs
+                   SET outcome = 'interrupted',
+                       finished_at = ?,
+                       summary = COALESCE(summary, 'Interrupted: MixerBee stopped while this build was running.')
+                 WHERE outcome = 'running'
+                """,
+                (finished_at,)
+            )
+            conn.commit()
+            count = cur.rowcount or 0
+        if count:
+            logger.warning("Marked %d interrupted build run(s) from a previous process.", count)
+        return count
+    except Exception as e:
+        logger.error(f"Failed to reconcile interrupted build runs: {e}", exc_info=True)
+        return 0
+
+
 def record_build_start(
     connection_id: str,
     operation: str,

@@ -1,24 +1,22 @@
 <!-- templates/partials/_manager_pane.html -->
 <div id="manager-pane">
     <div class="container">
-        <!-- Top Toolbar: Search + View Filters + Bulk Actions -->
-        <div class="flex-row justify-between align-center gap-md mb-sm flex-wrap">
-            <div class="flex-row gap-md grow-1 align-center">
-                <input type="search" placeholder="Search by name..."
-                       x-model="$store.manager.searchQuery"
-                       @input.debounce.250ms="$store.manager.applyFilters()"
-                       class="grow-1 m-0">
-            </div>
-            <div class="flex-row gap-sm align-center shrink-0">
-                <div class="toggle-pill m-0 shrink-0">
-                    <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
-                    <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
-                    <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
-                </div>
-                <button type="button" class="secondary align-center gap-xs" @click="$store.manager.openHistoryModal()">
-                    <span x-html="$store.icons.clock"></span> Build History
-                </button>
-            </div>
+        <!-- Top Toolbar: Search + Build History -->
+        <div class="flex-row justify-between align-center gap-md mb-sm">
+            <input type="search" placeholder="Search by name..."
+                   x-model="$store.manager.searchQuery"
+                   @input.debounce.250ms="$store.manager.applyFilters()"
+                   class="grow-1 m-0">
+            <button type="button" class="secondary align-center gap-xs shrink-0 m-0" @click="$store.manager.openHistoryModal()">
+                <span x-html="$store.icons.clock"></span> Build History
+            </button>
+        </div>
+
+        <!-- View Filter Pill: Spans full width of the table -->
+        <div class="toggle-pill w-full mb-sm">
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
         </div>
 
         <!-- Bulk Action Bar (shown when 1 or more items are selected) -->
@@ -132,55 +130,6 @@
                     </template>
                 </tbody>
             </table>
-        </div>
-
-        <!-- AI Enrichment & Semantic Refresh Management Card -->
-        <div class="card mt-md p-md">
-            <div class="flex-row justify-between align-center flex-wrap gap-md mb-sm">
-                <div class="flex-row align-center gap-sm">
-                    <span class="badge badge-accent-light align-center gap-xs" title="Library IQ: The percentage of your library tagged by AI for Mood Searches.">
-                        <span x-html="$store.icons.zap"></span>
-                        <span x-text="'Library IQ: ' + $store.manager.libraryIq.percentage + '% (' + $store.manager.libraryIq.enriched + ' / ' + $store.manager.libraryIq.total + ' items)'"></span>
-                    </span>
-                    <span class="subtext text-sm" x-show="$store.manager.enrichmentStatus.queue_depth > 0"
-                          x-text="$store.manager.enrichmentStatus.queue_depth + ' items awaiting tags'"></span>
-                </div>
-                <div class="flex-row align-center gap-sm flex-wrap">
-                    <button type="button" class="secondary small"
-                            @click="$store.manager.runSemanticRefresh($el)"
-                            title="Re-check server metadata for changes and update vector store without losing AI tags">
-                        <span class="flex-row align-center gap-xs">
-                            <span x-html="$store.icons.refresh" style="--icon-size: 13px;"></span>
-                            Re-index Changes
-                        </span>
-                    </button>
-                    <button type="button" class="primary small"
-                            x-show="$store.manager.enrichmentStatus.status !== 'running' && $store.manager.enrichmentStatus.status !== 'stopping'"
-                            @click="$store.manager.startEnrichment()">
-                        <span class="flex-row align-center gap-xs">
-                            <span x-html="$store.icons.sparkles || $store.icons.zap" style="--icon-size: 13px;"></span>
-                            Start Enrichment
-                        </span>
-                    </button>
-                    <button type="button" class="danger small"
-                            x-show="$store.manager.enrichmentStatus.status === 'running' || $store.manager.enrichmentStatus.status === 'stopping'"
-                            :disabled="$store.manager.enrichmentStatus.status === 'stopping'"
-                            @click="$store.manager.stopEnrichment()">
-                        <span x-text="$store.manager.enrichmentStatus.status === 'stopping' ? 'Stopping...' : 'Stop Enrichment'"></span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Enrichment Progress Bar & Status (when active or recently completed) -->
-            <div class="w-full bg-surface-alt rounded overflow-hidden" style="height: 6px;">
-                <div class="bg-accent" :style="'width: ' + $store.manager.libraryIq.percentage + '%; height: 100%; transition: width 0.3s;'"></div>
-            </div>
-
-            <div class="flex-row justify-between align-center mt-xs text-xs subtext" x-show="$store.manager.enrichmentStatus.last_message" x-cloak>
-                <span x-text="$store.manager.enrichmentStatus.last_message"></span>
-                <span x-show="$store.manager.enrichmentStatus.status === 'running'"
-                      x-text="'Processed ' + $store.manager.enrichmentStatus.processed_items + ' (' + $store.manager.enrichmentStatus.succeeded_items + ' ok, ' + $store.manager.enrichmentStatus.failed_items + ' errors)'"></span>
-            </div>
         </div>
 
         <!-- Overlap Report Modal -->

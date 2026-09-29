@@ -14,6 +14,16 @@
             </button>
         </div>
 
+        <button type="button"
+                class="secondary header-iq-trigger"
+                x-show="$store.settings.activeUserId && $store.settings.generative_ai_available"
+                x-cloak
+                @click="$store.modals.aiHubAction.show()"
+                :title="'Library IQ: ' + ($store.ai.libraryIq?.percentage || 0) + '% · Click to open AI & Library Intelligence'">
+            <span class="iq-zap-icon" :class="$store.ai.enrichmentStatus?.status === 'running' ? 'spin' : ''" x-html="$store.icons.zap"></span>
+            <span class="header-iq-label" x-text="($store.ai.enrichmentStatus?.status === 'running' ? 'Enriching ' : 'IQ ') + ($store.ai.libraryIq?.percentage || 0) + '%'"></span>
+        </button>
+
         <div class="account-menu" @click.outside="$store.settings.accountMenuOpen = false">
             <button type="button" class="secondary account-menu-trigger" @click="$store.settings.accountMenuOpen = !$store.settings.accountMenuOpen" :aria-expanded="$store.settings.accountMenuOpen.toString()">
                 <span class="account-avatar" x-text="($store.settings.account?.username || '?').charAt(0).toUpperCase()"></span>
@@ -44,6 +54,7 @@
 
 <div class="tab-switcher">
     <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'mixed' }" @click="$store.ui.setTab('mixed')">Builder</button>
+    <button class="tab-btn" x-show="$store.settings.generative_ai_available" x-cloak :class="{ 'active': $store.ui.currentTab === 'assist' }" @click="$store.ui.setTab('assist')">Assist</button>
     <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'scheduler' }" @click="$store.ui.setTab('scheduler')">Scheduler</button>
     <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'manager' }" @click="$store.ui.setTab('manager')">Manager</button>
 </div>

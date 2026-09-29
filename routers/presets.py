@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 import preset_manager as pm
 from models import MixedPlaylistRequest, ExternalPromptRequest
-from .dependencies import get_current_auth_headers
+from .dependencies import get_current_auth_headers, require_generative_ai
 
 router = APIRouter()
 
@@ -197,7 +197,12 @@ def api_delete_preset(preset_name: str, auth_deps: dict = Depends(get_current_au
 def api_external_prompt_to_preset(req: ExternalPromptRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     """
     External API Endpoint: Generates blocks from a prompt and saves them as a preset.
+
+    An external API key identifies a connection, not a browser session, so the policy
+    is resolved through that connection's owning account -- a key cannot outrank the
+    account-wide switch.
     """
+    require_generative_ai(auth_deps)
     try:
         from app.ai import generate_smart_blocks
         
