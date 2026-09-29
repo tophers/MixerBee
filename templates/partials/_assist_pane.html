@@ -1,0 +1,131 @@
+<!-- templates/partials/_assist_pane.html -->
+<div id="assist-pane">
+    <div class="container assist-container">
+
+        <!-- Fallback only. The Assist tab and this pane are hidden unless generative AI
+             is available, so this is reachable only in the moment between a policy change
+             and the tab switch, and it never advertises AI setup in the main interface. -->
+        <template x-if="$store.assist.statusLoaded && !$store.assist.aiConfigured">
+            <div class="assist-placeholder text-subtle">Playlist Assist is not available for this account.</div>
+        </template>
+
+        <template x-if="!$store.assist.statusLoaded">
+            <div class="assist-placeholder text-subtle">Checking AI availability…</div>
+        </template>
+
+        <template x-if="$store.assist.statusLoaded && $store.assist.aiConfigured">
+            <div class="assist-layout">
+
+                <!-- Left: chat -->
+                <section class="assist-chat" aria-label="Playlist Assist chat">
+                    <div class="assist-chat-log" x-ref="chatLog">
+                        <template x-if="$store.assist.chatHistory.length === 0">
+                            <div class="assist-chat-empty text-subtle">
+                                <p class="bold m-0">Describe the playlist you want.</p>
+                                <p class="m-0">Playlist Assist works with <strong>movies only</strong> for now. Pin anything you want kept, then keep talking.</p>
+                                <p class="m-0" x-show="!$store.assist.vibeAvailable" x-cloak>
+                                    Vibe search is off for this library until the semantic index is built, so name the films you have in mind.
+                                </p>
+                            </div>
+                        </template>
+                        <template x-for="(msg, i) in $store.assist.chatHistory" :key="i">
+                            <div class="assist-msg" :class="'assist-msg-' + msg.role + (msg.isError ? ' assist-msg-error' : '')">
+                                <span class="assist-msg-role" x-text="msg.role === 'user' ? 'You' : 'Assist'"></span>
+                                <p class="assist-msg-body m-0" x-text="msg.content"></p>
+                            </div>
+                        </template>
+                        <div class="assist-msg assist-msg-assistant assist-msg-pending" x-show="$store.assist.isGenerating" x-cloak>
+                            <span class="assist-msg-role">Assist</span>
+                            <p class="assist-msg-body m-0">Thinking… you can keep pinning and removing while I work.</p>
+                        </div>
+                    </div>
+
+                    <form class="assist-chat-input" @submit.prevent="$store.assist.sendPrompt()">
+                        <textarea rows="2"
+                                  class="m-0 grow-1"
+                                  placeholder="e.g. Swap out the comedies for 90s sci-fi"
+                                  x-model="$store.assist.prompt"
+                                  :disabled="$store.assist.isGenerating"
+                                  @keydown.enter.prevent="if (!$event.shiftKey) $store.assist.sendPrompt()"></textarea>
+                        <button type="submit" class="m-0 shrink-0" :disabled="$store.assist.isGenerating">
+                            <span x-text="$store.assist.isGenerating ? 'Working…' : 'Send'"></span>
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Right: the canvas -->
+                <section class="assist-canvas" aria-label="Playlist canvas">
+                    <div class="assist-meta">
+                        <label class="field-label" for="assist-title">Playlist name</label>
+                        <input id="assist-title" type="text" class="m-0 w-full"
+                               placeholder="Untitled playlist"
+                               x-model="$store.assist.playlistTitle">
+
+                        <label class="field-label mt-sm" for="assist-description">Description</label>
+                        <textarea id="assist-description" rows="2" class="m-0 w-full"
+                                  placeholder="Optional blurb saved to the server."
+                                  x-model="$store.assist.playlistDescription"></textarea>
+                    </div>
+
+                    <div class="assist-canvas-header flex-row justify-between align-center">
+                        <span class="text-subtle"
+                              x-text="$store.assist.currentItems.length + ' movie(s)' + ($store.assist.pinnedCount ? ' · ' + $store.assist.pinnedCount + ' pinned' : '')"></span>
+                        <button type="button" class="secondary small m-0"
+                                x-show="$store.assist.currentItems.length"
+                                @click="$store.assist.clearCanvas()">Clear</button>
+                    </div>
+
+                    <template x-if="$store.assist.currentItems.length === 0">
+                        <div class="assist-placeholder text-subtle">Nothing here yet — ask for something in the chat.</div>
+                    </template>
+
+                    <div class="assist-grid" x-show="$store.assist.currentItems.length" x-cloak>
+                        <template x-for="item in $store.assist.currentItems" :key="item.Id">
+                            <figure class="assist-tile m-0" :class="item.locked ? 'assist-tile-pinned' : ''">
+                                <div class="assist-poster">
+                                    <img :src="item.PosterUrl" :alt="item.Name" loading="lazy"
+                                         @error="$el.classList.add('assist-poster-missing')">
+                                    <div class="assist-tile-actions">
+                                        <button type="button"
+                                                class="assist-tile-btn"
+                                                :class="item.locked ? 'is-active' : ''"
+                                                :title="item.locked ? 'Unpin (AI may replace it)' : 'Pin (AI must keep it)'"
+                                                :aria-pressed="item.locked ? 'true' : 'false'"
+                                                @click="$store.assist.togglePin(item.Id)">📌</button>
+                                        <button type="button"
+                                                class="assist-tile-btn assist-tile-remove"
+                                                title="Remove from playlist"
+                                                @click="$store.assist.removeItem(item.Id)">✕</button>
+                                    </div>
+                                </div>
+                                <figcaption class="assist-tile-caption">
+                                    <span class="assist-tile-name" x-text="item.Name"></span>
+                                    <span class="text-subtle" x-text="item.Year || ''"></span>
+                                </figcaption>
+                            </figure>
+                        </template>
+                    </div>
+                </section>
+            </div>
+        </template>
+    </div>
+</div>
+
+<div id="assist-action-bar" class="assist-action-bar"
+     x-show="$store.ui.currentTab === 'assist' && $store.assist.statusLoaded && $store.assist.aiConfigured"
+     x-cloak>
+    <div class="action-bar-content assist-action-bar-content">
+        <button type="button" class="secondary m-0 align-center gap-xs"
+                :disabled="!$store.assist.canUndo"
+                @click="$store.assist.undo()">
+            <span x-html="$store.icons.undo"></span> Undo
+        </button>
+        <span class="text-subtle grow-1 assist-action-hint"
+              x-text="$store.assist.currentItems.length ? 'Saving creates a new playlist on the server.' : ''"></span>
+        <button type="button" class="m-0"
+                :disabled="$store.assist.isSaving || !$store.assist.currentItems.length"
+                @click="$store.assist.save($el)">
+            Save to Server
+        </button>
+    </div>
+</div>
