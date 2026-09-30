@@ -6,7 +6,9 @@ This guide describes current account, connection, build, automation, integration
 
 MixerBee accounts are local to the installation and are separate from Emby or Jellyfin accounts.
 
-- The first local account is the installation owner. It can create household accounts from **Account settings** and review household webhook setup requests.
+- The first local account is the installation owner. It can create and remove household accounts from **Account settings** and review household webhook setup requests.
+- To remove a member, open **Account settings → Household accounts**, click **Remove** beside their name, and confirm. This permanently deletes their local MixerBee account, browser sessions, connections and credentials, presets, recipes, schedules, build history, and AI indexes. Their Emby/Jellyfin account, playlists, and collections are unchanged. The installation owner cannot be removed.
+- Removal prevents future scheduled runs; requests already sent to a media server may still finish.
 - Every account has an independent workspace. One member cannot see another member's connections, presets, schedules, library data, AI index, keys, or Builder drafts.
 - Changing a local password signs out every browser session for that account. Its saved schedules continue running.
 - The installation owner does not automatically gain administrator permission on Emby or Jellyfin and cannot browse another member's workspace.

@@ -10,6 +10,7 @@ import hashlib
 from typing import List, Dict, Optional, Any
 import chromadb
 import numpy as np
+import database
 
 import app.client as client
 from runtime_paths import CONFIG_DIR
@@ -71,6 +72,12 @@ def get_media_collection() -> chromadb.Collection:
     name = collection_name()
     with _collection_lock:
         if name not in _collections:
+            # A worker can still hold a media client after its account/connection
+            # is deleted. Do not let that worker recreate the removed index.
+            with database.get_db_connection() as conn:
+                if not conn.execute('SELECT 1 FROM media_connections WHERE id=?',
+                                    (current_media().connection.id,)).fetchone():
+                    raise ValueError('Media connection no longer exists.')
             _collections[name] = chroma_client.get_or_create_collection(
                 name=name, metadata={"hnsw:space": "cosine"})
         return _collections[name]

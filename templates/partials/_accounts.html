@@ -1,5 +1,5 @@
 <div class="modal-overlay account-modal-overlay" x-show="$store.settings.accountOpen" x-cloak>
-    <div class="modal-window account-modal" @click.outside="$store.settings.accountOpen = false">
+    <div class="modal-window account-modal" @click.outside="if (!$store.settings.removingAccountId) $store.settings.accountOpen = false">
         <div class="modal-header"><h2>Account settings</h2><button type="button" class="icon-btn" aria-label="Close account settings" @click="$store.settings.accountOpen = false">&times;</button></div>
         <div class="modal-body">
             <div class="account-summary">
@@ -87,7 +87,20 @@
                 </fieldset>
 
                 <div class="account-section-heading"><h3>Household accounts</h3><span x-text="$store.settings.accounts.length + ' account' + ($store.settings.accounts.length === 1 ? '' : 's')"></span></div>
-                <ul class="account-list"><template x-for="member in $store.settings.accounts" :key="member.id"><li><span class="account-avatar" x-text="member.username.charAt(0).toUpperCase()"></span><strong x-text="member.username"></strong><span class="account-role" x-text="member.is_admin ? 'Owner' : 'Member'"></span></li></template></ul>
+                <ul class="account-list">
+                    <template x-for="member in $store.settings.accounts" :key="member.id">
+                        <li>
+                            <span class="account-avatar" x-text="member.username.charAt(0).toUpperCase()"></span>
+                            <strong x-text="member.username"></strong>
+                            <span class="account-role" x-text="member.is_admin ? 'Owner' : 'Member'"></span>
+                            <button type="button" class="secondary small btn-danger-outline shrink-0"
+                                    x-show="!member.is_admin && member.id !== $store.settings.account.id"
+                                    :aria-label="'Remove household member ' + member.username"
+                                    :disabled="!!$store.settings.removingAccountId"
+                                    @click="$store.settings.removeAccount(member, $event.currentTarget)">Remove</button>
+                        </li>
+                    </template>
+                </ul>
                 <form @submit.prevent="$store.settings.createAccount($event.submitter)">
                     <fieldset class="filter-group account-section"><legend>Add a household member</legend>
                         <label class="control-item"><span>Username</span><input type="text" x-model="$store.settings.newUsername" autocomplete="off" required maxlength="64" pattern="[A-Za-z0-9_.-]+"></label>

@@ -2,18 +2,13 @@
 
 import { api } from './apiClient.js';
 import { toast, debounce, generateUUID, useApi } from './utils.js';
-import { ensureBlockState, createNewBlock, createEchoBlock, serializeBlockDefinition, serializeMixDefinition } from './blockFactory.js';
+import { ensureBlockState, createNewBlock, createEchoBlock, serializeBlockDefinition, serializeMixDefinition, defaultMixOptions, normalizeMixOptions } from './blockFactory.js';
 import { confirmModal, smartBuildModal, smartPlaylistModal, previewModal, resetWatchModal, recipeLibraryModal, saveRecipeModal, musicQuickBuildModal } from './modals.js';
 import { SMART_BUILD_TYPES, BLOCK_TYPES } from './definitions.js';
 
 export const mixerStore = {
     blocks: [],
-    mix_options: {
-        freshness: { last_successful_builds: 0, history_scope: 'series', watched_within_days: 0, exhaustion_policy: 'shorter' },
-        duplicate_policy: { cross_block_policy: 'suppress', max_movies_per_franchise: 0 },
-        sequencing: { mode: 'sequential', pattern: [], exhaustion_policy: 'continue' },
-        runtime_budget: { mode: 'off', target_minutes: 0, allowed_overrun_minutes: 0, end_local_time: '', timezone: '' }
-    },
+    mix_options: defaultMixOptions(),
     library: {
         seriesData: [], movieGenreData: [], libraryData: [], artistData: [], musicGenreData: [], studioData: []
     },
@@ -87,7 +82,7 @@ export const mixerStore = {
             blocks.forEach(b => this.ensureBlockState(b));
             this.blocks = blocks;
             if (draft.mix_options) {
-                this.mix_options = JSON.parse(JSON.stringify(draft.mix_options));
+                this.mix_options = normalizeMixOptions(draft.mix_options);
             }
             this.persistToLocalStorage();
         } finally {
@@ -126,9 +121,7 @@ export const mixerStore = {
                 const loadedBlocks = parsed.blocks || [];
                 loadedBlocks.forEach(b => this.ensureBlockState(b));
                 this.blocks = loadedBlocks;
-                if (parsed.mix_options) {
-                    this.mix_options = parsed.mix_options;
-                }
+                this.mix_options = normalizeMixOptions(parsed.mix_options);
             }
         } catch (e) { console.error("Autosave restore failed:", e); }
 
@@ -438,7 +431,7 @@ export const mixerStore = {
             blocksData.forEach(b => this.ensureBlockState(b));
 
             if (mixOptions) {
-                this.mix_options = JSON.parse(JSON.stringify(mixOptions));
+                this.mix_options = normalizeMixOptions(mixOptions);
             }
             
             const uid = Alpine.store('settings').activeUserId;

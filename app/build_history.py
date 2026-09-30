@@ -134,12 +134,13 @@ def record_build_start(
                     id, connection_id, stable_series_key, trigger_source,
                     schedule_id, preset_id, operation, started_at, outcome,
                     definition_snapshot, replay_origin_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?)
+                ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?
+                WHERE EXISTS (SELECT 1 FROM media_connections WHERE id = ?)
                 """,
                 (
                     run_id, connection_id, series, trigger_source,
                     schedule_id, preset_id, operation, started_at,
-                    def_json, replay_origin_id
+                    def_json, replay_origin_id, connection_id
                 )
             )
             conn.commit()
@@ -161,7 +162,7 @@ def record_build_finish(
     try:
         with database.get_db_connection() as conn:
             init_history_schema(conn)
-            conn.execute(
+            updated = conn.execute(
                 """
                 UPDATE build_runs
                 SET output_id = ?, outcome = ?, summary = ?, finished_at = ?
@@ -169,6 +170,10 @@ def record_build_finish(
                 """,
                 (output_id, outcome, summary or "", finished_at, run_id)
             )
+
+            if not updated.rowcount:
+                # Removal may have deleted this run while its build was in flight.
+                return
 
             if rows and outcome in ("ok", "replaced", "success"):
                 item_rows = []
@@ -525,4 +530,3 @@ def replay_build_run(
         "missing_items": missing_items,
         "log": log_messages
     }
-

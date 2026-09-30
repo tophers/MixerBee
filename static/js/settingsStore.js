@@ -7,6 +7,7 @@ export const settingsStore = {
     isOpen: false, accountOpen: false, accountMenuOpen: false,
     account: {}, connections: [], selectedConnection: '', connection_id: null, label: '',
     accounts: [], newUsername: '', newPassword: '', currentPassword: '', nextPassword: '',
+    removingAccountId: null,
     webhookRequests: [], webhook_public_base_url: '',
     external_api_key_set: false, clear_external_api_key: false, can_manage_collections: false,
     is_configured: false, connection_unavailable: false, connection_error: '',
@@ -95,6 +96,27 @@ export const settingsStore = {
             this.newUsername = ''; this.newPassword = '';
             toast('Account created. They can now sign in and add their media connection.', true);
             await this.showAccount();
+        }
+    },
+    async removeAccount(member, button) {
+        if (!this.account.is_admin || member.is_admin || member.id === this.account.id || this.removingAccountId) return;
+        this.removingAccountId = member.id;
+        try {
+            try {
+                await confirmModal.show({
+                    title: 'Remove household member?',
+                    text: `Permanently remove "${member.username}" and all their MixerBee connections, saved credentials, presets, recipes, schedules, build history, and AI indexes? All their browser sessions will be signed out. This cannot be undone. Their Emby/Jellyfin account, playlists, and collections will not be changed.`,
+                    confirmText: 'Remove member',
+                    isDanger: true
+                });
+            } catch (e) { return; } // Cancel leaves the member and their data intact.
+            const res = await useApi(api.del(`api/accounts/${encodeURIComponent(member.id)}?delete_data=true`), button);
+            if (res.status === 'ok') {
+                this.accounts = this.accounts.filter(item => item.id !== member.id);
+                await this.fetchWebhookRequests(false);
+            }
+        } finally {
+            this.removingAccountId = null;
         }
     },
     async changePassword(button) {

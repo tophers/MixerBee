@@ -2,6 +2,7 @@
 # Import the existing harness first: it isolates runtime paths before app imports.
 import test_connections as connection_tests
 import json
+import sqlite3
 import time
 import unittest
 from unittest.mock import patch, Mock
@@ -15,6 +16,9 @@ import scheduler
 import web
 from app.media_client import MediaClient
 from preset_manager import preset_manager
+from app import build_history, cache
+from app.ai import vector_store, enrichment_manager
+from app.media_client import media_scope
 
 
 class AccountTests(unittest.TestCase):
@@ -80,6 +84,156 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(bob.get('/api/accounts').status_code, 403)
         self.assertEqual(bob.post('/api/accounts', json={'username': 'third', 'password': 'test-password'}).status_code, 403)
         self.assertEqual(owner.post('/api/accounts', json={'username': 'BOB', 'password': 'test-password'}).status_code, 400)
+
+    def test_remove_member_requires_owner_confirmation_and_csrf(self):
+        owner, _ = self.bootstrap()
+        bob = self.bob(owner)
+        aid = bob.headers['X-MixerBee-Account']
+        path = f'/api/accounts/{aid}?delete_data=true'
+        self.assertEqual(TestClient(web.app).delete(path).status_code, 401)
+        self.assertEqual(bob.delete(path).status_code, 403)
+        self.assertEqual(owner.delete(path, headers={'X-MixerBee-CSRF': ''}).status_code, 409)
+        self.assertEqual(owner.delete(f'/api/accounts/{aid}').status_code, 400)
+        self.assertEqual(owner.delete(
+            f'/api/accounts/{owner.headers["X-MixerBee-Account"]}?delete_data=true').status_code, 403)
+        # Protect every owner, not just the caller.
+        with database.get_db_connection() as conn:
+            conn.execute('UPDATE accounts SET is_admin=1 WHERE id=?', (aid,))
+            conn.commit()
+        self.assertEqual(owner.delete(path).status_code, 403)
+        self.assertIsNotNone(accounts.authenticate('bob', 'bob-password'))
+        self.assertEqual(len(owner.get('/api/accounts').json()), 2)
+
+    def test_remove_member_without_connections_and_repeated_removal(self):
+        owner, _ = self.bootstrap(legacy=False)
+        bob = self.bob(owner)
+        aid = bob.headers['X-MixerBee-Account']
+        second_token, _ = accounts.create_session(aid)
+        path = f'/api/accounts/{aid}?delete_data=true'
+        self.assertEqual(owner.delete(path).status_code, 200)
+        self.assertEqual(owner.delete(path).status_code, 404)
+        self.assertEqual(bob.get('/api/connections').status_code, 401)
+        self.assertIsNone(accounts.read_session(second_token))
+        self.assertIsNone(accounts.authenticate('bob', 'bob-password'))
+        self.assertFalse(accounts.setup_required())
+        self.assertEqual(owner.get('/api/auth/status').json()['account']['username'], 'owner')
+
+    def test_remove_member_cleans_all_connections_and_preserves_other_workspaces(self):
+        owner, owner_media = self.bootstrap()
+        bob = self.bob(owner)
+        aid = bob.headers['X-MixerBee-Account']
+        member_ids = []
+        for server in ('server-a', 'server-b'):
+            # Same media user as the owner: cleanup must use connection ownership.
+            res = self.save_http(bob, user='alice', server=server)
+            self.assertEqual(res.status_code, 200, res.text)
+            member_ids.append(res.json()['connection_id'])
+        manager = scheduler.Scheduler()
+        all_ids = [owner_media.connection.id] + member_ids
+        jobs, runs, media_clients = {}, {}, {}
+        for cid in all_ids:
+            media_clients[cid] = connections.get_media_client(cid)
+            preset_manager.save_preset('Evening', [], cid)
+            with database.get_db_connection() as conn:
+                conn.execute('INSERT INTO connection_recipes (id,connection_id,name,block_json) VALUES (?,?,?,?)',
+                             (cid, cid, 'Recipe', '{}'))
+                conn.commit()
+            jobs[cid] = manager.add_schedule({
+                'connection_id': cid, 'user_id': 'alice', 'playlist_name': 'Evening',
+                'job_type': 'builder', 'preset_name': 'Evening',
+                'schedule_details': {'frequency': 'interval', 'interval_minutes': 30}})
+            manager.scheduler.add_job(lambda: None, 'date', id=f'run_{jobs[cid]}')
+            runs[cid] = build_history.record_build_start(cid, 'playlist', 'alice')
+            build_history.record_build_finish(runs[cid], 'playlist', 'ok', rows=[{'Id': 'movie', 'Type': 'Movie'}])
+            cache.CACHE[cid] = {'test': True}
+            with media_scope(media_clients[cid]):
+                vector_store.get_media_collection()
+            self.addCleanup(vector_store.delete_connection_collection, cid)
+
+        worker = enrichment_manager._get_worker(member_ids[0])
+        worker.status = 'running'
+        self.addCleanup(enrichment_manager._workers.pop, member_ids[0], None)
+        with database.get_db_connection() as conn:
+            conn.execute("UPDATE media_connections SET api_key_hash=?, webhook_secret='webhook-secret',"
+                         ' webhook_setup_requested_at=1 WHERE id=?',
+                         (accounts.token_hash('external-secret'), member_ids[0]))
+            conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('active_connection_id',?)", (member_ids[0],))
+            conn.commit()
+
+        with patch('scheduler.scheduler_manager', manager):
+            res = owner.delete(f'/api/accounts/{aid}?delete_data=true')
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertTrue(worker.stop_requested.is_set())
+        for cid in member_ids:
+            self.assertNotIn(jobs[cid], manager.schedules)
+            self.assertIsNone(manager.scheduler.get_job(jobs[cid]))
+            self.assertIsNone(manager.scheduler.get_job(f'run_{jobs[cid]}'))
+            self.assertNotIn(cid, connections._clients)
+            self.assertNotIn(cid, cache.CACHE)
+            self.assertNotIn(f'mixerbee_{cid}', vector_store._collections)
+            self.assertNotIn(f'mixerbee_{cid}', [c.name for c in vector_store.chroma_client.list_collections()])
+            # A stale background worker must not recreate local data after removal.
+            with media_scope(media_clients[cid]), self.assertRaises(ValueError):
+                vector_store.get_media_collection()
+            build_history.record_build_start(cid, 'playlist', 'alice')
+            build_history.record_build_finish(runs[cid], 'late', 'ok', rows=[{'Id': 'late'}])
+
+        with database.get_db_connection() as conn:
+            for table in ('media_connections', 'connection_presets', 'connection_recipes', 'schedules', 'build_runs', 'build_run_items'):
+                self.assertEqual(conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0], 1, table)
+            self.assertEqual(conn.execute('SELECT COUNT(*) FROM account_sessions WHERE account_id=?', (aid,)).fetchone()[0], 0)
+            self.assertIsNone(conn.execute("SELECT value FROM settings WHERE key='active_connection_id'").fetchone())
+            self.assertEqual(conn.execute('PRAGMA foreign_key_check').fetchall(), [])
+        self.assertIn(owner_media.connection.id, cache.CACHE)
+        self.assertIsNotNone(manager.scheduler.get_job(jobs[owner_media.connection.id]))
+        self.assertEqual(owner.get('/api/admin/webhook-requests').json()['requests'], [])
+        self.assertEqual(bob.get('/api/settings').status_code, 401)
+        self.assertEqual(TestClient(web.app).post('/api/external/build_preset',
+            headers={'X-MixerBee-Key': 'external-secret'}, json={}).status_code, 401)
+        self.assertEqual(TestClient(web.app).post(f'/api/webhook/{member_ids[0]}',
+            params={'token': 'webhook-secret'}, json={'Event': 'item.added'}).status_code, 401)
+
+    def test_cache_refresh_does_not_restore_a_removed_connection(self):
+        _, media = self.bootstrap()
+        with patch.multiple(cache, tv=Mock(), movies=Mock(), music=Mock(), studios=Mock()):
+            # Removal lands after the refresh started, before it publishes data.
+            cache.studios.aggregate_all_studios.side_effect = lambda *args: cache.forget_connection(media.connection.id)
+            cache.refresh_cache(media)
+        self.assertNotIn(media.connection.id, cache.CACHE)
+
+    def test_remove_member_rolls_back_if_sql_cleanup_fails(self):
+        owner, _ = self.bootstrap()
+        bob = self.bob(owner)
+        cid = self.save_http(bob).json()['connection_id']
+        aid = bob.headers['X-MixerBee-Account']
+        preset_manager.save_preset('Keep me', [], cid)
+        original = connections.delete_connection_data
+
+        def fail_after_cleanup(conn, connection_id):
+            original(conn, connection_id)
+            raise sqlite3.IntegrityError('Simulated cleanup failure')
+
+        with patch('connections.delete_connection_data', side_effect=fail_after_cleanup), \
+                patch('connections.cleanup_deleted_connection') as runtime_cleanup:
+            with self.assertRaises(sqlite3.IntegrityError):
+                accounts.remove_household_member(aid, actor_id=owner.headers['X-MixerBee-Account'], delete_data=True)
+            runtime_cleanup.assert_not_called()
+        self.assertEqual(preset_manager.get_all_presets(cid), {'Keep me': []})
+        self.assertIsNotNone(accounts.authenticate('bob', 'bob-password'))
+        self.assertEqual(bob.get('/api/connections').status_code, 200)
+
+    def test_remove_single_connection_also_cleans_recipes_and_history(self):
+        owner, media = self.bootstrap()
+        cid = media.connection.id
+        run = build_history.record_build_start(cid, 'playlist', 'alice')
+        with database.get_db_connection() as conn:
+            conn.execute("INSERT INTO connection_recipes (id,connection_id,name,block_json) VALUES ('recipe',?,'Recipe','{}')", (cid,))
+            conn.commit()
+        res = owner.delete(f'/api/connections/{cid}?delete_data=true')
+        self.assertEqual(res.status_code, 200, res.text)
+        self.assertIsNone(res.json()['connection_id'])
+        self.assertIsNone(build_history.get_build_run_detail(run, cid))
+        self.assertEqual(owner.get('/api/auth/status').json()['account']['username'], 'owner')
 
     def test_anonymous_gate_csrf_and_stale_account(self):
         owner, media = self.bootstrap()

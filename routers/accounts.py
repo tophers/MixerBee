@@ -168,6 +168,24 @@ def add_account(req: Credentials, request: Request):
         raise HTTPException(400, str(exc)) from exc
 
 
+@router.delete('/api/accounts/{account_id}')
+def remove_account(account_id: str, request: Request, delete_data: bool = False):
+    require_admin(request)
+    try:
+        username = accounts.remove_household_member(
+            account_id, actor_id=request.state.account['id'], delete_data=delete_data)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {'status': 'ok', 'log': [
+        f'Removed household member "{username}" and all their local MixerBee data. '
+        'Their browser sessions are signed out. Media-server accounts and items were not changed.'
+    ]}
+
+
 @router.get('/api/admin/webhook-requests')
 def list_webhook_requests(request: Request):
     require_admin(request)
@@ -255,10 +273,7 @@ def delete_connection(connection_id: str, request: Request, delete_data: bool = 
     Media-server playlists and collections are deliberately untouched.
     """
     from .dependencies import owned_connection
-    from app import cache
-    from app.ai.vector_store import delete_connection_collection
-    from connections import forget_media_client
-    import scheduler
+    from connections import delete_connection_data, cleanup_deleted_connection
 
     owned_connection(request, connection_id)
     with database.get_db_connection() as conn:
@@ -275,9 +290,6 @@ def delete_connection(connection_id: str, request: Request, delete_data: bool = 
             'schedule_count': len(schedule_ids),
         })
 
-    for schedule_id in schedule_ids:
-        scheduler.scheduler_manager.remove_schedule(schedule_id)
-
     with database.get_db_connection() as conn:
         conn.execute('BEGIN IMMEDIATE')
         row = conn.execute('SELECT owner_id FROM media_connections WHERE id=?', (connection_id,)).fetchone()
@@ -288,17 +300,12 @@ def delete_connection(connection_id: str, request: Request, delete_data: bool = 
             (request.state.account['id'], connection_id)
         ).fetchone()
         fallback_id = fallback['id'] if fallback else None
-        conn.execute('DELETE FROM schedules WHERE connection_id=?', (connection_id,))
-        conn.execute('DELETE FROM connection_presets WHERE connection_id=?', (connection_id,))
         conn.execute('UPDATE account_sessions SET connection_id=? WHERE account_id=? AND connection_id=?',
                      (fallback_id, request.state.account['id'], connection_id))
-        conn.execute("DELETE FROM settings WHERE key='active_connection_id' AND value=?", (connection_id,))
-        conn.execute('DELETE FROM media_connections WHERE id=?', (connection_id,))
+        schedule_ids = delete_connection_data(conn, connection_id)
         conn.commit()
 
-    forget_media_client(connection_id)
-    cache.forget_connection(connection_id)
-    delete_connection_collection(connection_id)
+    cleanup_deleted_connection(connection_id, schedule_ids)
     return {'status': 'ok', 'connection_id': fallback_id,
             'log': [f'Removed connection, {preset_count} preset(s), and {len(schedule_ids)} schedule(s). Media-server items were not changed.']}
 
@@ -357,5 +364,3 @@ async def restore_backup(request: Request):
         raise HTTPException(400, detail=str(e))
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
-
-

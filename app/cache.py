@@ -45,7 +45,11 @@ def refresh_cache(media):
             'musicGenreData': music.get_music_genres(uid, media),
             'studioData': studios.aggregate_all_studios(uid, media),
         }
-        CACHE[key] = data
+        with _guard:
+            # Removal retires the lock as well as the snapshot. A refresh already
+            # in flight must not restore that deleted connection's data.
+            if _locks.get(key) is lock:
+                CACHE[key] = data
     except Exception as exc:
         if _is_authorization_failure(exc):
             # Do not serve an older visibility snapshot after an authorization failure.

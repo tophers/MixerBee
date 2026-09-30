@@ -115,17 +115,20 @@
      x-show="$store.ui.currentTab === 'assist' && $store.assist.statusLoaded && $store.assist.aiConfigured"
      x-cloak>
     <div class="action-bar-content assist-action-bar-content">
-        <button type="button" class="secondary m-0 align-center gap-xs"
-                :disabled="!$store.assist.canUndo"
-                @click="$store.assist.undo()">
-            <span x-html="$store.icons.undo"></span> Undo
-        </button>
-        <span class="text-subtle grow-1 assist-action-hint"
-              x-text="$store.assist.currentItems.length ? 'Saving creates a new playlist on the server.' : ''"></span>
-        <button type="button" class="m-0"
-                :disabled="$store.assist.isSaving || !$store.assist.currentItems.length"
-                @click="$store.assist.save($el)">
-            Save to Server
-        </button>
+        <span class="text-subtle assist-action-hint"
+              x-show="$store.assist.currentItems.length"
+              x-cloak>Saving creates a new playlist on the server.</span>
+        <div class="assist-action-row">
+            <button type="button" class="secondary m-0 align-center gap-xs"
+                    :disabled="!$store.assist.canUndo"
+                    @click="$store.assist.undo()">
+                <span x-html="$store.icons.undo"></span> Undo
+            </button>
+            <button type="button" class="m-0"
+                    :disabled="$store.assist.isSaving || !$store.assist.currentItems.length"
+                    @click="$store.assist.save($el)">
+                Save to Server
+            </button>
+        </div>
     </div>
 </div>

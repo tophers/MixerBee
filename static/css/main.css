@@ -1597,8 +1597,20 @@ svg.mb-icon,
   z-index: 1000;
   pointer-events: none;
 }
-.assist-action-bar-content { max-width: 1100px; flex-wrap: nowrap; }
-.assist-action-hint { font-size: 0.8rem; text-align: right; }
+.assist-action-bar-content {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.assist-action-row {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+.assist-action-hint { font-size: 0.8rem; text-align: center; }
 
 @media (max-width: 800px) {
   .assist-layout { grid-template-columns: minmax(0, 1fr); }

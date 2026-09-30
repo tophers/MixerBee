@@ -223,6 +223,37 @@ def forget_media_client(connection_id):
         _clients.pop(connection_id, None)
 
 
+def delete_connection_data(conn, connection_id):
+    """Delete local SQL data inside the caller's transaction; never contact a server."""
+    schedule_ids = [row['id'] for row in conn.execute(
+        'SELECT id FROM schedules WHERE connection_id=?', (connection_id,))]
+    conn.execute('DELETE FROM schedules WHERE connection_id=?', (connection_id,))
+    conn.execute('DELETE FROM connection_presets WHERE connection_id=?', (connection_id,))
+    conn.execute('DELETE FROM connection_recipes WHERE connection_id=?', (connection_id,))
+    # build_run_items cascade from build_runs.
+    conn.execute('DELETE FROM build_runs WHERE connection_id=?', (connection_id,))
+    conn.execute('UPDATE account_sessions SET connection_id=NULL WHERE connection_id=?', (connection_id,))
+    conn.execute("DELETE FROM settings WHERE key='active_connection_id' AND value=?", (connection_id,))
+    conn.execute('DELETE FROM media_connections WHERE id=?', (connection_id,))
+    return schedule_ids
+
+
+def cleanup_deleted_connection(connection_id, schedule_ids):
+    """Retire runtime jobs, credentials, caches and the AI index after SQL commits."""
+    import scheduler
+    from app import cache
+    from app.ai.enrichment_manager import stop_enrichment
+    from app.ai.vector_store import delete_connection_collection
+
+    stop_enrichment(connection_id)
+    for schedule_id in schedule_ids:
+        scheduler.scheduler_manager.remove_schedule(schedule_id)
+        scheduler._cancel_orphaned_jobs(schedule_id)
+    forget_media_client(connection_id)
+    cache.forget_connection(connection_id)
+    delete_connection_collection(connection_id)
+
+
 def update_active_ai_setting(key, value):
     media = active_media_client()
     settings = dict(media.connection.ai_settings)
@@ -237,4 +268,3 @@ def reload_connections():
     """Clear cached connection media clients to pick up reloaded database state."""
     with _clients_lock:
         _clients.clear()
-

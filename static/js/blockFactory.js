@@ -286,13 +286,45 @@ export function serializeBlockDefinition(block) {
 }
 
 /**
+ * Canonical shape for the top-level mix rules. Templates bind deeply into these
+ * sections (e.g. $store.mixer.mix_options.freshness.watched_within_days), so
+ * every section must always exist.
+ */
+export function defaultMixOptions() {
+    return {
+        freshness: { last_successful_builds: 0, history_scope: 'series', watched_within_days: 0, exhaustion_policy: 'shorter' },
+        duplicate_policy: { cross_block_policy: 'suppress', max_movies_per_franchise: 0 },
+        sequencing: { mode: 'sequential', pattern: [], exhaustion_policy: 'continue' },
+        runtime_budget: { mode: 'off', target_minutes: 0, allowed_overrun_minutes: 0, end_local_time: '', timezone: '' }
+    };
+}
+
+/**
+ * Merge stored mix_options onto the default shape. Legacy presets (saved as a
+ * bare block array) come back as {}, and older drafts may be missing sections
+ * entirely; assigning those verbatim leaves the bound sub-objects undefined.
+ */
+export function normalizeMixOptions(raw) {
+    const merged = defaultMixOptions();
+    if (!raw || typeof raw !== 'object') return merged;
+    Object.keys(merged).forEach(key => {
+        const section = raw[key];
+        if (section && typeof section === 'object' && !Array.isArray(section)) {
+            Object.assign(merged[key], section);
+        }
+    });
+    if (!Array.isArray(merged.sequencing.pattern)) merged.sequencing.pattern = [];
+    return JSON.parse(JSON.stringify(merged));
+}
+
+/**
  * Serialize full mix definition including version and top-level mix_options.
  */
 export function serializeMixDefinition(mixState) {
-    if (!mixState) return { schema_version: 1, blocks: [], mix_options: {} };
+    if (!mixState) return { schema_version: 1, blocks: [], mix_options: defaultMixOptions() };
     return {
         schema_version: 1,
         blocks: (mixState.blocks || []).map(serializeBlockDefinition).filter(Boolean),
-        mix_options: mixState.mix_options ? JSON.parse(JSON.stringify(mixState.mix_options)) : {}
+        mix_options: normalizeMixOptions(mixState.mix_options)
     };
 }

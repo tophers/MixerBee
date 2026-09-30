@@ -199,3 +199,35 @@ def cookie_name(request):
     # hostname must not overwrite each other's cookies.
     origin = str(request.url.netloc) + request.scope.get('root_path', '')
     return 'mixerbee_session_' + hashlib.sha256(origin.encode()).hexdigest()[:12]
+
+
+def remove_household_member(account_id, *, actor_id, delete_data=False):
+    """Remove a member and all owned workspaces in one database transaction.
+
+    Recheck both roles under the write lock. Owner accounts cannot be removed,
+    including by another owner, so this can never reopen initial setup.
+    """
+    from connections import delete_connection_data, cleanup_deleted_connection
+
+    with database.get_db_connection() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        actor = conn.execute('SELECT is_admin FROM accounts WHERE id=?', (actor_id,)).fetchone()
+        if not actor or not actor['is_admin']:
+            raise PermissionError('Only the installation owner can remove household members.')
+        member = conn.execute('SELECT username, is_admin FROM accounts WHERE id=?', (account_id,)).fetchone()
+        if not member:
+            raise LookupError('Household member not found.')
+        if member['is_admin'] or account_id == actor_id:
+            raise PermissionError('The installation owner cannot be removed.')
+        if not delete_data:
+            raise ValueError('Confirm removal of this household member and all their local MixerBee data.')
+        connection_ids = [row['id'] for row in conn.execute(
+            'SELECT id FROM media_connections WHERE owner_id=?', (account_id,))]
+        removed = [(cid, delete_connection_data(conn, cid)) for cid in connection_ids]
+        conn.execute('DELETE FROM account_sessions WHERE account_id=?', (account_id,))
+        conn.execute('DELETE FROM accounts WHERE id=?', (account_id,))
+        conn.commit()
+
+    for cid, schedule_ids in removed:
+        cleanup_deleted_connection(cid, schedule_ids)
+    return member['username']
