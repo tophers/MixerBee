@@ -29,7 +29,7 @@
         <button type="button"
                 id="log-drawer-trigger"
                 class="secondary header-logs-trigger"
-                x-show="$store.logs.available"
+                x-show="$store.logs.available || $store.logs.isOpen"
                 x-cloak
                 :class="$store.logs.isOpen ? 'is-active' : ''"
                 :aria-expanded="$store.logs.isOpen.toString()"
