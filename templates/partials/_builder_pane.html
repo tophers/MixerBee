@@ -292,17 +292,23 @@
                     <template x-for="p in $store.mixer.userPlaylists" :key="p.Id"><option :value="p.Id" x-text="p.Name"></option></template>
                 </select>
             </div>
-            <div class="flex-row align-center gap-sm shrink-0">
-                <span class="build-summary text-subtle text-sm" x-show="$store.mixer.buildSummary()" x-cloak
-                      title="Sum of each block's matches. Mix rules (cooldowns, duplicates, budget) can change the final count.">
-                    <template x-if="$store.mixer.buildSummary()?.loading"><span>Counting…</span></template>
-                    <template x-if="$store.mixer.buildSummary() && !$store.mixer.buildSummary().loading">
-                        <span x-text="'~' + $store.mixer.buildSummary().items + ' items' + ($store.mixer.buildSummary().duration ? ' · ' + $store.mixer.buildSummary().duration : '')"></span>
-                    </template>
-                </span>
-                <button id="build-btn" class="m-0 build-btn" @click="$store.mixer.buildPlaylist($el)" :disabled="$store.mixer.blocks.length === 0" title="Build (Ctrl+Enter)">
+            <div class="build-btn-wrap shrink-0">
+                <button id="build-btn" class="m-0 build-btn" @click="$store.mixer.buildPlaylist($el)" :disabled="$store.mixer.blocks.length === 0"
+                        aria-describedby="build-summary-tip">
                     Build
                 </button>
+                <div id="build-summary-tip" class="build-tooltip" role="tooltip" x-show="$store.mixer.buildSummary()" x-cloak>
+                    <template x-if="$store.mixer.buildSummary()?.loading">
+                        <span>Counting matches…</span>
+                    </template>
+                    <template x-if="$store.mixer.buildSummary() && !$store.mixer.buildSummary().loading">
+                        <span>
+                            <strong x-text="'~' + $store.mixer.buildSummary().items + ' items'"></strong><template x-if="$store.mixer.buildSummary().duration"><span x-text="' · ' + $store.mixer.buildSummary().duration"></span></template>
+                        </span>
+                    </template>
+                    <span class="build-tooltip-note" x-text="$store.mixer.buildSummary()?.blocks + ($store.mixer.buildSummary()?.blocks === 1 ? ' block' : ' blocks') + ' · mix rules can change the final count'"></span>
+                    <span class="build-tooltip-note">Ctrl+Enter to build</span>
+                </div>
             </div>
         </div>
     </div>
