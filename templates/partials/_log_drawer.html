@@ -1,0 +1,106 @@
+<!-- templates/partials/_log_drawer.html -->
+<!-- Outside #main-content-area on purpose: the drawer must stay usable when there is no
+     media connection or the saved server is unreachable, which is when logs matter most.
+     No backdrop and no focus trap -- the rest of the app keeps working behind it. -->
+<section id="log-drawer" class="log-drawer" x-show="$store.logs.isOpen" x-cloak
+         :style="'height:' + $store.logs.height + 'px'"
+         role="region" aria-label="Live logs">
+
+    <div class="log-drawer-resize" role="separator" aria-orientation="horizontal"
+         aria-label="Resize live logs. Use the up and down arrow keys."
+         tabindex="0" @pointerdown.prevent="$store.logs.startResize($event)"
+         @keydown.arrow-up.prevent="$store.logs.nudgeHeight(1)"
+         @keydown.arrow-down.prevent="$store.logs.nudgeHeight(-1)"></div>
+
+    <header class="log-drawer-header">
+        <div class="log-drawer-title">
+            <strong>Live logs</strong>
+            <span class="log-scope-badge" title="Logs are installation-wide and are not filtered by the selected media connection.">All accounts and servers</span>
+            <span class="log-status" :class="'log-status-' + $store.logs.connection">
+                <span class="log-status-dot" aria-hidden="true"></span>
+                <span x-text="$store.logs.statusLabel"></span>
+            </span>
+        </div>
+        <div class="log-drawer-header-actions">
+            <button type="button" class="secondary small" @click="$store.logs.presetHeight(0.33)" title="One third of the window">⅓</button>
+            <button type="button" class="secondary small" @click="$store.logs.presetHeight(0.66)" title="Two thirds of the window">⅔</button>
+            <button type="button" class="secondary small" @click="$store.logs.presetHeight(0.9)" title="Nearly full height">Full</button>
+            <button type="button" class="secondary small" x-show="$store.logs.connection === 'reconnecting' || $store.logs.connection === 'disconnected'"
+                    @click="$store.logs.retryNow()">Reconnect now</button>
+            <button type="button" id="log-drawer-close" class="icon-btn" aria-label="Close live logs"
+                    @click="$store.logs.close()">&times;</button>
+        </div>
+    </header>
+
+    <div class="log-drawer-controls">
+        <div class="log-level-filters" role="group" aria-label="Severity filters">
+            <template x-for="level in ['INFO','WARNING','ERROR','CRITICAL']" :key="level">
+                <button type="button" class="log-level-chip" :class="'log-level-' + level.toLowerCase()"
+                        :aria-pressed="$store.logs.levels[level] ? 'true' : 'false'"
+                        @click="$store.logs.toggleLevel(level)">
+                    <span x-text="level"></span>
+                    <span class="log-level-count" x-text="$store.logs.severityTotals[level]"></span>
+                </button>
+            </template>
+        </div>
+        <label class="log-control">
+            <span class="sr-only">Subsystem</span>
+            <select x-model="$store.logs.subsystem" @change="$store.logs.updateVisible()" aria-label="Subsystem">
+                <option value="">All subsystems</option>
+                <template x-for="name in $store.logs.subsystems" :key="name">
+                    <option :value="name" x-text="name"></option>
+                </template>
+            </select>
+        </label>
+        <label class="log-control log-search">
+            <span class="sr-only">Search retained log entries</span>
+            <input type="search" x-model="$store.logs.search" @input="$store.logs.updateVisible()" placeholder="Search entries held in this view"
+                   aria-label="Search retained log entries">
+        </label>
+        <label class="log-control log-follow">
+            <input type="checkbox" :checked="$store.logs.following"
+                   @change="$event.target.checked ? $store.logs.resumeFollow() : ($store.logs.following = false)">
+            <span>Follow latest</span>
+        </label>
+        <div class="log-drawer-actions">
+            <button type="button" class="secondary small" @click="$store.logs.clearView()">Clear view</button>
+            <button type="button" class="secondary small" @click="$store.logs.copyVisible($event.currentTarget)">Copy visible</button>
+            <button type="button" class="secondary small" @click="$store.logs.downloadVisible()">Download</button>
+        </div>
+    </div>
+
+    <p class="log-drawer-notice" x-show="$store.logs.statusDetail" x-cloak x-text="$store.logs.statusDetail"></p>
+    <p class="log-drawer-notice log-drawer-notice-warn" x-show="$store.logs.dropNotice" x-cloak x-text="$store.logs.dropNotice"></p>
+
+    <!-- aria-live is deliberately absent: announcing every arriving line would make the
+         app unusable with a screen reader. The status text above is the announced part. -->
+    <div id="log-drawer-body" class="log-drawer-body" tabindex="0" @scroll.passive="$store.logs.onScroll($event)">
+        <p class="log-drawer-empty" x-show="!$store.logs.visibleRecords.length" x-cloak
+           x-text="$store.logs.records.length ? 'No entries match the current filters.' : 'Waiting for log activity. Build a playlist or run a schedule to see output.'"></p>
+        <template x-for="record in $store.logs.visibleRecords" :key="record.id">
+            <div class="log-entry" :class="['log-entry-' + record.level.toLowerCase(), record.stale ? 'log-entry-stale' : '']">
+                <span class="log-entry-time" x-text="record.time"></span>
+                <span class="log-entry-level" x-text="record.level"></span>
+                <span class="log-entry-logger" x-text="record.logger" :title="'Thread: ' + record.thread"></span>
+                <!-- x-text only. Log lines carry AI output, media titles, URLs and
+                     exception text, none of which may ever be parsed as HTML. -->
+                <span class="log-entry-message" x-show="!$store.logs.isMultiline(record) || $store.logs.isExpanded(record.id)"
+                      x-text="record.message"></span>
+                <span class="log-entry-message" x-show="$store.logs.isMultiline(record) && !$store.logs.isExpanded(record.id)"
+                      x-text="$store.logs.firstLine(record)"></span>
+                <button type="button" class="log-entry-expand" x-show="$store.logs.isMultiline(record)"
+                        @click="$store.logs.toggleExpanded(record.id)"
+                        :aria-expanded="$store.logs.isExpanded(record.id) ? 'true' : 'false'"
+                        x-text="$store.logs.isExpanded(record.id) ? 'Less' : 'More'"></button>
+            </div>
+        </template>
+    </div>
+
+    <footer class="log-drawer-footer">
+        <span x-text="$store.logs.visibleRecords.length + ' of ' + $store.logs.records.length + ' entries shown'"></span>
+        <button type="button" class="log-pending-jump" x-show="$store.logs.pendingCount" x-cloak
+                @click="$store.logs.resumeFollow()"
+                x-text="$store.logs.pendingCount + ' new — jump to latest'"></button>
+        <span class="log-drawer-footer-note">Search and filters apply to entries held in this view, not to a server-side archive.</span>
+    </footer>
+</section>

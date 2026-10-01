@@ -13,24 +13,41 @@ import { schedulerStore } from './schedulerStore.js';
 import { managerStore } from './managerStore.js';
 import { uiStore } from './uiStore.js';
 import { assistStore } from './assistStore.js';
+import { logStore } from './logStore.js';
 
 let isAppInitialized = false;
 let storesHydrated = false;
 
 const safeMergeStore = (target, source) => {
     if (!target || !source) return;
+    const rawTarget = target.__v_raw || (typeof Alpine !== 'undefined' && Alpine.raw ? Alpine.raw(target) : target);
     const descriptors = Object.getOwnPropertyDescriptors(source);
     for (const [key, descriptor] of Object.entries(descriptors)) {
         if (descriptor.get || descriptor.set) {
             try {
-                Object.defineProperty(target, key, descriptor);
+                Object.defineProperty(rawTarget, key, descriptor);
             } catch (e) {}
+        } else if (
+            target[key] &&
+            typeof target[key] === 'object' &&
+            !Array.isArray(target[key]) &&
+            !(target[key] instanceof Set) &&
+            descriptor.value &&
+            typeof descriptor.value === 'object' &&
+            !Array.isArray(descriptor.value) &&
+            !(descriptor.value instanceof Set)
+        ) {
+            try {
+                Object.assign(target[key], descriptor.value);
+            } catch (e) {
+                target[key] = descriptor.value;
+            }
         } else {
             try {
                 target[key] = descriptor.value;
             } catch (e) {
                 try {
-                    Object.defineProperty(target, key, descriptor);
+                    Object.defineProperty(rawTarget, key, descriptor);
                 } catch (e2) {}
             }
         }
@@ -50,11 +67,13 @@ export const hydrateStores = () => {
     safeMergeStore(Alpine.store('manager'), managerStore);
     safeMergeStore(Alpine.store('ui'), uiStore);
     safeMergeStore(Alpine.store('assist'), assistStore);
+    safeMergeStore(Alpine.store('logs'), logStore);
 
     initModals();
 
     Alpine.store('ai').init();
     Alpine.store('assist').init();
+    Alpine.store('logs').init();
 };
 
 // Immediately hydrate real store references if Alpine is ready
@@ -80,6 +99,14 @@ async function initializeApp() {
         const sStore = Alpine.store('settings');
         body.dataset.theme = sStore.theme;
         await sStore.initAccount();
+
+        // Before the media-connection checks below, every one of which can return
+        // early. The log viewer is installation-wide and is most useful precisely when
+        // there is no working connection, so its availability must not depend on one.
+        await Alpine.store('logs').refreshAvailability();
+        // The backend stays authoritative for a tab left open in the background: verbose
+        // logging turned on or off in another tab or browser shows up on the next focus.
+        window.addEventListener('focus', () => Alpine.store('logs').refreshAvailability());
 
         if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 

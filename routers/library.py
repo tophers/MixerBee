@@ -2,7 +2,6 @@
 routers/library.py – APIRouter
 """
 
-import logging
 from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends, Body
 from fastapi.responses import JSONResponse
@@ -16,6 +15,10 @@ from app.cache import get_library_data
 from app.ai.vector_store import calculate_library_iq, get_discovery_tags
 from .dependencies import (get_current_auth_headers, media_for_user, require_collection_permission,
                            require_generative_ai)
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Library")
 
 router = APIRouter()
 
@@ -160,7 +163,7 @@ def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_head
                     "Type": "Collection"
                 })
     except Exception as ce:
-        logging.warning(f"Failed to fetch collections for search: {ce}")
+        logger.warning(f"Failed to fetch collections for search: {ce}")
 
     # 2. Native indexed server search for Movies and TV Series
     try:
@@ -190,7 +193,7 @@ def api_search_media(query: str, auth_deps: dict = Depends(get_current_auth_head
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Native media search failed: {e}")
+        logger.error(f"Native media search failed: {e}")
 
     return results
 
@@ -227,7 +230,7 @@ def api_get_item_children(item_id: str, user_id: str, auth_deps: dict = Depends(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error fetching children for item {item_id}: {e}", exc_info=True)
+        logger.error(f"Error fetching children for item {item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/items/{item_id}/reorder")
@@ -274,7 +277,7 @@ def api_reorder_item_children(item_id: str, req: models.ReorderItemsRequest, aut
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error reordering item {item_id}: {e}", exc_info=True)
+        logger.error(f"Error reordering item {item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/delete_item")
@@ -293,7 +296,7 @@ def api_delete_item(req: models.DeleteItemRequest, auth_deps: dict = Depends(get
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error processing delete request for item {req.item_id}: {e}", exc_info=True)
+        logger.error(f"Error processing delete request for item {req.item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An internal server error occurred: {str(e)}")
 
 @router.post("/api/collections/{collection_id}/items/remove")
@@ -320,7 +323,7 @@ def api_remove_from_collection(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error removing item {req.item_id_to_remove} from collection {collection_id}: {e}", exc_info=True)
+        logger.error(f"Error removing item {req.item_id_to_remove} from collection {collection_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/playlists/{playlist_id}/items/remove")
@@ -334,7 +337,7 @@ def api_remove_from_playlist(playlist_id: str, req: models.RemoveFromPlaylistReq
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error removing item {req.item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
+        logger.error(f"Error removing item {req.item_id_to_remove} from playlist {playlist_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/convert_item")
@@ -373,7 +376,7 @@ def api_convert_item(req: models.ConvertItemRequest, auth_deps: dict = Depends(g
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error converting item {req.item_id}: {e}", exc_info=True)
+        logger.error(f"Error converting item {req.item_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/shows/{series_id}/unplayed")
@@ -394,7 +397,7 @@ def api_mark_unplayed(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error resetting watch state: {e}", exc_info=True)
+        logger.error(f"Error resetting watch state: {e}", exc_info=True)
         raise HTTPException(500, str(e))
 
 @router.post("/api/library/enrichment/start")
@@ -425,7 +428,7 @@ def api_start_enrichment(
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logging.error(f"Failed to start enrichment: {e}", exc_info=True)
+        logger.error(f"Failed to start enrichment: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/library/enrichment/stop")
@@ -449,7 +452,7 @@ def api_semantic_refresh(auth_deps: dict = Depends(get_current_auth_headers)) ->
     try:
         return core.refresh_semantic_index(user_id, media)
     except Exception as e:
-        logging.error(f"Semantic refresh failed: {e}", exc_info=True)
+        logger.error(f"Semantic refresh failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/bulk_delete_items")
@@ -531,7 +534,7 @@ def api_overlap_report(
                     }
                 item_appearances[cid]["in_items"].append({"id": pid, "name": p_name})
         except Exception as e:
-            logging.warning(f"Error fetching children for {pid} during overlap report: {e}")
+            logger.warning(f"Error fetching children for {pid} during overlap report: {e}")
 
     overlaps = [info for info in item_appearances.values() if len(info["in_items"]) > 1]
     overlaps.sort(key=lambda x: len(x["in_items"]), reverse=True)

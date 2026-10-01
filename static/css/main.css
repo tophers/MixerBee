@@ -36,6 +36,15 @@
   --radius-md: 12px;
   
   --shadow: 0 2px 6px rgba(0,0,0,.4);
+  --log-bg: #0d0f12;
+  --log-header-bg: #17191d;
+  --log-row-hover: rgba(255, 255, 255, 0.04);
+  --log-meta: #7d8590;
+  --log-info: #58a6ff;
+  --log-warning: #e3b341;
+  --log-error: #f85149;
+  --log-critical: #ff7b72;
+  --log-chip-off-bg: rgba(255, 255, 255, 0.04);
   --shadow-drag: 0 10px 30px rgba(255,255,255,0.2);
   --loading-overlay-bg: rgba(var(--bg-rgb), 0.8);
   --toast-text: #ffffff;
@@ -106,6 +115,15 @@ body[data-theme='light'] {
   --border-color-subtle: #e9ecef;
   --divider-color: #f1f3f5;
   --shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  --log-bg: #fbfbfd;
+  --log-header-bg: #eef0f4;
+  --log-row-hover: rgba(0, 0, 0, 0.04);
+  --log-meta: #5a6270;
+  --log-info: #0a58ca;
+  --log-warning: #8a6100;
+  --log-error: #b42318;
+  --log-critical: #8c1d13;
+  --log-chip-off-bg: rgba(0, 0, 0, 0.04);
   --shadow-drag: 0 10px 30px rgba(0, 0, 0, 0.2);
   --loading-overlay-bg: rgba(var(--bg-rgb), 0.8);
   --toast-text: #ffffff;
@@ -179,8 +197,9 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
 .connection-switcher { display: flex; align-items: center; gap: var(--gap-sm); min-width: 0; flex: 1 1 auto; }
 .connection-switcher > label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .connection-switcher select { width: auto; max-width: 310px; min-width: 150px; margin: 0; flex: 1 1 240px; }
-.header-add-connection, .account-menu-trigger, .header-iq-trigger { margin: 0; min-height: 39px; box-shadow: none; }
-.header-iq-trigger {
+.header-add-connection, .account-menu-trigger, .header-iq-trigger, .header-logs-trigger { margin: 0; min-height: 39px; box-shadow: none; }
+.header-iq-trigger,
+.header-logs-trigger {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -191,6 +210,11 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
   white-space: nowrap;
   flex: 0 0 auto;
 }
+.header-logs-trigger svg {
+  width: 1rem;
+  height: 1rem;
+}
+.header-logs-trigger.is-active { border-color: var(--accent); color: var(--accent); }
 .header-iq-trigger .iq-zap-icon {
   display: inline-flex;
   align-items: center;
@@ -240,7 +264,10 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
 
 #action-bar {
   position: fixed;
-  bottom: 0;
+  /* The log drawer is also pinned to the bottom edge. It publishes its height on
+     <body> as --log-drawer-height so the action bar rides above it instead of
+     disappearing underneath. The fallback keeps the bar at the edge when closed. */
+  bottom: var(--log-drawer-height, 0px);
   left: 0;
   right: 0;
   background: var(--action-bar-bg) ;
@@ -266,7 +293,7 @@ h2 { font-family: 'Poppins', sans-serif; font-weight: 600; text-align: center; m
 }
 
 .has-fixed-footer {
-  padding-bottom: 240px ;
+  padding-bottom: calc(240px + var(--log-drawer-height, 0px));
 }
 
 .action-bar-content button,
@@ -1381,8 +1408,8 @@ svg.mb-icon,
   .connection-switcher { gap: 0.4rem; }
   .connection-switcher select { min-width: 0; max-width: none; flex-basis: 100px; font-size: 0.9rem; }
   .header-add-connection { min-width: 40px; padding: 0.4rem; }
-  .header-add-label, .account-menu-name, .account-menu-chevron { display: none; }
-  .header-iq-trigger { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
+  .header-add-label, .header-logs-label, .account-menu-name, .account-menu-chevron { display: none; }
+  .header-iq-trigger, .header-logs-trigger { padding: 0.35rem 0.5rem; font-size: 0.8rem; }
   .account-menu-trigger { width: 40px; padding: 0.3rem; }
   .account-alert-badge { position: absolute; top: -6px; right: -6px; }
   .account-menu-panel { position: fixed; top: 58px; left: 0.7rem; right: 0.7rem; width: auto; }
@@ -1397,7 +1424,7 @@ svg.mb-icon,
     padding: 0.6rem 0.75rem; font-size: 1.1rem;
   }
 
-  .has-fixed-footer { padding-bottom: 280px; }
+  .has-fixed-footer { padding-bottom: calc(280px + var(--log-drawer-height, 0px)); }
 
   .modal-window { padding: 1rem; width: calc(100% - 20px); max-width: 95vw; margin: 10px; box-sizing: border-box; }
   .modal-body { overflow-x: hidden; padding-right: 0; }
@@ -1585,7 +1612,8 @@ svg.mb-icon,
 
 .assist-action-bar {
   position: fixed;
-  bottom: 0;
+  /* Same reason as #action-bar: ride above the log drawer when it is open. */
+  bottom: var(--log-drawer-height, 0px);
   left: 0;
   right: 0;
   background: var(--action-bar-bg);
@@ -1617,4 +1645,207 @@ svg.mb-icon,
   .assist-chat { position: static; }
   .assist-chat-log { max-height: 38vh; }
   .assist-action-hint { display: none; }
+}
+
+/* ─── Live log viewer ──────────────────────────────────────────────────────────
+   The drawer is a peer of the page, not a modal: no backdrop, no focus trap, and a
+   z-index above the fixed action bars (1000) but well below every dialog overlay
+   (5000+), so a confirmation still lands on top of it. */
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+
+.log-drawer {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  min-height: 140px;
+  background: var(--log-bg);
+  border-top: 1px solid var(--border-color-subtle);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--text);
+}
+
+.log-drawer-resize {
+  flex: 0 0 auto;
+  height: 10px;
+  cursor: ns-resize;
+  background: var(--log-header-bg);
+  border-bottom: 1px solid var(--border-color);
+  touch-action: none;
+}
+.log-drawer-resize::after {
+  content: '';
+  display: block;
+  width: 44px; height: 3px;
+  margin: 3px auto;
+  border-radius: 3px;
+  background: var(--log-meta);
+}
+.log-drawer-resize:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+
+.log-drawer-header,
+.log-drawer-controls,
+.log-drawer-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-sm);
+  padding: 0.4rem 0.75rem;
+  background: var(--log-header-bg);
+}
+.log-drawer-header { justify-content: space-between; border-bottom: 1px solid var(--border-color); }
+.log-drawer-controls { flex-wrap: wrap; border-bottom: 1px solid var(--border-color); }
+.log-drawer-footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.75rem;
+  color: var(--log-meta);
+}
+.log-drawer-footer-note { margin-left: auto; text-align: right; }
+
+.log-drawer-title { display: flex; align-items: center; gap: var(--gap-sm); flex-wrap: wrap; }
+.log-drawer-header-actions { display: flex; align-items: center; gap: 0.3rem; }
+
+.log-scope-badge {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border-color-subtle);
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  color: var(--log-meta);
+  white-space: nowrap;
+}
+
+.log-status { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--log-meta); }
+.log-status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--log-meta); }
+.log-status-live .log-status-dot { background: var(--success); }
+.log-status-live { color: var(--success); }
+.log-status-connecting .log-status-dot,
+.log-status-reconnecting .log-status-dot { background: var(--log-warning); }
+.log-status-reconnecting, .log-status-connecting { color: var(--log-warning); }
+.log-status-denied .log-status-dot,
+.log-status-disconnected .log-status-dot { background: var(--log-error); }
+.log-status-denied, .log-status-disconnected { color: var(--log-error); }
+
+.log-level-filters { display: flex; gap: 0.3rem; }
+.log-level-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border-color-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--log-chip-off-bg);
+  color: var(--log-meta);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+/* Severity is carried by the label text as well as the colour, so the filters stay
+   readable without colour perception. */
+.log-level-chip[aria-pressed='true'] { background: var(--panel); border-color: currentColor; }
+.log-level-chip[aria-pressed='true'].log-level-info { color: var(--log-info); }
+.log-level-chip[aria-pressed='true'].log-level-warning { color: var(--log-warning); }
+.log-level-chip[aria-pressed='true'].log-level-error { color: var(--log-error); }
+.log-level-chip[aria-pressed='true'].log-level-critical { color: var(--log-critical); }
+.log-level-count { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+.log-control { display: flex; align-items: center; gap: 0.3rem; margin: 0; font-size: 0.8rem; }
+.log-control select, .log-control input[type='search'] { padding: 0.25rem 0.45rem; font-size: 0.8rem; }
+.log-search { flex: 1 1 180px; min-width: 140px; }
+.log-search input { width: 100%; }
+.log-follow { white-space: nowrap; }
+.log-drawer-actions { display: flex; gap: 0.3rem; margin-left: auto; }
+
+.log-drawer-notice {
+  margin: 0;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.76rem;
+  color: var(--log-meta);
+  background: var(--log-header-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+.log-drawer-notice-warn { color: var(--log-warning); }
+
+.log-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.3rem 0;
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.log-drawer-body:focus-visible { outline: none; box-shadow: inset var(--focus-ring); }
+.log-drawer-empty { padding: 1rem 0.75rem; color: var(--log-meta); font-family: inherit; }
+
+.log-entry {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+  gap: 0 0.6rem;
+  padding: 0.1rem 0.75rem;
+  border-left: 3px solid transparent;
+}
+.log-entry:hover { background: var(--log-row-hover); }
+.log-entry-time { color: var(--log-meta); font-variant-numeric: tabular-nums; }
+.log-entry-level { font-weight: 700; letter-spacing: 0.02em; }
+.log-entry-logger { color: var(--log-meta); }
+/* pre-wrap: a traceback's indentation is the only thing that makes it readable. */
+.log-entry-message { white-space: pre-wrap; word-break: break-word; }
+.log-entry-expand {
+  align-self: start;
+  padding: 0 0.3rem;
+  border: 1px solid var(--border-color-subtle);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--log-meta);
+  font-size: 0.68rem;
+  cursor: pointer;
+}
+
+.log-entry-info .log-entry-level { color: var(--log-info); }
+.log-entry-warning { border-left-color: var(--log-warning); }
+.log-entry-warning .log-entry-level { color: var(--log-warning); }
+.log-entry-error { border-left-color: var(--log-error); }
+.log-entry-error .log-entry-level { color: var(--log-error); }
+.log-entry-critical { border-left-color: var(--log-critical); background: rgba(var(--danger-rgb), 0.08); }
+.log-entry-critical .log-entry-level { color: var(--log-critical); }
+/* Entries from a capture generation that has since been replaced by a restart or a
+   verbose re-enable. They are still true, but they do not continue into what follows. */
+.log-entry-stale { opacity: 0.55; }
+
+.log-pending-jump {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+@media (max-width: 680px) {
+  /* A phone cannot usefully show a third of the viewport plus the app behind it, so
+     the drawer takes nearly the whole screen and the controls stack. */
+  .log-drawer { height: 90vh !important; }
+  .header-logs-label { display: none; }
+  .log-drawer-footer-note { display: none; }
+  .log-drawer-controls { gap: 0.4rem; }
+  .log-level-filters { width: 100%; justify-content: space-between; }
+  .log-search { flex-basis: 100%; }
+  .log-drawer-actions { margin-left: 0; width: 100%; }
+  .log-drawer-actions button { flex: 1; }
+  .log-entry { grid-template-columns: minmax(0, 1fr) auto; }
+  .log-entry-level, .log-entry-logger { grid-column: 1; }
+  .log-entry-message { grid-column: 1 / -1; }
 }

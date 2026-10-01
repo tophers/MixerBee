@@ -75,8 +75,57 @@ export const api = {
         }
     },
 
-    get(endpoint) { 
-        return this.request(endpoint, null, 'GET'); 
+    // A streaming sibling of request(). The JSON path above appends a _cb= buster,
+    // sets a JSON content type, and calls r.json() on success, none of which suit an
+    // open text/event-stream response -- but the account pinning and the 401/409
+    // session handling still have to apply, so they are repeated here rather than
+    // letting a caller reach for bare fetch().
+    async stream(endpoint, { signal } = {}) {
+        const reqAccount = session.account?.id;
+        try {
+            const r = await fetch(endpoint, {
+                method: 'GET',
+                credentials: 'same-origin',
+                signal,
+                cache: 'no-store',
+                headers: { 'Accept': 'text/event-stream', 'X-MixerBee-Request': '1',
+                    'X-MixerBee-CSRF': session.csrf_token || '',
+                    'X-MixerBee-Account': session.account?.id || '' }
+            });
+
+            if (session.account?.id !== reqAccount) {
+                try { r.body?.cancel(); } catch (e) {}
+                return { response: null, error: { detail: 'Request context expired or switched' }, status: 'stale' };
+            }
+
+            if (!r.ok) {
+                let errData;
+                try { errData = await r.json(); } catch (e) { errData = { detail: `Server error: ${r.status}` }; }
+                const structured = errData?.detail;
+                if (structured && typeof structured === 'object' && !Array.isArray(structured)) {
+                    errData = { ...errData, ...structured,
+                                detail: String(structured.detail ?? `Server error: ${r.status}`) };
+                }
+                // Same rule as request(): a 401/409 without a machine-readable reason
+                // means the session really is gone, so the page reloads. A reason such
+                // as logging_disabled is an answer about this feature, not the session.
+                if ((r.status === 401 || r.status === 409) && !errData?.reason) {
+                    document.dispatchEvent(new CustomEvent('mixerbee:unauthorized'));
+                }
+                return { response: null, error: errData, status: r.status };
+            }
+
+            return { response: r, error: null, status: 'ok' };
+        } catch (err) {
+            if (err?.name === 'AbortError') {
+                return { response: null, error: null, status: 'aborted' };
+            }
+            return { response: null, error: err, status: 'error' };
+        }
+    },
+
+    get(endpoint) {
+        return this.request(endpoint, null, 'GET');
     },
     
     post(endpoint, body) { 

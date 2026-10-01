@@ -2,7 +2,6 @@
 routers/builder.py – APIRouter
 """
 
-import logging
 import random
 from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Depends
@@ -14,6 +13,10 @@ from app.cache import get_library_data
 from app.ai import generate_smart_blocks
 from preset_manager import preset_manager
 from .dependencies import get_current_auth_headers, media_for_user, require_collection_permission, require_generative_ai
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Build")
 
 router = APIRouter()
 
@@ -149,7 +152,7 @@ def api_create_from_text(req: models.AiPromptRequest, auth_deps: dict = Depends(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error("Failed to generate from text", exc_info=True)
+        logger.error("Failed to generate from text", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/movies/preview_count")
@@ -202,7 +205,7 @@ def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Dep
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error generating playlist preview: {e}", exc_info=True)
+        logger.error(f"Error generating playlist preview: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An error occurred while generating the preview: {e}")
 
 @router.post("/api/create_mixed_playlist")
@@ -263,7 +266,7 @@ def api_add_items_to_playlist(playlist_id: str, req: models.AddItemsRequest, aut
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error adding items to playlist {playlist_id}: {e}", exc_info=True)
+        logger.error(f"Error adding items to playlist {playlist_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/api/external/build_preset", response_model=Dict)
@@ -295,7 +298,7 @@ def api_external_build_preset(req: models.ExternalBuildRequest, auth_deps: dict 
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"External build_preset failed for preset '{req.preset_name}'", exc_info=True)
+        logger.error(f"External build_preset failed for preset '{req.preset_name}'", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/api/build_runs")
@@ -378,6 +381,6 @@ def api_replay_build_run(
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error replaying build run {run_id}: {e}", exc_info=True)
+        logger.error(f"Error replaying build run {run_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 

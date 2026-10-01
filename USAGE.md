@@ -150,6 +150,64 @@ The Manager pane enables library curation across all playlists and collections:
 - **Runtime Presentation**: Formatted total duration is computed and displayed alongside item counts.
 - **Overlap Analysis**: Identify duplicate media items that appear across multiple playlists or collections with bounded queries to prevent server overload.
 
+## Verbose logging
+
+The installation owner can enable **Account settings → Administration → Verbose logging**. It applies to all accounts and media connections, including background jobs. It works even when no media connection is configured or a media server is unavailable.
+
+The setting is off by default, saved in SQLite, and loaded on every startup. Changes apply immediately without restarting MixerBee. Enabling it changes MixerBee's subsystem loggers and APScheduler from `WARNING` to `INFO`; warnings and errors remain visible when it is off. It does not change Uvicorn's access logging.
+
+Verbose output includes media queries, scheduler and webhook activity, indexing, enrichment, and AI processing. It can include prompts, media titles, and AI tool arguments. Turn it off after troubleshooting and check logs before sharing them.
+
+To follow logs:
+
+```sh
+# Docker Hub installation
+docker logs --tail 100 -f mixerbee
+
+# Docker Compose
+docker compose logs --tail 100 -f mixerbee
+```
+
+For a custom installation, read the terminal output or the service's logs. MixerBee writes its subsystem logs to standard output; this option does not create a separate log file.
+
+### Live log viewer
+
+While verbose logging is on, the installation owner gets a **Live logs** button in the header and an
+**Open live logs** action beside the Administration checkbox. Both open a resizable drawer along the bottom
+of the window. The rest of the app stays usable behind it, the drawer survives tab changes, and it is
+available when no media connection exists or a media server is unreachable.
+
+The drawer shows each entry's local time, severity, subsystem, and message, and offers severity filters, a
+subsystem selector, text search, **Follow latest** (which pauses when you scroll up and counts what arrived
+meanwhile), **Clear view**, **Copy visible**, and **Download**. Multiline messages and tracebacks expand in
+place. Severity totals sit in the footer.
+
+What it is and is not:
+
+- **Scope is installation-wide** — all accounts and all media connections. Changing the selected media
+  connection does not filter it. Household members cannot open it, and an external API key cannot reach it.
+- **Memory only.** The server keeps the most recent 2,000 records or 2 MiB, whichever comes first, with each
+  record capped at 16 KiB; your browser keeps 1,000 records or 1 MiB. Older entries are discarded and the
+  drawer says so. Nothing is written to disk, to SQLite, or into backups, and nothing survives a reload.
+  Search and the filters apply to what the drawer currently holds — this is not a server-side log archive.
+- **Console logs are unaffected.** The output described above keeps working identically whether or not the
+  viewer is open, and remains the place to look for a full history.
+- **Turning verbose logging off** stops the feed and clears the server's buffer. An open drawer keeps its
+  entries readable and copyable until you close it.
+- **Recognized credentials are redacted** from viewer text — password, secret and token fields, API keys,
+  `Authorization` headers, webhook token parameters, and URL user information, including inside tool
+  arguments and exception messages. This is a safety net over values that reach a log line incidentally,
+  not a guarantee about arbitrary free text, so still review logs before sharing them.
+- **Single process only.** Running MixerBee under multiple Uvicorn workers would give each worker its own
+  buffer, and the drawer would show only the worker that served the request.
+
+Behind a reverse proxy, the feed is a `text/event-stream` response and must not be buffered. MixerBee sends
+`Cache-Control: no-store, no-transform` and `X-Accel-Buffering: no`, which is enough for nginx's defaults.
+For other proxies, disable response buffering and allow a long-lived connection on
+`/api/admin/logs/stream`; MixerBee sends a keepalive comment at least every 15 seconds, so a read timeout
+above 30 seconds is sufficient. If the drawer keeps reconnecting while the container logs look healthy,
+proxy buffering is the first thing to check.
+
 ## Backup and restore
 
 MixerBee provides both online, owner-authenticated API backup/restore and file-system archive options.

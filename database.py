@@ -58,6 +58,9 @@ def init_db():
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        settings_columns = {r['name'] for r in conn.execute('PRAGMA table_info(settings)')}
+        if 'updated_at' not in settings_columns:
+            conn.execute('ALTER TABLE settings ADD COLUMN updated_at TIMESTAMP')
         
         import accounts
         accounts.initialize_schema(conn)

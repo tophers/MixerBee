@@ -1,6 +1,5 @@
 """Settings belong to the signed-in account's selected media connection."""
 import json
-import logging
 import secrets
 import threading
 import time
@@ -20,6 +19,10 @@ from app import ai_policy
 from app.ai.vector_store import (ensure_library_indexed, get_vector_space,
                                  reset_media_collection)
 from .dependencies import get_current_auth_headers, owned_connection
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Settings")
 
 router = APIRouter()
 
@@ -345,5 +348,5 @@ def api_reset_vector_db(req: models.ResetVectorDbRequest, auth_deps: dict = Depe
             
         return {"status": "ok", "log": [msg]}
     except Exception as e:
-        logging.error(f"Manual DB Reset failed: {e}", exc_info=True)
+        logger.error(f"Manual DB Reset failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

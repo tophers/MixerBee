@@ -2,8 +2,11 @@
 routers/dependencies.py – APIRouter
 """
 
-import logging
 from fastapi import HTTPException, Request
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Auth")
 
 def _ensure_fresh_auth(connection_id) -> dict:
     """Authenticate one explicit connection; never fall back to shared app state."""
@@ -15,7 +18,7 @@ def _ensure_fresh_auth(connection_id) -> dict:
         media.ensure_authenticated()
         return {"media": media, "login_uid": media.user_id, "connection_id": connection_id}
     except Exception as exc:
-        logging.warning("Saved media connection unavailable: %s", type(exc).__name__)
+        logger.warning("Saved media connection unavailable: %s", type(exc).__name__)
         raise HTTPException(503, "Media connection unavailable. Check this account's server and credentials.") from exc
 
 

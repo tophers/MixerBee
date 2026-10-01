@@ -5,10 +5,11 @@ from urllib.parse import quote, urlencode, urlsplit
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictBool
 
 import accounts
 import database
+import app_state
 from app import ai_policy
 from connections import webhook_status
 
@@ -140,6 +141,24 @@ def require_admin(request):
         raise HTTPException(403, 'Only the installation owner can manage local accounts.')
 
 
+class LoggingSettings(BaseModel):
+    verbose_logging: StrictBool
+
+
+@router.get('/api/admin/settings/logging')
+def get_logging_settings(request: Request):
+    require_admin(request)
+    return {'verbose_logging': app_state.load_logging_settings()}
+
+
+@router.post('/api/admin/settings/logging')
+def update_logging_settings(req: LoggingSettings, request: Request):
+    require_admin(request)
+    enabled = app_state.set_verbose_logging(req.verbose_logging)
+    return {'status': 'ok', 'verbose_logging': enabled,
+            'log': ['Verbose logging enabled.' if enabled else 'Verbose logging disabled.']}
+
+
 def _webhook_public_base_url(request):
     with database.get_db_connection() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='webhook_public_base_url'").fetchone()
@@ -238,7 +257,11 @@ def update_webhook_base_url(request: Request, payload: dict):
             raise HTTPException(400, 'Use an http:// or https:// URL without credentials, query parameters, or a fragment.')
     with database.get_db_connection() as conn:
         if value:
-            conn.execute("INSERT OR REPLACE INTO settings (key,value,updated_at) VALUES ('webhook_public_base_url', ?, CURRENT_TIMESTAMP)", (value,))
+            columns = {r['name'] for r in conn.execute('PRAGMA table_info(settings)')}
+            if 'updated_at' in columns:
+                conn.execute("INSERT OR REPLACE INTO settings (key,value,updated_at) VALUES ('webhook_public_base_url', ?, CURRENT_TIMESTAMP)", (value,))
+            else:
+                conn.execute("INSERT OR REPLACE INTO settings (key,value) VALUES ('webhook_public_base_url', ?)", (value,))
         else:
             conn.execute("DELETE FROM settings WHERE key='webhook_public_base_url'")
         conn.commit()

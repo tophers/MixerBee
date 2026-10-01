@@ -2,6 +2,10 @@
 # Import the existing harness first: it isolates runtime paths before app imports.
 import test_connections as connection_tests
 import json
+import asyncio
+import io
+import logging
+import os
 import sqlite3
 import time
 import unittest
@@ -14,6 +18,8 @@ import connections
 import database
 import scheduler
 import web
+import app_state
+from app.logger import get_logger, refresh_logger_level
 from app.media_client import MediaClient
 from preset_manager import preset_manager
 from app import build_history, cache
@@ -84,6 +90,97 @@ class AccountTests(unittest.TestCase):
         self.assertEqual(bob.get('/api/accounts').status_code, 403)
         self.assertEqual(bob.post('/api/accounts', json={'username': 'third', 'password': 'test-password'}).status_code, 403)
         self.assertEqual(owner.post('/api/accounts', json={'username': 'BOB', 'password': 'test-password'}).status_code, 400)
+
+    def test_owner_logging_toggle_persists_and_changes_output_without_connection(self):
+        owner, _ = self.bootstrap(legacy=False)
+        self.addCleanup(refresh_logger_level)
+        with patch.object(app_state, 'VERBOSE_LOGGING', False):
+            logger = get_logger('MixerBee.LoggingTest')
+            output = io.StringIO()
+            handler = logging.StreamHandler(output)
+            logger.addHandler(handler)
+            self.addCleanup(logger.removeHandler, handler)
+            path = '/api/admin/settings/logging'
+            self.assertEqual(owner.get(path).json(), {'verbose_logging': False})
+            for enabled in (True, False):
+                output.truncate(0)
+                output.seek(0)
+                res = owner.post(path, json={'verbose_logging': enabled})
+                self.assertEqual(res.status_code, 200, res.text)
+                self.assertEqual(res.json()['verbose_logging'], enabled)
+                self.assertEqual(app_state.VERBOSE_LOGGING, enabled)
+                self.assertEqual(owner.get(path).json()['verbose_logging'], enabled)
+                with database.get_db_connection() as conn:
+                    self.assertEqual(conn.execute(
+                        "SELECT value FROM settings WHERE key='VERBOSE_LOGGING'").fetchone()[0],
+                        'true' if enabled else 'false')
+                logger.info('detail')
+                logger.warning('warning')
+                self.assertEqual('detail' in output.getvalue(), enabled)
+                self.assertIn('warning', output.getvalue())
+                expected = logging.INFO if enabled else logging.WARNING
+                self.assertEqual(logging.getLogger('apscheduler').level, expected)
+                self.assertEqual(get_logger('MixerBee.LoggingTest.New').level, expected)
+
+    def test_logging_settings_require_owner_session_csrf_and_boolean(self):
+        owner, _ = self.bootstrap(legacy=False)
+        member = self.bob(owner)
+        anon = TestClient(web.app)
+        path = '/api/admin/settings/logging'
+        for client, status in ((anon, 401), (member, 403)):
+            self.assertEqual(client.get(path).status_code, status)
+            self.assertEqual(client.post(path, json={'verbose_logging': True}).status_code, status)
+        self.assertEqual(anon.get(path, headers={'X-MixerBee-Key': 'external-key'}).status_code, 401)
+        self.assertEqual(owner.post(path, json={'verbose_logging': True},
+                                    headers={'X-MixerBee-CSRF': ''}).status_code, 409)
+        for value in ('false', 1, None):
+            self.assertEqual(owner.post(path, json={'verbose_logging': value}).status_code, 422)
+        with database.get_db_connection() as conn:
+            self.assertIsNone(conn.execute("SELECT value FROM settings WHERE key='VERBOSE_LOGGING'").fetchone())
+
+    def test_startup_loads_logging_after_setup_without_importing_legacy_settings(self):
+        self.bootstrap(legacy=False)
+        self.addCleanup(refresh_logger_level)
+        with database.get_db_connection() as conn:
+            conn.execute("INSERT INTO settings (key,value) VALUES ('VERBOSE_LOGGING','true')")
+            conn.commit()
+
+        async def startup():
+            async with web.lifespan(web.app):
+                self.assertTrue(app_state.VERBOSE_LOGGING)
+                self.assertEqual(logging.getLogger('apscheduler').level, logging.INFO)
+
+        with patch.object(app_state, 'VERBOSE_LOGGING', False), \
+                patch.object(app_state, 'load_and_authenticate') as legacy, \
+                patch.object(app_state, 'sync_env_to_db') as env_sync, \
+                patch.object(app_state, 'load_settings_from_db') as legacy_settings, \
+                patch('web.threading.Thread'), \
+                patch.object(scheduler.scheduler_manager, 'start'), \
+                patch.object(scheduler.scheduler_manager.scheduler, 'shutdown'):
+            asyncio.run(startup())
+            legacy.assert_not_called()
+            env_sync.assert_not_called()
+            legacy_settings.assert_not_called()
+
+    def test_failed_logging_save_preserves_runtime_level(self):
+        self.addCleanup(refresh_logger_level)
+        with patch.object(app_state, 'VERBOSE_LOGGING', False):
+            logger = get_logger('MixerBee.LoggingTest')
+            with patch.object(database, 'get_db_connection', side_effect=sqlite3.OperationalError('unavailable')):
+                with self.assertRaises(sqlite3.OperationalError):
+                    app_state.set_verbose_logging(True)
+            self.assertFalse(app_state.VERBOSE_LOGGING)
+            self.assertEqual(logger.level, logging.WARNING)
+
+    def test_legacy_env_logging_preference_can_still_be_imported(self):
+        self.addCleanup(refresh_logger_level)
+        env_path = database.DB_PATH.parent / '.env'
+        env_path.write_text('VERBOSE_LOGGING=yes\n')
+        with patch.object(app_state, 'VERBOSE_LOGGING', False), \
+                patch.object(app_state, 'ENV_PATH', env_path), patch.dict(os.environ):
+            app_state.sync_env_to_db()
+            self.assertTrue(app_state.load_logging_settings())
+            self.assertEqual(logging.getLogger('apscheduler').level, logging.INFO)
 
     def test_remove_member_requires_owner_confirmation_and_csrf(self):
         owner, _ = self.bootstrap()

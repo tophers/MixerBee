@@ -2,7 +2,6 @@
 routers/assist.py – APIRouter for Playlist Assist (conversational movie curation).
 """
 
-import logging
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,6 +19,10 @@ from app.ai.assist_orchestrator import (
 from app.ai.tools import resolve_movies
 from app.media_client import media_scope
 from .dependencies import get_current_auth_headers, media_for_user, require_generative_ai
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Assist")
 
 router = APIRouter()
 
@@ -62,7 +65,7 @@ def api_assist_chat(
         reason = ai_policy.REASON_DISABLED if status == 403 else "ai_not_configured"
         raise HTTPException(status, {"detail": str(e), "reason": reason}) from e
     except Exception as e:
-        logging.error("Playlist Assist turn failed", exc_info=True)
+        logger.error("Playlist Assist turn failed", exc_info=True)
         raise HTTPException(500, f"Playlist Assist failed: {e}") from e
 
     # The revision id is echoed verbatim: it is the frontend's fast path for skipping
@@ -134,7 +137,7 @@ def api_assist_save(
         core.build_history.record_build_finish(
             run_id=run_id, output_id=None, outcome="error", summary=str(e), rows=[]
         )
-        logging.error("Playlist Assist save failed", exc_info=True)
+        logger.error("Playlist Assist save failed", exc_info=True)
         raise HTTPException(500, f"Failed to save the playlist: {e}") from e
 
     if not new_id:

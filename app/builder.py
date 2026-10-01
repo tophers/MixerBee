@@ -2,7 +2,6 @@
 app/builder.py -  module for constructing mixed playlists from content blocks.
 """
 
-import logging
 import random
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -16,6 +15,10 @@ from .movies import find_movies, matches_movie_constraints, normalize_movie_filt
 from .music import find_songs, get_songs_by_album, get_songs_by_artist
 from .tv import episodes, get_first_unwatched_episode, get_random_unwatched_episode, get_first_available_episode, series_id
 from . import build_history
+
+from .logger import get_logger
+
+logger = get_logger("MixerBee.Builder")
 
 
 def _process_tv_block(block: Dict[str, Any], user_id: str, media: client.MediaClient, log_messages: List[str], block_index: int) -> List[Dict[str, Any]]:
@@ -71,7 +74,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, media: client.MediaCl
                 if eps:
                     groups.append(eps)
             except Exception as inner_e:
-                logging.warning(f"Skipping series in block {block_index} due to error: {inner_e}")
+                logger.warning(f"Skipping series in block {block_index} due to error: {inner_e}")
                 continue
 
         if groups:
@@ -83,7 +86,7 @@ def _process_tv_block(block: Dict[str, Any], user_id: str, media: client.MediaCl
                     items.extend(episode_group)
 
     except Exception as e:
-        logging.error(f"Error processing TV block {block_index}: {e}", exc_info=True)
+        logger.error(f"Error processing TV block {block_index}: {e}", exc_info=True)
 
     return items
 
@@ -117,7 +120,7 @@ def _process_movie_block(block: Dict[str, Any], user_id: str, media: client.Medi
             items = find_movies(user_id=user_id, filters=filters, media=media)
 
     except Exception as e:
-        logging.error(f"Error processing Movie block {block_index}: {e}", exc_info=True)
+        logger.error(f"Error processing Movie block {block_index}: {e}", exc_info=True)
     return items
 
 
@@ -213,7 +216,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.Med
                     if album_songs:
                         items.extend(album_songs)
                 except Exception as music_err:
-                    logging.warning(f"Failed to expand album {aid} in Echo block: {music_err}")
+                    logger.warning(f"Failed to expand album {aid} in Echo block: {music_err}")
 
             random.shuffle(items)
 
@@ -239,7 +242,7 @@ def _process_mirror_block(block: Dict[str, Any], user_id: str, media: client.Med
             items = master_items + items
 
     except Exception as e:
-        logging.error(f"Error processing Echo block {block_index}: {e}", exc_info=True)
+        logger.error(f"Error processing Echo block {block_index}: {e}", exc_info=True)
     return items
 
 
@@ -271,7 +274,7 @@ def _process_music_block(block: Dict[str, Any], user_id: str, media: client.Medi
             items.extend(songs)
 
     except Exception as e:
-        logging.error(f"Error processing music block {block_index}: {e}", exc_info=True)
+        logger.error(f"Error processing music block {block_index}: {e}", exc_info=True)
 
     return items
 
@@ -351,7 +354,7 @@ def _process_curated_block(block: Dict[str, Any], user_id: str, media: client.Me
             items = movies_list + tv_list
 
     except Exception as e:
-        logging.error(f"Error processing Curated block {block_index}: {e}", exc_info=True)
+        logger.error(f"Error processing Curated block {block_index}: {e}", exc_info=True)
     return items
 
 
@@ -631,7 +634,7 @@ def apply_runtime_budget(
                     target_dt += timedelta(days=1)
                 target_minutes = int((target_dt - now).total_seconds() / 60)
             except Exception as e:
-                logging.warning(f"Could not parse end_local_time '{end_time_str}': {e}")
+                logger.warning(f"Could not parse end_local_time '{end_time_str}': {e}")
 
     if target_minutes <= 0:
         return rows

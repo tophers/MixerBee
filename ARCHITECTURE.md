@@ -47,10 +47,13 @@ During FastAPI lifespan startup, MixerBee:
 
 1. Initializes and migrates SQLite.
 2. Imports legacy environment configuration only when no local account exists.
-3. Starts a background warm-up pass for every saved connection, refreshing its library cache and AI index when configured.
-4. Loads persisted schedules into APScheduler and starts the scheduler.
+3. Loads the installation's saved logging preference and applies it to subsystem loggers and APScheduler, whether or not account setup is complete.
+4. Starts a background warm-up pass for every saved connection, refreshing its library cache and AI index when configured.
+5. Loads persisted schedules into APScheduler and starts the scheduler.
 
 Shutdown stops APScheduler cleanly.
+
+`GET` and `POST /api/admin/settings/logging` expose the owner-only verbose logging setting without requiring a media connection. `app_state.set_verbose_logging()` saves `VERBOSE_LOGGING` in SQLite and refreshes logger levels immediately. Normal account startup loads only this logging preference through `load_logging_settings()`, without importing legacy media credentials.
 
 ## 2. Local accounts, sessions, and API security
 
@@ -137,6 +140,12 @@ See [Connection refactor](docs/CONNECTION_REFACTOR.md), [multi-user testing](doc
 - `quick_playlists.py`: Immediate quick-build endpoints such as Recently Added, Continue Watching, and other predefined playlist types.
 - `scheduler.py`: Connection-scoped schedule CRUD and manual-run endpoints, stable preset binding, and server-side collection permission enforcement.
 - `webhooks.py`: Connection-specific secret validation, event parsing, setup verification, debounce scheduling, and schedule fan-out.
+- `logs.py`: `GET /api/admin/logs/stream`, the owner-only `text/event-stream` feed of captured log
+  records. Initial authorization is not enough for a long-lived response, so it re-reads the original
+  session before every batch and at least every five seconds while idle, on a worker thread, and fails
+  closed. Cursors carry a capture generation plus a sequence number; a stale generation produces a
+  `reset`, an evicted cursor a `gap`, a disabled setting a `state`, and a lost session an
+  `auth_expired`. The endpoint is installation-wide and never resolves a media connection.
 
 Collection permission is enforced in router dependencies and at mutation boundaries, not only in the frontend. A normal media user may manage playlists and copy a visible collection into a playlist but cannot create, replace, reorder, or delete collections through MixerBee.
 
@@ -205,7 +214,13 @@ Each connection may have one external API key. MixerBee stores the key for later
 - `music.py`: Music genres, artists, albums, tracks, and music-filter selection.
 - `people.py`, `studios.py`, `users.py`: Focused metadata and user API wrappers.
 - `ai_policy.py`: The single source of truth for whether generative AI is available. Reads only persisted account and connection records -- it imports neither chromadb nor a provider SDK, so the policy is answerable for a connection whose vector store has never been opened. Also owns the one-time provider opt-in migration.
-- `logger.py`: Central logger factory with runtime verbosity refresh.
+- `logger.py`: Central logger factory with runtime verbosity refresh. Every logger it creates is also
+  registered with the live-log capture handler, including ones created after startup.
+- `log_buffer.py`: The process-wide bounded ring buffer behind the owner's live log viewer, plus the
+  capture handler, credential redaction, capture generations, and stream-slot accounting. `emit()` runs
+  on the thread that logged the line, so it performs no database or network work and holds its lock
+  only long enough to append. Exceptions are formatted with `traceback.format_exception()` rather than
+  a `Formatter`, which would cache `exc_text` onto the record and change console output.
 
 Domain functions receive a `MediaClient` explicitly or run inside its scoped context. They must not infer a browser's active connection from global process state.
 
@@ -323,6 +338,8 @@ policy rejection.
 
 - `accessGate.js`: Initial owner setup, login, session handoff, and forced reload on unauthorized/stale-session events.
 - `apiClient.js`: Native `fetch` wrapper. Pins account, CSRF token, and selected connection headers and normalizes responses to `{data, error, status}`.
+  `api.stream()` is its streaming sibling for the log feed: same account pinning and 401/409 session
+  handling, but it returns the raw `Response` instead of parsing JSON and adds no cache buster.
 - `app.js`: Hydrates Alpine stores, initializes modals, loads account/configuration state, handles connection recovery, loads the selected library, and then initializes presets and Builder state.
 - `settingsStore.js`: Account menu, connection list/selection/removal, connection settings, AI configuration, external keys, webhook URL/state, owner webhook inbox, public callback base URL, and theme. It also holds the authoritative AI capability (`applyCapability`/`refreshCapability`/`setAiDisabled`); every template and store reads `generative_ai_available` from here rather than deriving it from form inputs.
 - `mixerStore.js`: Builder blocks, draft persistence, search suggestions, previews, and build actions. Draft keys include the connection ID.
@@ -334,6 +351,11 @@ policy rejection.
 - `blockFactory.js`: Default state factory for each Builder block type.
 - `definitions.js`: Block and quick-build definitions.
 - `modals.js`: Promise-based modal actions and toast-history integration.
+- `logStore.js`: The owner's live log drawer -- availability, one stream per open drawer, incremental SSE
+  parsing, bounded browser retention, filters, follow/pause, and cleanup. Transport state (abort
+  controller, retry timer, dedup set, byte counters) is held in module scope rather than on the store,
+  since none of it benefits from Alpine's reactive proxy. Log text never reaches `localStorage`,
+  `sessionStorage`, or the server; only the drawer height is saved.
 - `uiStore.js`: Top-level tab state.
 - `utils.js`: Toasts, browser-session notification history, loading/button wrappers, debouncing, and UUID generation.
 - `header.js`: One-time typewriter animation controlled by `localStorage`.

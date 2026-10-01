@@ -1,47 +1,61 @@
 # MixerBee
 
-MixerBee is a self-hosted automation app for [Emby](https://emby.media/) and [Jellyfin](https://jellyfin.org). It lets you create playlists and collections from your media library using metadata filters, optional AI tools, and schedules.
-
-AI features are optional and stay off until you deliberately configure a provider, and one checkbox in Account settings turns them off for your whole account. Semantic search and Echo blocks are core library features that work without any AI provider.
-
-MixerBee can be used to:
-- build mixed TV, movie, and music lists
-- create playlists or collections
-- save builds as presets
-- schedule builds to run automatically
-- rebuild lists when library activity changes
-
----
+MixerBee is a self-hosted automation app for [Emby](https://emby.media/) and [Jellyfin](https://jellyfin.org). It creates and manages playlists and collections using library metadata, watch status, optional AI tools, and schedules.
 
 ## Features
 
-### Builder
-MixerBee uses blocks to build media lists.
+### Users and Servers
 
-- **TV Blocks**: Combine episodes from multiple shows. You can start from specific episodes or continue from next unwatched episodes.
-- **Movie Blocks**: Filter movies by genre, year, studio, cast, and watched status.
-- **Music Blocks**: Build lists from artists, albums, top tracks, or genre-based selections.
-- **Collections and Playlists**: Save output as a server playlist or as a collection/box set.
+- **Multi-user**: Separate local accounts with their own connections, presets, schedules, and AI settings. The installation owner can create and remove household accounts.
+- **Multi-server**: Each account can save and switch between multiple Emby or Jellyfin connections. Each connection has its own library data, presets, and schedules.
 
-### AI Builder
-MixerBee supports both local Ollama and Google Gemini models.
+### Block Types
 
-- Use either local AI (preferred) or cloud AI in Settings
-- Use prompt-based search to build lists from themes, moods, or styles
-- Use AI in two ways:
-  1. **Rule-Based**: AI fills in filters and settings for you
-  2. **Curated Blocks**: AI selects specific media items from your library based on semantic matches
+The Builder combines blocks into a playlist. Blocks can play in sequence or interleave.
+
+- **TV**: Select shows and start from specific episodes or continue from the next unwatched episodes.
+- **Movies**: Filter by genre, year, studio, cast, director, watched status, favorites, runtime, ratings, and audio or subtitle language.
+- **Music**: Select albums, an artist's top or random tracks, or tracks by genre.
+- **Curated**: Combine hand-picked movies with TV episode rules.
+- **Echo**: Find similar titles from seed movies or shows using the local library index. No AI provider is required.
+- **AI Vibe**: Use the AI Builder to select library items from a descriptive prompt.
+
+### Builder Tools
+
+- **Mix Rules**: Exclude recently watched or previously selected items, suppress duplicates, limit movies per franchise, choose block order, and set a total runtime target.
+- **Previews and Snapshots**: Check selected items and total runtime. Movie, Echo, and Curated blocks can keep a preview's selection as a snapshot.
+- **Editing**: Reorder blocks, undo or redo edits, and keep browser-local drafts.
+- **Presets and Recipes**: Save complete builds as presets or individual blocks as recipes. Recipes support descriptions, tags, and favorites; presets can be shared by code.
+- **Output**: Create or replace playlists, append to existing playlists, or build a movie collection from one Movie block. Collection changes require a media-server administrator account.
 
 ### Automation
-- **Scheduler**: Save builds as presets and run them on a schedule
-- **Webhooks**: Rebuild lists automatically when watched status or other server events change
-- **Delta Indexing**: Only new or removed items are reprocessed for the local vector database
+
+- **Scheduler**: Run presets and Auto Playlists daily, weekly, or at an interval. Pause, resume, snooze, or run a schedule manually.
+- **Webhooks**: Rebuild scheduled lists after playback or library events. Choose clock, watched, and library triggers for each schedule.
+- **Movie and TV Auto Playlists**: Recently Added, Next Up, Pilot Sampler, From the Vault, Top Community Picks, and Top Critic Picks. Movie Genre Roulette is also available as a manual build.
+- **Music Auto Playlists**: Artist Spotlight, Music Genre Sampler, and Album Roulette, including scheduled album rotation.
+- **Enrichment Schedules**: Process batches of library metadata for AI mood tags.
 
 ### Management
-- **Manager Dashboard**: View, sort, search, and delete playlists or collections
-- **Conversion Tools**: Convert playlists to collections, or collections to playlists
-- **Notification History**: Review notifications from the current browser session
-- **Verbose Logging**: Optional detailed logging through the `.env` file
+
+- **Manager**: Search and sort playlists and collections, view runtime and contents, reorder or remove items, and delete multiple lists.
+- **Conversion**: Convert playlists to collections or copy collections into playlists.
+- **Overlap**: Check for media items shared across lists.
+- **Build History**: Review recorded builds, compare their items, and replay an earlier selection as a new playlist.
+- **Server Links**: Open playlists and collections directly in Emby or Jellyfin.
+- **Backup and Restore**: Download, inspect, and restore configuration archives through the owner API.
+- **External API**: Build lists from other tools using a connection-specific API key.
+- **Verbose Logging**: The installation owner can enable detailed logs from Account settings, and watch them live in a drawer without leaving the app.
+
+### Optional AI Tools
+
+AI features support local Ollama and Google Gemini. They stay off until a provider is configured and can be disabled for the whole account. Echo blocks and local semantic search work without a provider.
+
+- **AI Builder**: Generate filter-based blocks or specific selections from a prompt, then refine them with follow-up requests.
+- **Playlist Assist**: Build a movie playlist through conversation. Pin movies to keep them, remove items, undo changes, and save the result as a new playlist. Currently supports movies only.
+- **Metadata Enrichment**: Add mood tags to the local search index, with start/stop controls and progress in the AI Hub.
+- **Library IQ**: View the percentage of the library enriched with mood tags.
+- **Index Maintenance**: Refresh changed metadata or rebuild the local search index independently of AI enrichment.
 
 ---
 
@@ -59,141 +73,10 @@ MixerBee supports both local Ollama and Google Gemini models.
 
 ---
 
-## Installation and Setup
+## Documentation
 
-### Requirements
-- **Docker Hub image** recommended for deployment
-- **Python** 3.12+ for bare-metal installs
-- **Emby or Jellyfin** account; a server admin account is only needed for server-wide operations such as collections
-
-The project's Docker image, test instance, and production instance run Python 3.14.3. Python 3.12+ is supported for custom installs.
-
-### Quick Start
-The recommended installation uses the prebuilt Docker Hub image; no source checkout or local build is needed.
-
-1. Start the container from the directory where you want to keep MixerBee's data:
-
-   ```sh
-   docker run -d \
-     --name mixerbee \
-     -p 9000:9000 \
-     -v "$(pwd)/mixerbee_config:/config" \
-     --restart unless-stopped \
-     trulytilted/mixerbee:latest
-   ```
-
-2. Open the UI at `http://your-ip:9000`
-3. On first launch, create the local MixerBee owner account directly in the browser
-4. Add an Emby or Jellyfin connection for that account. Nothing else is required; add an AI provider later in the AI Hub only if you want the AI Builder, Assist, or mood tags
-
-Docker downloads the image if it is not already present. The `mixerbee_config` directory persists settings, presets, schedules, and the local vector database across container replacements.
-
-See [Installation](INSTALL.md) for updates and alternative installs, and [Usage and behavior](USAGE.md) for build behavior, schedules, and backups.
-
----
-
-## Mood-Based Search
-
-MixerBee can use a local ChromaDB database to match descriptive prompts against your library metadata.
-
-### How it works
-1. The app checks your prompt for themes, moods, or descriptive terms
-2. It searches your local vector database for matching media
-3. It builds results using your library metadata and media IDs
-
-Library metadata used for embeddings is stored locally. If you use a local Ollama model, requests also stay local.
-
----
-
-## Notes
-- More detailed prompts usually produce better results
-- You can combine filters and prompt-based requests
-- Each local MixerBee account has its own connections, presets, schedules, webhook URL, and AI settings
-- Household members can request webhook setup from the installation owner; MixerBee verifies the connection after the first valid media-server event
-- Schedules keep running for their saved connection when the user is signed out
-- Settings changed in the UI are stored in the database and apply without restarting MixerBee
-
-# Overview & Configuration
-
----
-
-## Settings & Configuration
-
-MixerBee requires a connection to your Emby/Jellyfin server and optionally an AI provider to provide additional functionality.
-
-*   **Local Accounts:** The first local account is the installation owner and can create household accounts. Each account starts with an independent workspace.
-*   **Server Connection:** Supports **Emby** or **Jellyfin**. Requires the server URL, username, and password. 
-*   **Connection Switching:** An account can save multiple media connections and switch between their presets, schedules, and library data from the header.
-*   **Connection Removal:** Removing a connection clears its MixerBee credentials, presets, schedules, and AI index while leaving media-server playlists and collections untouched.
-*   **Media Permissions:** Collection editing controls follow the selected Emby or Jellyfin user's administrator capability. Normal users can still copy a visible collection into a personal playlist.
-*   **AI Provider (optional):** Choose **None**, **Ollama (Local)**, or **Google Gemini (Cloud)** in the AI Hub. New connections start at **None**: the localhost URL and model shown in the form are placeholders, so saving media credentials never enables AI. Ollama needs a URL and a model name; Gemini needs an API key. Prefer tool-calling capable models for Ollama, and star favourites for quick-switching.
-*   **Account-wide AI switch:** Account settings has **Disable AI features**, which hides Assist, the AI Block Builder, Library IQ, and enrichment and stops all Gemini/Ollama requests across every connection you own, now and in future. Saved credentials and existing mood tags are kept; Echo and semantic search keep working. See [Usage and behavior](USAGE.md) for the full behaviour, including the one-time upgrade step for existing localhost Ollama setups.
-*   **Vector Database:** MixerBee uses a local ChromaDB instance (Cosine similarity) to index your library for semantic searching. This is core, not an AI feature: it is built from your library metadata on every connection, with or without a provider.
-*   **Maintenance:** **Connection settings → Library Search & Indexing** can re-index changed items or rebuild the index if searches become inaccurate, optionally preserving existing metadata enrichments. It stays available whatever the AI preference.
-
----
-
-## Block Types
-
-The Builder uses modular "blocks" to compile mixed playlists. You can combine these blocks sequentially or interleave them.
-
-### Curated Block (Manual)
-A hybrid, hand-picked block.
-*   **How it works:** Search for specific movies to add, and create dynamic rules for TV shows (e.g., "Next Unwatched", "Specific Season", or "Manual Episode"). 
-*   **Best for:** Franchise marathons (e.g., watching a specific Star Wars movie followed by specific episodes of The Mandalorian).
-*   **Playback:** You can dictate if movies play first, TV plays first, or if they interleave. Also have snapshot drag/drop ordering for manual movie/show ordering
-
-### Movie Block
-A dynamic, rule-based movie compiler.
-*   **How it works:** Set filters for genres, release years, specific actors/directors, studios, and watched status. You can cap the block by item count or time duration.
-
-### TV Block
-A dynamic television compiler.
-*   **How it works:** Select one or more series. Set the block to pull the "Next Unwatched" episodes automatically, or define a manual starting point. 
-*   **Playback:** Supports interleaving (playing Episode 1 of Show A, then Episode 1 of Show B) or sequential playback.
-
-### Music Block
-Music queue generator.
-*   **How it works:** Supports multiple modes: specific Albums, an Artist's Top Tracks, random Artist tracks, or broad Genre filters.
-
-### Echo Block (Mirror)
-A semantic similarity search using your locally indexed library. "Mirror" is the internal block name; the UI calls it Echo.
-
-*   **How it works:** Choose positive seed movies or shows (e.g., *Blade Runner*) to find titles with similar metadata and mood. Negative seeds steer results away from unwanted similarities; they are not strict exclusion rules. Results are sampled from the matching pool and can vary between builds.
-*   **Settings:** Adjust *Exploration Depth* (Strict vs. Discovery), allow both movies and shows with *Mixed Echo*, or include the seed items in the output.
-*   **TV results:** A matched show contributes its next unwatched episode, falling back to its first available episode if none is unwatched.
-*   **Snapshots:** Save a preview as a snapshot to retain its selected items and order. Echo searches for similar media; it does not copy another block's selection.
-
-### AI Vibe Block (Managed by AI)
-Generated exclusively via the AI text-prompt builder.
-*   **How it works:** You type a prompt (e.g., "Gritty 90s cyberpunk thrillers"), and the AI queries the vector database, filters the results, and compiles a locked block of highly relevant items.
-
----
-
-## The AI Architect & Metadata Enrichment
-
-MixerBee can leverage AI for building playlists and semantic understanding of media.
-
-*   **Prompt-to-Playlist:** The AI Builder takes natural language, breaks it down into search concepts, queries your library, and generates the necessary blocks automatically.
-*   **Advanced Tweaks:** You can inject a custom system prompt, adjust the AI's creativity (Temperature), force it to verify standard genres, or trust the vector "vibes" exclusively.
-*   **Metadata Enrichment:** MixerBee scans your library's titles and overviews, asking the AI to generate 5-12 highly specific "vibe tags" (e.g., *neo-noir, melancholic, fast-paced*). These tags are embedded into the Vector DB, allowing for hyper-specific semantic searches.
-
----
-
-## Scheduler & Automation
-
-MixerBee can run tasks automatically in the background using cron-style scheduling.
-
-*   **Scheduled Mixes:** Save any block configuration as a "Preset". The scheduler can run that preset daily, weekly, or on a specific interval, compiling a fresh playlist based on your latest watch history and library additions.
-*   **Auto Playlists:** Easily schedule maintenance playlists like "Recently Added", "Next Up", "Pilot Sampler", or "Forgotten Favorites".
-*   **Enrichment Queue:** Schedule the AI to process a batch of un-enriched media (e.g., 50 items a day) to slowly build your semantic database without hitting rate limits. Enrichment schedules are suspended and kept — never deleted — while AI is disabled or unconfigured.
-
----
-
-## Manager
-
-A dedicated interface to manage your resulting media.
-
-*   **View & Edit:** See all generated Playlists and Collections. You can view their contents, re-order items via drag-and-drop, or delete specific items.
-*   **Conversions:** Quickly convert a standard Playlist into a BoxSet/Collection directly from the UI.
-*   **Library IQ:** Displays a running percentage of how much of your library has been successfully enriched with AI mood tags.
+- [Installation](INSTALL.md): Requirements, Docker and Python setup, updates, and account recovery.
+- [Usage and behavior](USAGE.md): Accounts, connections, build behavior, presets, schedules, AI settings, integrations, and backups.
+- [Webhook configuration](WEBHOOKS_EMBY.md): Media-server event setup.
+- [Architecture](ARCHITECTURE.md): Code layout and internal behavior.
+- [License](LICENSE.md): MIT license.

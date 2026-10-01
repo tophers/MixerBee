@@ -2,7 +2,6 @@
 routers/presets.py – APIRouter with Cache Control
 """
 
-import logging
 from typing import Dict, List
 from fastapi import APIRouter, HTTPException, status, Body, Depends
 from fastapi.responses import JSONResponse
@@ -10,6 +9,10 @@ from fastapi.responses import JSONResponse
 import preset_manager as pm
 from models import MixedPlaylistRequest, ExternalPromptRequest
 from .dependencies import get_current_auth_headers, require_generative_ai
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.Presets")
 
 router = APIRouter()
 
@@ -225,5 +228,5 @@ def api_external_prompt_to_preset(req: ExternalPromptRequest, auth_deps: dict = 
     except HTTPException:
         raise
     except Exception as e:
-        logging.error("External prompt_to_preset failed", exc_info=True)
+        logger.error("External prompt_to_preset failed", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

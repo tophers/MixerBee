@@ -3,7 +3,7 @@
     <meta charset="utf-8">
     <title>MixerBee</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="static/css/main.css?v3">
+    <link rel="stylesheet" href="static/css/main.css?v4">
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -287,8 +287,39 @@
                 compareBuildRun: () => {},
                 replayBuildRun: () => {}
             });
+            // Declared before app.js hydrates it, so the header button and the drawer
+            // can render on the very first Alpine pass. Every property and method the
+            // templates touch has to exist here, getters included.
+            Alpine.store('logs', {
+                available: false, isOpen: false, records: [], revision: 0, connection: 'idle',
+                statusDetail: '', generation: '', cursor: '', following: true,
+                pendingCount: 0, serverDropped: 0, browserDropped: 0, truncatedSeen: false,
+                levels: { INFO: true, WARNING: true, ERROR: true, CRITICAL: true },
+                search: '', subsystem: '', subsystems: [], height: 320, expanded: new Set(),
+                visibleRecords: [],
+                severityTotals: { INFO: 0, WARNING: 0, ERROR: 0, CRITICAL: 0 },
+                statusLabel: 'Not connected',
+                dropNotice: '',
+                updateVisible: () => {},
+                getVisibleRecords: () => [],
+                getSeverityTotals: () => ({ INFO: 0, WARNING: 0, ERROR: 0, CRITICAL: 0 }),
+                getStatusLabel: () => 'Not connected',
+                getDropNotice: () => '',
+                init: () => {}, refreshAvailability: () => {}, applyVerbose: () => {},
+                toggle: () => {}, open: () => {}, close: () => {},
+                applyHeight: () => {}, nudgeHeight: () => {}, presetHeight: () => {},
+                startResize: () => {}, connect: () => {}, retryNow: () => {},
+                reset: () => {}, purge: () => {}, formatTime: () => '',
+                toggleLevel: () => {}, isExpanded: () => false, toggleExpanded: () => {},
+                isMultiline: () => false, firstLine: () => '',
+                onScroll: () => {}, resumeFollow: () => {}, scrollToEnd: () => {},
+                clearView: () => {}, exportText: () => '', copyVisible: () => {},
+                downloadVisible: () => {}
+            });
+
             Alpine.store('settings', {
                 account: {}, accountOpen: false, accountMenuOpen: false, accounts: [], webhookRequests: [],
+                verbose_logging: false, loggingSettingsLoaded: false, isSavingLogging: false,
                 connections: [], selectedConnection: '', connection_id: null, label: '',
                 isOpen: false, activeUserId: '', activeUserName: '', can_manage_collections: false,
                 is_configured: false, connection_unavailable: false, connection_error: '',
@@ -315,6 +346,7 @@
                 show: () => {}, hide: () => {}, initAccount: () => {}, selectConnection: () => {},
                 hydrate: () => false, applyCapability: () => {}, refreshCapability: () => {},
                 setAiDisabled: () => {},
+                fetchLoggingSettings: () => {}, setVerboseLogging: () => {},
                 logout: () => {}, showAccount: () => {}, createAccount: () => {}, changePassword: () => {},
                 removeConnection: () => {}, newConnection: () => {}, retryConnection: () => {},
                 updateTheme: () => {}, fetchOllamaStatus: () => {}, toggleStar: () => {},

@@ -24,6 +24,22 @@
             <span class="header-iq-label" x-text="($store.ai.enrichmentStatus?.status === 'running' ? 'Enriching ' : 'IQ ') + ($store.ai.libraryIq?.percentage || 0) + '%'"></span>
         </button>
 
+        <!-- Owner-only, and only while capture is on. Not gated on activeUserId: the
+             drawer has to be reachable when no connection exists or a server is down. -->
+        <button type="button"
+                id="log-drawer-trigger"
+                class="secondary header-logs-trigger"
+                x-show="$store.logs.available"
+                x-cloak
+                :class="$store.logs.isOpen ? 'is-active' : ''"
+                :aria-expanded="$store.logs.isOpen.toString()"
+                aria-controls="log-drawer"
+                @click="$store.logs.toggle()"
+                title="Live logs (all accounts and servers)">
+            <span x-html="$store.icons.list"></span>
+            <span class="header-logs-label">Live logs</span>
+        </button>
+
         <div class="account-menu" @click.outside="$store.settings.accountMenuOpen = false">
             <button type="button" class="secondary account-menu-trigger" @click="$store.settings.accountMenuOpen = !$store.settings.accountMenuOpen" :aria-expanded="$store.settings.accountMenuOpen.toString()">
                 <span class="account-avatar" x-text="($store.settings.account?.username || '?').charAt(0).toUpperCase()"></span>

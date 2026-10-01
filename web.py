@@ -5,7 +5,6 @@ web.py – FastAPI wrapper
 import os
 import secrets
 import accounts
-import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -23,13 +22,17 @@ import app_state
 import database
 from app.cache import refresh_cache
 from app import build_history
+from app.logger import get_logger
 from routers import config, builder, library, quick_playlists, presets
 from routers import assist as assist_router
 from routers import scheduler as scheduler_router
 from routers import webhooks
+from routers import logs as log_routes
 from routers import accounts as account_routes
 
 IS_CONTAINER = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+
+logger = get_logger("MixerBee.Startup")
 
 ROOT_PATH = os.getenv("MIXERBEE_ROOT_PATH")
 if ROOT_PATH is None:
@@ -41,7 +44,11 @@ async def lifespan(app: FastAPI):
     # Import legacy environment credentials only before the first local account.
     if accounts.setup_required():
         app_state.load_and_authenticate()
-        logging.info("MixerBee initial setup required: Open the web UI to create the owner account.")
+        logger.info("MixerBee initial setup required: Open the web UI to create the owner account.")
+
+    # Process-wide logging must also load after account setup, without re-importing
+    # legacy connection credentials or allowing .env to overwrite saved preferences.
+    app_state.load_logging_settings()
 
     # A build killed mid-flight (container stop, SIGKILL) leaves its row at 'running'
     # forever. Nothing can still be running in a process that just started.
@@ -55,7 +62,7 @@ async def lifespan(app: FastAPI):
             # index and need no AI provider, so warming it must not depend on one.
             ensure_library_indexed(media.user_id, media)
         except Exception:
-            logging.warning("Could not warm saved connection %s", media.connection.id)
+            logger.warning("Could not warm saved connection %s", media.connection.id)
 
     def warm_connections():
         from connections import all_media_clients
@@ -122,7 +129,9 @@ async def enforce_accounts(request: Request, call_next):
             if request.headers.get('x-mixerbee-request') != '1':
                 return JSONResponse({'detail': 'Missing login request header.'}, status_code=403)
     response = await call_next(request)
-    if path.startswith('/api/'):
+    # setdefault, not assignment: the log stream sets its own Cache-Control to add
+    # no-transform, which keeps proxies from buffering or recompressing the feed.
+    if path.startswith('/api/') and 'cache-control' not in response.headers:
         response.headers['Cache-Control'] = 'no-store'
     return response
 
@@ -139,6 +148,7 @@ app.include_router(quick_playlists.router)
 app.include_router(scheduler_router.router)
 app.include_router(presets.router)
 app.include_router(webhooks.router)
+app.include_router(log_routes.router)
 @app.get("/api/status")
 def health_status():
     return {"status": "ok"}

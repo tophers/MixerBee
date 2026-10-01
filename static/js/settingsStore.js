@@ -8,6 +8,7 @@ export const settingsStore = {
     account: {}, connections: [], selectedConnection: '', connection_id: null, label: '',
     accounts: [], newUsername: '', newPassword: '', currentPassword: '', nextPassword: '',
     removingAccountId: null,
+    verbose_logging: false, loggingSettingsLoaded: false, isSavingLogging: false,
     webhookRequests: [], webhook_public_base_url: '',
     external_api_key_set: false, clear_external_api_key: false, can_manage_collections: false,
     is_configured: false, connection_unavailable: false, connection_error: '',
@@ -71,6 +72,7 @@ export const settingsStore = {
     },
     async logout() {
         sessionStorage.removeItem('mixerbeeWebhookRequestsSeen');
+        Alpine.store('logs').purge();
         const res = await api.post('api/auth/logout', {});
         if (res.status === 'ok') window.location.reload();
         else toast('Could not sign out. Please try again.', false);
@@ -79,15 +81,49 @@ export const settingsStore = {
         this.accountMenuOpen = false;
         this.accountOpen = true;
         this.currentPassword = ''; this.nextPassword = ''; this.newPassword = '';
+        this.loggingSettingsLoaded = false;
         // Refresh so the checkbox and the retained-schedule count reflect the server,
         // not a value this tab may have been holding since page load.
         await this.refreshCapability();
         if (this.account.is_admin) {
             const [res] = await Promise.all([
                 useApi(api.get('api/accounts')),
-                this.fetchWebhookRequests(false)
+                this.fetchWebhookRequests(false),
+                this.fetchLoggingSettings()
             ]);
             this.accounts = res.data || [];
+        }
+    },
+    async fetchLoggingSettings() {
+        try {
+            const res = await api.get('api/admin/settings/logging');
+            if (res.status !== 'ok' || typeof res.data?.verbose_logging !== 'boolean') {
+                throw new Error('Could not load logging settings. Reopen Account settings to retry.');
+            }
+            this.verbose_logging = res.data.verbose_logging;
+            this.loggingSettingsLoaded = true;
+            Alpine.store('logs').applyVerbose(this.verbose_logging);
+        } catch (e) {
+            toast(e.message || 'Could not load logging settings.', false);
+        }
+    },
+    async setVerboseLogging(enabled, checkbox) {
+        if (!this.account.is_admin || !this.loggingSettingsLoaded || this.isSavingLogging) return;
+        this.isSavingLogging = true;
+        try {
+            const res = await useApi(api.post('api/admin/settings/logging', { verbose_logging: !!enabled }), null, false, false);
+            if (res.status === 'ok') {
+                this.verbose_logging = res.data.verbose_logging;
+                // Only the confirmed server value reaches the viewer. A rejected save
+                // must not reveal the header button or open a stream the server would
+                // refuse, and an accepted disable has to stop the feed immediately.
+                Alpine.store('logs').applyVerbose(this.verbose_logging);
+            }
+        } finally {
+            // :checked may not rerender after a failed save if the store value did
+            // not change. Explicitly restore the last confirmed value as well.
+            if (checkbox) checkbox.checked = this.verbose_logging;
+            this.isSavingLogging = false;
         }
     },
     async createAccount(button) {

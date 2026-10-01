@@ -15,10 +15,13 @@ construct Chroma's persistent client as a side effect.
 """
 
 import json
-import logging
 
 import accounts
 import database
+
+from .logger import get_logger
+
+logger = get_logger("MixerBee.AIPolicy")
 
 # Reasons returned to the browser alongside a capability payload, and carried on the
 # HTTP errors below so a stale tab can tell an opt-out from missing setup.
@@ -249,6 +252,6 @@ def migrate_provider_optin(conn):
         ai['AI_PROVIDER'] = ''
         conn.execute('UPDATE media_connections SET ai_settings=? WHERE id=?',
                      (json.dumps(ai), row['id']))
-        logging.info('AI provider selection cleared for connection %s: only default values were '
+        logger.info('AI provider selection cleared for connection %s: only default values were '
                      'stored, so it needs one explicit save in the AI Hub.', row['id'])
     conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('ai_provider_optin_migrated', '1')")

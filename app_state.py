@@ -3,10 +3,10 @@ app_state.py – Manages global configuration
 """
 
 import os
-import logging
 import hashlib
 import json
 import uuid
+import threading
 from dotenv import load_dotenv
 
 import app as core
@@ -26,6 +26,7 @@ OLLAMA_MODEL = "qwen2.5:7b"
 OLLAMA_TIMEOUT = 120
 STARRED_MODELS = []
 VERBOSE_LOGGING = False
+_logging_settings_lock = threading.RLock()
 EXTERNAL_API_KEY = None
 WEBHOOK_DEBOUNCE_SECONDS = 30
 
@@ -39,6 +40,58 @@ WEBHOOK_SECRET = None
 CACHE_REFRESH_MINUTES = 15
 SERVER_TYPE = "emby"
 SERVER_ID = None
+
+# Defined after VERBOSE_LOGGING above: get_logger() reads it to set the initial level.
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.State")
+
+def load_logging_settings() -> bool:
+    """Load installation logging independently of legacy media credentials."""
+    import database
+    from app.logger import refresh_logger_level
+    from app.log_buffer import capture
+
+    global VERBOSE_LOGGING
+    with _logging_settings_lock:
+        with database.get_db_connection() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key='VERBOSE_LOGGING'").fetchone()
+        VERBOSE_LOGGING = str(row['value'] if row else 'false').lower() in ('true', '1', 't', 'yes')
+        refresh_logger_level()
+        # Capture follows the saved preference exactly, so a restart with verbose on
+        # starts collecting immediately and a restart with it off collects nothing.
+        capture.attach_all()
+        capture.set_enabled(VERBOSE_LOGGING)
+        return VERBOSE_LOGGING
+
+
+def set_verbose_logging(enabled: bool) -> bool:
+    """Persist before applying, so a failed save leaves runtime logging unchanged."""
+    import database
+    from app.logger import refresh_logger_level
+    from app.log_buffer import capture
+
+    global VERBOSE_LOGGING
+    with _logging_settings_lock:
+        with database.get_db_connection() as conn:
+            columns = {r['name'] for r in conn.execute('PRAGMA table_info(settings)')}
+            if 'updated_at' in columns:
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings (key,value,updated_at) VALUES ('VERBOSE_LOGGING',?,CURRENT_TIMESTAMP)",
+                    ('true' if enabled else 'false',))
+            else:
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings (key,value) VALUES ('VERBOSE_LOGGING',?)",
+                    ('true' if enabled else 'false',))
+            conn.commit()
+        VERBOSE_LOGGING = enabled
+        refresh_logger_level()
+        # Turning verbose off drops every retained record; turning it on starts a new
+        # capture generation, which invalidates any cursor a browser still holds.
+        capture.attach_all()
+        capture.set_enabled(enabled)
+        return VERBOSE_LOGGING
+
 
 def get_env_hash():
     """Calculates an MD5 hash of the .env file to detect manual changes."""
@@ -61,7 +114,7 @@ def sync_env_to_db():
         stored_hash = row['value'] if row else ""
 
         if current_hash != stored_hash:
-            logging.info("SETTINGS: .env file change detected. Syncing to database...")
+            logger.info("SETTINGS: .env file change detected. Syncing to database...")
             load_dotenv(ENV_PATH, override=True)
 
             keys_to_sync = [
@@ -173,5 +226,5 @@ def load_and_authenticate() -> bool:
         return True
     except Exception as e:
         is_configured = False
-        logging.warning(f"Auth failed: {e}")
+        logger.warning(f"Auth failed: {e}")
         return False

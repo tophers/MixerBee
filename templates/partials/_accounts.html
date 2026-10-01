@@ -33,6 +33,22 @@
             </fieldset>
 
             <div x-show="$store.settings.account.is_admin" class="mt-md">
+                <fieldset class="filter-group account-section"><legend>Administration</legend>
+                    <label class="control-item flex-row align-center gap-sm">
+                        <input type="checkbox" :checked="$store.settings.verbose_logging"
+                               :disabled="!$store.settings.loggingSettingsLoaded || $store.settings.isSavingLogging"
+                               @change="$store.settings.setVerboseLogging($event.target.checked, $event.target)">
+                        <span>Verbose logging</span>
+                    </label>
+                    <p class="account-help">Enable detailed server logs for all accounts and connections. Changes apply immediately and are saved across restarts.</p>
+                    <p class="account-help">Logs can include prompts, media titles, and AI tool arguments. Turn this off when finished troubleshooting.</p>
+                    <div class="flex-row gap-sm align-center">
+                        <button type="button" class="secondary small" :disabled="!$store.logs.available"
+                                @click="$store.settings.accountOpen = false; $store.logs.open()">Open live logs</button>
+                        <span class="account-help" x-show="!$store.logs.available" x-cloak>Turn on verbose logging to watch output live.</span>
+                    </div>
+                    <p class="account-help">The live viewer keeps recent messages in memory only. It is not a log archive, and the console logs described in USAGE.md keep working either way.</p>
+                </fieldset>
                 <fieldset class="filter-group account-section"><legend>Webhook administration</legend>
                     <label class="control-item">
                         <span>MixerBee URL reachable by media servers</span>

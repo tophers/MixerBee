@@ -3,12 +3,15 @@ presets_manager.py – Manages presets with envelope support, tags, favorites, a
 """
 
 import json
-import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Tuple
 
 import database
+
+from app.logger import get_logger
+
+logger = get_logger("MixerBee.PresetStore")
 
 
 def _unpack_preset_data(data_raw: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any], int]:
@@ -45,9 +48,9 @@ class PresetManager:
                         'is_favorite': bool(row['is_favorite'])
                     })
                 except json.JSONDecodeError as exc:
-                    logging.error("PRESET_MGR: Skipping corrupted preset '%s': %s", row['name'], exc)
+                    logger.error("PRESET_MGR: Skipping corrupted preset '%s': %s", row['name'], exc)
         except Exception as exc:
-            logging.error("PRESET_MGR: Error loading preset records: %s", exc, exc_info=True)
+            logger.error("PRESET_MGR: Error loading preset records: %s", exc, exc_info=True)
         return records
 
     def get_preset_by_id(self, preset_id: str, connection_id: str):
@@ -73,7 +76,7 @@ class PresetManager:
                 'is_favorite': bool(row['is_favorite'])
             }
         except json.JSONDecodeError:
-            logging.error("PRESET_MGR: Preset '%s' contains invalid JSON.", row['name'])
+            logger.error("PRESET_MGR: Preset '%s' contains invalid JSON.", row['name'])
             return None
 
     def get_preset_by_name(self, preset_name: str, connection_id: str):
@@ -99,7 +102,7 @@ class PresetManager:
                 'is_favorite': bool(row['is_favorite'])
             }
         except json.JSONDecodeError:
-            logging.error("PRESET_MGR: Preset '%s' contains invalid JSON.", row['name'])
+            logger.error("PRESET_MGR: Preset '%s' contains invalid JSON.", row['name'])
             return None
 
     def get_all_presets(self, connection_id: str) -> Dict[str, Any]:
@@ -114,12 +117,12 @@ class PresetManager:
                         blocks, _, _ = _unpack_preset_data(data_raw)
                         presets[name] = blocks
                     except json.JSONDecodeError as json_err:
-                        logging.error(f"PRESET_MGR: Skipping corrupted preset '{name}'. Invalid JSON: {json_err}")
+                        logger.error(f"PRESET_MGR: Skipping corrupted preset '{name}'. Invalid JSON: {json_err}")
                     except Exception as e:
-                        logging.error(f"PRESET_MGR: Unexpected error loading preset '{name}': {e}")
+                        logger.error(f"PRESET_MGR: Unexpected error loading preset '{name}': {e}")
             return presets
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error loading presets from database: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error loading presets from database: {e}", exc_info=True)
             return {}
 
     def save_preset(
@@ -132,7 +135,7 @@ class PresetManager:
         is_favorite: Optional[bool] = None
     ):
         if not preset_name or preset_name == "__autosave__":
-            logging.warning(f"PRESET_MGR: Invalid preset name '{preset_name}' provided for saving.")
+            logger.warning(f"PRESET_MGR: Invalid preset name '{preset_name}' provided for saving.")
             return False
 
         try:
@@ -167,7 +170,7 @@ class PresetManager:
                 conn.commit()
             return preset_id
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error saving preset '{preset_name}' to database: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error saving preset '{preset_name}' to database: {e}", exc_info=True)
             return False
 
     def rename_preset(self, preset_id: str, connection_id: str, new_name: str) -> bool:
@@ -182,7 +185,7 @@ class PresetManager:
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error renaming preset {preset_id}: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error renaming preset {preset_id}: {e}", exc_info=True)
             return False
 
     def update_preset_metadata(
@@ -212,7 +215,7 @@ class PresetManager:
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error updating metadata for {preset_id}: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error updating metadata for {preset_id}: {e}", exc_info=True)
             return False
 
     def schedule_usage_count(self, preset_id: str, connection_id: str) -> int:
@@ -231,7 +234,7 @@ class PresetManager:
                 success = cursor.rowcount > 0
             return success
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error deleting preset '{preset_name}' from database: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error deleting preset '{preset_name}' from database: {e}", exc_info=True)
             return False
 
     def delete_preset_by_id(self, preset_id: str, connection_id: str) -> bool:
@@ -244,7 +247,7 @@ class PresetManager:
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as exc:
-            logging.error("PRESET_MGR: Error deleting preset ID '%s': %s", preset_id, exc, exc_info=True)
+            logger.error("PRESET_MGR: Error deleting preset ID '%s': %s", preset_id, exc, exc_info=True)
             return False
 
     def list_recipes(
@@ -282,7 +285,7 @@ class PresetManager:
                     results.append(rec)
                 return results
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error listing recipes: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error listing recipes: {e}", exc_info=True)
             return []
 
     def save_recipe(
@@ -316,7 +319,7 @@ class PresetManager:
                 conn.commit()
             return rid
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error saving recipe: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error saving recipe: {e}", exc_info=True)
             return None
 
     def delete_recipe(self, recipe_id: str, connection_id: str) -> bool:
@@ -329,7 +332,7 @@ class PresetManager:
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as e:
-            logging.error(f"PRESET_MGR: Error deleting recipe {recipe_id}: {e}", exc_info=True)
+            logger.error(f"PRESET_MGR: Error deleting recipe {recipe_id}: {e}", exc_info=True)
             return False
 
 

@@ -132,6 +132,14 @@ The local MixerBee password is separate from the Emby/Jellyfin password and must
 
 The owner can manage local accounts and webhook requests but cannot browse another member's library, presets, schedules, or saved credentials.
 
+## Configuration and the legacy .env file
+
+New installations do not need a MixerBee `.env` file. Configure media connections and AI providers in the UI. The installation owner controls **Verbose logging** under **Account settings → Administration**. That setting is saved in SQLite and applies immediately; see [Verbose logging](USAGE.md#verbose-logging) for usage and log commands.
+
+Legacy `.env` import is kept for upgrades from older installations. Before the first local account is created, it can import saved media credentials and settings, including `VERBOSE_LOGGING`. After account setup, editing `VERBOSE_LOGGING` in `.env` does not override the saved UI setting.
+
+The legacy file is still loaded for compatibility with existing environment overrides such as `GEMINI_MODEL`. Keep it if your installation uses those overrides. Deployment settings such as `MIXERBEE_CONFIG_DIR` and `MIXERBEE_ROOT_PATH` should be set in the process or container environment; they do not require a MixerBee `.env` file.
+
 ## AI providers
 
 AI features are optional and configured per connection.
