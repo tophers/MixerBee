@@ -10,6 +10,7 @@ const createModalLogic = (storeName) => {
             const payload = Array.isArray(data) ? { items: data } : data;
 
             Object.assign(store, payload, { isOpen: true });
+            if (storeName === 'preview') store.removedCount = 0;
 
             return new Promise((resolve, reject) => {
                 store._resolve = resolve;
@@ -126,7 +127,7 @@ export function initModals() {
         playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
         import: { isOpen: false, code: '', name: '' },
         smartBuild: { isOpen: false, items: [] },
-        preview: { isOpen: false, items: [], title: 'Playlist Preview', totalDuration: '', parentBlockUid: null },
+        preview: { isOpen: false, items: [], title: 'Playlist Preview', totalDuration: '', parentBlockUid: null, removedCount: 0 },
         resetWatch: { isOpen: false, showName: '', season: '' },
         history: { isOpen: false, toastHistory: [] },
         ollamaModels: { isOpen: false },
@@ -136,6 +137,7 @@ export function initModals() {
         mixRules: { isOpen: false },
         renamePreset: { isOpen: false, presetId: '', oldName: '', newName: '' },
         aiHub: { isOpen: false },
+        shortcuts: { isOpen: false, list: [] },
         musicQuickBuild: {
             isOpen: false,
             type: 'artist_spotlight',

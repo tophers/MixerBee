@@ -15,6 +15,7 @@ export const mixerStore = {
 
     buildMode: 'create',
     createAsCollection: false,
+    playlistName: '',
     existingPlaylistId: '',
     userPlaylists: [],
     autosaveKey: 'mixerbee_autosave',
@@ -172,6 +173,13 @@ export const mixerStore = {
         const blockMap = new Map(this.blocks.map(b => [b._uid, b]));
         this.blocks = orderedUids.map(uid => blockMap.get(uid)).filter(Boolean);
         this.persistToLocalStorage();
+    },
+
+    removePreviewItem(item) {
+        const previewStore = Alpine.store('modals').preview;
+        // Reassign rather than splice: a block's cached preview can share this array.
+        previewStore.items = previewStore.items.filter(i => i !== item);
+        previewStore.removedCount = (previewStore.removedCount || 0) + 1;
     },
 
     syncPreviewOrder(containerEl) {
@@ -394,15 +402,18 @@ export const mixerStore = {
                         liveBlock._previewItems = res.data?.data || [];
                         liveBlock._previewCount = liveBlock._previewItems.length;
                         liveBlock._previewDuration = res.data?.total_duration_formatted || '';
+                        liveBlock._previewTicks = res.data?.total_duration_ticks || 0;
                     } else {
                         liveBlock._previewItems = [];
                         liveBlock._previewCount = 0;
                         liveBlock._previewDuration = '';
+                        liveBlock._previewTicks = 0;
                     }
                 } catch (e) {
                     liveBlock._previewCount = 0;
                     liveBlock._previewItems = [];
                     liveBlock._previewDuration = '';
+                    liveBlock._previewTicks = 0;
                 } finally {
                     liveBlock._previewLoading = false;
                     this.blocks = [...this.blocks];
@@ -509,8 +520,76 @@ export const mixerStore = {
     },
 
     deleteBlock(index) {
+        const removed = this.blocks[index];
         this.beginEdit('Delete block');
         this.blocks = this.blocks.filter((_, i) => i !== index);
+        const label = removed?.title || 'Block';
+        // Undo only while the delete is still the latest edit; otherwise it would revert something newer.
+        const depthAfterDelete = this.past.length;
+        toast(`Deleted "${label}".`, true, {
+            actionText: 'Undo', actionIcon: 'undo',
+            actionCallback: () => {
+                if (this.past.length === depthAfterDelete) this.undo();
+                else toast('Other edits happened since — use the Undo button to step back.', false);
+            }
+        });
+    },
+
+    resetMovieFilters(block) {
+        if (!block || block.isSnapshot) return;
+        this.beginEdit('Reset filters');
+        const fresh = createNewBlock(BLOCK_TYPES.MOVIE, this.library.libraryData);
+        block.filters = fresh.filters;
+        block._limitMode = 'none';
+        this.updatePreviewCount(block);
+    },
+
+    // Active movie constraints, listed as things to loosen when a block matches nothing.
+    activeFilterHints(block) {
+        const f = block?.filters || {};
+        const hints = [];
+        const count = (k) => (f[k] || []).length;
+        if (count('genres_all') > 1) hints.push(`requiring all of ${count('genres_all')} genres`);
+        if (count('people_all') > 1) hints.push(`requiring all of ${count('people_all')} people`);
+        if (count('genres_any')) hints.push('genres');
+        if (count('people') || count('studios')) hints.push('people/studios');
+        if (f.watched_status && f.watched_status !== 'all') hints.push(f.watched_status === 'unplayed' ? 'unplayed only' : 'played only');
+        if (f.favorites_only) hints.push('favorites only');
+        if (f.min_community_rating) hints.push(`rating ${f.min_community_rating}+`);
+        if (f.min_runtime_minutes || f.max_runtime_minutes) hints.push('runtime');
+        if (count('allowed_content_ratings')) hints.push('content ratings');
+        if (count('audio_languages')) hints.push('audio language');
+        if (count('subtitle_languages')) hints.push('subtitle language');
+        if (f.release_within_days > 0) hints.push('release window');
+        else if (f.year_from > 1920 || (f.year_to && f.year_to < new Date().getFullYear())) hints.push('year range');
+        const libs = (this.library.libraryData || []).length;
+        if (libs && f.parent_ids?.length && f.parent_ids.length < libs) hints.push('libraries');
+        return hints;
+    },
+
+    setAllBlocksOpen(open) {
+        window.dispatchEvent(new CustomEvent('mixer-blocks-toggle', { detail: { open } }));
+    },
+
+    // Name used when building without typing one: the loaded preset's name, if any.
+    defaultBuildName() {
+        return Alpine.store('presets').currentName || (this.createAsCollection ? 'My Collection' : 'My Mix');
+    },
+
+    buildSummary() {
+        const blocks = this.blocks || [];
+        if (!blocks.length) return null;
+        const loading = blocks.some(b => b._previewLoading);
+        const items = blocks.reduce((sum, b) => sum + (Number(b._previewCount) || 0), 0);
+        const ticks = blocks.reduce((sum, b) => sum + (Number(b._previewTicks) || 0), 0);
+        const partial = blocks.some(b => !b._previewTicks && (Number(b._previewCount) || 0) > 0);
+        let duration = '';
+        if (ticks > 0) {
+            const totalMin = Math.round(ticks / 600000000);
+            const h = Math.floor(totalMin / 60), m = totalMin % 60;
+            duration = (h ? `${h}h ${m}m` : `${m}m`) + (partial ? '+' : '');
+        }
+        return { items, duration, loading, blocks: blocks.length };
     },
 
     async clearAllBlocks() {
@@ -557,7 +636,6 @@ export const mixerStore = {
             delete block.filters.ids;
         }
         await this.updatePreviewCount(block);
-        this.commitEdit();
         toast(`Re-rolled selection for "${block.title || 'Block'}"`);
     },
 
@@ -614,25 +692,21 @@ export const mixerStore = {
                 user_id: uid,
                 blocks: preparedBlocks,
                 mix_options: this.mix_options
-            }), btnEl);
+            }), btnEl, false, true);
         } else {
             if (this.createAsCollection && (preparedBlocks.length !== 1 || (preparedBlocks[0].type !== BLOCK_TYPES.MOVIE && preparedBlocks[0].vibe_type !== BLOCK_TYPES.MOVIE))) {
                 return toast('Requires one Movie block.', false);
             }
             try {
-                const { playlistName } = await smartPlaylistModal.show({
-                    title: this.createAsCollection ? 'Name Collection' : 'Name Playlist',
-                    description: 'Provide a name.',
-                    countInput: false,
-                    defaultName: this.createAsCollection ? 'My Collection' : 'My Mix',
-                });
+                // The inline name field (or the loaded preset's name) skips the naming dialog.
+                const playlistName = this.playlistName.trim() || this.defaultBuildName();
                 await useApi(api.post('api/create_mixed_playlist', {
                     user_id: uid,
                     playlist_name: playlistName,
                     blocks: preparedBlocks,
                     create_as_collection: this.createAsCollection,
                     mix_options: this.mix_options
-                }), btnEl);
+                }), btnEl, false, true);
             } catch (err) { }
         }
     },
@@ -671,7 +745,7 @@ export const mixerStore = {
                 item_ids: itemIds,
                 create_as_collection: false,
                 mix_options: this.mix_options
-            }), btnEl);
+            }), btnEl, false, true);
 
             previewModal.close();
         } catch (e) { }

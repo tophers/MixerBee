@@ -3,7 +3,7 @@
     <div class="container">
         <!-- Top Toolbar: Search + Build History -->
         <div class="flex-row justify-between align-center gap-md mb-sm">
-            <input type="search" placeholder="Search by name..."
+            <input type="search" id="manager-search-input" placeholder="Search by name...  ( / )" aria-label="Search playlists and collections"
                    x-model="$store.manager.searchQuery"
                    @input.debounce.250ms="$store.manager.applyFilters()"
                    class="grow-1 m-0">
@@ -14,9 +14,10 @@
 
         <!-- View Filter Pill: Spans full width of the table -->
         <div class="toggle-pill w-full mb-sm">
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All</span>
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists</span>
-            <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections</span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'All' ? 'active' : ''" @click="$store.manager.viewFilter = 'All'; $store.manager.applyFilters()">All <span class="pill-count" x-text="$store.manager.counts.All"></span></span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Playlist' ? 'active' : ''" @click="$store.manager.viewFilter = 'Playlist'; $store.manager.applyFilters()">Playlists <span class="pill-count" x-text="$store.manager.counts.Playlist"></span></span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'Collection' ? 'active' : ''" @click="$store.manager.viewFilter = 'Collection'; $store.manager.applyFilters()">Collections <span class="pill-count" x-text="$store.manager.counts.Collection"></span></span>
+            <span class="pill-btn" :class="$store.manager.viewFilter === 'MixerBee' ? 'active' : ''" @click="$store.manager.viewFilter = 'MixerBee'; $store.manager.applyFilters()" title="Lists MixerBee has built or appended to">Built by MixerBee <span class="pill-count" x-text="$store.manager.counts.MixerBee"></span></span>
         </div>
 
         <!-- Bulk Action Bar (shown when 1 or more items are selected) -->
@@ -24,17 +25,49 @@
              x-show="$store.manager.selectedIds.length > 0"
              x-cloak>
             <div class="flex-row align-center gap-sm">
-                <span class="bold" x-text="$store.manager.selectedIds.length + ' item(s) selected'"></span>
-                <button type="button" class="secondary small" @click="$store.manager.selectedIds = []">Clear</button>
+                <span class="bold" x-text="$store.manager.selectedIds.length + ' selected'"></span>
+                <span class="subtext" x-show="$store.manager.selectedOffPage() > 0" x-cloak
+                      x-text="'(' + $store.manager.selectedOffPage() + ' on other pages)'"></span>
+                <button type="button" class="secondary small" @click="$store.manager.clearSelection()">Clear</button>
             </div>
             <div class="flex-row align-center gap-sm">
                 <button type="button" class="secondary small" @click="$store.manager.checkOverlaps()">
                     Find Overlaps
                 </button>
-                <button type="button" class="danger small" @click="$store.manager.bulkDeleteSelected()">
+                <button type="button" class="danger small m-0" @click="$store.manager.bulkDeleteSelected()">
                     Delete Selected
                 </button>
             </div>
+        </div>
+
+        <!-- Gmail-style: the header checkbox selects a page; this offers the rest -->
+        <div class="select-all-banner" x-show="$store.manager.showSelectAllBanner()" x-cloak>
+            <template x-if="!$store.manager.isAllSelected()">
+                <span>
+                    All <strong x-text="$store.manager.paged.length"></strong> on this page are selected.
+                    <button type="button" class="link-btn color-accent bold" @click="$store.manager.selectAllMatching()"
+                            x-text="'Select all ' + $store.manager.filtered.length + ' matching'"></button>
+                </span>
+            </template>
+            <template x-if="$store.manager.isAllSelected()">
+                <span>
+                    All <strong x-text="$store.manager.filtered.length"></strong> matching lists are selected.
+                    <button type="button" class="link-btn color-accent bold" @click="$store.manager.clearSelection()">Clear selection</button>
+                </span>
+            </template>
+        </div>
+
+        <!-- Range + page size -->
+        <div class="manager-paging-bar" x-show="($store.manager.filtered || []).length > 0" x-cloak>
+            <span class="subtext" x-text="$store.manager.rangeLabel()"></span>
+            <label class="flex-row align-center gap-xs subtext m-0">
+                <span>Per page</span>
+                <select class="m-0 page-size-select" :value="$store.manager.pageSize" @change="$store.manager.setPageSize($el.value)">
+                    <template x-for="size in $store.manager.pageSizes" :key="size">
+                        <option :value="size" :selected="size === $store.manager.pageSize" x-text="size === 0 ? 'All' : size"></option>
+                    </template>
+                </select>
+            </label>
         </div>
 
         <!-- Main Table -->
@@ -44,8 +77,11 @@
                     <tr class="table-header-row">
                         <th class="table-cell text-center" style="width: 40px;">
                             <input type="checkbox"
-                                   :checked="$store.manager.isAllSelected()"
-                                   @change="$store.manager.selectAll()"
+                                   aria-label="Select all on this page"
+                                   title="Select all on this page"
+                                   :checked="$store.manager.isPageSelected()"
+                                   x-effect="$el.indeterminate = $store.manager.isPagePartlySelected()"
+                                   @change="$store.manager.togglePageSelection()"
                                    title="Select All">
                         </th>
                         <th @click="$store.manager.toggleSort('Name')" class="table-cell pointer text-left select-none">
@@ -70,19 +106,37 @@
                     </tr>
                 </thead>
                 <tbody>
-                    <template x-if="!$store.manager.isLoading && ($store.manager.filtered || []).length === 0">
-                        <tr><td colspan="5" class="table-loading">No items found.</td></tr>
+                    <template x-for="n in ($store.manager.isLoading && !$store.manager.items.length ? 5 : 0)" :key="'skeleton-' + n">
+                        <tr class="table-row skeleton-row" aria-hidden="true">
+                            <td class="table-cell"><span class="skeleton skeleton-box"></span></td>
+                            <td class="table-cell"><span class="skeleton" :style="'width:' + (40 + (n * 13) % 45) + '%'"></span></td>
+                            <td class="table-cell"><span class="skeleton skeleton-pill"></span></td>
+                            <td class="table-cell"><span class="skeleton skeleton-short"></span></td>
+                            <td class="table-cell"></td>
+                        </tr>
                     </template>
-                    <template x-for="item in ($store.manager.filtered || [])" :key="item.Id">
+                    <template x-if="!$store.manager.isLoading && ($store.manager.filtered || []).length === 0">
+                        <tr><td colspan="5" class="table-loading" x-text="$store.manager.searchQuery ? 'No lists match “' + $store.manager.searchQuery + '”.' : ($store.manager.viewFilter === 'MixerBee' ? 'MixerBee has not built any of these lists yet.' : 'No items found.')"></td></tr>
+                    </template>
+                    <template x-for="item in ($store.manager.paged || [])" :key="item.Id">
                         <tr class="table-row" :class="$store.manager.selectedIds.includes(item.Id) ? 'bg-surface-alt' : ''">
                             <td class="table-cell text-center" @click.stop>
                                 <input type="checkbox"
+                                       :aria-label="'Select ' + item.Name"
+                                       title="Shift-click to select a range"
                                        :checked="$store.manager.selectedIds.includes(item.Id)"
-                                       @click.stop="$store.manager.toggleSelect(item.Id)">
+                                       @click.stop="$store.manager.toggleSelect(item.Id, $event)">
                             </td>
                             <td class="table-cell bold">
                                 <div class="flex-row align-center gap-xs">
-                                    <span class="clickable grow-1" x-text="item.Name" @click="$store.manager.viewContents(item)"></span>
+                                    <span class="grow-1 flex-col manager-name-cell">
+                                        <button type="button" class="link-btn bold" x-text="item.Name" @click="$store.manager.viewContents(item)"></button>
+                                        <span class="mb-built-meta" x-show="item.BuiltByMixerBee" x-cloak
+                                              :title="'Built by MixerBee' + (item.LastBuiltAt ? ' · ' + new Date(item.LastBuiltAt).toLocaleString() : '')">
+                                            <span class="mb-built-icon" x-html="$store.icons.zap"></span>
+                                            <span x-text="item.LastBuiltAt ? 'Built ' + $store.manager.formatBuiltAt(item.LastBuiltAt) : 'Built by MixerBee'"></span>
+                                        </span>
+                                    </span>
                                     <a x-show="item.ServerUrl"
                                        :href="item.ServerUrl"
                                        target="_blank"
@@ -117,7 +171,7 @@
                                             x-show="item.Type !== 'Playlist' || $store.settings.can_manage_collections"
                                             @click="$store.manager.convertItem(item)"
                                             :title="item.Type === 'Playlist' ? 'Convert to Collection' : ($store.settings.can_manage_collections ? 'Convert to Playlist' : 'Copy to Playlist')"
-                                            x-html="$store.icons.refresh"></button>
+                                            x-html="$store.icons.swap"></button>
                                     <button type="button"
                                             class="secondary small icon-only danger-hover"
                                             x-show="!['BoxSet', 'Collection'].includes(item.Type) || $store.settings.can_manage_collections"
@@ -132,12 +186,31 @@
             </table>
         </div>
 
+        <!-- Pager -->
+        <nav class="manager-pager" aria-label="Pages" x-show="$store.manager.pageCount() > 1" x-cloak>
+            <button type="button" class="secondary small pager-btn" :disabled="$store.manager.page <= 1"
+                    @click="$store.manager.goToPage($store.manager.page - 1)" aria-label="Previous page">‹</button>
+            <template x-for="n in $store.manager.pageNumbers()" :key="n">
+                <span class="pager-slot">
+                    <template x-if="typeof n === 'string'"><span class="pager-gap" aria-hidden="true">…</span></template>
+                    <template x-if="typeof n === 'number'">
+                        <button type="button" class="secondary small pager-btn" :class="n === $store.manager.page ? 'active' : ''"
+                                :aria-current="n === $store.manager.page ? 'page' : null"
+                                :aria-label="'Page ' + n"
+                                @click="$store.manager.goToPage(n)" x-text="n"></button>
+                    </template>
+                </span>
+            </template>
+            <button type="button" class="secondary small pager-btn" :disabled="$store.manager.page >= $store.manager.pageCount()"
+                    @click="$store.manager.goToPage($store.manager.page + 1)" aria-label="Next page">›</button>
+        </nav>
+
         <!-- Overlap Report Modal -->
-        <div class="modal-backdrop" x-show="$store.manager.overlapModal.isOpen" x-cloak @click.self="$store.manager.overlapModal.isOpen = false">
+        <div class="modal-overlay" x-show="$store.manager.overlapModal.isOpen" x-cloak @click.self="$store.manager.overlapModal.isOpen = false">
             <div class="modal-window wide">
                 <div class="modal-header">
                     <h3>Library Overlap Report</h3>
-                    <button type="button" class="modal-close" @click="$store.manager.overlapModal.isOpen = false">&times;</button>
+                    <button type="button" class="icon-btn" @click="$store.manager.overlapModal.isOpen = false">&times;</button>
                 </div>
                 <div class="modal-body">
                     <template x-if="$store.manager.overlapModal.isLoading">

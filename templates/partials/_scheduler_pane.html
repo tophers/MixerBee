@@ -15,69 +15,96 @@
         </div>
 
         <div class="table-container card">
-            <table class="manager-table w-full">
+            <table class="manager-table scheduler-table w-full">
                 <thead>
                     <tr class="table-header-row">
-                        <th class="table-cell text-left">Job Name</th>
-                        <th class="table-cell text-left">Type</th>
-                        <th class="table-cell text-left">Execution</th>
-                        <th class="table-cell text-left">Source</th>
-                        <th class="table-cell text-right">Actions</th>
+                        <th class="table-cell text-left">Job</th>
+                        <th class="table-cell text-left">Schedule</th>
+                        <th class="table-cell text-left col-last-run">Last Run</th>
+                        <th class="table-cell text-right col-actions"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody>
+                    <template x-if="$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
+                        <tr><td colspan="4" class="table-loading">Loading jobs…</td></tr>
+                    </template>
                     <template x-if="!$store.scheduler.isLoading && $store.scheduler.schedule.length === 0">
-                        <tr><td colspan="5" class="table-loading">No scheduled jobs found.</td></tr>
+                        <tr>
+                            <td colspan="4" class="table-loading">
+                                <p class="m-0">No scheduled jobs yet.</p>
+                                <button type="button" class="secondary small mt-sm" @click="const newUid = $store.scheduler.addEntry(); $nextTick(() => jobModalOpen = newUid)">
+                                    <span x-html="$store.icons.plus"></span> Create your first job
+                                </button>
+                            </td>
+                        </tr>
                     </template>
                     <template x-for="(entry, idx) in $store.scheduler.schedule" :key="entry.id || entry._uid">
-                        <tr class="table-row">
-                            <td class="table-cell clickable">
-                                <div class="flex-row align-center gap-sm">
-                                    <span class="job-icon-status" :class="entry.id ? 'color-accent' : 'text-subtle'" x-html="$store.icons.clock"></span>
-                                    <span class="job-name bold" @click="jobModalOpen = entry._uid" x-text="entry.playlist_name || 'Unnamed Job'"></span>
-                                </div>
-                            </td>
+                        <tr class="table-row" :class="!entry.enabled ? 'row-paused' : ''">
                             <td class="table-cell">
-                                <span class="token-badge badge-accent" 
-                                      :class="entry.job_type === 'enrichment' ? 'badge-accent' : (entry.job_type === 'quick_playlist' ? 'badge-outline-subtle' : (entry.create_as_collection ? 'collection-active' : 'playlist-active'))"
-                                      x-text="entry.job_type === 'enrichment' ? 'ENRICHMENT' : (entry.job_type === 'quick_playlist' ? 'AUTO PLAYLIST' : (entry.create_as_collection ? 'COLLECTION' : 'PLAYLIST'))"></span>
-                                <template x-if="!entry.enabled">
-                                    <span class="badge" style="background: rgba(220,53,69,0.2); color: #ff6b6b; font-size: 0.65rem; margin-left: 0.25rem;">PAUSED</span>
-                                </template>
-                                <template x-if="entry.enabled && entry.snoozed_until">
-                                    <span class="badge" style="background: rgba(255,193,7,0.2); color: #ffc107; font-size: 0.65rem; margin-left: 0.25rem;">SNOOZED</span>
-                                </template>
-                            </td>
-                            <td class="table-cell">
-                                <div class="schedule-summary-cell">
-                                    <template x-if="entry.schedule_details?.frequency === 'interval'">
-                                        <div class="time-part" x-text="'Every ' + entry.schedule_details.interval_minutes + 'm'"></div>
-                                    </template>
-                                    <template x-if="entry.schedule_details?.frequency !== 'interval'">
-                                        <div>
-                                            <span class="time-part" x-text="entry.schedule_details?.time || '12:00'"></span>
-                                            <span class="freq-part" x-text="(entry.schedule_details?.days_of_week?.length === 7) ? 'Daily' : 'Weekly'"></span>
-                                        </div>
-                                    </template>
+                                <div class="job-cell">
+                                    <button type="button" class="link-btn job-name bold" @click="jobModalOpen = entry._uid" :title="'Edit ' + (entry.playlist_name || 'job')" x-text="entry.playlist_name || 'Unnamed Job'"></button>
+                                    <div class="job-meta">
+                                        <span class="job-type" :class="'job-type-' + entry.job_type"
+                                              x-text="entry.job_type === 'enrichment' ? 'Enrichment' : (entry.job_type === 'quick_playlist' ? 'Auto Playlist' : (entry.create_as_collection ? 'Collection' : 'Playlist'))"></span>
+                                        <span class="job-source capitalize"
+                                              x-show="entry.job_type !== 'enrichment'"
+                                              x-text="'· ' + (entry.job_type === 'quick_playlist' ? (entry.quick_playlist_data?.quick_playlist_type || 'auto playlist').replace(/_/g, ' ') : (entry.preset_name || 'no preset'))"></span>
+                                        <template x-if="!entry.enabled">
+                                            <span class="badge badge-danger-soft">PAUSED</span>
+                                        </template>
+                                        <template x-if="entry.enabled && entry.snoozed_until && new Date(entry.snoozed_until) > new Date()">
+                                            <span class="badge badge-warning-soft">SNOOZED</span>
+                                        </template>
+                                        <template x-if="!entry.id">
+                                            <span class="badge badge-warning-soft">UNSAVED</span>
+                                        </template>
+                                    </div>
                                 </div>
                             </td>
 
                             <td class="table-cell">
-                                <span class="text-subtle" style="font-size: 0.9rem;" x-text="entry.job_type === 'quick_playlist' ? (entry.quick_playlist_data?.quick_playlist_type || 'Auto Playlist') : (entry.preset_name || '-')"></span>
+                                <div class="job-cell">
+                                    <span class="schedule-main"
+                                          x-text="entry.schedule_details?.frequency === 'interval'
+                                                  ? 'Every ' + entry.schedule_details.interval_minutes + 'm'
+                                                  : (entry.schedule_details?.time || '12:00') + ' · ' + $store.scheduler.formatDays(entry.schedule_details?.days_of_week)"></span>
+                                    <span class="job-meta" :title="entry.next_run_time ? new Date(entry.next_run_time).toLocaleString() : ''"
+                                          x-text="(entry.enabled && entry.next_run_time && (entry.trigger_sources || []).includes('clock') ? 'Next ' : '') + $store.scheduler.nextRunLabel(entry)"></span>
+                                </div>
                             </td>
 
-                            <td class="table-cell text-right">
-                                <div class="flex-row justify-end gap-sm">
-                                    <button type="button" class="secondary small icon-only" :title="entry.enabled ? 'Pause Job' : 'Resume Job'" @click="$store.scheduler.toggleEnabled(entry, $el)" :style="!entry.enabled ? 'opacity: 0.5;' : ''">
-                                        <span x-html="entry.enabled ? $store.icons.eyeOff : $store.icons.eye"></span>
+                            <td class="table-cell col-last-run">
+                                <template x-if="entry.is_running">
+                                    <span class="text-sm color-accent">Running…</span>
+                                </template>
+                                <template x-if="!entry.is_running && entry.last_run">
+                                    <span class="flex-row align-center gap-xs text-sm nowrap" :title="new Date(entry.last_run.timestamp).toLocaleString() + ($store.scheduler.lastRunLog(entry) ? '\n' + $store.scheduler.lastRunLog(entry) : '')">
+                                        <span class="status-dot" :class="entry.last_run.status === 'ok' ? 'status-ok' : 'status-fail'" :aria-label="entry.last_run.status === 'ok' ? 'Succeeded' : 'Failed'" role="img"></span>
+                                        <span x-text="$store.scheduler.formatRelative(entry.last_run.timestamp)"></span>
+                                    </span>
+                                </template>
+                                <template x-if="!entry.is_running && !entry.last_run">
+                                    <span class="text-sm text-subtle">Never</span>
+                                </template>
+                            </td>
+
+                            <td class="table-cell text-right col-actions">
+                                <div class="job-actions">
+                                    <button type="button" role="switch" class="switch" :class="entry.enabled ? 'on' : ''"
+                                            :aria-checked="entry.enabled.toString()"
+                                            :aria-label="(entry.enabled ? 'Pause ' : 'Resume ') + (entry.playlist_name || 'job')"
+                                            :title="entry.enabled ? 'Enabled — click to pause' : 'Paused — click to resume'"
+                                            @click="$store.scheduler.toggleEnabled(entry, $el)">
+                                        <span class="switch-knob"></span>
                                     </button>
-                                    <button type="button" class="secondary small icon-only" @click="$store.scheduler.runNow(entry.id, $el)" title="Run Now" x-html="$store.icons.play"></button>
-                                    <button type="button" class="secondary small icon-only" @click="jobModalOpen = entry._uid" title="Edit Job" x-html="$store.icons.settings"></button>
-                                    <button type="button" class="secondary small icon-only danger-hover" @click="$store.scheduler.removeEntry(entry, $el)" title="Remove Job" x-html="$store.icons.trash"></button>
+                                    <button type="button" class="secondary small icon-only job-action-btn" @click="$store.scheduler.runNow(entry, $el)" :disabled="entry.is_running || !entry.id" :title="!entry.id ? 'Save the job first' : (entry.is_running ? 'Running…' : 'Run Now')" :aria-label="entry.is_running ? 'Running' : 'Run now'">
+                                        <span :class="entry.is_running ? 'spin' : ''" x-html="entry.is_running ? $store.icons.refresh : $store.icons.play"></span>
+                                    </button>
+                                    <button type="button" class="secondary small icon-only job-action-btn" @click="jobModalOpen = entry._uid" title="Edit, duplicate or delete" aria-label="Edit job" x-html="$store.icons.edit"></button>
                                 </div>
 
                                 <div class="modal-overlay sub-modal" x-show="jobModalOpen === entry._uid" x-cloak>
-                                    <div class="modal-window wide" @click.outside="jobModalOpen = null">
+                                    <div class="modal-window wide" @click.outside="if (!$event.target.closest('.system-modal')) jobModalOpen = null">
                                         <div class="modal-header">
                                             <h2>Edit Automation Task</h2>
                                             <button type="button" class="icon-btn" @click="jobModalOpen = null">&times;</button>
@@ -123,7 +150,7 @@
                                                             <option :value="preset.id" x-text="preset.name"></option>
                                                         </template>
                                                     </select>
-                                                    <div class="mt-sm p-sm rounded" style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color, rgba(255,255,255,0.1));" x-show="entry.preset_id">
+                                                    <div class="mt-sm p-sm rounded" style="background: var(--bg-card); border: 1px solid var(--border-color);" x-show="entry.preset_id">
                                                         <div class="flex-row items-center gap-xs text-subtle" style="font-size: 0.8rem;">
                                                             <span class="bold">Active Rules:</span>
                                                             <span x-text="$store.scheduler.formatRulesSummary(entry.mix_options || ($store.presets.records.find(r => r.id === entry.preset_id)?.mix_options))"></span>
@@ -200,7 +227,7 @@
                                                             </button>
                                                         </div>
 
-                                                        <div class="card p-sm mb-sm" x-show="entry._selectedAlbumName || entry.quick_playlist_data?.options?.album_id" style="background: rgba(255,255,255,0.05); font-size: 0.85rem;">
+                                                        <div class="card p-sm mb-sm" x-show="entry._selectedAlbumName || entry.quick_playlist_data?.options?.album_id" style="background: var(--bg-card-hover); font-size: 0.85rem;">
                                                             <span class="text-subtle">Target Album: </span>
                                                             <span class="bold color-accent" x-text="entry.quick_playlist_data?.options?.album_id === 'random' ? 'Random album chosen on each run' : (entry._selectedAlbumName || entry.quick_playlist_data?.options?.album_id)"></span>
                                                         </div>
@@ -308,6 +335,10 @@
                                             </div>
                                         </div>
                                         <div class="modal-footer">
+                                            <button type="button" class="secondary btn-danger-outline align-center gap-xs mr-auto" @click="$store.scheduler.removeEntry(entry, $el)" x-text="entry.id ? 'Delete Job' : 'Discard'"></button>
+                                            <button type="button" class="secondary align-center gap-xs" x-show="entry.id" @click="const newUid = $store.scheduler.duplicateEntry(entry); $nextTick(() => jobModalOpen = newUid)">
+                                                <span x-html="$store.icons.copy"></span> Duplicate
+                                            </button>
                                             <button type="button" class="primary align-center gap-xs" @click="$store.scheduler.saveSchedule(entry, $el); jobModalOpen = null">
                                                 <span x-html="$store.icons.save"></span> Save Automation
                                             </button>

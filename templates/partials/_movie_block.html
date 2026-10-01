@@ -15,20 +15,27 @@
             return block._previewCount ?? '0';
         },
 
-        cycleWatchedStatus() {
-            if (block.isSnapshot) return;
-            if (!block.filters) block.filters = {};
-            const statusMap = { 'all': 'unplayed', 'unplayed': 'played', 'played': 'all' };
-            block.filters.watched_status = statusMap[block.filters.watched_status || 'all'];
+        languages: ['English', 'Spanish', 'French', 'German', 'Italian', 'Japanese', 'Korean', 'Chinese', 'Portuguese', 'Russian'],
+        customAudioLang: '',
+        customSubLang: '',
+
+        languageOptions(key) {
+            const chosen = block.filters?.[key] || [];
+            return [...this.languages, ...chosen.filter(l => !this.languages.includes(l))];
+        },
+
+        toggleLanguage(key, lang) {
+            if (!block.filters[key]) block.filters[key] = [];
+            const list = block.filters[key];
+            block.filters[key] = list.includes(lang) ? list.filter(l => l !== lang) : [...list, lang];
             $store.mixer.updatePreviewCount(block);
         },
 
-        cycleSort() {
-            if (block.isSnapshot) return;
-            if (!block.filters) block.filters = {};
-            const sortMap = { 'Random': 'PremiereDate', 'PremiereDate': 'DateCreated', 'DateCreated': 'CommunityRating', 'CommunityRating': 'CriticRating', 'CriticRating': 'SortName', 'SortName': 'Random' };
-            block.filters.sort_by = sortMap[block.filters.sort_by || 'Random'];
-            $store.mixer.updatePreviewCount(block);
+        addCustomLanguage(key, field) {
+            const lang = (this[field] || '').trim();
+            this[field] = '';
+            if (!lang) return;
+            if (!(block.filters[key] || []).includes(lang)) this.toggleLanguage(key, lang);
         },
 
         getRelativeDateLabel() {
@@ -51,7 +58,7 @@
     ">
 
     <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
-        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
+        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open" @mixer-blocks-toggle.window="isOpen = $event.detail.open">
             {% set default_title = 'Movie Block' %}
             {% include 'partials/_block_header.html' %}
 
@@ -77,7 +84,12 @@
                                     </div>
                                 </template>
                                 <template x-if="!block._previewItems || block._previewItems.length === 0">
-                                    <div class="text-subtle italic">No items matched these filters</div>
+                                    <div class="text-subtle italic">
+                                        <span x-text="block._previewLoading ? 'Checking matches…' : 'No items matched these filters.'"></span>
+                                        <template x-if="!block._previewLoading && $store.mixer.activeFilterHints(block).length">
+                                            <span class="no-match-hint"> Try loosening: <span x-text="$store.mixer.activeFilterHints(block).join(', ')"></span>.</span>
+                                        </template>
+                                    </div>
                                 </template>
                             </div>
 
@@ -174,35 +186,35 @@
                         </div>
                         <div class="token-container">
                             <template x-for="p in (block.filters?.people || [])" :key="block._uid + '_tany_' + (p.Id || p.Name)">
-                                <span class="token token-logic-any" @click="$store.mixer.cycleTokenState(block, 'people', p)">
+                                <span class="token token-logic-any" title="Any (OR) — click to switch to All (AND)" @click="$store.mixer.cycleTokenState(block, 'people', p)">
                                     <span class="token-state-trigger">⊕</span>
                                     <span class="token-label" x-text="p.Name || p.name"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'people', block.filters.people.indexOf(p))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="p in (block.filters?.people_all || [])" :key="block._uid + '_tall_' + (p.Id || p.Name)">
-                                <span class="token token-logic-all" @click="$store.mixer.cycleTokenState(block, 'people_all', p)">
+                                <span class="token token-logic-all" title="All (AND) — click to switch to Exclude" @click="$store.mixer.cycleTokenState(block, 'people_all', p)">
                                     <span class="token-state-trigger">✓</span>
                                     <span class="token-label" x-text="p.Name || p.name"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'people_all', block.filters.people_all.indexOf(p))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="p in (block.filters?.exclude_people || [])" :key="block._uid + '_tex_' + (p.Id || p.Name)">
-                                <span class="token token-logic-exclude" @click="$store.mixer.cycleTokenState(block, 'exclude_people', p)">
+                                <span class="token token-logic-exclude" title="Exclude (NOT) — click to switch to Any" @click="$store.mixer.cycleTokenState(block, 'exclude_people', p)">
                                     <span class="token-state-trigger">⊖</span>
                                     <span class="token-label" x-text="p.Name || p.name"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'exclude_people', block.filters.exclude_people.indexOf(p))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="s in (block.filters?.studios || [])" :key="block._uid + '_stany_' + s">
-                                <span class="token token-logic-any" @click="$store.mixer.cycleTokenState(block, 'studios', s)">
+                                <span class="token token-logic-any" title="Any (OR) — click to switch to All (AND)" @click="$store.mixer.cycleTokenState(block, 'studios', s)">
                                     <span class="token-state-trigger">⊕</span>
                                     <span class="token-label" x-text="s"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'studios', block.filters.studios.indexOf(s))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="s in (block.filters?.exclude_studios || [])" :key="block._uid + '_stex_' + s">
-                                <span class="token token-logic-exclude" @click="$store.mixer.cycleTokenState(block, 'exclude_studios', s)">
+                                <span class="token token-logic-exclude" title="Exclude (NOT) — click to switch to Any" @click="$store.mixer.cycleTokenState(block, 'exclude_studios', s)">
                                     <span class="token-state-trigger">⊖</span>
                                     <span class="token-label" x-text="s"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'exclude_studios', block.filters.exclude_studios.indexOf(s))">&times;</b>
@@ -225,21 +237,21 @@
                         </div>
                         <div class="token-container mt-sm">
                             <template x-for="g in (block.filters?.genres_any || [])" :key="block._uid + '_ga_' + g">
-                                <span class="token token-logic-any" @click="$store.mixer.cycleTokenState(block, 'genres_any', g)">
+                                <span class="token token-logic-any" title="Any (OR) — click to switch to All (AND)" @click="$store.mixer.cycleTokenState(block, 'genres_any', g)">
                                     <span class="token-state-trigger">⊕</span>
                                     <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_any', block.filters.genres_any.indexOf(g))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="g in (block.filters?.genres_all || [])" :key="block._uid + '_gall_' + g">
-                                <span class="token token-logic-all" @click="$store.mixer.cycleTokenState(block, 'genres_all', g)">
+                                <span class="token token-logic-all" title="All (AND) — click to switch to Exclude" @click="$store.mixer.cycleTokenState(block, 'genres_all', g)">
                                     <span class="token-state-trigger">✓</span>
                                     <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_all', block.filters.genres_all.indexOf(g))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="g in (block.filters?.genres_exclude || [])" :key="block._uid + '_gex_' + g">
-                                <span class="token token-logic-exclude" @click="$store.mixer.cycleTokenState(block, 'genres_exclude', g)">
+                                <span class="token token-logic-exclude" title="Exclude (NOT) — click to switch to Any" @click="$store.mixer.cycleTokenState(block, 'genres_exclude', g)">
                                     <span class="token-state-trigger">⊖</span>
                                     <span class="token-label" x-text="g"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'genres_exclude', block.filters.genres_exclude.indexOf(g))">&times;</b>
@@ -276,11 +288,11 @@
                         <div class="range-slider-wrapper mb-md" :class="block.filters.release_within_days > 0 ? 'opacity-30 pointer-none' : ''">
                             <div class="flex-row justify-between align-center mb-xs">
                                 <label class="field-label m-0">Year Range</label>
-                                <div class="range-slider-display" x-text="(block.filters?.year_from || 1920) + ' - ' + (block.filters?.year_to || 2025)"></div>
+                                <div class="range-slider-display" x-text="(block.filters?.year_from || 1920) + ' - ' + (block.filters?.year_to || new Date().getFullYear())"></div>
                             </div>
                             <div class="range-slider-container">
                                 <div class="range-slider-track"></div>
-                                <div class="range-slider-progress" :style="`left: ${(((block.filters?.year_from || 1920) - 1920) / (new Date().getFullYear() - 1920)) * 100}%; width: ${(((block.filters?.year_to || 2025) - (block.filters?.year_from || 1920)) / (new Date().getFullYear() - 1920)) * 100}%`"></div>
+                                <div class="range-slider-progress" :style="`left: ${(((block.filters?.year_from || 1920) - 1920) / (new Date().getFullYear() - 1920)) * 100}%; width: ${(((block.filters?.year_to || new Date().getFullYear()) - (block.filters?.year_from || 1920)) / (new Date().getFullYear() - 1920)) * 100}%`"></div>
                                 <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_from" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
                                 <input type="range" min="1920" :max="new Date().getFullYear()" x-model.number="block.filters.year_to" @input.debounce.500ms="$store.mixer.updatePreviewCount(block)">
                             </div>
@@ -293,14 +305,26 @@
                             </template>
                         </div>
                         <div class="movie-block-filter-grid">
-                            <button type="button" class="filter-toggle-btn align-center gap-xs" @click="cycleWatchedStatus()">
-                                <span x-html="(block.filters && block.filters.watched_status === 'unplayed') ? $store.icons.eyeOff : $store.icons.eye"></span>
-                                <span x-text="(block.filters && block.filters.watched_status === 'unplayed') ? 'Unplayed' : ((block.filters && block.filters.watched_status === 'played') ? 'Played' : 'All Movies')"></span>
-                            </button>
-                            <button type="button" class="filter-toggle-btn align-center gap-xs" @click="cycleSort()">
-                                <span x-html="(block.filters && block.filters.sort_by === 'PremiereDate') ? $store.icons.calendar : $store.icons.shuffle"></span>
-                                <span x-text="'Sort: ' + ((block.filters && block.filters.sort_by) || 'Random')"></span>
-                            </button>
+                            <div>
+                                <label class="field-label mb-xs">Watched Status</label>
+                                <div class="toggle-pill" role="group" aria-label="Watched status">
+                                    <template x-for="opt in [['all', 'All'], ['unplayed', 'Unplayed'], ['played', 'Played']]" :key="opt[0]">
+                                        <span class="pill-btn" :class="(block.filters.watched_status || 'all') === opt[0] ? 'active' : ''"
+                                              @click="block.filters.watched_status = opt[0]; $store.mixer.updatePreviewCount(block)" x-text="opt[1]"></span>
+                                    </template>
+                                </div>
+                            </div>
+                            <label class="m-0">
+                                <span class="field-label mb-xs">Sort By</span>
+                                <select class="w-full m-0" x-model="block.filters.sort_by" @change="$store.mixer.updatePreviewCount(block)">
+                                    <option value="Random">Random</option>
+                                    <option value="PremiereDate">Release Date</option>
+                                    <option value="DateCreated">Date Added</option>
+                                    <option value="CommunityRating">Community Rating</option>
+                                    <option value="CriticRating">Critic Rating</option>
+                                    <option value="SortName">Title (A–Z)</option>
+                                </select>
+                            </label>
                         </div>
                     </fieldset>
 
@@ -362,42 +386,32 @@
                         <div class="flex-row gap-lg flex-wrap">
                             <div class="grow-1">
                                 <label class="field-label mb-xs">Audio Language</label>
-                                <div class="flex-row flex-wrap gap-xs">
-                                    <template x-for="lang in ['English', 'Spanish', 'French', 'German', 'Japanese', 'Korean']" :key="'aud_' + lang">
-                                        <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;"
+                                <div class="flex-row flex-wrap gap-xs align-center">
+                                    <template x-for="lang in languageOptions('audio_languages')" :key="'aud_' + lang">
+                                        <button type="button" class="pill-btn p-sm lang-pill"
                                                 :class="(block.filters?.audio_languages || []).includes(lang) ? 'active' : ''"
-                                                @click="
-                                                    if (!block.filters.audio_languages) block.filters.audio_languages = [];
-                                                    if (block.filters.audio_languages.includes(lang)) {
-                                                        block.filters.audio_languages = block.filters.audio_languages.filter(l => l !== lang);
-                                                    } else {
-                                                        block.filters.audio_languages.push(lang);
-                                                    }
-                                                    $store.mixer.updatePreviewCount(block);
-                                                "
+                                                @click="toggleLanguage('audio_languages', lang)"
                                                 x-text="lang">
                                         </button>
                                     </template>
+                                    <input type="text" class="m-0 lang-custom-input" placeholder="+ Other (e.g. hin)"
+                                           aria-label="Add another audio language"
+                                           x-model="customAudioLang" @keydown.enter.prevent="addCustomLanguage('audio_languages', 'customAudioLang')" @blur="addCustomLanguage('audio_languages', 'customAudioLang')">
                                 </div>
                             </div>
                             <div class="grow-1">
                                 <label class="field-label mb-xs">Subtitle Language</label>
-                                <div class="flex-row flex-wrap gap-xs">
-                                    <template x-for="lang in ['English', 'Spanish', 'French', 'German', 'Japanese', 'Korean']" :key="'sub_' + lang">
-                                        <button type="button" class="pill-btn p-sm" style="font-size: 0.85rem;"
+                                <div class="flex-row flex-wrap gap-xs align-center">
+                                    <template x-for="lang in languageOptions('subtitle_languages')" :key="'sub_' + lang">
+                                        <button type="button" class="pill-btn p-sm lang-pill"
                                                 :class="(block.filters?.subtitle_languages || []).includes(lang) ? 'active' : ''"
-                                                @click="
-                                                    if (!block.filters.subtitle_languages) block.filters.subtitle_languages = [];
-                                                    if (block.filters.subtitle_languages.includes(lang)) {
-                                                        block.filters.subtitle_languages = block.filters.subtitle_languages.filter(l => l !== lang);
-                                                    } else {
-                                                        block.filters.subtitle_languages.push(lang);
-                                                    }
-                                                    $store.mixer.updatePreviewCount(block);
-                                                "
+                                                @click="toggleLanguage('subtitle_languages', lang)"
                                                 x-text="lang">
                                         </button>
                                     </template>
+                                    <input type="text" class="m-0 lang-custom-input" placeholder="+ Other (e.g. hin)"
+                                           aria-label="Add another subtitle language"
+                                           x-model="customSubLang" @keydown.enter.prevent="addCustomLanguage('subtitle_languages', 'customSubLang')" @blur="addCustomLanguage('subtitle_languages', 'customSubLang')">
                                 </div>
                             </div>
                         </div>
@@ -419,7 +433,7 @@
 
                             <div x-show="block._limitMode === 'duration'" class="flex-row align-center gap-md mt-xs" x-cloak>
                                 <span class="text-subtle">Runtime:</span>
-                                <input type="number50" x-model.number="block._limitDurationRaw" min="1" class="m-0 w-80 text-center" @input.debounce.500ms="block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">
+                                <input type="number" inputmode="numeric" x-model.number="block._limitDurationRaw" min="1" class="m-0 w-80 text-center" @input.debounce.500ms="block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">
                                 <div class="toggle-pill m-0 grow-1">
                                     <span class="pill-btn text-center" :class="block._limitDurationUnit === 1 ? 'active' : ''" @click="block._limitDurationUnit = 1; block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">Minutes</span>
                                     <span class="pill-btn text-center" :class="block._limitDurationUnit === 60 ? 'active' : ''" @click="block._limitDurationUnit = 60; block.filters.duration_minutes = block._limitDurationRaw * block._limitDurationUnit; $store.mixer.updatePreviewCount(block)">Hours</span>
@@ -429,7 +443,13 @@
                     </fieldset>
 
                 </div>
-                <div class="modal-footer"><button type="button" @click="filterModalOpen = false" class="primary">Done</button></div>
+                <div class="modal-footer filter-modal-footer">
+                    <button type="button" class="secondary mr-auto" @click="$store.mixer.resetMovieFilters(block)">Reset Filters</button>
+                    <span class="filter-live-count" aria-live="polite">
+                        <strong x-text="getPreviewCount()"></strong> matches
+                    </span>
+                    <button type="button" @click="filterModalOpen = false" class="primary">Done</button>
+                </div>
             </div>
         </div>
 </template>

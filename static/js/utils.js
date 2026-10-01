@@ -1,6 +1,7 @@
 // static/js/utils.js
 
 export const toastHistory = [];
+const MAX_VISIBLE_TOASTS = 3;
 
 export function generateUUID() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -12,7 +13,7 @@ export function generateUUID() {
 }
 
 export function toast(message, isSuccess, options = {}) {
-  const { actionCallback, actionText = 'View' } = options;
+  const { actionCallback, actionText = 'View', actionIcon, duration } = options;
 
   const timestamp = new Date().toLocaleTimeString([], {
     hour: '2-digit', minute: '2-digit', second: '2-digit'
@@ -22,14 +23,31 @@ export function toast(message, isSuccess, options = {}) {
   if (toastHistory.length > 50) toastHistory.pop();
 
   document.dispatchEvent(new CustomEvent('toast-added'));
-  document.querySelectorAll('.toast').forEach(t => t.remove());
+
+  let stack = document.getElementById('toast-stack');
+  if (!stack) {
+    stack = document.createElement('div');
+    stack.id = 'toast-stack';
+    stack.setAttribute('role', 'status');
+    stack.setAttribute('aria-live', 'polite');
+    document.body.appendChild(stack);
+  }
+  // Keep the newest few visible instead of replacing the previous message outright.
+  const live = stack.querySelectorAll('.toast:not(.leaving)');
+  if (live.length >= MAX_VISIBLE_TOASTS) live[0].remove();
 
   const toastElement = document.createElement('div');
   toastElement.className = `toast ${isSuccess ? 'ok' : 'fail'}`;
+  if (!isSuccess) toastElement.setAttribute('role', 'alert');
 
+  let dismissTimer = null;
   const dismissToast = () => {
-    toastElement.style.animation = 'fadeOutUp 0.5s forwards';
+    clearTimeout(dismissTimer);
+    if (toastElement.classList.contains('leaving')) return;
+    toastElement.classList.add('leaving');
     toastElement.addEventListener('animationend', () => toastElement.remove(), { once: true });
+    // Fallback when animations are disabled (reduced motion).
+    setTimeout(() => toastElement.remove(), 500);
   };
 
   const messageDiv = document.createElement('div');
@@ -44,7 +62,7 @@ export function toast(message, isSuccess, options = {}) {
     actionBtn.type = 'button';
     actionBtn.className = 'toast-button align-center gap-xs';
 
-    const icon = typeof Alpine !== 'undefined' ? Alpine.store('icons')?.externalLink : '';
+    const icon = actionIcon === null ? '' : (typeof Alpine !== 'undefined' ? Alpine.store('icons')?.[actionIcon || 'externalLink'] : '');
     if (icon) {
       const iconSpan = document.createElement('span');
       iconSpan.className = 'toast-button-icon';
@@ -61,18 +79,18 @@ export function toast(message, isSuccess, options = {}) {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'toast-close-btn';
+  closeBtn.setAttribute('aria-label', 'Dismiss notification');
   closeBtn.textContent = '×';
   closeBtn.addEventListener('click', dismissToast);
   toastElement.appendChild(closeBtn);
-  
-  document.body.appendChild(toastElement);
 
-  if (!actionCallback) {
-    toastElement.style.animation = 'fadeInDown 0.5s, fadeOutUp 0.5s 3.2s forwards';
-    setTimeout(() => { if (toastElement.parentNode) toastElement.remove(); }, 4300);
-  } else {
-    toastElement.style.animation = 'fadeInDown 0.5s forwards';
-  }
+  stack.appendChild(toastElement);
+
+  // Action toasts linger longer so there is time to click; errors stay a little longer than successes.
+  const lifetime = actionCallback ? (duration ?? 8000) : (duration ?? (isSuccess ? 3800 : 6000));
+  dismissTimer = setTimeout(dismissToast, lifetime);
+  toastElement.addEventListener('mouseenter', () => clearTimeout(dismissTimer));
+  toastElement.addEventListener('mouseleave', () => { dismissTimer = setTimeout(dismissToast, 2000); });
 }
 
 export function debounce(func, wait) {
@@ -84,22 +102,32 @@ export function debounce(func, wait) {
     };
 };
 
-export function useApi(apiCall, element = null, silent = false, showLoading = true) {
+// silent: suppress toasts. showLoading: the full-screen overlay; by default it is used
+// only when no triggering button is given (a button shows its own busy state instead).
+export function useApi(apiCall, element = null, silent = false, showLoading = undefined) {
     const loadingOverlay = document.getElementById('loading-overlay');
     let clickedButton = null;
 
     if (element) {
         clickedButton = element.currentTarget || element;
-        if (clickedButton) clickedButton.disabled = true;
+        if (clickedButton) {
+            clickedButton.disabled = true;
+            clickedButton.classList.add('is-busy');
+            clickedButton.setAttribute('aria-busy', 'true');
+        }
     }
 
-    if (showLoading && loadingOverlay) loadingOverlay.classList.remove('hidden');
+    const useOverlay = showLoading ?? !clickedButton;
+    if (useOverlay && loadingOverlay) loadingOverlay.classList.remove('hidden');
 
     return apiCall.then(async (response) => {
         if (response.status === 'ok' && !silent) {
-            const msg = response.data?.log?.join(' • ') || 'All good!';
+            // Background fetches carry no message and stay quiet; actions report the
+            // server's own message, or a short confirmation when it sent none.
+            const log = response.data?.log;
+            const msg = Array.isArray(log) && log.length ? log.join(' • ') : (clickedButton ? 'Done.' : '');
             const tOpts = response.data?.newItemUrl ? { actionText: 'View on Server', actionCallback: () => window.open(response.data.newItemUrl, '_blank') } : {};
-            toast(msg, true, tOpts);
+            if (msg) toast(msg, true, tOpts);
         } else if ((response.status === 'error' || response.error?.detail) && !silent) {
             toast('Error: ' + (response.data?.log?.join(' • ') || response.error?.detail || 'Unknown error'), false);
         }
@@ -108,7 +136,11 @@ export function useApi(apiCall, element = null, silent = false, showLoading = tr
         if (!silent) toast('Error: ' + (err?.log?.join(' • ') || err?.detail || err.message || 'An unknown error occurred.'), false);
         return { data: null, error: err, status: 'error' };
     }).finally(() => {
-        if (showLoading && loadingOverlay) loadingOverlay.classList.add('hidden');
-        if (clickedButton) clickedButton.disabled = false;
+        if (useOverlay && loadingOverlay) loadingOverlay.classList.add('hidden');
+        if (clickedButton) {
+            clickedButton.disabled = false;
+            clickedButton.classList.remove('is-busy');
+            clickedButton.removeAttribute('aria-busy');
+        }
     });
 }

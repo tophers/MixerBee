@@ -45,6 +45,8 @@ def api_get_schedules(auth_deps: dict = Depends(get_current_auth_headers)):
     # to rebuild them after re-enabling.
     if not ai_policy.generative_available(auth_deps["connection_id"]):
         schedules = [s for s in schedules if s.get("job_type") != "enrichment"]
+    # Copies, so the runtime fields never leak into the stored schedule config.
+    schedules = [{**s, **scheduler.scheduler_manager.get_run_state(s.get("id"))} for s in schedules]
     cache_headers = {
         "Cache-Control": "no-cache, no-store, must-revalidate",
         "Pragma": "no-cache",

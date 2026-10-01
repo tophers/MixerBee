@@ -14,6 +14,8 @@ import { managerStore } from './managerStore.js';
 import { uiStore } from './uiStore.js';
 import { assistStore } from './assistStore.js';
 import { logStore } from './logStore.js';
+import { initA11y } from './a11y.js';
+import { initShortcuts, SHORTCUTS } from './shortcuts.js';
 
 let isAppInitialized = false;
 let storesHydrated = false;
@@ -70,6 +72,7 @@ export const hydrateStores = () => {
     safeMergeStore(Alpine.store('logs'), logStore);
 
     initModals();
+    Alpine.store('modals').shortcuts.list = SHORTCUTS;
 
     Alpine.store('ai').init();
     Alpine.store('assist').init();
@@ -163,6 +166,7 @@ async function initializeApp() {
         Object.assign(Alpine.store('mixer').library, libraryData.data);
         Alpine.store('mixer').init(defUser.data?.connection_id);
         await Alpine.store('presets').refresh();
+        Alpine.store('ui').restoreTab();
 
         // The backend stays authoritative for a tab left open in the background: a
         // preference changed in another tab or another browser is picked up on focus,
@@ -184,7 +188,15 @@ async function initializeApp() {
     }
 }
 
-const bootstrap = () => { initializeApp(); };
+let interactionInitialized = false;
+const bootstrap = () => {
+    if (!interactionInitialized) {
+        interactionInitialized = true;
+        initA11y();
+        initShortcuts();
+    }
+    initializeApp();
+};
 
 if (typeof Alpine !== 'undefined') bootstrap();
 else document.addEventListener('alpine:init', bootstrap);

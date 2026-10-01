@@ -1,7 +1,7 @@
 <!-- templates/partials/_block_header.html -->
 <summary>
     <div class="mixed-block-header">
-        <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle x-html="$store.icons.move"></button>
+        <button type="button" class="icon-btn drag-handle block-drag-handle" x-sort:handle title="Drag to reorder" aria-label="Drag to reorder block" x-html="$store.icons.move"></button>
         <h3 class="flex-row align-center gap-xs">
             <!-- The badge is provenance, not a capability: the block itself resolves
                  through ordinary TV/movie processing. It is dropped while AI is
@@ -18,18 +18,17 @@
             </template>
 
             <span x-show="!isOpen" 
-                  class="badge badge-outline-subtle ml-sm" 
-                  style="font-size: 0.7rem; opacity: 0.8;"
-                  x-text="(block._previewCount ?? 0) + ' Matches'">
+                  class="badge badge-outline-subtle ml-sm block-collapsed-count"
+                  x-text="(block._previewLoading ? '…' : (block._previewCount ?? 0)) + ' Matches'">
             </span>
-            <span x-show="block._stale"
-                  class="badge badge-accent-light ml-xs"
-                  style="font-size: 0.65rem;"
-                  title="Block settings modified since last preview.">Stale</span>
+            <button type="button" x-show="block._stale" x-cloak
+                    class="badge badge-accent-light ml-xs link-btn stale-badge"
+                    @click.prevent.stop="$store.mixer.reselectBlock(block._uid)"
+                    title="Block settings changed since the last preview — click to refresh.">Stale ↻</button>
         </h3>
 
         <div class="mixed-block-controls dropdown-container" x-data="{ menuOpen: false }">
-            <button type="button" class="icon-btn" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
+            <button type="button" class="icon-btn" title="Block actions" :aria-expanded="menuOpen.toString()" @click.prevent="menuOpen = !menuOpen" @click.outside="menuOpen = false" x-html="$store.icons.more"></button>
             <div class="dropdown-menu z-dropdown" x-show="menuOpen" x-cloak style="right: 0; left: auto; top: 100%;">
                 <template x-if="!block.isSnapshot">
                     <a href="#" class="dropdown-item" @click.prevent="menuOpen = false; $store.mixer.reselectBlock(block._uid)">

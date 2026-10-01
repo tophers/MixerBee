@@ -192,7 +192,15 @@ def api_builder_preview(req: models.BuilderPreviewRequest, auth_deps: dict = Dep
             media=media,
             mix_options=req.mix_options
         )
-        formatted_items = core.format_items_for_preview([r.get("raw_item") or r for r in resolution.rows])
+        raw_items = [r.get("raw_item") or r for r in resolution.rows]
+        formatted_items = core.format_items_for_preview(raw_items)
+        # Small artwork for the preview list; served by the media server without a token.
+        for formatted, raw in zip(formatted_items, raw_items):
+            formatted["PosterUrl"] = media.image_url(
+                formatted.get("media_id") or formatted.get("Id"),
+                tag=(raw.get("ImageTags") or {}).get("Primary", ""),
+                max_height=120,
+            )
 
         return {
             "status": "ok",

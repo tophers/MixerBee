@@ -3,35 +3,40 @@
     <div class="container">
         <div class="preset-controls" x-data="{ presetMenuOpen: false }">
 
-            <div style="display: flex; gap: 0.5rem; align-items: flex-end; flex-grow: 1;">
+            <div class="preset-row">
                 <label class="control-item grow-1 m-0" for="load-preset-select">
                     <div class="flex-row justify-between align-center">
                         <div class="flex-row align-center gap-xs">
                             <span>Load Preset</span>
-                            <span class="badge" style="background: rgba(255,193,7,0.2); color: #ffc107; font-size: 0.65rem;" x-show="$store.mixer.isDirty()" x-cloak>MODIFIED</span>
+                            <span class="badge badge-warning-soft" x-show="$store.mixer.isDirty()" x-cloak title="Changes since the preset was loaded or saved">MODIFIED</span>
                         </div>
-                        <span class="badge badge-outline-subtle" style="font-size: 0.65rem;" x-text="$store.presets.availableNames.length + ' saved'"></span>
+                        <span class="badge badge-outline-subtle" x-text="$store.presets.availableNames.length + ' saved'"></span>
                     </div>
-                    <select id="load-preset-select"
-                            class="w-full m-0"
-                            x-model="$store.presets.currentName"
-                            @change="$store.presets.load($el.value)">
-                        <option value="">-- Select a preset --</option>
-                        <template x-for="name in $store.presets.availableNames" :key="name">
-                            <option :value="name" x-text="name"></option>
-                        </template>
-                    </select>
+                    <div class="flex-row gap-xs">
+                        <input type="search" class="m-0 preset-filter" placeholder="Filter…" aria-label="Filter presets"
+                               x-show="$store.presets.availableNames.length > 10" x-cloak
+                               x-model="$store.presets.filterQuery">
+                        <select id="load-preset-select"
+                                class="w-full m-0"
+                                :value="$store.presets.currentName"
+                                @change="$store.presets.load($el.value)">
+                            <option value="">-- Select a preset --</option>
+                            <template x-for="name in $store.presets.filteredNames()" :key="name">
+                                <option :value="name" x-text="name" :selected="name === $store.presets.currentName"></option>
+                            </template>
+                        </select>
+                    </div>
                 </label>
 
-                <button type="button" class="secondary icon-only m-0" title="Undo (Ctrl+Z)" :disabled="!$store.mixer.canUndo" @click="$store.mixer.undo()" :style="!$store.mixer.canUndo ? 'opacity: 0.4;' : ''">
+                <button type="button" class="secondary icon-only m-0" title="Undo (Ctrl+Z)" :disabled="!$store.mixer.canUndo" @click="$store.mixer.undo()">
                     <span x-html="$store.icons.undo"></span>
                 </button>
-                <button type="button" class="secondary icon-only m-0" title="Redo (Ctrl+Y)" :disabled="!$store.mixer.canRedo" @click="$store.mixer.redo()" :style="!$store.mixer.canRedo ? 'opacity: 0.4;' : ''">
+                <button type="button" class="secondary icon-only m-0" title="Redo (Ctrl+Shift+Z)" :disabled="!$store.mixer.canRedo" @click="$store.mixer.redo()">
                     <span x-html="$store.icons.redo"></span>
                 </button>
 
                 <div class="dropdown-container shrink-0">
-                    <button type="button" class="secondary icon-only m-0" @click="presetMenuOpen = !presetMenuOpen" @click.outside="presetMenuOpen = false">
+                    <button type="button" class="secondary icon-only m-0" title="Preset actions" :aria-expanded="presetMenuOpen.toString()" @click="presetMenuOpen = !presetMenuOpen" @click.outside="presetMenuOpen = false">
                         <span x-html="$store.icons.more"></span>
                     </button>
 
@@ -126,7 +131,7 @@
                     
                     <div class="dropdown-container" x-data="{ modelMenuOpen: false }">
                         <button type="button" class="badge badge-outline-subtle align-center gap-xs m-0" 
-                                style="font-size: 0.7rem; opacity: 0.9; font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.1);"
+                                style="font-size: 0.7rem; opacity: 0.9; font-weight: 600; cursor: pointer; border: 1px solid var(--border-color);"
                                 @click="modelMenuOpen = !modelMenuOpen" @click.outside="modelMenuOpen = false">
                             <span x-html="$store.icons.zap" :style="$store.settings.ai_provider === 'ollama' ? 'color: var(--accent);' : 'color: #4285F4;'"></span>
                             <span x-text="$store.settings.ai_provider === 'ollama' ? 'OLLAMA: ' + $store.settings.ollama_model.toUpperCase() : 'GOOGLE GEMINI'"></span>
@@ -171,15 +176,45 @@
             </template>
         </fieldset>
 
+        <div class="builder-empty" x-show="$store.mixer.blocks.length === 0" x-cloak>
+            <p class="text-subtle m-0">Start a mix:</p>
+            <div class="starter-grid">
+                <button type="button" class="starter-card" @click="$store.mixer.addBlock('movie')">
+                    <span class="starter-icon" x-html="$store.icons.film"></span>
+                    <strong>Add a Movie block</strong>
+                    <span>Filter your movies by genre, people, year, rating and more.</span>
+                </button>
+                <button type="button" class="starter-card" @click="$store.mixer.showSmartBuildMenu()">
+                    <span class="starter-icon" x-html="$store.icons.framer"></span>
+                    <strong>Auto Playlist</strong>
+                    <span>One click: Recently Added, Next Up, Pilot Sampler and more.</span>
+                </button>
+                <button type="button" class="starter-card" x-show="$store.settings.generative_ai_available" x-cloak @click="$store.ui.showAiBuilder = true; $nextTick(() => document.getElementById('ai-prompt-input')?.focus())">
+                    <span class="starter-icon" x-html="$store.icons.zap"></span>
+                    <strong>Describe it to AI</strong>
+                    <span>Type what you're in the mood for and let AI build the blocks.</span>
+                </button>
+                <button type="button" class="starter-card" x-show="!$store.settings.generative_ai_available" x-cloak @click="$store.mixer.openRecipeLibrary()">
+                    <span class="starter-icon" x-html="$store.icons.archive"></span>
+                    <strong>Recipe Library</strong>
+                    <span>Start from a saved or starter block recipe.</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="blocks-toolbar" x-show="$store.mixer.blocks.length > 1" x-cloak>
+            <span class="text-subtle text-sm" x-text="$store.mixer.blocks.length + ' blocks'"></span>
+            <div class="flex-row gap-xs">
+                <button type="button" class="link-btn text-sm" @click="$store.mixer.setAllBlocksOpen(true)">Expand all</button>
+                <span class="text-subtle" aria-hidden="true">·</span>
+                <button type="button" class="link-btn text-sm" @click="$store.mixer.setAllBlocksOpen(false)">Collapse all</button>
+            </div>
+        </div>
+
         <div id="mixed-playlist-blocks" 
              x-sort="$store.mixer.blocks" 
              x-sort:config="{ handle: '.block-drag-handle' }"
              @sort="$store.mixer.syncOrderFromDom($el)">
-            <p class="placeholder-text" x-show="$store.mixer.blocks.length === 0">
-                Click <strong>'Add Block'</strong> below to begin building your mix, <br>
-                or try <strong>'Auto Playlists'</strong> for a quick start.
-            </p>
-
             <template x-for="(block, index) in $store.mixer.blocks" :key="block._uid">
                 <div class="block-wrapper" x-sort:item :data-uid="block._uid">
                     {% include 'partials/_tv_block.html' %}
@@ -203,11 +238,11 @@
                         <span x-html="$store.icons.plus"></span><span class="hide-mobile">Add Block</span><span class="chevron hide-mobile" x-html="$store.icons.chevronDown"></span>
                     </button>
                     <div class="dropdown-menu dropdown-up" x-show="open" x-cloak @click.outside="open = false">
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('curated')"><span class="dropdown-icon" x-html="$store.icons.list"></span> Curated Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span> Echo Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span> TV Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span> Movie Block</a>
-                        <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span> Music Block</a>
+                        <a href="#" class="dropdown-item dropdown-item-described" @click.prevent="open = false; $store.mixer.addBlock('curated')"><span class="dropdown-icon" x-html="$store.icons.list"></span><span class="dropdown-text"><span>Curated Block</span><small>Hand-pick specific movies, collections and episodes.</small></span></a>
+                        <a href="#" class="dropdown-item dropdown-item-described" @click.prevent="open = false; $store.mixer.addBlock('mirror')"><span class="dropdown-icon" x-html="$store.icons.shuffle"></span><span class="dropdown-text"><span>Echo Block</span><small>Find titles similar to seed movies or shows.</small></span></a>
+                        <a href="#" class="dropdown-item dropdown-item-described" @click.prevent="open = false; $store.mixer.addBlock('tv')"><span class="dropdown-icon" x-html="$store.icons.tv"></span><span class="dropdown-text"><span>TV Block</span><small>Episodes from chosen shows, interleaved or back-to-back.</small></span></a>
+                        <a href="#" class="dropdown-item dropdown-item-described" @click.prevent="open = false; $store.mixer.addBlock('movie')"><span class="dropdown-icon" x-html="$store.icons.film"></span><span class="dropdown-text"><span>Movie Block</span><small>Movies matching genre, people, year and rating filters.</small></span></a>
+                        <a href="#" class="dropdown-item dropdown-item-described" @click.prevent="open = false; $store.mixer.addBlock('music')"><span class="dropdown-icon" x-html="$store.icons.music"></span><span class="dropdown-text"><span>Music Block</span><small>Tracks by artist, album or genre.</small></span></a>
                         <div class="divider"></div>
                         <a href="#" class="dropdown-item" @click.prevent="open = false; $store.mixer.openRecipeLibrary()"><span class="dropdown-icon" x-html="$store.icons.archive"></span> Recipe Library...</a>
                     </div>
@@ -238,23 +273,37 @@
             </button>
         </div>
         <div class="action-bar-footer">
-            <div class="flex-row gap-sm grow-1 align-center">
-                <select x-model="$store.mixer.buildMode" class="m-0" style="max-width: 150px; flex-grow: 1;" @change="if($el.value === 'add') $store.mixer.refreshUserPlaylists()">
-                    <option value="create">New</option>
-                    <option value="add">Append</option>
-                </select>
-                <div class="toggle-pill action-bar-pill flex-basis-sync" x-show="$store.mixer.buildMode === 'create'" x-cloak>
-                    <span class="pill-btn" :class="!$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = false">Playlist</span>
-                    <span class="pill-btn" x-show="$store.settings.can_manage_collections" x-cloak :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
+            <div class="flex-row gap-sm grow-1 align-center flex-wrap-mobile">
+                <div class="toggle-pill action-bar-pill shrink-0" role="group" aria-label="Build mode">
+                    <span class="pill-btn" :class="$store.mixer.buildMode === 'create' ? 'active' : ''" @click="$store.mixer.buildMode = 'create'">New</span>
+                    <span class="pill-btn" :class="$store.mixer.buildMode === 'add' ? 'active' : ''" @click="$store.mixer.buildMode = 'add'; $store.mixer.refreshUserPlaylists()">Append</span>
                 </div>
-                <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1 flex-basis-sync" style="min-width: 0;">
+                <div class="toggle-pill action-bar-pill shrink-0" role="group" aria-label="Output type" x-show="$store.mixer.buildMode === 'create' && $store.settings.can_manage_collections" x-cloak>
+                    <span class="pill-btn" :class="!$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = false">Playlist</span>
+                    <span class="pill-btn" :class="$store.mixer.createAsCollection ? 'active' : ''" @click="$store.mixer.createAsCollection = true">Collection</span>
+                </div>
+                <input type="text" class="m-0 grow-1 build-name-input" x-show="$store.mixer.buildMode === 'create'"
+                       aria-label="Name for the new playlist"
+                       x-model="$store.mixer.playlistName"
+                       :placeholder="'Name: ' + $store.mixer.defaultBuildName()"
+                       @keydown.enter.prevent="$store.mixer.buildPlaylist(document.getElementById('build-btn'))">
+                <select x-model="$store.mixer.existingPlaylistId" x-cloak x-show="$store.mixer.buildMode === 'add'" class="m-0 grow-1 flex-basis-sync" aria-label="Playlist to append to">
                     <option value="">-- Target --</option>
                     <template x-for="p in $store.mixer.userPlaylists" :key="p.Id"><option :value="p.Id" x-text="p.Name"></option></template>
                 </select>
             </div>
-            <button class="m-0" style="min-width: 100px;" @click="$store.mixer.buildPlaylist($el)">
-                Build
-            </button>
+            <div class="flex-row align-center gap-sm shrink-0">
+                <span class="build-summary text-subtle text-sm" x-show="$store.mixer.buildSummary()" x-cloak
+                      title="Sum of each block's matches. Mix rules (cooldowns, duplicates, budget) can change the final count.">
+                    <template x-if="$store.mixer.buildSummary()?.loading"><span>Counting…</span></template>
+                    <template x-if="$store.mixer.buildSummary() && !$store.mixer.buildSummary().loading">
+                        <span x-text="'~' + $store.mixer.buildSummary().items + ' items' + ($store.mixer.buildSummary().duration ? ' · ' + $store.mixer.buildSummary().duration : '')"></span>
+                    </template>
+                </span>
+                <button id="build-btn" class="m-0 build-btn" @click="$store.mixer.buildPlaylist($el)" :disabled="$store.mixer.blocks.length === 0" title="Build (Ctrl+Enter)">
+                    Build
+                </button>
+            </div>
         </div>
     </div>
 </div>

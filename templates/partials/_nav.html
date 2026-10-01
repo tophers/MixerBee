@@ -54,6 +54,7 @@
                 </div>
                 <button type="button" @click="$store.settings.accountMenuOpen = false; $store.settings.show()"><span x-html="$store.icons.settings"></span> Connection settings</button>
                 <button type="button" @click="$store.settings.accountMenuOpen = false; $store.settings.showAccount()"><span x-html="$store.icons.user"></span> Account settings</button>
+                <button type="button" @click="$store.settings.accountMenuOpen = false; $store.modals.shortcuts.isOpen = true"><span x-html="$store.icons.keyboard"></span> Keyboard shortcuts <kbd class="ml-auto">?</kbd></button>
                 <button type="button" class="account-menu-signout" @click="$store.settings.accountMenuOpen = false; $store.settings.logout()">Sign out</button>
             </div>
         </div>
@@ -68,9 +69,9 @@
     </div>
 </div>
 
-<div class="tab-switcher">
-    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'mixed' }" @click="$store.ui.setTab('mixed')">Builder</button>
-    <button class="tab-btn" x-show="$store.settings.generative_ai_available" x-cloak :class="{ 'active': $store.ui.currentTab === 'assist' }" @click="$store.ui.setTab('assist')">Assist</button>
-    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'scheduler' }" @click="$store.ui.setTab('scheduler')">Scheduler</button>
-    <button class="tab-btn" :class="{ 'active': $store.ui.currentTab === 'manager' }" @click="$store.ui.setTab('manager')">Manager</button>
+<div class="tab-switcher" role="tablist" aria-label="Sections">
+    <button class="tab-btn" role="tab" :aria-selected="($store.ui.currentTab === 'mixed').toString()" title="Shortcut: 1" :class="{ 'active': $store.ui.currentTab === 'mixed' }" @click="$store.ui.setTab('mixed')">Builder</button>
+    <button class="tab-btn" x-show="$store.settings.generative_ai_available" x-cloak role="tab" :aria-selected="($store.ui.currentTab === 'assist').toString()" title="Shortcut: 2" :class="{ 'active': $store.ui.currentTab === 'assist' }" @click="$store.ui.setTab('assist')">Assist</button>
+    <button class="tab-btn" role="tab" :aria-selected="($store.ui.currentTab === 'scheduler').toString()" title="Shortcut: 3" :class="{ 'active': $store.ui.currentTab === 'scheduler' }" @click="$store.ui.setTab('scheduler')">Scheduler</button>
+    <button class="tab-btn" role="tab" :aria-selected="($store.ui.currentTab === 'manager').toString()" title="Shortcut: 4" :class="{ 'active': $store.ui.currentTab === 'manager' }" @click="$store.ui.setTab('manager')">Manager</button>
 </div>

@@ -60,7 +60,7 @@
         }
     }" x-init="$store.mixer.ensureBlockState(block)">
         <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
-            <details class="mixed-block curated-block" :open="isOpen" @toggle="isOpen = $el.open">
+            <details class="mixed-block curated-block" :open="isOpen" @toggle="isOpen = $el.open" @mixer-blocks-toggle.window="isOpen = $event.detail.open">
                 {% set default_title = 'Curated Mix' %}
                 {% include 'partials/_block_header.html' %}
 
@@ -142,12 +142,12 @@
                                    @input.debounce.300ms="performSearch()">
 
                             <div class="autocomplete-suggestions"
-                                 style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
+                                 style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: var(--panel) !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
                                  x-show="suggestions.length > 0"
                                  x-cloak>
                                 <ul style="margin: 0; padding: 0; list-style: none;">
                                     <template x-for="s in suggestions" :key="block._uid + '_cur_msug_' + s.data.Id">
-                                        <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ffffff;"
+                                        <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid var(--divider-color); color: var(--text);"
                                             class="dropdown-item-hover"
                                             @click="addMovie(s.data)"
                                             x-text="s.text"></li>
@@ -156,7 +156,7 @@
                             </div>
                         </div>
 
-                        <div class="token-container" style="min-height: 42px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="token-container" style="min-height: 42px; padding: 6px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--divider-color);">
                             <template x-for="(m, i) in block.movies" :key="block._uid + '_cur_m_' + m.Id">
                                 <span class="token token-logic-any">
                                     <span class="token-label" x-text="(m.Name || m.name) + (m.Year ? ' (' + m.Year + ')' : '')"></span>
@@ -183,7 +183,7 @@
 
                         <div class="tv-block-shows">
                             <template x-for="(show, rowIndex) in (block.shows || [])" :key="show._uid">
-                                <div class="tv-show-row p-sm" style="background: rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.05); border-radius: var(--radius-sm); margin-bottom: 0.5rem;" :class="{ 'is-unwatched': show.unwatched }">
+                                <div class="tv-show-row p-sm" style="background: var(--bg-card); border: 1px solid var(--divider-color); border-radius: var(--radius-sm); margin-bottom: 0.5rem;" :class="{ 'is-unwatched': show.unwatched }">
                                     <div class="show-selector-area grow-1">
                                         <div class="flex-row align-center gap-sm flex-wrap w-full mb-xs">
                                             <select class="m-0 grow-1"
@@ -232,7 +232,7 @@
                         </div>
                     </fieldset>
 
-                    <div class="tweak-item mt-lg" style="background: transparent; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
+                    <div class="tweak-item mt-lg" style="background: transparent; border-top: 1px solid var(--divider-color); padding-top: 1rem;">
                         <div class="tweak-label-row">
                             <span class="tweak-title">Playback Order</span>
                         </div>
@@ -243,7 +243,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer filter-modal-footer">
+                    <span class="filter-live-count mr-auto" aria-live="polite"><strong x-text="block._previewLoading ? '…' : (block._previewCount ?? 0)"></strong> matches</span>
                     <button type="button" class="primary" @click="editModalOpen = false">Done</button>
                 </div>
             </div>

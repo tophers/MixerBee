@@ -2,10 +2,17 @@
 
 import { api } from './apiClient.js';
 import { toast, generateUUID, useApi } from './utils.js';
+import { confirmModal } from './modals.js';
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const RUN_POLL_MS = 3000;
+const RUN_POLL_MAX = 200;
 
 export const schedulerStore = {
     schedule: [],
     isLoading: false,
+    _pollTimer: null,
+    _pollCount: 0,
 
     async loadSchedule() {
         this.isLoading = true;
@@ -37,6 +44,7 @@ export const schedulerStore = {
                         }
                     };
                 });
+                if (this.schedule.some(e => e.is_running)) this.startRunPolling();
             }
         } catch (err) {
             console.error("Scheduler Load Error:", err);
@@ -118,9 +126,54 @@ export const schedulerStore = {
         } catch (err) { }
     },
 
-    async runNow(id, btnEl) {
-        if (!id) return toast("Save the schedule first to generate a Job ID.", false);
-        try { await useApi(api.post(`api/schedules/${id}/run`, {}), btnEl); } catch (err) { }
+    async runNow(entry, btnEl) {
+        if (!entry?.id) return toast("Save the schedule first to generate a Job ID.", false);
+        if (entry.is_running) return;
+        try {
+            const res = await useApi(api.post(`api/schedules/${entry.id}/run`, {}), btnEl);
+            if (res && res.status === 'ok') {
+                entry.is_running = true;
+                this.schedule = [...this.schedule];
+                this.startRunPolling();
+            }
+        } catch (err) { }
+    },
+
+    // Refreshes only the runtime fields, so an open edit modal never loses unsaved changes.
+    startRunPolling() {
+        this._pollCount = 0;
+        if (this._pollTimer) return;
+        this._pollTimer = setInterval(() => this.refreshRunState(), RUN_POLL_MS);
+    },
+
+    stopRunPolling() {
+        clearInterval(this._pollTimer);
+        this._pollTimer = null;
+    },
+
+    async refreshRunState() {
+        this._pollCount += 1;
+        if (this._pollCount > RUN_POLL_MAX || Alpine.store('ui').currentTab !== 'scheduler') {
+            this.stopRunPolling();
+            return;
+        }
+        const res = await useApi(api.get('api/schedules'), null, true, false);
+        if (!Array.isArray(res?.data)) return;
+        const byId = new Map(res.data.map(s => [s.id, s]));
+        for (const entry of this.schedule) {
+            const fresh = entry.id && byId.get(entry.id);
+            if (!fresh) continue;
+            const finished = entry.is_running && !fresh.is_running;
+            entry.is_running = !!fresh.is_running;
+            entry.last_run = fresh.last_run || null;
+            entry.next_run_time = fresh.next_run_time || null;
+            if (finished && fresh.last_run) {
+                const ok = fresh.last_run.status === 'ok';
+                toast(`${entry.playlist_name}: ${ok ? 'run finished' : 'run failed'}${fresh.last_run.log?.length ? ' — ' + fresh.last_run.log[fresh.last_run.log.length - 1] : ''}`, ok);
+            }
+        }
+        this.schedule = [...this.schedule];
+        if (!this.schedule.some(e => e.is_running)) this.stopRunPolling();
     },
 
     async removeEntry(entry, btnEl) {
@@ -128,6 +181,14 @@ export const schedulerStore = {
             this.schedule = this.schedule.filter(s => s !== entry);
             return;
         }
+        try {
+            await confirmModal.show({
+                title: 'Delete Job?',
+                text: `Delete the scheduled job "${entry.playlist_name}"? Playlists it already built stay on the media server.`,
+                confirmText: 'Delete',
+                isDanger: true
+            });
+        } catch (e) { return; }
         try {
             const res = await useApi(api.del(`api/schedules/${entry.id}`), btnEl);
             if (res && res.status === 'ok') this.schedule = this.schedule.filter(s => s !== entry);
@@ -145,6 +206,63 @@ export const schedulerStore = {
         };
         this.schedule = [...this.schedule, newEntry];
         return newEntry._uid;
+    },
+
+    duplicateEntry(entry) {
+        const copy = JSON.parse(JSON.stringify(entry));
+        Object.assign(copy, {
+            id: null, _uid: generateUUID(), playlist_name: `${entry.playlist_name} (copy)`,
+            last_run: null, next_run_time: null, is_running: false
+        });
+        const idx = this.schedule.indexOf(entry);
+        const list = [...this.schedule];
+        list.splice(idx + 1, 0, copy);
+        this.schedule = list;
+        return copy._uid;
+    },
+
+    formatDays(days) {
+        const set = [...new Set((days || []).map(Number))].sort((a, b) => a - b);
+        if (set.length === 7) return 'Daily';
+        if (set.length === 0) return 'No days';
+        if (set.join() === '1,2,3,4,5') return 'Weekdays';
+        if (set.join() === '0,6') return 'Weekends';
+        // Collapse consecutive runs (Mon–Wed) so long selections stay short.
+        const parts = [];
+        let start = set[0], prev = set[0];
+        for (const d of [...set.slice(1), null]) {
+            if (d === prev + 1) { prev = d; continue; }
+            parts.push(prev - start >= 2 ? `${DAY_NAMES[start]}–${DAY_NAMES[prev]}` : (start === prev ? DAY_NAMES[start] : `${DAY_NAMES[start]}, ${DAY_NAMES[prev]}`));
+            start = prev = d;
+        }
+        return parts.join(', ');
+    },
+
+    formatRelative(iso) {
+        if (!iso) return '';
+        const then = new Date(iso);
+        if (isNaN(then)) return '';
+        const diffMs = then - Date.now();
+        if (Math.abs(diffMs) < 60000) return 'just now';
+        const abs = Math.round(Math.abs(diffMs) / 60000);
+        let text;
+        if (abs < 60) text = `${abs}m`;
+        else if (abs < 60 * 24) text = `${Math.round(abs / 60)}h`;
+        else text = `${Math.round(abs / 1440)}d`;
+        return diffMs < 0 ? `${text} ago` : `in ${text}`;
+    },
+
+    nextRunLabel(entry) {
+        if (!entry.id) return 'Not saved';
+        if (!entry.enabled) return 'Paused';
+        if (entry.snoozed_until && new Date(entry.snoozed_until) > new Date()) return 'Snoozed until ' + new Date(entry.snoozed_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (!(entry.trigger_sources || []).includes('clock')) return 'Webhook only';
+        return entry.next_run_time ? this.formatRelative(entry.next_run_time) : '—';
+    },
+
+    lastRunLog(entry) {
+        const log = entry.last_run?.log;
+        return Array.isArray(log) ? log.join(' • ') : '';
     },
 
     toggleDay(entry, dayNum) {

@@ -9,6 +9,14 @@ export const presetStore = {
     records: [],
     availableNames: [],
     currentName: '',
+    filterQuery: '',
+
+    // Preset names matching the filter box; the loaded preset always stays listed.
+    filteredNames() {
+        const q = this.filterQuery.trim().toLowerCase();
+        if (!q) return this.availableNames;
+        return this.availableNames.filter(n => n === this.currentName || n.toLowerCase().includes(q));
+    },
 
     async init() {
         await this.refresh();
@@ -38,6 +46,25 @@ export const presetStore = {
 
     async load(name) {
         const mixer = Alpine.store('mixer');
+        if (name === this.currentName) return;
+        if (mixer.blocks.length > 0 && mixer.isDirty()) {
+            try {
+                await confirmModal.show({
+                    title: 'Discard unsaved changes?',
+                    text: this.currentName
+                        ? `"${this.currentName}" has changes that are not saved. Loading another preset will discard them.`
+                        : 'Your current blocks are not saved as a preset. Loading a preset will replace them.',
+                    confirmText: 'Discard & Load',
+                    isDanger: true
+                });
+            } catch (e) {
+                // Put the dropdown back on the preset that is still loaded.
+                const select = document.getElementById('load-preset-select');
+                if (select) select.value = this.currentName;
+                return;
+            }
+        }
+        mixer.playlistName = '';
         if (!name) {
             this.currentName = '';
             await mixer.loadBlocks([]);

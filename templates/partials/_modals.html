@@ -114,8 +114,14 @@
             <template x-if="!$store.modals.preview.items || $store.modals.preview.items.length === 0">
                 <p style="text-align: center; color: var(--text-subtle);">No items found.</p>
             </template>
-            <template x-if="($store.modals.preview.items || []).length > 0 && $store.modals.preview.totalDuration">
-                <p class="text-subtle" style="margin: 0 0 0.75rem;">Estimated Total Runtime: <strong x-text="$store.modals.preview.totalDuration"></strong></p>
+            <template x-if="($store.modals.preview.items || []).length > 0">
+                <p class="text-subtle preview-meta">
+                    <strong x-text="$store.modals.preview.items.length"></strong> items
+                    <template x-if="$store.modals.preview.totalDuration">
+                        <span> · Estimated runtime <strong x-text="$store.modals.preview.totalDuration"></strong><span x-show="$store.modals.preview.removedCount" x-text="' (before ' + $store.modals.preview.removedCount + ' removed)'"></span></span>
+                    </template>
+                    <span class="preview-hint">Drag to reorder.</span>
+                </p>
             </template>
             <template x-if="($store.modals.preview.items || []).length > 0">
                 <ol class="preview-list"
@@ -124,7 +130,10 @@
                     @sort="$store.mixer.syncPreviewOrder($el)">
                     <template x-for="(item, index) in $store.modals.preview.items" :key="item.Id || index">
                         <li x-sort:item :data-id="item.Id || item.id" class="flex-row align-center gap-md">
-                            <div class="drag-handle opacity-60" x-sort:handle x-html="$store.icons.move"></div>
+                            <div class="drag-handle opacity-60" x-sort:handle title="Drag to reorder" x-html="$store.icons.move"></div>
+                            <div class="preview-thumb" aria-hidden="true">
+                                <img x-show="item.PosterUrl" :src="item.PosterUrl" alt="" loading="lazy" @error="$el.style.display = 'none'">
+                            </div>
                             <div class="grow-1">
                                 <span class="item-name" x-text="item.name"></span>
                                 <template x-if="item.context">
@@ -132,6 +141,7 @@
                                 </template>
                             </div>
                             <button type="button" class="secondary small icon-only" @click="$store.mixer.createEchoFromItem(item)" title="Find Similar (Echo)" x-html="$store.icons.search"></button>
+                            <button type="button" class="secondary small icon-only danger-hover" @click="$store.mixer.removePreviewItem(item)" :title="'Remove ' + item.name + ' from this preview'" x-html="$store.icons.xCircle"></button>
                         </li>
                     </template>
                 </ol>
@@ -481,9 +491,9 @@
                 <!-- Provider setup is offered only while the account allows AI. It stays
                      available when AI is allowed but not yet configured: that is exactly
                      the state the hub exists to resolve. -->
-                <div class="callout-info mb-sm mt-md flex-row justify-between align-center p-sm" x-show="!$store.settings.ai_disabled" x-cloak style="background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px;">
+                <div class="callout-info mb-sm mt-md flex-row justify-between align-center p-sm" x-show="!$store.settings.ai_disabled" x-cloak style="background: var(--bg-card-hover); border-left: 3px solid var(--accent); border-radius: 4px;">
                     <div>
-                        <strong style="color: var(--accent, #f5a623);">AI features</strong>
+                        <strong style="color: var(--accent);">AI features</strong>
                         <div class="text-subtle" style="font-size: 0.8rem;" x-text="$store.settings.generative_ai_available ? 'Ollama, Gemini, Library IQ, and enrichment are managed in the AI Hub.' : 'Optional. Set up Gemini or Ollama in the AI Hub to enable Assist, the AI Block Builder, and Library IQ.'"></div>
                     </div>
                     <button type="button" class="secondary small shrink-0 align-center gap-xs" @click="$store.settings.hide(); $store.modals.aiHubAction.show()">
@@ -530,7 +540,7 @@
                                 <div class="help-tooltip-container" tabindex="0" @click="showWebhookHelp = !showWebhookHelp" title="Click to pin setup guide">
                                     <span class="icon-subtle" x-html="$store.icons.info"></span>
                                     <div class="help-tooltip-popover">
-                                        <div class="bold mb-xs" style="color: var(--accent, #f5a623);">Emby Configuration</div>
+                                        <div class="bold mb-xs" style="color: var(--accent);">Emby Configuration</div>
                                         <div class="mb-sm">
                                             1. <strong>Settings → Notifications → Add Notification</strong><br>
                                             2. Select <strong>Webhook</strong><br>
@@ -538,7 +548,7 @@
                                             4. Content Type: <code>application/json</code><br>
                                             5. Events: <strong>Playback Stop</strong>, <strong>Mark Played/Unplayed</strong>, <strong>New Media Added</strong>
                                         </div>
-                                        <div class="bold mb-xs" style="color: var(--accent, #f5a623);">Jellyfin Configuration</div>
+                                        <div class="bold mb-xs" style="color: var(--accent);">Jellyfin Configuration</div>
                                         <div>
                                             1. <strong>Dashboard → Plugins → Webhook</strong><br>
                                             2. Add Generic Destination with the <strong>Webhook URL</strong><br>
@@ -552,9 +562,9 @@
                         </div>
 
                         <!-- Expandable / Pinned Webhook Guide -->
-                        <div x-show="showWebhookHelp" x-transition class="callout-info mb-sm mt-xs" style="font-size: 0.8rem; padding: 0.75rem; background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px;">
+                        <div x-show="showWebhookHelp" x-transition class="callout-info mb-sm mt-xs" style="font-size: 0.8rem; padding: 0.75rem; background: var(--bg-card-hover); border-left: 3px solid var(--accent); border-radius: 4px;">
                             <div class="flex-row justify-between align-center mb-xs">
-                                <strong style="color: var(--accent, #f5a623);">Webhook Setup Instructions</strong>
+                                <strong style="color: var(--accent);">Webhook Setup Instructions</strong>
                                 <button type="button" class="icon-btn" style="padding:0; font-size:1.1rem; line-height:1;" @click="showWebhookHelp = false">&times;</button>
                             </div>
                             <div class="mb-xs"><strong>Emby:</strong> Server Settings → Notifications → Add Notification → Webhook. Paste this connection's full Webhook URL into the Webhook URL field. Set Request Content Type to <code>application/json</code>. Check: <em>Playback Stop</em>, <em>Mark Played/Unplayed</em>, and <em>New Media Added</em>.</div>
@@ -790,7 +800,7 @@
         <div class="modal-body">
             <p>Select a model to use for AI generation. Star your favorites to make them available in the builder's quick-switcher.</p>
 
-            <div class="callout-info mb-md" style="font-size: 0.85rem; padding: 0.6rem 0.85rem; background: var(--bg-surface-2, rgba(255,255,255,0.05)); border-left: 3px solid var(--accent, #f5a623); border-radius: 4px; margin-bottom: 1rem;">
+            <div class="callout-info mb-md" style="font-size: 0.85rem; padding: 0.6rem 0.85rem; background: var(--bg-card-hover); border-left: 3px solid var(--accent); border-radius: 4px; margin-bottom: 1rem;">
                 <strong>Recommendation:</strong> Models with <strong>Tooling / Function Calling</strong> capabilities (such as <code>llama3.1+</code>, <code>qwen2.5+</code>, <code>mistral</code>, or <code>command-r</code>) are highly recommended if not required to construct valid smart playlist blocks. Simple chat-only or legacy models will struggle or fail to produce structured playlist blocks.
             </div>
 
@@ -1029,7 +1039,7 @@
                         </button>
                     </div>
 
-                    <div class="card p-md mb-md" x-show="$store.modals.musicQuickBuild.selectedAlbumName" style="background: rgba(255,255,255,0.05);">
+                    <div class="card p-md mb-md" x-show="$store.modals.musicQuickBuild.selectedAlbumName" style="background: var(--bg-card-hover);">
                         <span class="text-subtle" style="font-size: 0.8rem;">Selected Album:</span>
                         <div class="bold" style="font-size: 1.1rem; color: var(--accent);" x-text="$store.modals.musicQuickBuild.selectedAlbumName"></div>
                     </div>
@@ -1175,7 +1185,7 @@
             <!-- Split Layout: Runs list on left, detail/lineup on right -->
             <div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.5rem; min-height: 380px;">
                 <!-- Left: Runs list -->
-                <div style="border-right: 1px solid var(--border-color, rgba(255,255,255,0.1)); padding-right: 1rem; display: flex; flex-direction: column;">
+                <div style="border-right: 1px solid var(--border-color); padding-right: 1rem; display: flex; flex-direction: column;">
                     <div class="flex-row justify-between align-center mb-sm">
                         <span class="bold" style="font-size: 0.9rem;">Recent Runs</span>
                         <button type="button" class="secondary small icon-only" @click="$store.manager.loadBuildRuns()" title="Refresh History" x-html="$store.icons.refresh"></button>
@@ -1189,18 +1199,18 @@
                     <div style="overflow-y: auto; max-height: 480px; display: flex; flex-direction: column; gap: 0.5rem;">
                         <template x-for="run in $store.manager.historyModal.runs" :key="run.id">
                             <div class="card p-sm clickable"
-                                 :style="$store.manager.historyModal.selectedRun?.id === run.id ? 'border-color: var(--accent); background: rgba(255,255,255,0.08);' : 'background: rgba(255,255,255,0.02);'"
+                                 :style="$store.manager.historyModal.selectedRun?.id === run.id ? 'border-color: var(--accent); background: var(--bg-card-hover);' : 'background: var(--bg-card);'"
                                  @click="$store.manager.selectBuildRun(run.id)">
                                 <div class="flex-row justify-between align-center mb-xs">
                                     <span class="badge" 
-                                          :style="run.outcome === 'ok' || run.outcome === 'success' ? 'background: rgba(40,167,69,0.2); color: #28a745; font-size: 0.65rem;' : 'background: rgba(220,53,69,0.2); color: #ff6b6b; font-size: 0.65rem;'"
+                                          :style="run.outcome === 'ok' || run.outcome === 'success' ? 'background: rgba(var(--success-rgb),0.2); color: var(--success); font-size: 0.65rem;' : 'background: rgba(var(--danger-rgb),0.2); color: var(--log-error); font-size: 0.65rem;'"
                                           x-text="(run.outcome || 'unknown').toUpperCase()"></span>
                                     <span class="text-subtle" style="font-size: 0.75rem;" x-text="run.started_at ? new Date(run.started_at).toLocaleString() : ''"></span>
                                 </div>
                                 <div class="bold text-truncate" style="font-size: 0.85rem;" x-text="run.summary || (run.preset_id || 'Build Run')"></div>
                                 <div class="flex-row gap-xs text-subtle mt-xs" style="font-size: 0.75rem;">
                                     <span x-text="'Source: ' + (run.trigger_source || 'manual')"></span>
-                                    <span x-show="run.replay_origin_id" class="badge" style="background: rgba(13,110,253,0.2); color: #0d6efd; font-size: 0.6rem;">REPLAY</span>
+                                    <span x-show="run.replay_origin_id" class="badge" style="background: rgba(var(--accent-rgb),0.2); color: var(--accent); font-size: 0.6rem;">REPLAY</span>
                                 </div>
                             </div>
                         </template>
@@ -1225,7 +1235,7 @@
                             </div>
 
                             <!-- Lineup Comparison Toolbar -->
-                            <div class="card p-xs mb-sm flex-row align-center gap-xs" style="background: rgba(255,255,255,0.03);">
+                            <div class="card p-xs mb-sm flex-row align-center gap-xs" style="background: var(--bg-card);">
                                 <span class="text-subtle" style="font-size: 0.8rem;">Compare with:</span>
                                 <select x-model="$store.manager.historyModal.compareRunId" 
                                         @change="$store.manager.compareBuildRun($event.target.value)"
@@ -1238,11 +1248,11 @@
                             </div>
 
                             <!-- Diff Result Card -->
-                            <div class="card p-sm mb-sm" x-show="$store.manager.historyModal.diffResult" style="background: rgba(13,110,253,0.08); border: 1px solid rgba(13,110,253,0.3); font-size: 0.85rem;">
+                            <div class="card p-sm mb-sm" x-show="$store.manager.historyModal.diffResult" style="background: rgba(var(--accent-rgb),0.08); border: 1px solid rgba(var(--accent-rgb),0.3); font-size: 0.85rem;">
                                 <div class="bold mb-xs" style="color: var(--accent);">Lineup Diff:</div>
                                 <div class="flex-row gap-md">
-                                    <span style="color: #28a745;" x-text="'+' + $store.manager.historyModal.diffResult?.added_count + ' added'"></span>
-                                    <span style="color: #ff6b6b;" x-text="'-' + $store.manager.historyModal.diffResult?.removed_count + ' removed'"></span>
+                                    <span style="color: var(--success);" x-text="'+' + $store.manager.historyModal.diffResult?.added_count + ' added'"></span>
+                                    <span style="color: var(--log-error);" x-text="'-' + $store.manager.historyModal.diffResult?.removed_count + ' removed'"></span>
                                     <span class="text-subtle" x-text="$store.manager.historyModal.diffResult?.retained_count + ' retained'"></span>
                                     <span x-show="$store.manager.historyModal.diffResult?.order_changed" class="badge" style="font-size: 0.7rem;">Order changed</span>
                                 </div>
@@ -1250,7 +1260,7 @@
 
                             <!-- Lineup Items Table -->
                             <div class="bold mb-xs" style="font-size: 0.85rem;" x-text="'Lineup Items (' + ($store.manager.historyModal.selectedRun.items || []).length + ')'"></div>
-                            <div style="overflow-y: auto; max-height: 250px; border: 1px solid var(--border-color, rgba(255,255,255,0.1)); border-radius: 4px;">
+                            <div style="overflow-y: auto; max-height: 250px; border: 1px solid var(--border-color); border-radius: 4px;">
                                 <table class="manager-table w-full" style="font-size: 0.8rem;">
                                     <tbody>
                                         <template x-for="(item, idx) in ($store.manager.historyModal.selectedRun.items || [])" :key="item.occurrence_id || idx">
@@ -1265,7 +1275,7 @@
                             </div>
 
                             <!-- Replay Box -->
-                            <div class="card p-sm mt-md" style="background: rgba(255,255,255,0.03);">
+                            <div class="card p-sm mt-md" style="background: var(--bg-card);">
                                 <label class="field-label" style="font-size: 0.8rem;">Replay as New Playlist</label>
                                 <div class="flex-row gap-sm align-center">
                                     <input type="text" x-model="$store.manager.historyModal.replayName" class="ghost-input grow-1 m-0" style="font-size: 0.85rem;">
@@ -1288,3 +1298,28 @@
     </div>
 </div>
 
+
+<!-- Keyboard Shortcuts Modal -->
+<div class="modal-overlay system-modal" x-show="$store.modals.shortcuts.isOpen" x-cloak>
+    <div class="modal-window" @click.outside="$store.modals.shortcuts.isOpen = false">
+        <div class="modal-header">
+            <h2>Keyboard Shortcuts</h2>
+            <button type="button" class="icon-btn" @click="$store.modals.shortcuts.isOpen = false">&times;</button>
+        </div>
+        <div class="modal-body">
+            <ul class="shortcut-list no-list m-0">
+                <template x-for="s in $store.modals.shortcuts.list" :key="s.label">
+                    <li class="flex-row justify-between align-center">
+                        <span x-text="s.label"></span>
+                        <span class="flex-row gap-xs">
+                            <template x-for="k in s.keys" :key="k"><kbd x-text="k === 'Ctrl' && navigator.platform.includes('Mac') ? '⌘' : k"></kbd></template>
+                        </span>
+                    </li>
+                </template>
+            </ul>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="secondary" @click="$store.modals.shortcuts.isOpen = false">Close</button>
+        </div>
+    </div>
+</div>

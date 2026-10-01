@@ -3,7 +3,7 @@
     <meta charset="utf-8">
     <title>MixerBee</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="static/css/main.css?v4">
+    <link rel="stylesheet" href="static/css/main.css?v8">
     <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -17,6 +17,8 @@
                 zap: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2'></polygon></svg>`,
                 more: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='1'></circle><circle cx='12' cy='5' r='1'></circle><circle cx='12' cy='19' r='1'></circle></svg>`,
                 moreHorizontal: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='1'></circle><circle cx='19' cy='12' r='1'></circle><circle cx='5' cy='12' r='1'></circle></svg>`,
+                swap: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='17 1 21 5 17 9'></polyline><path d='M3 11V9a4 4 0 0 1 4-4h14'></path><polyline points='7 23 3 19 7 15'></polyline><path d='M21 13v2a4 4 0 0 1-4 4H3'></path></svg>`,
+                keyboard: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='2' y='6' width='20' height='12' rx='2'></rect><line x1='6' y1='10' x2='6.01' y2='10'></line><line x1='10' y1='10' x2='10.01' y2='10'></line><line x1='14' y1='10' x2='14.01' y2='10'></line><line x1='18' y1='10' x2='18.01' y2='10'></line><line x1='7' y1='14' x2='17' y2='14'></line></svg>`,
                 copy: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='9' y='9' width='13' height='13' rx='2' ry='2'></rect><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'></path></svg>`,
                 trash: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'></polyline><path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'></path><line x1='10' y1='11' x2='10' y2='17'></line><line x1='14' y1='11' x2='14' y2='17'></line></svg>`,
                 chevronUp: `<svg class='mb-icon' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='18 15 12 9 6 15'></polyline></svg>`,
@@ -145,6 +147,7 @@
                 },
                 buildMode: 'create',
                 createAsCollection: false,
+                playlistName: '',
                 existingPlaylistId: '',
                 userPlaylists: [],
                 past: [],
@@ -154,6 +157,12 @@
                 get canRedo() { return (this.future || []).length > 0; },
                 set canRedo(_) {},
                 hasActiveRules: () => false,
+                defaultBuildName: () => 'My Mix',
+                buildSummary: () => null,
+                activeFilterHints: () => [],
+                setAllBlocksOpen: () => {},
+                resetMovieFilters: () => {},
+                removePreviewItem: () => {},
                 isDirty: () => false,
                 captureDraft: () => ({ blocks: [], mix_options: {} }),
                 beginEdit: () => {},
@@ -203,6 +212,8 @@
                 availableNames: [],
                 records: [],
                 registry: {},
+                filterQuery: '',
+                filteredNames: () => [],
                 load: () => {},
                 refresh: () => {},
                 nameForId: () => '',
@@ -226,6 +237,11 @@
                 runNow: () => {},
                 snooze: () => {},
                 formatRulesSummary: () => 'Default mix rules (no active constraints).',
+                formatDays: () => '',
+                formatRelative: () => '',
+                nextRunLabel: () => '',
+                lastRunLog: () => '',
+                duplicateEntry: () => '',
                 loadAlbumsForArtist: () => {}
             });
             Alpine.store('manager', {
@@ -237,6 +253,7 @@
                 viewFilter: 'All',
                 isLoading: false,
                 selectedIds: [],
+                formatBuiltAt: () => '',
                 libraryIq: { total: 0, enriched: 0, percentage: 0 },
                 contentsModal: { isOpen: false, parentItem: null, title: '', items: [], isLoading: false, hasChanges: false },
                 overlapModal: { isOpen: false, isLoading: false, data: null },
@@ -266,6 +283,18 @@
                 isAllSelected: () => false,
                 toggleSelect: () => {},
                 selectAll: () => {},
+                page: 1,
+                pageSize: 50,
+                pageSizes: [25, 50, 100, 0],
+                paged: [],
+                counts: { All: 0, Playlist: 0, Collection: 0, MixerBee: 0 },
+                pageCount: () => 1,
+                pageNumbers: () => [],
+                rangeLabel: () => '',
+                isPageSelected: () => false,
+                isPagePartlySelected: () => false,
+                selectedOffPage: () => 0,
+                showSelectAllBanner: () => false,
                 toggleSort: () => {},
                 applyFilters: () => {},
                 load: () => {},
@@ -368,7 +397,7 @@
                 playlist: { isOpen: false, title: '', description: '', playlistName: '', count: 10, countInput: true },
                 import: { isOpen: false, code: '', name: '' },
                 smartBuild: { isOpen: false, items: [] },
-                preview: { isOpen: false, items: [], title: 'Preview', totalDuration: '', parentBlockUid: null },
+                preview: { isOpen: false, items: [], title: 'Preview', totalDuration: '', parentBlockUid: null, removedCount: 0 },
                 resetWatch: { isOpen: false, showName: '', season: '' },
                 history: { isOpen: false, toastHistory: [] },
                 ollamaModels: { isOpen: false },
@@ -378,6 +407,7 @@
                 saveRecipe: { isOpen: false, name: '', description: '', tags: '', is_favorite: false, blockToSave: null },
                 mixRules: { isOpen: false },
                 renamePreset: { isOpen: false, presetId: '', oldName: '', newName: '' },
+                shortcuts: { isOpen: false, list: [] },
                 musicQuickBuild: {
                     isOpen: false,
                     type: 'artist_spotlight',

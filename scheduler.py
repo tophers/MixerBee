@@ -849,6 +849,24 @@ class Scheduler:
                 self._schedule_locks.pop(schedule_id, None)
                 self._rerun_pending.pop(schedule_id, None)
 
+    def get_run_state(self, schedule_id: str) -> Dict:
+        """Live runtime facts for one schedule: its next clock fire and whether a run is in progress."""
+        next_run = None
+        try:
+            job = self.scheduler.get_job(schedule_id)
+            if job and job.next_run_time:
+                next_run = job.next_run_time.isoformat()
+        except Exception:
+            pass
+        with self._schedule_locks_guard:
+            lock = self._schedule_locks.get(schedule_id)
+        is_running = bool(lock and lock.locked())
+        try:
+            queued = self.scheduler.get_job(f"run_{schedule_id}") is not None
+        except Exception:
+            queued = False
+        return {"next_run_time": next_run, "is_running": is_running or queued}
+
     def get_all_schedules(self) -> List[Dict]:
         if not self.schedules and self.scheduler.running:
             try:

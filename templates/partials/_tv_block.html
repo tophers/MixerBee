@@ -1,7 +1,7 @@
 <!-- templates/partials/_tv_block.html -->
 <template x-if="block && block.type === 'tv'">
     <div x-data="{ editModalOpen: false, isOpen: index === $store.mixer.blocks.length - 1 }" x-init="$store.mixer.ensureBlockState(block)">
-        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open">
+        <details class="mixed-block" :open="isOpen" @toggle="isOpen = $el.open" @mixer-blocks-toggle.window="isOpen = $event.detail.open">
             {% set default_title = 'TV Block' %}
             {% include 'partials/_block_header.html' %}
 
@@ -126,7 +126,9 @@
                         <span x-html="$store.icons.plus"></span> Add Series
                     </button>
                 </div>
-                <div class="modal-footer"><button type="button" class="primary" @click="editModalOpen = false">Done</button></div>
+                <div class="modal-footer filter-modal-footer">
+                    <span class="filter-live-count mr-auto" aria-live="polite"><strong x-text="block._previewLoading ? '…' : (block._previewCount ?? 0)"></strong> matches</span>
+                    <button type="button" class="primary" @click="editModalOpen = false">Done</button></div>
             </div>
         </div>
     </div>

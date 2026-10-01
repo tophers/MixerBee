@@ -29,7 +29,7 @@
         }
     }" x-init="$store.mixer.ensureBlockState(block)">
         <div class="block-wrapper" :class="block.isSnapshot ? 'is-snapshot' : ''">
-            <details class="mixed-block mirror-block" :open="isOpen" @toggle="isOpen = $el.open">
+            <details class="mixed-block mirror-block" :open="isOpen" @toggle="isOpen = $el.open" @mixer-blocks-toggle.window="isOpen = $event.detail.open">
                 {% set default_title = 'Echo Block' %}
                 {% include 'partials/_block_header.html' %}
 
@@ -145,12 +145,12 @@
                         </div>
 
                         <div class="autocomplete-suggestions"
-                             style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: #1e1e1e !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
+                             style="position: absolute; left: 0; right: 0; top: 100%; z-index: 1100; max-height: 250px; overflow-y: auto; background: var(--panel) !important; border: 1px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.6); border-radius: 0 0 var(--radius-sm) var(--radius-sm);"
                              x-show="suggestions.length > 0"
                              x-cloak>
                             <ul style="margin: 0; padding: 0; list-style: none;">
                                 <template x-for="s in suggestions" :key="block._uid + '_mir_' + s.data.Id">
-                                    <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05); color: #ffffff;"
+                                    <li style="padding: 12px; cursor: pointer; border-bottom: 1px solid var(--divider-color); color: var(--text);"
                                         class="dropdown-item-hover"
                                         @click="if(!block.filters.seeds_positive.some(x => x.Id === s.data.Id)) block.filters.seeds_positive.push({ Id: s.data.Id, Name: s.data.Name }); searchQuery = ''; suggestions = []; $store.mixer.updatePreviewCount(block)"
                                         x-text="s.text"></li>
@@ -162,16 +162,16 @@
                     <!-- Selection Indicator -->
                     <div class="mb-lg">
                         <label class="field-label">Active Seeds</label>
-                        <div class="token-container" style="min-height: 42px; padding: 6px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05);">
+                        <div class="token-container" style="min-height: 42px; padding: 6px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--divider-color);">
                             <template x-for="s in (block.filters?.seeds_positive || [])" :key="block._uid + '_pos_' + s.Id">
-                                <span class="token token-logic-any" @click="$store.mixer.cycleEchoToken(block, 'seeds_positive', s)">
+                                <span class="token token-logic-any" title="More like this — click to switch to Less like this" @click="$store.mixer.cycleEchoToken(block, 'seeds_positive', s)">
                                     <span class="token-state-trigger">⊕</span>
                                     <span class="token-label" x-text="s.Name"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'seeds_positive', block.filters.seeds_positive.indexOf(s))">&times;</b>
                                 </span>
                             </template>
                             <template x-for="s in (block.filters?.seeds_negative || [])" :key="block._uid + '_neg_' + s.Id">
-                                <span class="token token-logic-exclude" @click="$store.mixer.cycleEchoToken(block, 'seeds_negative', s)">
+                                <span class="token token-logic-exclude" title="Less like this — click to switch to More like this" @click="$store.mixer.cycleEchoToken(block, 'seeds_negative', s)">
                                     <span class="token-state-trigger">⊖</span>
                                     <span class="token-label" x-text="s.Name"></span>
                                     <b class="token-remove" @click.stop="$store.mixer.removeToken(block, 'seeds_negative', block.filters.seeds_negative.indexOf(s))">&times;</b>
@@ -234,7 +234,8 @@
                         </div>
                     </fieldset>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer filter-modal-footer">
+                    <span class="filter-live-count mr-auto" aria-live="polite"><strong x-text="block._previewLoading ? '…' : (block._previewCount ?? 0)"></strong> matches</span>
                     <button type="button" class="primary" @click="editModalOpen = false">Done</button>
                 </div>
             </div>

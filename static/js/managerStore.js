@@ -4,6 +4,18 @@ import { api } from './apiClient.js';
 import { toast, useApi } from './utils.js';
 import { confirmModal } from './modals.js';
 
+const PAGE_SIZE_KEY = 'mixerbee:managerPageSize';
+export const PAGE_SIZES = [25, 50, 100, 0];   // 0 = show all
+const DEFAULT_PAGE_SIZE = 50;
+
+function storedPageSize() {
+    try {
+        const n = parseInt(localStorage.getItem(PAGE_SIZE_KEY), 10);
+        if (PAGE_SIZES.includes(n)) return n;
+    } catch (e) { }
+    return DEFAULT_PAGE_SIZE;
+}
+
 export const managerStore = {
     items: [],
     filtered: [],
@@ -13,6 +25,14 @@ export const managerStore = {
     viewFilter: 'All',
     isLoading: false,
     selectedIds: [],
+    _lastSelectedId: null,
+
+    // Pagination is purely client-side: filter -> search -> sort -> slice.
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+    pageSizes: PAGE_SIZES,
+    paged: [],
+    counts: { All: 0, Playlist: 0, Collection: 0, MixerBee: 0 },
 
     get libraryIq() { return Alpine.store('ai')?.libraryIq || { total: 0, enriched: 0, percentage: 0 }; },
     set libraryIq(_) {},
@@ -33,8 +53,21 @@ export const managerStore = {
         if (!uid) return;
         this.isLoading = true;
         this.selectedIds = [];
+        this.pageSize = storedPageSize();
         try {
-            const res = await useApi(api.get(`api/manageable_items?user_id=${uid}`));
+            // Silent: the table shows its own loading rows, and a load is not worth a toast.
+            const [res, runsRes] = await Promise.all([
+                useApi(api.get(`api/manageable_items?user_id=${uid}`), null, true, false),
+                useApi(api.get('api/build_runs?limit=500'), null, true, false)
+            ]);
+            if (res.status === 'error') throw new Error(res.error?.detail || 'load failed');
+            // Latest successful build per output (runs arrive newest first).
+            const builtBy = new Map();
+            for (const run of (runsRes?.data?.runs || [])) {
+                if (run.output_id && run.outcome !== 'error' && !builtBy.has(run.output_id)) {
+                    builtBy.set(run.output_id, run.finished_at || run.started_at);
+                }
+            }
             if (res.data) {
                 const rawList = Array.isArray(res.data) ? res.data : (res.data.Items || []);
                 this.items = rawList.map(item => ({
@@ -45,9 +78,11 @@ export const managerStore = {
                     DisplayType: item.DisplayType || (item.Type === 'BoxSet' ? 'Collection' : item.Type),
                     ChildCount: item.ChildCount !== undefined ? item.ChildCount : (item.child_count || 0),
                     FormattedRuntime: item.FormattedRuntime || '',
-                    ServerUrl: item.ServerUrl || ''
+                    ServerUrl: item.ServerUrl || '',
+                    BuiltByMixerBee: builtBy.has(item.Id || item.id),
+                    LastBuiltAt: builtBy.get(item.Id || item.id) || ''
                 }));
-                this.applyFilters();
+                this.applyFilters({ resetPage: false });
             }
         } catch (e) { 
             toast("Failed to load manager items.", false); 
@@ -56,13 +91,21 @@ export const managerStore = {
         }
     },
 
-    applyFilters() {
+    applyFilters({ resetPage = true } = {}) {
         let list = Array.isArray(this.items) ? [...this.items] : [];
-        if (this.viewFilter !== 'All') list = list.filter(i => i.DisplayType === this.viewFilter);
         if (this.searchQuery) {
             const q = this.searchQuery.toLowerCase().trim();
             list = list.filter(i => i.Name.toLowerCase().includes(q));
         }
+        // Pill counts reflect the search, so they say where the matches are.
+        this.counts = {
+            All: list.length,
+            Playlist: list.filter(i => i.DisplayType === 'Playlist').length,
+            Collection: list.filter(i => i.DisplayType === 'Collection').length,
+            MixerBee: list.filter(i => i.BuiltByMixerBee).length
+        };
+        if (this.viewFilter === 'MixerBee') list = list.filter(i => i.BuiltByMixerBee);
+        else if (this.viewFilter !== 'All') list = list.filter(i => i.DisplayType === this.viewFilter);
 
         const col = this.sortColumn;
         const dir = this.sortDirection === 'asc' ? 1 : -1;
@@ -87,6 +130,57 @@ export const managerStore = {
         // Prune selected IDs that are no longer in filtered view
         const validIds = new Set(list.map(i => i.Id));
         this.selectedIds = this.selectedIds.filter(id => validIds.has(id));
+        if (resetPage) this.page = 1;
+        this.updatePage();
+    },
+
+    // -- pagination -------------------------------------------------------------
+
+    pageCount() {
+        if (!this.pageSize) return 1;
+        return Math.max(1, Math.ceil((this.filtered || []).length / this.pageSize));
+    },
+
+    updatePage() {
+        const list = this.filtered || [];
+        this.page = Math.min(Math.max(1, this.page), this.pageCount());
+        this.paged = this.pageSize ? list.slice((this.page - 1) * this.pageSize, this.page * this.pageSize) : list;
+        this._lastSelectedId = null;
+    },
+
+    goToPage(n) {
+        this.page = n;
+        this.updatePage();
+        document.getElementById('manager-pane')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    },
+
+    setPageSize(size) {
+        this.pageSize = Number(size) || 0;
+        try { localStorage.setItem(PAGE_SIZE_KEY, String(this.pageSize)); } catch (e) { }
+        this.page = 1;
+        this.updatePage();
+    },
+
+    rangeLabel() {
+        const total = (this.filtered || []).length;
+        if (!total) return '';
+        if (!this.pageSize || total <= this.pageSize) return `${total} ${total === 1 ? 'list' : 'lists'}`;
+        const start = (this.page - 1) * this.pageSize + 1;
+        return `Showing ${start}–${start + this.paged.length - 1} of ${total}`;
+    },
+
+    // Page buttons with gaps: 1 … 4 5 6 … 12
+    pageNumbers() {
+        const total = this.pageCount();
+        if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+        const pages = new Set([1, total, this.page - 1, this.page, this.page + 1]);
+        const sorted = [...pages].filter(n => n >= 1 && n <= total).sort((a, b) => a - b);
+        const out = [];
+        sorted.forEach((n, i) => {
+            if (i && n - sorted[i - 1] > 1) out.push('…' + n);
+            out.push(n);
+        });
+        return out;
     },
 
     toggleSort(col) {
@@ -96,24 +190,74 @@ export const managerStore = {
     },
 
     // Multi-selection
-    toggleSelect(id) {
-        if (this.selectedIds.includes(id)) {
+    // Shift-click selects (or clears) the whole range since the last clicked row.
+    toggleSelect(id, event = null) {
+        // Ranges stay within the visible page.
+        const ids = (this.paged || []).map(i => i.Id);
+        const anchor = this._lastSelectedId;
+        if (event?.shiftKey && anchor && anchor !== id && ids.includes(anchor)) {
+            const [from, to] = [ids.indexOf(anchor), ids.indexOf(id)].sort((a, b) => a - b);
+            const range = ids.slice(from, to + 1);
+            const selecting = !this.selectedIds.includes(id);
+            this.selectedIds = selecting
+                ? [...new Set([...this.selectedIds, ...range])]
+                : this.selectedIds.filter(x => !range.includes(x));
+        } else if (this.selectedIds.includes(id)) {
             this.selectedIds = this.selectedIds.filter(x => x !== id);
         } else {
             this.selectedIds.push(id);
         }
+        this._lastSelectedId = id;
     },
 
-    selectAll() {
-        if (this.isAllSelected()) {
-            this.selectedIds = [];
+    formatBuiltAt(iso) {
+        return iso ? Alpine.store('scheduler').formatRelative(iso) : '';
+    },
+
+    // Header checkbox: selects or clears the current page only (Gmail pattern).
+    togglePageSelection() {
+        const pageIds = (this.paged || []).map(i => i.Id);
+        if (this.isPageSelected()) {
+            const drop = new Set(pageIds);
+            this.selectedIds = this.selectedIds.filter(id => !drop.has(id));
         } else {
-            this.selectedIds = (this.filtered || []).map(i => i.Id);
+            this.selectedIds = [...new Set([...this.selectedIds, ...pageIds])];
         }
     },
 
+    isPageSelected() {
+        const page = this.paged || [];
+        return page.length > 0 && page.every(i => this.selectedIds.includes(i.Id));
+    },
+
+    isPagePartlySelected() {
+        const page = this.paged || [];
+        return !this.isPageSelected() && page.some(i => this.selectedIds.includes(i.Id));
+    },
+
     isAllSelected() {
-        return (this.filtered || []).length > 0 && this.selectedIds.length === this.filtered.length;
+        const list = this.filtered || [];
+        return list.length > 0 && this.selectedIds.length === list.length;
+    },
+
+    selectAllMatching() {
+        this.selectedIds = (this.filtered || []).map(i => i.Id);
+    },
+
+    clearSelection() {
+        this.selectedIds = [];
+        this._lastSelectedId = null;
+    },
+
+    // Selected rows that are not on the current page, so the bulk bar can say so.
+    selectedOffPage() {
+        const onPage = new Set((this.paged || []).map(i => i.Id));
+        return this.selectedIds.filter(id => !onPage.has(id)).length;
+    },
+
+    // The "select all N matching" banner only matters when there is more than one page.
+    showSelectAllBanner() {
+        return this.pageCount() > 1 && this.isPageSelected();
     },
 
     async bulkDeleteSelected() {
