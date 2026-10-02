@@ -111,14 +111,22 @@ export const presetStore = {
     async updateCurrent() {
         if (!this.currentName) return;
         const mixer = Alpine.store('mixer');
-        const mixerBlocks = mixer.blocks;
-        const res = await useApi(api.post('api/presets', {
-            name: this.currentName,
-            data: mixerBlocks,
-            mix_options: mixer.mix_options
-        }));
+        const name = this.currentName;
+        // Snapshot what is sent, so the cache matches the server even if the mixer
+        // changes while the request is in flight.
+        const saved = JSON.parse(JSON.stringify({ data: mixer.blocks, mix_options: mixer.mix_options }));
+        const res = await useApi(api.post('api/presets', { name, ...saved }));
         if (res.status === 'ok') {
-            this.registry[this.currentName] = JSON.parse(JSON.stringify(mixerBlocks));
+            // Update cached blocks and mix rules from the saved payload; load() reads
+            // mix_options from records. Then refresh, which only adds server-side
+            // fields -- if it fails the cache is still correct.
+            this.registry[name] = saved.data;
+            const record = this.records.find(r => r.name === name);
+            if (record) {
+                record.data = saved.data;
+                record.mix_options = saved.mix_options;
+            }
+            await this.refresh();
             mixer.markSaved();
             toast('Preset saved.', true);
         }
@@ -128,16 +136,26 @@ export const presetStore = {
         if (!this.currentName) return;
         const presetId = this.idForName(this.currentName);
         if (!presetId) return toast("Preset ID not found.", false);
+        let newName;
         try {
-            const newName = await Alpine.store('modals').renamePresetAction.show({ presetId, oldName: this.currentName, newName: this.currentName });
-            if (!newName || !newName.trim() || newName.trim() === this.currentName) return;
-            const res = await useApi(api.patch(`api/presets/${presetId}`, { name: newName.trim() }));
+            newName = await Alpine.store('modals').renamePresetAction.show({ presetId, oldName: this.currentName, newName: this.currentName });
+        } catch (e) {
+            return; // Modal cancelled.
+        }
+        newName = (newName || '').trim();
+        if (!newName || newName === this.currentName) return;
+        try {
+            // useApi toasts server-side failures itself.
+            const res = await useApi(api.patch(`api/presets/${encodeURIComponent(presetId)}`, { name: newName }));
             if (res.status === 'ok') {
                 await this.refresh();
-                this.currentName = newName.trim();
-                toast(`Preset renamed to "${newName.trim()}"`, true);
+                this.currentName = newName;
+                toast(`Preset renamed to "${newName}"`, true);
             }
-        } catch (e) { }
+        } catch (e) {
+            console.error('Preset rename failed:', e);
+            toast('Could not rename preset.', false);
+        }
     },
 
     async deleteCurrent() {

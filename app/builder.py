@@ -523,7 +523,8 @@ def apply_duplicate_and_freshness(
     dup_opt = dup_opt or {}
     freshness_opt = freshness_opt or {}
 
-    dup_mode = dup_opt.get("mode", "suppress")
+    # The Mix Rules UI writes cross_block_policy; "mode" is the older API/legacy key.
+    dup_mode = dup_opt.get("cross_block_policy") or dup_opt.get("mode") or "suppress"
     max_franchise = int(dup_opt.get("max_movies_per_franchise", 0) or 0)
 
     # 1. Freshness exclusion
@@ -621,7 +622,12 @@ def apply_runtime_budget(
         return rows
 
     target_minutes = int(budget_opt.get("target_minutes", 0) or 0)
-    allowed_overrun = int(budget_opt.get("allowed_overrun_minutes", 15) or 15)
+    # Only an absent value gets the default; an explicit 0 means "no overrun allowed".
+    raw_overrun = budget_opt.get("allowed_overrun_minutes")
+    allowed_overrun = 15 if raw_overrun in (None, "") else int(raw_overrun)
+    if allowed_overrun < 0:
+        warnings.append("Runtime budget overrun cannot be negative; using 0 minutes.")
+        allowed_overrun = 0
 
     if mode == "end_time":
         end_time_str = budget_opt.get("end_local_time")

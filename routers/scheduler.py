@@ -4,7 +4,6 @@ routers/scheduler.py – APIRouter
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from apscheduler.triggers.cron import CronTrigger
 
 import models
 import scheduler
@@ -57,22 +56,7 @@ def api_get_schedules(auth_deps: dict = Depends(get_current_auth_headers)):
 @router.post("/api/schedules")
 def api_create_schedule(req: models.ScheduleRequest, auth_deps: dict = Depends(get_current_auth_headers)):
     try:
-        crontab = ""
-        if req.schedule_details.frequency == "interval":
-            if not req.schedule_details.interval_minutes or req.schedule_details.interval_minutes < 1:
-                raise ValueError("Interval minutes must be at least 1.")
-            crontab = f"interval:{req.schedule_details.interval_minutes}"
-        else:
-            hour, minute = req.schedule_details.time.split(':')
-            if req.schedule_details.frequency == "weekly":
-                if not req.schedule_details.days_of_week:
-                    raise ValueError("days_of_week must be provided for weekly frequency.")
-                days = ",".join(map(str, req.schedule_details.days_of_week))
-                crontab = f"{minute} {hour} * * {days}"
-            else:
-                crontab = f"{minute} {hour} * * *"
-            
-            CronTrigger.from_crontab(crontab)
+        crontab = scheduler.build_crontab(req.schedule_details.model_dump())
 
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:
@@ -107,22 +91,7 @@ def api_update_schedule(schedule_id: str, req: models.ScheduleRequest, auth_deps
     if not existing or existing.get("connection_id") != auth_deps["connection_id"]:
         raise HTTPException(404, "Schedule not found.")
     try:
-        crontab = ""
-        if req.schedule_details.frequency == "interval":
-            if not req.schedule_details.interval_minutes or req.schedule_details.interval_minutes < 1:
-                raise ValueError("Interval minutes must be at least 1.")
-            crontab = f"interval:{req.schedule_details.interval_minutes}"
-        else:
-            hour, minute = req.schedule_details.time.split(':')
-            if req.schedule_details.frequency == "weekly":
-                if not req.schedule_details.days_of_week:
-                    raise ValueError("days_of_week must be provided for weekly frequency.")
-                days = ",".join(map(str, req.schedule_details.days_of_week))
-                crontab = f"{minute} {hour} * * {days}"
-            else:
-                crontab = f"{minute} {hour} * * *"
-            
-            CronTrigger.from_crontab(crontab)
+        crontab = scheduler.build_crontab(req.schedule_details.model_dump())
 
         media = media_for_user(auth_deps, req.user_id)
         if req.create_as_collection:

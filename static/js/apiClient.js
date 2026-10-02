@@ -135,6 +135,10 @@ export const api = {
     put(endpoint, body) { 
         return this.request(endpoint, body, 'PUT'); 
     },
+
+    patch(endpoint, body) {
+        return this.request(endpoint, body, 'PATCH');
+    },
     
     del(endpoint) { 
         return this.request(endpoint, null, 'DELETE'); 

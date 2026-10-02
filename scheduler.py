@@ -28,6 +28,57 @@ import logging
 logging.getLogger('apscheduler').setLevel(logging.INFO if app_state.VERBOSE_LOGGING else logging.WARNING)
 
 from quick_playlist_registry import QUICK_PLAYLIST_MAP
+
+# The UI numbers days with Sunday = 0; APScheduler's crontab parser uses Monday = 0.
+# Crontabs are written with day names so neither numbering can be misread.
+UI_DAY_NAMES = ("sun", "mon", "tue", "wed", "thu", "fri", "sat")
+
+
+def build_crontab(details: Dict) -> str:
+    """Build the stored schedule string from a ScheduleDetails dict.
+
+    Returns ``interval:<minutes>`` for interval schedules, otherwise a five-field
+    crontab with named weekdays. Raises ValueError for unusable details.
+    """
+    frequency = details.get("frequency")
+    if frequency == "interval":
+        minutes = details.get("interval_minutes")
+        if not minutes or minutes < 1:
+            raise ValueError("Interval minutes must be at least 1.")
+        return f"interval:{minutes}"
+
+    try:
+        hour, minute = (int(part) for part in str(details.get("time") or "").split(":"))
+    except ValueError:
+        raise ValueError("time must be in HH:MM format.") from None
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError("time must be in HH:MM format.")
+
+    if frequency == "weekly":
+        days = details.get("days_of_week")
+        if not days:
+            raise ValueError("days_of_week must be provided for weekly frequency.")
+        if any(not isinstance(d, int) or not 0 <= d <= 6 for d in days):
+            raise ValueError("days_of_week values must be 0 (Sunday) through 6 (Saturday).")
+        day_field = ",".join(UI_DAY_NAMES[d] for d in sorted(set(days)))
+    elif frequency == "daily":
+        day_field = "*"
+    else:
+        raise ValueError(f"Unknown schedule frequency: '{frequency}'.")
+
+    crontab = f"{minute} {hour} * * {day_field}"
+    CronTrigger.from_crontab(crontab)
+    return crontab
+
+
+def _legacy_crontab_with_day_names(crontab: str) -> str:
+    """Rewrite a legacy numeric weekday field (UI numbering, Sunday = 0) to day names."""
+    fields = crontab.split()
+    if len(fields) == 5:
+        tokens = fields[4].split(",")
+        if all(t.isdigit() and int(t) <= 6 for t in tokens):
+            fields[4] = ",".join(UI_DAY_NAMES[int(t)] for t in tokens)
+    return " ".join(fields)
 LEGACY_TYPE_MAP = {"continue_watching": "next_up", "forgotten_favorites": "from_the_vault"}
 
 def run_playlist_job(**schedule_data) -> Dict:
@@ -412,17 +463,27 @@ class Scheduler:
         return pending
 
     def _get_trigger(self, schedule_data: Dict):
-        details = schedule_data.get("schedule_details", {})
+        details = schedule_data.get("schedule_details") or {}
         frequency = details.get("frequency")
-        
+
         if frequency == "interval":
             mins = details.get("interval_minutes", 30)
             return IntervalTrigger(minutes=mins)
-        
+
+        # Rebuild from schedule_details rather than trusting the stored crontab: rows
+        # saved before day names were used hold UI day numbers (Sunday = 0), which
+        # APScheduler reads as Monday = 0 and fires a day late.
+        if frequency in ("daily", "weekly"):
+            try:
+                return CronTrigger.from_crontab(build_crontab(details))
+            except ValueError:
+                logger.warning("Schedule %s has unusable schedule details; using its stored crontab.",
+                               schedule_data.get("id"))
+
         crontab = schedule_data.get("crontab")
-        if crontab:
-            return CronTrigger.from_crontab(crontab)
-        
+        if crontab and not crontab.startswith("interval:"):
+            return CronTrigger.from_crontab(_legacy_crontab_with_day_names(crontab))
+
         return None
 
     @staticmethod
@@ -622,22 +683,35 @@ class Scheduler:
             pass
         return False
 
-    def reload_schedules(self) -> Dict[str, Dict]:
+    def reload_schedules(self, strict: bool = False) -> Dict[str, Dict]:
         """Re-read every schedule from the database and resync APScheduler to match.
 
         _load_schedules() is a pure read: on its own it changes neither self.schedules
         nor the live jobs. A backup restore rewrites the schedules table underneath a
         running scheduler, so without this resync deleted schedules keep their in-memory
         jobs and restored ones never get a job until the process restarts.
+
+        By default an unreadable table keeps the schedules already loaded. With
+        ``strict`` (backup restore) any read or trigger error is raised instead, before
+        live state changes, so the caller can roll the database back.
         """
         try:
             new_schedules = self._load_schedules()
         except Exception:
+            if strict:
+                raise
             logger.error(
                 "Schedule reload aborted; keeping the %d schedule(s) already loaded.",
                 len(self.schedules)
             )
             return self.schedules
+
+        if strict:
+            for schedule_id, schedule_data in new_schedules.items():
+                try:
+                    self._get_trigger(schedule_data)
+                except Exception as e:
+                    raise ValueError(f"Schedule {schedule_id} has an invalid trigger: {e}") from e
 
         previous_ids = set(self.schedules)
         self.schedules = new_schedules

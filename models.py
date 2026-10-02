@@ -53,6 +53,7 @@ class FreshnessOptions(BaseModel):
     exhaustion_policy: str = "shorter"
 
 class DuplicatePolicyOptions(BaseModel):
+    cross_block_policy: Optional[str] = None
     mode: str = "suppress"
     max_movies_per_franchise: int = 0
 
@@ -68,7 +69,7 @@ class SequencingOptions(BaseModel):
 class RuntimeBudgetOptions(BaseModel):
     mode: str = "off"
     target_minutes: int = 0
-    allowed_overrun_minutes: int = 15
+    allowed_overrun_minutes: int = Field(default=15, ge=0)
     end_local_time: Optional[str] = None
     timezone: Optional[str] = None
 
