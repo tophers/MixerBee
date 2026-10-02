@@ -216,8 +216,8 @@ MixerBee provides both online, owner-authenticated API backup/restore and file-s
 
 The installation owner can create, inspect, and restore configuration archives while MixerBee is running:
 - **Download**: `GET /api/backup/download` creates a verified `.zip` archive containing a consistent SQLite online snapshot (`mixerbee.db`), ChromaDB collections, and `manifest.json`.
-- **Inspect**: `POST /api/backup/inspect` checks archive validity, validates schema versions, and runs an SQLite integrity check without applying changes.
-- **Restore**: `POST /api/backup/restore` stages the restoration, creates an automatic rollback backup of the active database, restores SQLite and ChromaDB data in place, and reloads active connections and schedules.
+- **Inspect**: `POST /api/backup/inspect` checks archive validity, rejects unsupported manifest `schema_version` values, runs an SQLite integrity check, and confirms the database is a MixerBee database with an owner account and the tables/columns the current version needs (after its additive migrations, applied to a scratch copy) — all without applying changes.
+- **Restore**: `POST /api/backup/restore` stages the restoration, creates an automatic rollback backup of the active database, restores SQLite and ChromaDB data in place, and reloads active connections and schedules. The archive is validated and migrated before anything live is replaced; if that or the reload fails, the database and ChromaDB are rolled back and the restore returns an error.
 
 ### File-system backup
 
